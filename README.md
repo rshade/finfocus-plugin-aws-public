@@ -1,0 +1,1 @@
+# pulumicost-plugin-aws-public
