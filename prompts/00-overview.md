@@ -1,27 +1,29 @@
 # PulumiCost AWS Public Plugin – Prompt Pack Overview
 
-You are OpenCode v0.15.3 using the GrokZeroFree model.
-Your job is to implement the `pulumicost-plugin-aws-public` Go plugin according to the design below.
+You are implementing the `pulumicost-plugin-aws-public` Go plugin according to the design below.
 
 ## Context
 
 - Repo: `https://github.com/rshade/pulumicost-plugin-aws-public`
-- Language: Go
-- Purpose: A **fallback cost plugin** for PulumiCost that estimates AWS resource costs using **public AWS on‑demand pricing**, without needing CUR/Cost Explorer/Vantage data.
+- Language: Go (version 1.21 or later)
+- Purpose: A **fallback cost plugin** for PulumiCost that estimates AWS resource costs using **public AWS on-demand pricing**, without needing CUR/Cost Explorer/Vantage data.
 - Architecture:
-  - The PulumiCost **core** calls external plugins as binaries.
-  - This plugin reads a stack’s AWS resources (JSON) from stdin and writes back a JSON envelope with estimated costs.
+  - The PulumiCost **core** calls external plugins via **gRPC**.
+  - This plugin implements the **CostSourceService** gRPC interface from `pulumicost.v1` proto.
+  - Plugin announces its PORT to stdout, then serves gRPC on 127.0.0.1.
+  - Core calls methods like `GetProjectedCost()`, `Supports()`, `Name()` via gRPC.
+  - **One resource per RPC call** (not batch processing).
 - Key design choices (already agreed):
   1. Use **embedded, trimmed JSON** pricing per region via `//go:embed` (Option A).
-  2. Use **GoReleaser** to build **one binary per region**, each with only that region’s pricing.
+  2. Use **GoReleaser** to build **one binary per region**, each with only that region's pricing.
   3. Binary naming convention:
      - `pulumicost-plugin-aws-public-<region>`
      - e.g. `pulumicost-plugin-aws-public-us-east-1`
   4. For now, **single-region** per binary; multi-region stacks are handled by having core call multiple region binaries.
-  5. Error protocol:
-     - Plugin returns a **JSON envelope** with `status: "ok"` or `status: "error"`.
-     - On mismatched region, error code: `UNSUPPORTED_REGION` plus metadata telling core which region is required.
-     - Core is responsible for **downloading/using** the correct region binary, but we still add the error in the plugin so core can act on it later.
+  5. gRPC error protocol:
+     - Use proto-defined `ErrorCode` enum (not custom codes).
+     - On mismatched region, return `ERROR_CODE_UNSUPPORTED_REGION` with `ErrorDetail.details` map containing `pluginRegion` and `requiredRegion`.
+     - Core is responsible for **downloading/using** the correct region binary based on error metadata.
 
 ## Services to support in v1
 
@@ -36,7 +38,9 @@ Start small but useful:
   - RDS
   - DynamoDB
 
-For unimplemented services, plugin should emit `MonthlyCost=0` with low confidence and a clear assumption / warning.
+For unimplemented services:
+- `Supports()` RPC returns `supported=true` with reason "Limited support - returns $0 estimate"
+- `GetProjectedCost()` RPC returns `cost_per_month=0` with billing_detail explaining not implemented
 
 ## Pricing data
 
@@ -47,6 +51,7 @@ For unimplemented services, plugin should emit `MonthlyCost=0` with low confiden
   - It **trims** the data to only the fields/services we need.
   - Writes per-region JSON files into `data/aws_pricing_<region>.json`.
 - The plugin embeds one such JSON per region using `//go:embed`.
+- Pricing client must be **thread-safe** for concurrent gRPC calls.
 
 ## Build tags per region
 
@@ -71,123 +76,104 @@ For unimplemented services, plugin should emit `MonthlyCost=0` with low confiden
   - `us-west-2` → build tag `region_usw2`
   - `eu-west-1` → build tag `region_euw1`
 
-## Plugin protocol
+## gRPC Protocol
 
-The plugin **always** writes a JSON envelope like:
+The plugin implements `CostSourceService` from `pulumicost.v1`:
 
-```jsonc
-{
-  "version": 1,
-  "status": "ok", // or "error"
-  "result": {
-    "resources": [/* ResourceCostEstimate */],
-    "totalMonthly": 123.45,
-    "totalHourly": 0.17
-  },
-  "error": null,
-  "warnings": []
+### Required RPCs
+
+1. **Name()** → `NameResponse{name: "aws-public"}`
+2. **Supports(ResourceDescriptor)** → `SupportsResponse{supported: bool, reason: string}`
+3. **GetProjectedCost(ResourceDescriptor)** → `GetProjectedCostResponse{unit_price, currency, cost_per_month, billing_detail}`
+
+### Optional RPCs
+4. **GetPricingSpec(ResourceDescriptor)** → `PricingSpec` (detailed pricing info)
+
+### ResourceDescriptor (Proto Input)
+
+```protobuf
+message ResourceDescriptor {
+  string provider = 1;       // "aws"
+  string resource_type = 2;  // "ec2", "ebs", "s3", etc.
+  string sku = 3;            // instance type (e.g., "t3.micro") or volume type (e.g., "gp3")
+  string region = 4;         // "us-east-1", "us-west-2", etc.
+  map<string, string> tags = 5;  // For EBS, may contain "size" or "volume_size"
 }
 ```
 
-When there is a region mismatch (e.g. all resources are in `us-west-2` but this binary is compiled for `us-east-1`), we return:
+### GetProjectedCostResponse (Proto Output)
 
-```jsonc
-{
-  "version": 1,
-  "status": "error",
-  "error": {
-    "code": "UNSUPPORTED_REGION",
-    "message": "This aws-public plugin is compiled for us-east-1 but resources are in us-west-2.",
-    "meta": {
-      "pluginRegion": "us-east-1",
-      "requiredRegion": "us-west-2"
-    }
-  }
+```protobuf
+message GetProjectedCostResponse {
+  double unit_price = 1;       // Hourly rate for EC2, GB-month rate for EBS
+  string currency = 2;         // "USD"
+  double cost_per_month = 3;   // Total monthly cost (730 hours for EC2)
+  string billing_detail = 4;   // Human-readable assumptions
 }
 ```
 
-Exit code should be **non-zero** when `status = "error"`.
+### Error Handling
 
-## Envelope types
+Use `ErrorCode` enum from proto (see `pulumicost-spec/proto/pulumicost/v1/costsource.proto`):
 
-Define shared types (these can live in `internal/plugin/types.go`):
+- `ERROR_CODE_UNSUPPORTED_REGION` (9): Resource region doesn't match plugin binary region
+  - Include `ErrorDetail.details` map with `pluginRegion` and `requiredRegion`
+- `ERROR_CODE_INVALID_RESOURCE` (6): Missing required ResourceDescriptor fields
+- `ERROR_CODE_DATA_CORRUPTION` (11): Embedded pricing data is corrupt
 
-```go
-type PluginResponse struct {
-    Version  int             `json:"version"`
-    Status   string          `json:"status"` // "ok" | "error"
-    Result   *StackEstimate  `json:"result,omitempty"`
-    Error    *PluginError    `json:"error,omitempty"`
-    Warnings []PluginWarning `json:"warnings,omitempty"`
-}
+**DO NOT** define custom error codes outside the proto enum.
 
-type PluginError struct {
-    Code    string                 `json:"code"`
-    Message string                 `json:"message"`
-    Meta    map[string]any         `json:"meta,omitempty"`
-}
+## Plugin Lifecycle
 
-type PluginWarning struct {
-    Code    string                 `json:"code"`
-    Message string                 `json:"message"`
-    Meta    map[string]any         `json:"meta,omitempty"`
-}
-```
+1. **Startup**: Plugin writes `PORT=<port>` to stdout
+2. **Serve**: Plugin serves gRPC on 127.0.0.1:<port> using `pluginsdk.Serve()`
+3. **Shutdown**: Graceful shutdown on context cancellation
 
-`StackEstimate` and `ResourceCostEstimate` should be designed so they are compatible with the Vantage plugin and PulumiCost core:
-
-```go
-type StackEstimate struct {
-    Resources   []ResourceCostEstimate `json:"resources"`
-    TotalMonthly float64               `json:"totalMonthly"`
-    TotalHourly  float64               `json:"totalHourly"`
-    Currency     string                `json:"currency"`
-}
-
-type ResourceCostEstimate struct {
-    URN          string          `json:"urn"`
-    Service      string          `json:"service"`
-    ResourceType string          `json:"resourceType"`
-    Region       string          `json:"region"`
-    MonthlyCost  float64         `json:"monthlyCost"`
-    HourlyCost   float64         `json:"hourlyCost"`
-    Currency     string          `json:"currency"`
-    Confidence   string          `json:"confidence"` // "high" | "medium" | "low" | "none"
-    LineItems    []LineItemCost  `json:"lineItems"`
-    Assumptions  []Assumption    `json:"assumptions"`
-}
-
-type LineItemCost struct {
-    Description string  `json:"description"`
-    Unit        string  `json:"unit"`
-    Quantity    float64 `json:"quantity"`
-    Rate        float64 `json:"rate"`
-    Cost        float64 `json:"cost"`
-}
-
-type Assumption struct {
-    Key         string `json:"key"`
-    Description string `json:"description"`
-    Value       string `json:"value"`
-}
-```
+Use `pluginsdk.Serve()` from `pulumicost-core/pkg/pluginsdk` for lifecycle management.
 
 ## Configuration & usage assumptions
 
 - The plugin will eventually support configuration (profiles, discounts, etc) via env or flags, but for v1, keep it minimal:
   - Currency: default `USD`
   - Account discount factor: default `1.0` (no discount)
-  - EC2: assume 730 hours/month (24x7 on-demand).
-  - EBS: cost = size (GB) * `rate_per_gb_month`.
+  - EC2: assume 730 hours/month (24x7 on-demand), Linux OS, Shared tenancy
+  - EBS: cost = size (GB) × `rate_per_gb_month`
 - Leave clear TODO markers where more configuration will be added later.
 
 ## Files in this prompt pack
 
-- `10-scaffold-and-layout.md` – scaffold module, directories, basic main, shared types.
-- `20-pricing-embed-and-client.md` – implement `tools/generate-pricing` and the embedded pricing client.
-- `30-estimation-logic-ec2-ebs.md` – implement v1 estimators for EC2 and EBS resources.
-- `40-plugin-main-and-protocol.md` – implement the CLI entrypoint and JSON envelope protocol.
-- `50-goreleaser-setup.md` – configure GoReleaser to build region-specific binaries with embedded JSON.
-- `60-readme-and-docs.md` – update README and basic docs for usage & installation.
+- `10-scaffold-and-layout.md` – scaffold module, directories, basic main with gRPC setup
+- `20-pricing-embed-and-client.md` – implement `tools/generate-pricing` and the embedded pricing client (thread-safe)
+- `30-estimation-logic-ec2-ebs.md` – implement v1 cost logic for EC2 and EBS resources
+- `40-plugin-main-and-protocol.md` – implement the gRPC service entrypoint with pluginsdk.Serve()
+- `50-goreleaser-setup.md` – configure GoReleaser to build region-specific binaries with embedded JSON
+- `60-readme-and-docs.md` – update README and basic docs for usage & installation
 
-Apply these prompts **one at a time**, committing between major steps if you’re using git.
+Apply these prompts **one at a time**, committing between major steps if you're using git.
+
+## Proto Dependencies
+
+This plugin depends on proto definitions from `pulumicost-spec`:
+- `github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1`
+  - `CostSourceService` gRPC service
+  - `ResourceDescriptor`, `GetProjectedCostRequest/Response`
+  - `SupportsRequest/Response`, `PricingSpec`
+  - `ErrorCode` enum, `ErrorDetail` message
+
+Always refer to `../pulumicost-spec/proto/` for the authoritative API contract.
+
+## Critical Protocol Notes
+
+**DO NOT:**
+- Read from stdin or write JSON to stdout (except PORT announcement)
+- Implement custom error codes outside the proto ErrorCode enum
+- Process multiple resources in a single RPC call (one resource = one call)
+- Assume batch processing semantics
+
+**DO:**
+- Use pluginsdk.Serve() for lifecycle management
+- Announce PORT=<port> to stdout once on startup
+- Serve gRPC on 127.0.0.1 loopback only
+- Return proto-defined error codes via gRPC status
+- Handle context cancellation for graceful shutdown
+- Make pricing lookups thread-safe for concurrent RPCs

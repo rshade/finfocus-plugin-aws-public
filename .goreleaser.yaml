@@ -1,0 +1,95 @@
+version: 2
+
+before:
+  hooks:
+    # Generate pricing data for all regions before building
+    - go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data --dummy
+
+builds:
+  # us-east-1 binary
+  - id: us-east-1
+    main: ./cmd/pulumicost-plugin-aws-public
+    binary: pulumicost-plugin-aws-public-us-east-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_use1
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  # us-west-2 binary
+  - id: us-west-2
+    main: ./cmd/pulumicost-plugin-aws-public
+    binary: pulumicost-plugin-aws-public-us-west-2
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_usw2
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  # eu-west-1 binary
+  - id: eu-west-1
+    main: ./cmd/pulumicost-plugin-aws-public
+    binary: pulumicost-plugin-aws-public-eu-west-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_euw1
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+# Disable source archive creation
+source:
+  enabled: false

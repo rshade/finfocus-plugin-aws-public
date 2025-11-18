@@ -1,133 +1,197 @@
-# Prompt: Implement plugin main entrypoint and JSON envelope protocol
+# Prompt: Implement gRPC service entrypoint with pluginsdk
 
-You are OpenCode v0.15.3 using the GrokZeroFree model.
+You are implementing the `pulumicost-plugin-aws-public` Go plugin.
 Repo: `pulumicost-plugin-aws-public`.
 
 ## Goal
 
 Update `cmd/pulumicost-plugin-aws-public/main.go` to:
 
-- Read a `StackInput` JSON from stdin.
-- Instantiate:
-  - `config.Config` (using `config.Default()`).
-  - `pricing.Client` (using embedded JSON).
-  - `plugin.AWSEstimator`.
-  - `plugin.Plugin`.
-- Call the estimator.
-- Wrap the result in a `PluginResponse` envelope.
-- Handle errors and exit codes correctly.
+- Initialize the pricing client (using embedded JSON)
+- Create the plugin instance
+- Serve gRPC using `pluginsdk.Serve()`
+- Handle PORT announcement and lifecycle correctly
 
-## 1. Input format
+This is the final integration point that ties everything together.
 
-The plugin should expect stdin to contain a JSON object matching `plugin.StackInput`:
+## 1. Main entrypoint
 
-```jsonc
-{
-  "resources": [
-    {
-      "urn": "urn:pulumi:dev::my-stack::aws:ec2/instance:Instance::web-1",
-      "provider": "aws",
-      "type": "aws:ec2/instance:Instance",
-      "name": "web-1",
-      "region": "us-east-1",
-      "properties": {
-        "instanceType": "t3.micro"
-      }
-    }
-  ]
-}
-```
-
-Parsing errors should result in a `PluginResponse` with:
-
-- `status: "error"`
-- `error.code = "INVALID_INPUT"`
-
-## 2. Wiring components
-
-In `main.go`:
-
-1. Read all stdin into a buffer.
-2. Attempt to unmarshal into `plugin.StackInput`.
-3. Construct config + pricing + estimator:
-
-   ```go
-   cfg := config.Default()
-   pricingClient, err := pricing.NewClient()
-   if err != nil {
-       // wrap in PluginError with code "PRICING_INIT_FAILED"
-   }
-
-   est := plugin.NewAWSEstimator(cfg, pricingClient)
-   p := plugin.NewPlugin(est)
-   ```
-
-4. Call:
-
-   ```go
-   result, warnings, perr := est.Estimate(context.Background(), &input)
-   ```
-
-5. Build `PluginResponse`:
-
-   - If `perr != nil`:
-     - `Status = "error"`
-     - `Error = perr`
-     - `Result = nil`
-     - Exit code: `1`
-   - Else:
-     - `Status = "ok"`
-     - `Result = result`
-     - `Warnings = warnings`
-     - Exit code: `0`
-
-6. Marshal `PluginResponse` to stdout as pretty-compact JSON (default `json.Encoder` is fine).
-
-7. On marshal/write failure, print a minimal message to stderr and exit `1`.
-
-## 3. UNSUPPORTED_REGION behavior
-
-The estimator already returns a `PluginError` with:
+Update `cmd/pulumicost-plugin-aws-public/main.go`:
 
 ```go
-Code: "UNSUPPORTED_REGION",
-Message: "...",
-Meta: {
-  "pluginRegion": "...",
-  "requiredRegion": "..."
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/rshade/pulumicost-core/pkg/pluginsdk"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
+)
+
+func main() {
+	// Initialize pricing client (loads and parses embedded JSON)
+	pricingClient, err := pricing.NewClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Failed to initialize pricing: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Log initialization (to stderr only)
+	fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Initialized for region: %s\n", pricingClient.Region())
+
+	// Create plugin instance
+	p := plugin.NewAWSPublicPlugin(pricingClient.Region(), pricingClient)
+
+	// Serve gRPC using pluginsdk
+	// - This will announce PORT=<port> to stdout
+	// - Then serve gRPC on 127.0.0.1:<port>
+	// - Handle graceful shutdown on context cancellation
+	ctx := context.Background()
+	if err := pluginsdk.Serve(ctx, pluginsdk.ServeConfig{
+		Plugin: p,
+		Port:   0, // 0 = use PORT env or ephemeral
+	}); err != nil {
+		log.Fatalf("[pulumicost-plugin-aws-public] Serve failed: %v", err)
+	}
 }
 ```
 
-Ensure:
+## 2. Key behaviors
 
-- `main.go` does **not** special-case this error.
-- It simply wraps it into the `PluginResponse` and exits with code `1`.
-- This allows PulumiCost core to detect the error code and meta, and decide to fetch/run another region-specific binary.
+### PORT announcement
 
-## 4. Logging
+- `pluginsdk.Serve()` will write `PORT=<port>` to stdout as its **only** stdout output
+- All other logging must go to stderr
+- Core reads this PORT and connects via gRPC
 
-- Do **not** log verbose data to stdout; stdout is strictly the JSON protocol.
-- If needed, log debug info to stderr with a prefix like `[pulumicost-plugin-aws-public]`.
-- For now, keep output minimal: only write the JSON envelope on stdout.
+### Graceful shutdown
 
-## 5. Smoke test
+- `pluginsdk.Serve()` blocks until context is cancelled
+- On cancellation, it performs graceful gRPC shutdown
+- No additional cleanup needed in main()
 
-Add a simple test or developer note to verify behavior.
+### Error handling
 
-Optional: create an example JSON file under `testdata/input_ec2_ebs.json` and a small Go test or script that:
+- If pricing client fails to initialize (corrupt embedded data), exit with code 1
+- If `pluginsdk.Serve()` fails, exit with code 1 via `log.Fatalf()`
+- Normal gRPC errors (e.g., invalid requests) are handled by the plugin methods returning gRPC status errors
 
-- Builds the plugin with a dummy pricing file embedded.
-- Runs the binary with that input via `os/exec`.
-- Parses the output and checks that:
-  - `status = "ok"`
-  - `result.totalMonthly > 0`.
+## 3. Thread safety
 
-This doesn’t have to be a full integration test yet, but set up the pattern.
+The plugin struct must be thread-safe because gRPC will call methods concurrently:
+
+- `pricing.Client` must use `sync.Once` for initialization and `sync.RWMutex` if needed for lookups
+- `plugin.AWSPublicPlugin` struct should be immutable after construction (no mutable state)
+- Each RPC call (GetProjectedCost, Supports, etc.) operates independently
+
+Verify in `internal/pricing/client.go` that initialization uses `sync.Once`:
+
+```go
+type Client struct {
+	region   string
+	currency string
+
+	once sync.Once // Used to parse rawPricingJSON exactly once
+	err  error
+
+	ec2Index map[string]ec2OnDemandPrice
+	ebsIndex map[string]ebsVolumePrice
+}
+
+func (c *Client) init() error {
+	var initErr error
+	c.once.Do(func() {
+		// Parse rawPricingJSON and build indexes
+		// Set c.err if parsing fails
+	})
+	return c.err
+}
+```
+
+## 4. Testing the gRPC service
+
+Add a simple integration test or developer note to verify:
+
+### Manual testing
+
+```bash
+# Build the plugin
+go build -o pulumicost-plugin-aws-public ./cmd/pulumicost-plugin-aws-public
+
+# Run it (will announce PORT)
+./pulumicost-plugin-aws-public
+# Output: PORT=12345
+# (plugin now serving on 127.0.0.1:12345)
+
+# In another terminal, use grpcurl to test:
+grpcurl -plaintext \
+  -d '{"resource": {"provider": "aws", "resource_type": "ec2", "sku": "t3.micro", "region": "us-east-1"}}' \
+  localhost:12345 \
+  pulumicost.v1.CostSourceService/GetProjectedCost
+```
+
+### Integration test (optional)
+
+Create `cmd/pulumicost-plugin-aws-public/main_test.go`:
+
+```go
+package main
+
+import (
+	"context"
+	"os/exec"
+	"testing"
+	"time"
+
+	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+func TestPluginGRPC(t *testing.T) {
+	t.Skip("Integration test - requires plugin binary and dummy pricing data")
+
+	// Start plugin as subprocess
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "./pulumicost-plugin-aws-public")
+	// TODO: Capture stdout to read PORT=<port>
+	// TODO: Connect gRPC client to that port
+	// TODO: Call GetProjectedCost and verify response
+
+	require.NoError(t, cmd.Start())
+	defer cmd.Process.Kill()
+
+	// Test implementation left as exercise
+}
+```
+
+## 5. Observability (optional)
+
+For production, consider adding basic health logging to stderr:
+
+```go
+// In main() after successful initialization
+fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Region: %s, Currency: %s\n",
+	pricingClient.Region(),
+	pricingClient.Currency(),
+)
+```
+
+But keep it minimal - stdout is reserved for PORT announcement only.
 
 ## Acceptance criteria
 
-- `go build ./cmd/pulumicost-plugin-aws-public` succeeds with default (no tags) build.
-- Running the binary with invalid JSON prints a `PluginResponse` with `status="error", code="INVALID_INPUT"`.
-- Running the binary with a valid stack input and a dummy pricing file can produce an `ok` response.
+- `go build ./cmd/pulumicost-plugin-aws-public` succeeds
+- Running the binary announces PORT to stdout (e.g., `PORT=54321`)
+- Plugin serves gRPC on the announced port
+- Manual testing with grpcurl can successfully call GetProjectedCost, Supports, and Name methods
+- Ctrl+C (context cancellation) triggers graceful shutdown
 
 Implement these changes now.

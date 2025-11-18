@@ -1,285 +1,350 @@
 # Prompt: Scaffold module and basic layout for `pulumicost-plugin-aws-public`
 
-You are OpenCode v0.15.3 using the GrokZeroFree model.
-You are operating in the repository: `pulumicost-plugin-aws-public`.
+You are implementing the `pulumicost-plugin-aws-public` Go plugin.
+Repo: `pulumicost-plugin-aws-public`.
 
 ## Goal
 
-Create the initial Go module, directory layout, and shared types for the AWS public pricing plugin.
+Create the initial Go module, directory layout, and core plugin structure for the AWS public pricing plugin.
 
 This step is **scaffolding only**:
 - No AWS pricing logic yet.
-- No GoReleaser config yet (that’s a later prompt).
-- Just the `go.mod`, directory structure, and core types.
+- No GoReleaser config yet (that's a later prompt).
+- Just the `go.mod`, directory structure, and plugin interface implementation.
 
 ## Requirements
 
-1. **Go module initialization**
+### 1. Go module initialization
 
-   - If `go.mod` does not exist, create it with:
+- If `go.mod` does not exist, create it with:
+  - Module path: `github.com/rshade/pulumicost-plugin-aws-public`
+  - Go version: at least `1.21` (or the repo's preferred Go version if already present).
+- If `go.mod` already exists, **do not overwrite** it; only adjust if necessary (e.g., add missing `module` line).
+- Add required dependencies:
+  ```
+  github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1
+  github.com/rshade/pulumicost-core/pkg/pluginsdk
+  google.golang.org/grpc
+  ```
 
-     - Module path: `github.com/rshade/pulumicost-plugin-aws-public`
-     - Go version: at least `1.21` (or the repo’s preferred Go version if already present).
+### 2. Directory layout
 
-   - If `go.mod` already exists, **do not overwrite** it; only adjust if necessary (e.g., add missing `module` line).
+Create the following structure if it does not exist:
 
-2. **Directory layout**
+```text
+cmd/
+  pulumicost-plugin-aws-public/
+    main.go
+internal/
+  plugin/
+    plugin.go       # Implements pluginsdk.Plugin interface
+    supports.go     # Supports() logic
+    projected.go    # GetProjectedCost() logic
+    pricingspec.go  # Optional GetPricingSpec() logic (stub for now)
+  pricing/
+    client.go       # Pricing client with thread-safe lookups
+  config/
+    config.go       # Configuration (currency, discount factor)
+tools/
+  generate-pricing/
+    main.go         # stub only, real logic in later prompt
+data/
+  .gitkeep        # placeholder so directory is tracked
+```
 
-   Create the following structure if it does not exist:
+### 3. Plugin interface implementation (`internal/plugin/plugin.go`)
 
-   ```text
-   cmd/
-     pulumicost-plugin-aws-public/
-       main.go
-   internal/
-     plugin/
-       plugin.go
-       types.go
-     pricing/
-       client.go
-     config/
-       config.go
-   tools/
-     generate-pricing/
-       main.go   // stub only, real logic in later prompt
-   data/
-     .gitkeep   // placeholder so directory is tracked
-   ```
+Implement the `Plugin` interface from `pulumicost-core/pkg/pluginsdk`:
 
-3. **Shared types (`internal/plugin/types.go`)**
+```go
+package plugin
 
-   Define the core data types used by this plugin and the JSON envelope.
+import (
+	"context"
 
-   - `PluginResponse`, `PluginError`, `PluginWarning`
-   - `StackEstimate`, `ResourceCostEstimate`
-   - `LineItemCost`, `Assumption`
+	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+)
 
-   Use the following shapes (feel free to add comments and minor cleanups):
+// AWSPublicPlugin implements the pluginsdk.Plugin interface
+type AWSPublicPlugin struct {
+	region  string
+	pricing PricingClient // interface to be defined
+	// TODO: add config when needed
+}
 
-   ```go
-   package plugin
+// PricingClient defines the interface for pricing lookups
+// (implemented by internal/pricing.Client)
+type PricingClient interface {
+	Region() string
+	Currency() string
+	EC2OnDemandPricePerHour(instanceType, operatingSystem, tenancy string) (float64, bool)
+	EBSPricePerGBMonth(volumeType string) (float64, bool)
+}
 
-   type PluginResponse struct {
-       Version  int             `json:"version"`
-       Status   string          `json:"status"` // "ok" | "error"
-       Result   *StackEstimate  `json:"result,omitempty"`
-       Error    *PluginError    `json:"error,omitempty"`
-       Warnings []PluginWarning `json:"warnings,omitempty"`
-   }
+func NewAWSPublicPlugin(region string, pricing PricingClient) *AWSPublicPlugin {
+	return &AWSPublicPlugin{
+		region:  region,
+		pricing: pricing,
+	}
+}
 
-   type PluginError struct {
-       Code    string                 `json:"code"`
-       Message string                 `json:"message"`
-       Meta    map[string]any         `json:"meta,omitempty"`
-   }
+// Name implements pluginsdk.Plugin
+func (p *AWSPublicPlugin) Name() string {
+	return "aws-public"
+}
 
-   type PluginWarning struct {
-       Code    string                 `json:"code"`
-       Message string                 `json:"message"`
-       Meta    map[string]any         `json:"meta,omitempty"`
-   }
+// GetProjectedCost implements pluginsdk.Plugin
+func (p *AWSPublicPlugin) GetProjectedCost(
+	ctx context.Context,
+	req *pbc.GetProjectedCostRequest,
+) (*pbc.GetProjectedCostResponse, error) {
+	// TODO: implement in 30-estimation-logic-ec2-ebs.md
+	return nil, nil
+}
 
-   type StackEstimate struct {
-       Resources    []ResourceCostEstimate `json:"resources"`
-       TotalMonthly float64               `json:"totalMonthly"`
-       TotalHourly  float64               `json:"totalHourly"`
-       Currency     string                `json:"currency"`
-   }
+// GetActualCost implements pluginsdk.Plugin (but not applicable for public pricing)
+func (p *AWSPublicPlugin) GetActualCost(
+	ctx context.Context,
+	req *pbc.GetActualCostRequest,
+) (*pbc.GetActualCostResponse, error) {
+	// Not implemented for public pricing plugin
+	return nil, nil
+}
+```
 
-   type ResourceCostEstimate struct {
-       URN          string         `json:"urn"`
-       Service      string         `json:"service"`
-       ResourceType string         `json:"resourceType"`
-       Region       string         `json:"region"`
-       MonthlyCost  float64        `json:"monthlyCost"`
-       HourlyCost   float64        `json:"hourlyCost"`
-       Currency     string         `json:"currency"`
-       Confidence   string         `json:"confidence"` // "high" | "medium" | "low" | "none"
-       LineItems    []LineItemCost `json:"lineItems"`
-       Assumptions  []Assumption   `json:"assumptions"`
-   }
+### 4. Supports() logic stub (`internal/plugin/supports.go`)
 
-   type LineItemCost struct {
-       Description string  `json:"description"`
-       Unit        string  `json:"unit"`
-       Quantity    float64 `json:"quantity"`
-       Rate        float64 `json:"rate"`
-       Cost        float64 `json:"cost"`
-   }
+Create a stub for the `Supports()` method (will be implemented in later prompt):
 
-   type Assumption struct {
-       Key         string `json:"key"`
-       Description string `json:"description"`
-       Value       string `json:"value"`
-   }
-   ```
+```go
+package plugin
 
-4. **Plugin interface (`internal/plugin/plugin.go`)**
+import (
+	"context"
 
-   Create a minimal plugin struct and interface for later use:
+	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+)
 
-   ```go
-   package plugin
+// Supports checks if the plugin can estimate costs for a given resource
+// This will be called via the gRPC server wrapper, not directly part of Plugin interface
+func (p *AWSPublicPlugin) Supports(
+	ctx context.Context,
+	req *pbc.SupportsRequest,
+) (*pbc.SupportsResponse, error) {
+	// TODO: implement region and resource_type checks
+	// For now, return not supported
+	return &pbc.SupportsResponse{
+		Supported: false,
+		Reason:    "Not implemented yet",
+	}, nil
+}
+```
 
-   import "context"
+### 5. GetProjectedCost() stub (`internal/plugin/projected.go`)
 
-   type StackInput struct {
-       // This mirrors whatever PulumiCost core sends; for now, define a minimal structure
-       // that can be extended later. At minimum include:
-       Resources []ResourceInput `json:"resources"`
-   }
+Create placeholder for cost estimation:
 
-   type ResourceInput struct {
-       URN          string                 `json:"urn"`
-       Provider     string                 `json:"provider"`
-       Type         string                 `json:"type"`
-       Name         string                 `json:"name"`
-       Region       string                 `json:"region"`
-       Properties   map[string]any         `json:"properties"`
-   }
+```go
+package plugin
 
-   type Estimator interface {
-       Estimate(ctx context.Context, in *StackInput) (*StackEstimate, []PluginWarning, *PluginError)
-   }
+import (
+	"context"
 
-   type Plugin struct {
-       Estimator Estimator
-   }
+	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+)
 
-   func NewPlugin(estimator Estimator) *Plugin {
-       return &Plugin{Estimator: estimator}
-   }
-   ```
+// Implementation will be added in 30-estimation-logic-ec2-ebs.md
+// This file is a placeholder to establish the structure
+```
 
-   - This is intentionally simple; later prompts will wire in a concrete estimator that uses pricing data.
+### 6. GetPricingSpec() stub (`internal/plugin/pricingspec.go`)
 
-5. **Stub config file (`internal/config/config.go`)**
+Create optional pricing spec endpoint:
 
-   Create a very small config type that we can extend later:
+```go
+package plugin
 
-   ```go
-   package config
+import (
+	"context"
 
-   type Config struct {
-       Currency            string  `json:"currency"`
-       AccountDiscountFactor float64 `json:"accountDiscountFactor"`
-   }
+	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+)
 
-   func Default() Config {
-       return Config{
-           Currency:             "USD",
-           AccountDiscountFactor: 1.0,
-       }
-   }
-   ```
+// GetPricingSpec returns detailed pricing information (optional)
+// This will be implemented in a later version
+func (p *AWSPublicPlugin) GetPricingSpec(
+	ctx context.Context,
+	req *pbc.GetPricingSpecRequest,
+) (*pbc.GetPricingSpecResponse, error) {
+	// TODO: implement in future version
+	return nil, nil
+}
+```
 
-   - Leave TODOs for loading from env/flags in later prompts.
+### 7. Stub config file (`internal/config/config.go`)
 
-6. **Stub pricing client (`internal/pricing/client.go`)**
+Create a very small config type that we can extend later:
 
-   For now, just define the interface and placeholder struct; no real logic yet:
+```go
+package config
 
-   ```go
-   package pricing
+type Config struct {
+	Currency              string  `json:"currency"`
+	AccountDiscountFactor float64 `json:"accountDiscountFactor"`
+}
 
-   // Client provides access to embedded AWS public pricing for a specific region.
-   type Client struct {
-       region string
-       // TODO: add parsed pricing structures and caches
-   }
+func Default() Config {
+	return Config{
+		Currency:              "USD",
+		AccountDiscountFactor: 1.0,
+	}
+}
+```
 
-   const (
-       // TODO: Region will be set via build-tag-specific files, e.g. embed_use1.go
-       // For now, define a placeholder.
-       DefaultRegion = "us-east-1"
-   )
+- Leave TODOs for loading from env/flags in later prompts.
 
-   func NewClient() (*Client, error) {
-       // TODO: parse embedded JSON once and build lookup maps
-       return &Client{
-           region: DefaultRegion,
-       }, nil
-   }
-   ```
+### 8. Stub pricing client (`internal/pricing/client.go`)
 
-   - Later prompts will add `rawPricingJSON` via `//go:embed` in region-specific files.
+For now, just define the interface and placeholder struct; no real logic yet:
 
-7. **Stub generator tool (`tools/generate-pricing/main.go`)**
+```go
+package pricing
 
-   Create a small skeleton tool that accepts a `--regions` flag and **does nothing real yet**:
+import "sync"
 
-   ```go
-   package main
+// Client provides thread-safe access to embedded AWS public pricing for a specific region
+type Client struct {
+	region   string
+	currency string
 
-   import (
-       "flag"
-       "fmt"
-       "log"
-       "strings"
-   )
+	once sync.Once
+	err  error
 
-   func main() {
-       var regionsCSV string
-       flag.StringVar(&regionsCSV, "regions", "", "comma-separated list of AWS regions (e.g. us-east-1,us-west-2)")
-       flag.Parse()
+	// TODO: add parsed pricing structures and indexes in next prompt
+}
 
-       if regionsCSV == "" {
-           log.Fatal("missing --regions")
-       }
+const (
+	// TODO: Region will be set via build-tag-specific files, e.g. embed_use1.go
+	// For now, define a placeholder.
+	DefaultRegion = "us-east-1"
+)
 
-       regions := strings.Split(regionsCSV, ",")
-       fmt.Printf("Stub generate-pricing tool. Regions: %v\n", regions)
+func NewClient() (*Client, error) {
+	// TODO: parse embedded JSON once and build lookup maps
+	return &Client{
+		region:   DefaultRegion,
+		currency: "USD",
+	}, nil
+}
 
-       // TODO: in a later prompt, implement:
-       // - Fetch AWS pricing
-       // - Trim to required services
-       // - Write to data/aws_pricing_<region>.json
-   }
-   ```
+func (c *Client) Region() string {
+	return c.region
+}
 
-8. **Initial main file (`cmd/pulumicost-plugin-aws-public/main.go`)**
+func (c *Client) Currency() string {
+	return c.currency
+}
 
-   Create a minimal CLI entrypoint that:
+// EC2OnDemandPricePerHour looks up EC2 on-demand hourly price
+// Returns (price, true) if found, (0, false) otherwise
+func (c *Client) EC2OnDemandPricePerHour(instanceType, operatingSystem, tenancy string) (float64, bool) {
+	// TODO: implement in next prompt
+	return 0, false
+}
 
-   - Reads stdin (but for now doesn’t parse it).
-   - Writes a dummy `PluginResponse` with `status: "error"` and `code: "NOT_IMPLEMENTED"`.
+// EBSPricePerGBMonth looks up EBS price per GB-month
+// Returns (price, true) if found, (0, false) otherwise
+func (c *Client) EBSPricePerGBMonth(volumeType string) (float64, bool) {
+	// TODO: implement in next prompt
+	return 0, false
+}
+```
 
-   Example:
+- Later prompts will add `rawPricingJSON` via `//go:embed` in region-specific files.
 
-   ```go
-   package main
+### 9. Stub generator tool (`tools/generate-pricing/main.go`)
 
-   import (
-       "encoding/json"
-       "fmt"
-       "os"
+Create a small skeleton tool that accepts a `--regions` flag and **does nothing real yet**:
 
-       "github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
-   )
+```go
+package main
 
-   func main() {
-       resp := plugin.PluginResponse{
-           Version: 1,
-           Status:  "error",
-           Error: &plugin.PluginError{
-               Code:    "NOT_IMPLEMENTED",
-               Message: "pulumicost-plugin-aws-public is not implemented yet",
-           },
-       }
+import (
+	"flag"
+	"fmt"
+	"log"
+	"strings"
+)
 
-       if err := json.NewEncoder(os.Stdout).Encode(resp); err != nil {
-           fmt.Fprintf(os.Stderr, "failed to write response: %v\n", err)
-           os.Exit(1)
-       }
+func main() {
+	var regionsCSV string
+	var outDir string
+	var dummy bool
 
-       os.Exit(1)
-   }
-   ```
+	flag.StringVar(&regionsCSV, "regions", "", "comma-separated list of AWS regions (e.g. us-east-1,us-west-2)")
+	flag.StringVar(&outDir, "out-dir", "./data", "output directory for pricing JSON files")
+	flag.BoolVar(&dummy, "dummy", false, "generate dummy pricing data for development")
+	flag.Parse()
+
+	if regionsCSV == "" {
+		log.Fatal("missing --regions")
+	}
+
+	regions := strings.Split(regionsCSV, ",")
+	fmt.Printf("Stub generate-pricing tool. Regions: %v, Output: %s, Dummy: %v\n", regions, outDir, dummy)
+
+	// TODO: in a later prompt, implement:
+	// - Fetch AWS pricing (or generate dummy data if --dummy flag set)
+	// - Trim to required services
+	// - Write to data/aws_pricing_<region>.json
+}
+```
+
+### 10. Initial main file (`cmd/pulumicost-plugin-aws-public/main.go`)
+
+Create a minimal gRPC service entrypoint that uses pluginsdk.Serve():
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/rshade/pulumicost-core/pkg/pluginsdk"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
+)
+
+func main() {
+	// Initialize pricing client
+	pricingClient, err := pricing.NewClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Failed to initialize pricing: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create plugin instance
+	p := plugin.NewAWSPublicPlugin(pricingClient.Region(), pricingClient)
+
+	// Serve gRPC using pluginsdk
+	ctx := context.Background()
+	if err := pluginsdk.Serve(ctx, pluginsdk.ServeConfig{
+		Plugin: p,
+		Port:   0, // 0 = use PORT env or ephemeral
+	}); err != nil {
+		log.Fatalf("[pulumicost-plugin-aws-public] Serve failed: %v", err)
+	}
+}
+```
 
 ## Acceptance criteria
 
-- `go mod tidy` succeeds.
-- `go build ./...` succeeds.
-- The plugin binary builds and prints a `NOT_IMPLEMENTED` response when run with no input.
+- `go mod tidy` succeeds
+- `go build ./...` succeeds
+- The plugin binary builds and can be started (will announce PORT but not accept calls yet until estimation logic is implemented)
+- All stub files compile without errors
 
 Make these changes now in the repo.

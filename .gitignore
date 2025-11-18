@@ -30,3 +30,14 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Generated pricing data files
+data/*.json
+internal/pricing/data/*.json
+
+# Plugin binaries
+pulumicost-plugin-aws-public*
+!pulumicost-plugin-aws-public/
+
+# GoReleaser artifacts
+dist/
