@@ -358,6 +358,8 @@ This allows the user to review and make the commit themselves, and ensures
 the commit message follows conventional commits format.
 
 ## Active Technologies
+- Go 1.25+ + pulumicost-core/pkg/pluginsdk, pulumicost-spec/sdk/go/proto (003-ca-sa-region-support)
+- Embedded JSON files (go:embed) - no external storage (003-ca-sa-region-support)
 
 - Go 1.25+ (001-pulumicost-aws-plugin, 002-ap-region-support)
 - Embedded JSON files (go:embed) - No external storage required
@@ -373,3 +375,11 @@ the commit message follows conventional commits format.
   - All binaries are 16MB (< 20MB requirement)
   - Region mismatch latency: 0.01ms (< 100ms requirement)
   - 100% region rejection rate validated
+- 003-ca-sa-region-support: Added 2 Americas regions (Canada, South America)
+  - Created region-specific embed files (embed_cac1.go, embed_sae1.go)
+  - Build tags: region_cac1 (ca-central-1), region_sae1 (sa-east-1)
+  - Updated GoReleaser config with 2 new build targets (total 9 regions)
+  - Extended test suites with CA/SA region test cases
+  - All binaries are 16MB (< 20MB requirement)
+  - Region mismatch latency: 0.02ms (< 100ms requirement)
+  - All tests pass including concurrent RPC handling

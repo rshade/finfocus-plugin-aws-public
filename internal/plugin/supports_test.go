@@ -236,6 +236,196 @@ func TestSupports(t *testing.T) {
 	}
 }
 
+// TestSupports_CACentral1 tests support for ca-central-1 region binary
+func TestSupports_CACentral1(t *testing.T) {
+	mock := newMockPricingClient("ca-central-1", "USD")
+	plugin := NewAWSPublicPlugin("ca-central-1", mock)
+
+	tests := []struct {
+		name             string
+		req              *pbc.SupportsRequest
+		wantSupported    bool
+		wantReasonSubstr string
+	}{
+		{
+			name: "EC2 in ca-central-1",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "ca-central-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "EBS in ca-central-1",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ebs",
+					Region:       "ca-central-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "S3 in ca-central-1 (limited support)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "s3",
+					Region:       "ca-central-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "Limited support",
+		},
+		{
+			name: "EC2 in us-east-1 (wrong for ca-central-1 binary)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    false,
+			wantReasonSubstr: "Region not supported",
+		},
+		{
+			name: "EC2 in sa-east-1 (different region)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "sa-east-1",
+				},
+			},
+			wantSupported:    false,
+			wantReasonSubstr: "Region not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), tt.req)
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			if resp.Supported != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			}
+
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			}
+
+			if tt.wantReasonSubstr == "" && resp.Reason != "" {
+				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			}
+		})
+	}
+}
+
+// TestSupports_SAEast1 tests support for sa-east-1 region binary
+func TestSupports_SAEast1(t *testing.T) {
+	mock := newMockPricingClient("sa-east-1", "USD")
+	plugin := NewAWSPublicPlugin("sa-east-1", mock)
+
+	tests := []struct {
+		name             string
+		req              *pbc.SupportsRequest
+		wantSupported    bool
+		wantReasonSubstr string
+	}{
+		{
+			name: "EC2 in sa-east-1",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "sa-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "EBS in sa-east-1",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ebs",
+					Region:       "sa-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "Lambda in sa-east-1 (limited support)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "lambda",
+					Region:       "sa-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "Limited support",
+		},
+		{
+			name: "EC2 in eu-west-1 (wrong for sa-east-1 binary)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "eu-west-1",
+				},
+			},
+			wantSupported:    false,
+			wantReasonSubstr: "Region not supported",
+		},
+		{
+			name: "EC2 in ca-central-1 (different region)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "ca-central-1",
+				},
+			},
+			wantSupported:    false,
+			wantReasonSubstr: "Region not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), tt.req)
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			if resp.Supported != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			}
+
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			}
+
+			if tt.wantReasonSubstr == "" && resp.Reason != "" {
+				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			}
+		})
+	}
+}
+
 // TestSupports_APSoutheast1 tests support for ap-southeast-1 region binary (T010)
 func TestSupports_APSoutheast1(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")

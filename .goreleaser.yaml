@@ -3,7 +3,7 @@ version: 2
 before:
   hooks:
     # Generate pricing data for all regions before building
-    - go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 --out-dir ./internal/pricing/data --dummy
+    - go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1,ca-central-1,sa-east-1 --out-dir ./internal/pricing/data --dummy
 
 builds:
   # us-east-1 binary
@@ -129,6 +129,42 @@ builds:
       - arm64
     tags:
       - region_aps1
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  # ca-central-1 binary
+  - id: ca-central-1
+    main: ./cmd/pulumicost-plugin-aws-public
+    binary: pulumicost-plugin-aws-public-ca-central-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_cac1
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  # sa-east-1 binary
+  - id: sa-east-1
+    main: ./cmd/pulumicost-plugin-aws-public
+    binary: pulumicost-plugin-aws-public-sa-east-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_sae1
     ldflags:
       - -s -w -X main.version={{.Version}}
 

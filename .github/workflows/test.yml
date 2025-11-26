@@ -27,7 +27,7 @@ jobs:
           cache: true
 
       - name: Generate pricing data
-        run: go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data --dummy
+        run: go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1,ca-central-1,sa-east-1 --out-dir ./internal/pricing/data --dummy
 
       - name: Run tests
         run: make test
@@ -55,7 +55,7 @@ jobs:
           cache: true
 
       - name: Generate pricing data
-        run: go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data --dummy
+        run: go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1,ca-central-1,sa-east-1 --out-dir ./internal/pricing/data --dummy
 
       - name: Build binaries with GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -66,4 +66,12 @@ jobs:
       - name: Verify binaries exist
         run: |
           ls -la dist/
-          find dist/ -name "pulumicost-plugin-aws-public*" -type f | grep -E "(us-east-1|us-west-2|eu-west-1)"
+          echo "Verifying all 9 region binaries..."
+          for region in us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1; do
+            if ! find dist/ -name "*${region}*" -type f | grep -q .; then
+              echo "ERROR: Missing binary for region ${region}"
+              exit 1
+            fi
+            echo "✓ Found binary for ${region}"
+          done
+          echo "All 9 region binaries verified!"
