@@ -1,24 +1,20 @@
 <!--
-Sync Impact Report - Constitution v2.0.0
+Sync Impact Report - Constitution v2.1.0
 ========================================
-Version Change: 1.0.0 → 2.0.0
-Rationale: MAJOR update to align with gRPC protocol instead of stdin/stdout JSON.
-           This is a breaking change to protocol requirements after discovering
-           the actual pulumicost-core implementation uses gRPC.
+Version Change: 2.0.0 → 2.1.0
+Rationale: MINOR update to document GetActualCost fallback implementation.
+           Feature 004-actual-cost-fallback implements pro-rated cost estimation
+           using projected monthly cost × (runtime_hours / 730).
 
 Modified Principles:
-  - III. Protocol & Interface Consistency: Complete rewrite for gRPC
-  - IV. Performance & Reliability: Updated RPC latency targets
-  - V. Build & Release Quality: No changes to build process
+  - III. Protocol & Interface Consistency: Updated GetActualCost method description
 
-Added Sections:
-  - Thread Safety requirements (under Performance)
-  - gRPC Error Code enum compliance
-
-Removed Sections:
-  - stdin/stdout JSON protocol requirements
-  - PluginResponse custom envelope (replaced with proto messages)
-  - Custom error codes (replaced with proto ErrorCode enum)
+Previous Sync Impact Report (v2.0.0):
+  - MAJOR update to align with gRPC protocol instead of stdin/stdout JSON
+  - Complete rewrite for gRPC in Protocol section
+  - Updated RPC latency targets in Performance section
+  - Added Thread Safety requirements
+  - Added gRPC Error Code enum compliance
 
 Templates Requiring Updates:
   ✅ .specify/templates/plan-template.md - Constitution Check section verified
@@ -26,8 +22,7 @@ Templates Requiring Updates:
   ✅ .specify/templates/tasks-template.md - Task categorization verified
 
 Follow-up TODOs:
-  - Update any existing implementation code to use gRPC
-  - Verify pluginsdk integration in main.go
+  - None
 -->
 
 # PulumiCost Plugin AWS Public Constitution
@@ -100,7 +95,8 @@ Follow-up TODOs:
 - `Name()` → returns `NameResponse{name: "aws-public"}`
 - `Supports(ResourceDescriptor)` → checks region and resource_type, returns `SupportsResponse{supported, reason}`
 - `GetProjectedCost(ResourceDescriptor)` → returns `GetProjectedCostResponse{unit_price, currency, cost_per_month, billing_detail}`
-- `GetActualCost()` → returns error (not applicable for public pricing)
+- `GetActualCost(GetActualCostRequest)` → returns `GetActualCostResponse`
+  with fallback estimate (`projected_monthly_cost × runtime_hours / 730`)
 - `GetPricingSpec()` → optional, may return detailed pricing info in future
 
 **Rationale:** PulumiCost core depends on predictable gRPC protocol behavior. Breaking protocol compatibility breaks the integration. Using proto-defined types ensures compatibility across all PulumiCost plugins. Thread safety is critical because gRPC handles concurrent requests.
@@ -218,4 +214,4 @@ Follow-up TODOs:
 - Constitution defines non-negotiable rules; CLAUDE.md provides practical implementation details
 - When CLAUDE.md conflicts with constitution, constitution wins
 
-**Version**: 2.0.0 | **Ratified**: 2025-11-16 | **Last Amended**: 2025-11-16
+**Version**: 2.1.0 | **Ratified**: 2025-11-16 | **Last Amended**: 2025-11-25
