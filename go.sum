@@ -16,6 +16,8 @@ github.com/rshade/pulumicost-core v0.0.0-20251118114717-4680d9c9aab5 h1:DUvWRDgc
 github.com/rshade/pulumicost-core v0.0.0-20251118114717-4680d9c9aab5/go.mod h1:V/J1sVsKfePqBinF+JxCQcY8QApwIvS6NhFkNIZGkYg=
 github.com/rshade/pulumicost-core v0.0.0-20251125111521-c93f761e5181 h1:mZPLCteLN0WXiVXBcTtMbbnSEVjnUVNyVBUkfg8JVug=
 github.com/rshade/pulumicost-core v0.0.0-20251125111521-c93f761e5181/go.mod h1:k7GydZs78b7IqF1MuXHfR1ZRPE1QLi6ErxUX/Z87vx8=
+github.com/rshade/pulumicost-core v0.1.0 h1:MJa3z4n67M37rNljZ5qi2YPA/5YzgCDfh/qFdvUIGl8=
+github.com/rshade/pulumicost-core v0.1.0/go.mod h1:wOjHAy33DxKNo7pPLZPaM28dKWkTcskXy4MXwTgHMmU=
 github.com/rshade/pulumicost-spec v0.0.0-20251117120122-772574729513 h1:dvNu8gXtL5NZlB6u97C/D5Q4qALGubtUa2+2Rnq5iz0=
 github.com/rshade/pulumicost-spec v0.0.0-20251117120122-772574729513/go.mod h1:K9iLPmmwQ1AHNFvFcdfL4csUUGHw+pk9jfHB9a74SU8=
 github.com/rshade/pulumicost-spec v0.1.0 h1:PDwb+AaMMKq1TUcL/VX+HZnWSFmSy/q+WlG9vH2Vfpw=
