@@ -24,6 +24,8 @@ github.com/rshade/pulumicost-spec v0.1.0 h1:PDwb+AaMMKq1TUcL/VX+HZnWSFmSy/q+WlG9
 github.com/rshade/pulumicost-spec v0.1.0/go.mod h1:K9iLPmmwQ1AHNFvFcdfL4csUUGHw+pk9jfHB9a74SU8=
 github.com/rshade/pulumicost-spec v0.3.0 h1:TrQwv/hn+kPkwAm0mPRyxPvgi8i1TEnQKGD0Een86Tc=
 github.com/rshade/pulumicost-spec v0.3.0/go.mod h1:cc+ZrBFjNbRT29KVrmgPonfYi7dzZKVWoe0aqbyH9zQ=
+github.com/rshade/pulumicost-spec v0.4.0 h1:6iyzqtawII7X0+1+N0AxTi+/39clh4/0zkgy2lUvc5E=
+github.com/rshade/pulumicost-spec v0.4.0/go.mod h1:cc+ZrBFjNbRT29KVrmgPonfYi7dzZKVWoe0aqbyH9zQ=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
 go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
 go.opentelemetry.io/otel v1.37.0 h1:9zhNfelUvx0KBfu/gb+ZgeAfAgtWrfHJZcAqFC228wQ=
