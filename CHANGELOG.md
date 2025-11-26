@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.2](https://github.com/rshade/pulumicost-plugin-aws-public/compare/pulumicost-plugin-aws-public-v0.0.1...pulumicost-plugin-aws-public-v0.0.2) (2025-11-26)
+
+
+### Features
+
+* implement fallback GetActualCost using runtime × list price ([#34](https://github.com/rshade/pulumicost-plugin-aws-public/issues/34)) ([25122b2](https://github.com/rshade/pulumicost-plugin-aws-public/commit/25122b2a599083d4e324c9815283689219fc0b53)), closes [#24](https://github.com/rshade/pulumicost-plugin-aws-public/issues/24)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-core to v0.1.0 ([#32](https://github.com/rshade/pulumicost-plugin-aws-public/issues/32)) ([3477911](https://github.com/rshade/pulumicost-plugin-aws-public/commit/3477911cb7150a81eeef979b110874f71ba5c695))
+
 ## [0.0.1](https://github.com/rshade/pulumicost-plugin-aws-public/compare/pulumicost-plugin-aws-public-v0.0.1...pulumicost-plugin-aws-public-v0.0.1) (2025-11-26)
 
 
