@@ -3,6 +3,7 @@
     ".": {
       "release-type": "go",
       "package-name": "pulumicost-plugin-aws-public",
+      "release-as": "0.0.1",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "changelog-sections": [
