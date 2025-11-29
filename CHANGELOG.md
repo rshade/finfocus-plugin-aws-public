@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.3](https://github.com/rshade/pulumicost-plugin-aws-public/compare/pulumicost-plugin-aws-public-v0.0.2...pulumicost-plugin-aws-public-v0.0.3) (2025-11-29)
+
+
+### Features
+
+* implement Zerolog Structured Logging with Trace Propagation ([#39](https://github.com/rshade/pulumicost-plugin-aws-public/issues/39)) ([8ab8037](https://github.com/rshade/pulumicost-plugin-aws-public/commit/8ab803714fa9ab6fe96d09adb2a6dd807eba45f2))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.0 ([#37](https://github.com/rshade/pulumicost-plugin-aws-public/issues/37)) ([997ca6c](https://github.com/rshade/pulumicost-plugin-aws-public/commit/997ca6c92d476130703683aea7d417df5bfb7a27))
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.1 ([#40](https://github.com/rshade/pulumicost-plugin-aws-public/issues/40)) ([5de522e](https://github.com/rshade/pulumicost-plugin-aws-public/commit/5de522ec3acaddae79dbc3eb5b28c614e326c02a))
+
 ## [0.0.2](https://github.com/rshade/pulumicost-plugin-aws-public/compare/pulumicost-plugin-aws-public-v0.0.1...pulumicost-plugin-aws-public-v0.0.2) (2025-11-26)
 
 
