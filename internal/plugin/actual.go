@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -24,7 +23,8 @@ func calculateRuntimeHours(from, to time.Time) (float64, error) {
 // getProjectedForResource retrieves the projected monthly cost for a resource
 // by routing to the appropriate estimator (EC2, EBS, or stub).
 // This reuses the existing GetProjectedCost logic without proto marshaling overhead.
-func (p *AWSPublicPlugin) getProjectedForResource(ctx context.Context, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+// traceID is passed from the parent handler for consistent trace correlation.
+func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	// Validate required fields
 	if resource == nil {
 		return nil, status.Error(codes.InvalidArgument, "missing resource descriptor")
@@ -37,6 +37,7 @@ func (p *AWSPublicPlugin) getProjectedForResource(ctx context.Context, resource 
 	// Check region match
 	if resource.Region != p.region {
 		details := map[string]string{
+			"trace_id":       traceID,
 			"pluginRegion":   p.region,
 			"requiredRegion": resource.Region,
 		}
@@ -55,11 +56,11 @@ func (p *AWSPublicPlugin) getProjectedForResource(ctx context.Context, resource 
 	// Route to appropriate estimator based on resource type
 	switch resource.ResourceType {
 	case "ec2":
-		return p.estimateEC2(ctx, resource)
+		return p.estimateEC2(traceID, resource)
 	case "ebs":
-		return p.estimateEBS(ctx, resource)
+		return p.estimateEBS(traceID, resource)
 	case "s3", "lambda", "rds", "dynamodb":
-		return p.estimateStub(ctx, resource)
+		return p.estimateStub(resource)
 	default:
 		// Unknown resource type - return $0 with explanation
 		return &pbc.GetProjectedCostResponse{

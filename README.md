@@ -1,18 +1,24 @@
 # PulumiCost AWS Public Plugin
 
-A gRPC-based cost estimation plugin for [PulumiCost](https://github.com/rshade/pulumicost-core) that estimates AWS infrastructure costs using publicly available AWS on-demand pricing data.
+A gRPC-based cost estimation plugin for
+[PulumiCost](https://github.com/rshade/pulumicost-core) that estimates AWS
+infrastructure costs using publicly available AWS on-demand pricing data.
 
 ## Overview
 
-This plugin provides monthly cost estimates for AWS resources without requiring access to AWS Cost Explorer, CUR data, or third-party services. It embeds AWS public pricing data at build time and serves cost estimates via gRPC.
+This plugin provides monthly cost estimates for AWS resources without requiring
+access to AWS Cost Explorer, CUR data, or third-party services. It embeds AWS
+public pricing data at build time and serves cost estimates via gRPC.
 
 ### Supported Resources
 
 **Fully Supported (with accurate pricing):**
+
 - **EC2 Instances**: On-demand Linux instances with shared tenancy
 - **EBS Volumes**: All volume types (gp2, gp3, io1, io2, etc.)
 
 **Stub Support (returns $0 with explanation):**
+
 - S3, Lambda, RDS, DynamoDB
 
 ## Features
@@ -31,13 +37,16 @@ This plugin provides monthly cost estimates for AWS resources without requiring 
 Each region has its own binary to minimize size and ensure accurate pricing:
 
 **US Regions:**
+
 - `pulumicost-plugin-aws-public-us-east-1` (US East - N. Virginia)
 - `pulumicost-plugin-aws-public-us-west-2` (US West - Oregon)
 
 **Europe Regions:**
+
 - `pulumicost-plugin-aws-public-eu-west-1` (EU - Ireland)
 
 **Asia Pacific Regions:**
+
 - `pulumicost-plugin-aws-public-ap-southeast-1` (Asia Pacific - Singapore)
 - `pulumicost-plugin-aws-public-ap-southeast-2` (Asia Pacific - Sydney)
 - `pulumicost-plugin-aws-public-ap-northeast-1` (Asia Pacific - Tokyo)
@@ -46,11 +55,13 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 ### Cost Estimation
 
 **EC2 Instances:**
+
 - Pricing lookup: `instance_type + operating_system + tenancy`
 - Monthly cost: `hourly_rate × 730 hours`
 - Assumptions: Linux, Shared tenancy, 24×7 on-demand
 
 **EBS Volumes:**
+
 - Pricing lookup: `volume_type`
 - Monthly cost: `rate_per_gb_month × volume_size_gb`
 - Size extraction: From `tags["size"]` or `tags["volume_size"]`
@@ -66,14 +77,19 @@ git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
 cd pulumicost-plugin-aws-public
 
 # Build for specific region
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 \
+  ./cmd/pulumicost-plugin-aws-public
 ```
 
 ### Using GoReleaser
 
 ```bash
 # Generate pricing data for all supported regions
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 --out-dir ./internal/pricing/data --dummy
+go run ./tools/generate-pricing \
+  --regions us-east-1,us-west-2,eu-west-1,\
+ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 \
+  --out-dir ./internal/pricing/data \
+  --dummy
 
 # Build all region binaries (7 regions × 3 OS × 2 architectures = 42 artifacts)
 goreleaser build --snapshot --clean
@@ -89,7 +105,8 @@ go build -tags region_apse1 -o pulumicost-plugin-aws-public-ap-southeast-1 ./cmd
 go build -tags region_apse2 -o pulumicost-plugin-aws-public-ap-southeast-2 ./cmd/pulumicost-plugin-aws-public
 
 # Tokyo (ap-northeast-1)
-go build -tags region_apne1 -o pulumicost-plugin-aws-public-ap-northeast-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apne1 -o pulumicost-plugin-aws-public-ap-northeast-1 \
+  ./cmd/pulumicost-plugin-aws-public
 
 # Mumbai (ap-south-1)
 go build -tags region_aps1 -o pulumicost-plugin-aws-public-ap-south-1 ./cmd/pulumicost-plugin-aws-public
@@ -99,7 +116,8 @@ go build -tags region_aps1 -o pulumicost-plugin-aws-public-ap-south-1 ./cmd/pulu
 
 ### Starting the Plugin
 
-The plugin is designed to be started by PulumiCost core, but can be run standalone for testing:
+The plugin is designed to be started by PulumiCost core, but can be run
+standalone for testing:
 
 ```bash
 # Start the plugin (announces PORT on stdout)
@@ -107,7 +125,8 @@ The plugin is designed to be started by PulumiCost core, but can be run standalo
 ```
 
 Output:
-```
+
+```text
 PORT=50051
 ```
 
@@ -119,6 +138,69 @@ PulumiCost core discovers and communicates with the plugin via:
 2. **Port Discovery**: Core reads `PORT=<port>` from stdout
 3. **gRPC Communication**: Core connects to `127.0.0.1:<port>`
 4. **Lifecycle**: Core cancels context to trigger graceful shutdown
+
+### Trace ID Propagation
+
+The plugin supports distributed tracing through trace ID propagation for request
+correlation across the PulumiCost ecosystem.
+
+#### How It Works
+
+- **Request Correlation**: Each gRPC request can include a `trace_id` for tracking
+  requests across multiple services
+- **Automatic Generation**: If no `trace_id` is provided, the plugin automatically
+  generates a UUID v4
+- **Log Correlation**: All log entries include the `trace_id` for debugging and
+  monitoring
+- **Error Correlation**: Error responses include `trace_id` in the error details
+
+#### Sending Trace ID
+
+Include `trace_id` in gRPC metadata using the key `pulumicost-trace-id`:
+
+```go
+import "google.golang.org/grpc/metadata"
+
+// Create metadata with trace_id
+md := metadata.Pairs("pulumicost-trace-id", "your-custom-trace-id")
+ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+// Use ctx for gRPC calls
+```
+
+#### Log Output
+
+All structured log entries include the trace_id:
+
+```json
+{
+  "time": "2024-01-15T10:30:00Z",
+  "level": "info",
+  "message": "Processing GetProjectedCost request",
+  "plugin_name": "aws-public",
+  "plugin_version": "1.0.0",
+  "trace_id": "your-custom-trace-id",
+  "operation": "GetProjectedCost",
+  "resource_type": "ec2",
+  "duration_ms": 5
+}
+```
+
+#### Error Responses
+
+Error responses include trace_id in the details map:
+
+```json
+{
+  "code": 9,
+  "message": "region mismatch",
+  "details": {
+    "pluginRegion": "us-east-1",
+    "requiredRegion": "eu-west-1",
+    "trace_id": "your-custom-trace-id"
+  }
+}
+```
 
 ### ResourceDescriptor Format
 
@@ -146,6 +228,7 @@ message ResourceDescriptor {
 ```
 
 **Response:**
+
 ```json
 {
   "cost_per_month": 7.592,
@@ -170,6 +253,7 @@ message ResourceDescriptor {
 ```
 
 **Response:**
+
 ```json
 {
   "cost_per_month": 8.0,
@@ -191,6 +275,7 @@ message ResourceDescriptor {
 ```
 
 **Response:**
+
 ```json
 {
   "cost_per_month": 8.468,
@@ -221,6 +306,7 @@ rpc Supports(SupportsRequest) returns (SupportsResponse);
 ```
 
 **Returns:**
+
 - `supported: true` - For EC2/EBS in plugin's region
 - `supported: true` with reason - For stub services (S3, Lambda, etc.)
 - `supported: false` with reason - For region mismatch or unknown types
@@ -234,6 +320,7 @@ rpc GetProjectedCost(GetProjectedCostRequest) returns (GetProjectedCostResponse)
 ```
 
 **Returns:**
+
 - `cost_per_month` - Estimated monthly cost
 - `unit_price` - Hourly rate (EC2) or per-GB-month rate (EBS)
 - `currency` - Always "USD"
@@ -246,6 +333,7 @@ rpc GetProjectedCost(GetProjectedCostRequest) returns (GetProjectedCostResponse)
 Returned when resource region doesn't match plugin region.
 
 **Error Details:**
+
 ```json
 {
   "pluginRegion": "us-east-1",
@@ -298,7 +386,7 @@ make lint
 
 ### Project Structure
 
-```
+```text
 .
 ├── cmd/
 │   └── pulumicost-plugin-aws-public/    # CLI entrypoint
@@ -328,7 +416,8 @@ make lint
 If `tags["size"]` or `tags["volume_size"]` is not provided, defaults to 8 GB.
 
 **Response includes assumption:**
-```
+
+```text
 "gp2 volume, 8 GB (defaulted), $0.1000/GB-month"
 ```
 
@@ -339,13 +428,15 @@ If instance type is not found in pricing data, returns $0 with explanation.
 ### Stub Services
 
 S3, Lambda, RDS, DynamoDB return $0 with:
-```
+
+```text
 "s3 cost estimation not fully implemented - returns $0 estimate"
 ```
 
 ### Region Boundaries
 
-Each binary only serves estimates for its embedded region. Requests for other regions return `ERROR_CODE_UNSUPPORTED_REGION`.
+Each binary only serves estimates for its embedded region. Requests for other
+regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 
 ## Assumptions
 

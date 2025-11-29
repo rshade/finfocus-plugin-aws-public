@@ -120,12 +120,18 @@ goreleaser build --snapshot --clean
 
 ### Testing
 ```bash
-# Run all tests
-go test ./...
+# Run all unit tests (preferred)
+make test
 
 # Run tests for specific package
 go test ./internal/plugin
 go test ./internal/pricing
+
+# Run integration tests (requires building binaries)
+go test -tags=integration ./internal/plugin/...
+
+# Run specific integration test
+go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDPropagation
 
 # Test gRPC service manually (requires grpcurl or similar)
 # 1. Start plugin: ./pulumicost-plugin-aws-public-us-east-1
@@ -205,6 +211,77 @@ From `pulumicost.v1.ErrorCode`:
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
 - GetProjectedCost() for mismatched region: returns gRPC error with ERROR_CODE_UNSUPPORTED_REGION and details map
+
+## Code Style Guidelines
+
+### Comprehensive Docstrings (CodeRabbit Requirement)
+
+**IMPORTANT**: Always write comprehensive Go doc comments for all exported functions and test
+functions. CodeRabbit will flag functions with minimal or missing documentation.
+
+**Good docstring pattern for test functions:**
+```go
+// TestIntegration_TraceIDPropagation verifies end-to-end trace_id propagation through the gRPC server.
+//
+// This test validates that when a client sends a request with a trace_id in gRPC metadata
+// (using pluginsdk.TraceIDMetadataKey), the server extracts and includes that trace_id
+// in all structured log entries. This is critical for distributed tracing and request
+// correlation in production environments.
+//
+// Test workflow:
+//  1. Builds the ap-southeast-1 binary with region_apse1 tag
+//  2. Starts the binary, capturing stderr (where JSON logs are written)
+//  3. Connects via gRPC and sends a request with trace_id in outgoing metadata
+//  4. Parses the captured stderr and verifies trace_id appears in log JSON
+//
+// Prerequisites:
+//   - Go toolchain available for building
+//   - Port available for gRPC server (uses ephemeral port)
+//
+// Run with: go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDPropagation
+func TestIntegration_TraceIDPropagation(t *testing.T) {
+```
+
+**Docstring checklist:**
+- First line: One-sentence summary starting with function name (Go convention)
+- Purpose: What the function does and why it matters
+- For tests: Test workflow with numbered steps
+- Prerequisites or requirements
+- Run command for integration tests
+- Use `//` comments with proper spacing per Go conventions
+
+### gRPC Metadata for Trace ID Propagation
+
+When testing trace_id propagation through gRPC:
+
+**Client side (sending):**
+```go
+md := metadata.New(map[string]string{
+    pluginsdk.TraceIDMetadataKey: "my-trace-id",
+})
+ctx := metadata.NewOutgoingContext(context.Background(), md)
+// Use ctx for gRPC call
+```
+
+**Server side (receiving):**
+```go
+if md, ok := metadata.FromIncomingContext(ctx); ok {
+    if values := md.Get(pluginsdk.TraceIDMetadataKey); len(values) > 0 {
+        traceID = values[0]
+    }
+}
+```
+
+### Integration Test Pattern for Log Verification
+
+To verify log output in integration tests, capture stderr from the binary:
+```go
+var stderrBuf bytes.Buffer
+cmd.Stderr = &stderrBuf
+// ... run binary and make gRPC calls ...
+logOutput := stderrBuf.String()
+// Parse JSON log lines and verify fields
+```
 
 ## Development Notes
 
@@ -361,6 +438,7 @@ the commit message follows conventional commits format.
 - Go 1.25+ + pulumicost-core/pkg/pluginsdk, pulumicost-spec/sdk/go/proto (003-ca-sa-region-support)
 - Embedded JSON files (go:embed) - no external storage (003-ca-sa-region-support)
 - N/A (embedded JSON pricing data via go:embed) (004-actual-cost-fallback)
+- N/A (logs to stderr only) (005-zerolog-logging)
 
 - Go 1.25+ (001-pulumicost-aws-plugin, 002-ap-region-support)
 - Embedded JSON files (go:embed) - No external storage required
@@ -395,3 +473,21 @@ the commit message follows conventional commits format.
   - Zero duration returns $0 with explanation
   - Benchmark: 3.3μs/op (well under 10ms SC-003 requirement)
   - All tests pass with 100% coverage of new actual cost logic
+- 005-zerolog-logging: Implemented zerolog structured logging with trace propagation
+  - Uses SDK utilities: NewPluginLogger, TraceIDFromContext from pulumicost-spec
+  - Logger field added to AWSPublicPlugin struct, passed from main.go
+  - getTraceID helper extracts trace_id from gRPC metadata or generates UUID fallback
+  - logError helper for consistent error logging with error_code field
+  - All handlers (GetProjectedCost, Supports, GetActualCost) log with SDK field constants
+  - LOG_LEVEL env var controls log verbosity (trace, debug, info, warn, error)
+  - Debug logs include instance_type for EC2, storage_type for EBS
+  - Startup log includes plugin_name, plugin_version, aws_region
+  - All logs output JSON to stderr (stdout reserved for PORT)
+  - Benchmark: ~6-13μs logging overhead (well under 1ms SC-005 requirement)
+  - Unit tests: TestTraceIDPropagationWithProvidedTraceID, TestTraceIDGenerationWhenMissing,
+    TestConcurrentRequestsWithDifferentTraceIDs, TestErrorLogsContainErrorCode,
+    TestStartupLogFormat, TestGetProjectedCostLogsContainRequiredFields,
+    TestSupportsLogsContainRequiredFields, TestDebugLogsContainInstanceTypeForEC2,
+    TestDebugLogsContainStorageTypeForEBS
+  - Integration test: TestIntegration_TraceIDPropagation verifies end-to-end trace_id
+    propagation from gRPC client metadata through to JSON log output

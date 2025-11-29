@@ -1,10 +1,13 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,8 +16,9 @@ import (
 // TestGetProjectedCost_EC2 tests EC2 cost estimation (T040)
 func TestGetProjectedCost_EC2(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -56,8 +60,9 @@ func TestGetProjectedCost_EC2(t *testing.T) {
 // TestGetProjectedCost_EBS_WithSize tests EBS cost estimation with explicit size (T041)
 func TestGetProjectedCost_EBS_WithSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp3"] = 0.08
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -103,8 +108,9 @@ func TestGetProjectedCost_EBS_WithSize(t *testing.T) {
 // TestGetProjectedCost_EBS_DefaultSize tests EBS with defaulted 8GB size (T042)
 func TestGetProjectedCost_EBS_DefaultSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp2"] = 0.10
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -139,7 +145,8 @@ func TestGetProjectedCost_EBS_DefaultSize(t *testing.T) {
 // TestGetProjectedCost_RegionMismatch tests region mismatch error handling (T043)
 func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -174,7 +181,8 @@ func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 // TestGetProjectedCost_MissingRequiredField tests validation error (T044)
 func TestGetProjectedCost_MissingRequiredField(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	testCases := []struct {
 		name     string
@@ -243,8 +251,9 @@ func TestGetProjectedCost_MissingRequiredField(t *testing.T) {
 // TestGetProjectedCost_UnknownInstanceType tests unknown instance type handling
 func TestGetProjectedCost_UnknownInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	// Don't add any pricing data
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -272,7 +281,8 @@ func TestGetProjectedCost_UnknownInstanceType(t *testing.T) {
 // TestGetProjectedCost_StubServices tests stub service handling
 func TestGetProjectedCost_StubServices(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	testCases := []string{"s3", "lambda", "rds", "dynamodb"}
 
@@ -310,9 +320,10 @@ func TestGetProjectedCost_StubServices(t *testing.T) {
 // TestGetProjectedCost_APSoutheast1_EC2 tests EC2 pricing for ap-southeast-1 (T011)
 func TestGetProjectedCost_APSoutheast1_EC2(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0116 // Singapore pricing (+12% vs us-east-1)
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.112
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	tests := []struct {
 		name         string
@@ -365,9 +376,10 @@ func TestGetProjectedCost_APSoutheast1_EC2(t *testing.T) {
 // TestGetProjectedCost_APSoutheast1_EBS tests EBS pricing for ap-southeast-1 (T011)
 func TestGetProjectedCost_APSoutheast1_EBS(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp3"] = 0.0896 // Singapore pricing
 	mock.ebsPrices["io2"] = 0.1456
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	tests := []struct {
 		name       string
@@ -427,7 +439,8 @@ func TestGetProjectedCost_APSoutheast1_EBS(t *testing.T) {
 // TestGetProjectedCost_APSoutheast1_RegionMismatch tests region mismatch for ap-southeast-1 binary (T011)
 func TestGetProjectedCost_APSoutheast1_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	wrongRegions := []string{"us-east-1", "eu-west-1", "ap-southeast-2", "ap-northeast-1"}
 
@@ -461,10 +474,11 @@ func TestGetProjectedCost_APSoutheast1_RegionMismatch(t *testing.T) {
 // TestGetProjectedCost_ConcurrentCalls tests thread safety with 10+ parallel gRPC calls (T040, SC-006)
 func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0116
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.112
 	mock.ebsPrices["gp3"] = 0.0896
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	const numGoroutines = 20
 	const callsPerGoroutine = 10
@@ -542,7 +556,8 @@ func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 // Success criteria: Response time < 100ms
 func BenchmarkGetProjectedCost_RegionMismatch(b *testing.B) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -562,7 +577,8 @@ func BenchmarkGetProjectedCost_RegionMismatch(b *testing.B) {
 // TestGetProjectedCost_RegionMismatchLatency tests that region mismatch errors return < 100ms (T041, SC-005)
 func TestGetProjectedCost_RegionMismatchLatency(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -615,8 +631,9 @@ func TestGetProjectedCost_CrossRegionPricingDifference(t *testing.T) {
 
 	for name, data := range regions {
 		mock := newMockPricingClient(data.region, "USD")
+		logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 		mock.ec2Prices["t3.micro/Linux/Shared"] = data.ec2Price
-		plugin := NewAWSPublicPlugin(data.region, mock)
+		plugin := NewAWSPublicPlugin(data.region, mock, logger)
 
 		resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 			Resource: &pbc.ResourceDescriptor{
@@ -665,7 +682,8 @@ func TestSupports_RegionRejection(t *testing.T) {
 	for _, pluginRegion := range testRegions {
 		t.Run("Binary_"+pluginRegion, func(t *testing.T) {
 			mock := newMockPricingClient(pluginRegion, "USD")
-			plugin := NewAWSPublicPlugin(pluginRegion, mock)
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			plugin := NewAWSPublicPlugin(pluginRegion, mock, logger)
 
 			totalTests := 0
 			successfulRejections := 0
@@ -729,5 +747,187 @@ func TestSupports_RegionRejection(t *testing.T) {
 				t.Errorf("Plugin %s rejection rate %.1f%% is below 100%% requirement (SC-008)", pluginRegion, rejectionRate)
 			}
 		})
+	}
+}
+
+// T027: Test GetProjectedCost logs contain required structured fields
+func TestGetProjectedCostLogsContainRequiredFields(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	}
+
+	_, err := plugin.GetProjectedCost(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetProjectedCost() error: %v", err)
+	}
+
+	// Parse log output and verify required fields
+	var logEntry map[string]interface{}
+	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
+		t.Fatalf("Failed to parse log output as JSON: %v", err)
+	}
+
+	// Required fields per data-model.md and tasks.md T023
+	requiredFields := []string{
+		"trace_id",
+		"operation",
+		"resource_type",
+		"aws_service",
+		"aws_region",
+		"cost_monthly",
+		"duration_ms",
+		"message",
+	}
+
+	for _, field := range requiredFields {
+		if _, ok := logEntry[field]; !ok {
+			t.Errorf("GetProjectedCost log missing required field: %s", field)
+		}
+	}
+
+	// Verify specific values
+	if op, ok := logEntry["operation"].(string); ok {
+		if op != "GetProjectedCost" {
+			t.Errorf("operation = %q, want %q", op, "GetProjectedCost")
+		}
+	}
+
+	if rt, ok := logEntry["resource_type"].(string); ok {
+		if rt != "ec2" {
+			t.Errorf("resource_type = %q, want %q", rt, "ec2")
+		}
+	}
+
+	if region, ok := logEntry["aws_region"].(string); ok {
+		if region != "us-east-1" {
+			t.Errorf("aws_region = %q, want %q", region, "us-east-1")
+		}
+	}
+
+	// cost_monthly should be the expected value
+	if cost, ok := logEntry["cost_monthly"].(float64); ok {
+		expectedCost := 0.0104 * 730.0
+		if cost != expectedCost {
+			t.Errorf("cost_monthly = %v, want %v", cost, expectedCost)
+		}
+	}
+
+	// duration_ms should be non-negative
+	if durationMs, ok := logEntry["duration_ms"].(float64); ok {
+		if durationMs < 0 {
+			t.Errorf("duration_ms = %v, should be non-negative", durationMs)
+		}
+	}
+}
+
+// T038: Test debug logs contain instance_type for EC2
+func TestDebugLogsContainInstanceTypeForEC2(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	logger := zerolog.New(&logBuf).Level(zerolog.DebugLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	}
+
+	_, err := plugin.GetProjectedCost(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetProjectedCost() error: %v", err)
+	}
+
+	// Parse all log lines (there may be multiple)
+	logLines := bytes.Split(logBuf.Bytes(), []byte("\n"))
+	foundInstanceType := false
+
+	for _, line := range logLines {
+		if len(line) == 0 {
+			continue
+		}
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal(line, &logEntry); err != nil {
+			continue // Skip invalid lines
+		}
+
+		// Look for debug log with instance_type
+		if instanceType, ok := logEntry["instance_type"].(string); ok {
+			if instanceType == "t3.micro" {
+				foundInstanceType = true
+				break
+			}
+		}
+	}
+
+	if !foundInstanceType {
+		t.Error("Debug log should contain instance_type field for EC2 requests")
+	}
+}
+
+// T039: Test debug logs contain storage_type for EBS
+func TestDebugLogsContainStorageTypeForEBS(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ebsPrices["gp3"] = 0.08
+	logger := zerolog.New(&logBuf).Level(zerolog.DebugLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ebs",
+			Sku:          "gp3",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"size": "100",
+			},
+		},
+	}
+
+	_, err := plugin.GetProjectedCost(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetProjectedCost() error: %v", err)
+	}
+
+	// Parse all log lines (there may be multiple)
+	logLines := bytes.Split(logBuf.Bytes(), []byte("\n"))
+	foundStorageType := false
+
+	for _, line := range logLines {
+		if len(line) == 0 {
+			continue
+		}
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal(line, &logEntry); err != nil {
+			continue // Skip invalid lines
+		}
+
+		// Look for debug log with storage_type
+		if storageType, ok := logEntry["storage_type"].(string); ok {
+			if storageType == "gp3" {
+				foundStorageType = true
+				break
+			}
+		}
+	}
+
+	if !foundStorageType {
+		t.Error("Debug log should contain storage_type field for EBS requests")
 	}
 }

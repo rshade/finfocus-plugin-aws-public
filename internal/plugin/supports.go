@@ -3,13 +3,25 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 )
 
 // Supports checks if this plugin can estimate costs for the given resource.
 func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error) {
+	start := time.Now()
+	traceID := p.getTraceID(ctx)
+
 	if req == nil || req.Resource == nil {
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldErrorCode, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE.String()).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
 		return &pbc.SupportsResponse{
 			Supported: false,
 			Reason:    "Invalid request: missing resource descriptor",
@@ -20,6 +32,15 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	// Check provider
 	if resource.Provider != "aws" {
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldResourceType, resource.ResourceType).
+			Str("aws_region", resource.Region).
+			Bool("supported", false).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
 		return &pbc.SupportsResponse{
 			Supported: false,
 			Reason:    fmt.Sprintf("Provider %q not supported (only 'aws' is supported)", resource.Provider),
@@ -28,6 +49,15 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	// Check region match
 	if resource.Region != p.region {
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldResourceType, resource.ResourceType).
+			Str("aws_region", resource.Region).
+			Bool("supported", false).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
 		return &pbc.SupportsResponse{
 			Supported: false,
 			Reason:    fmt.Sprintf("Region not supported by this binary (plugin region: %s, resource region: %s)", p.region, resource.Region),
@@ -38,6 +68,15 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	switch resource.ResourceType {
 	case "ec2", "ebs":
 		// Fully supported
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldResourceType, resource.ResourceType).
+			Str("aws_region", resource.Region).
+			Bool("supported", true).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
 		return &pbc.SupportsResponse{
 			Supported: true,
 			Reason:    "",
@@ -45,6 +84,15 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	case "s3", "lambda", "rds", "dynamodb":
 		// Stub support - returns $0 estimates
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldResourceType, resource.ResourceType).
+			Str("aws_region", resource.Region).
+			Bool("supported", true).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
 		return &pbc.SupportsResponse{
 			Supported: true,
 			Reason:    fmt.Sprintf("Limited support - %s cost estimation not fully implemented, returns $0 estimate", resource.ResourceType),
@@ -52,6 +100,15 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	default:
 		// Unknown resource type
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldResourceType, resource.ResourceType).
+			Str("aws_region", resource.Region).
+			Bool("supported", false).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
 		return &pbc.SupportsResponse{
 			Supported: false,
 			Reason:    fmt.Sprintf("Resource type %q not supported", resource.ResourceType),

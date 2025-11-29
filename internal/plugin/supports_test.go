@@ -1,16 +1,20 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 )
 
 func TestSupports(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
-	plugin := NewAWSPublicPlugin("us-east-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
 	tests := []struct {
 		name             string
@@ -236,10 +240,88 @@ func TestSupports(t *testing.T) {
 	}
 }
 
+// T028: Test Supports logs contain required structured fields
+func TestSupportsLogsContainRequiredFields(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.SupportsRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Region:       "us-east-1",
+		},
+	}
+
+	_, err := plugin.Supports(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Supports() error: %v", err)
+	}
+
+	// Parse log output and verify required fields
+	var logEntry map[string]interface{}
+	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
+		t.Fatalf("Failed to parse log output as JSON: %v", err)
+	}
+
+	// Required fields per data-model.md and tasks.md T024
+	requiredFields := []string{
+		"trace_id",
+		"operation",
+		"resource_type",
+		"aws_region",
+		"supported",
+		"duration_ms",
+		"message",
+	}
+
+	for _, field := range requiredFields {
+		if _, ok := logEntry[field]; !ok {
+			t.Errorf("Supports log missing required field: %s", field)
+		}
+	}
+
+	// Verify specific values
+	if op, ok := logEntry["operation"].(string); ok {
+		if op != "Supports" {
+			t.Errorf("operation = %q, want %q", op, "Supports")
+		}
+	}
+
+	if rt, ok := logEntry["resource_type"].(string); ok {
+		if rt != "ec2" {
+			t.Errorf("resource_type = %q, want %q", rt, "ec2")
+		}
+	}
+
+	if region, ok := logEntry["aws_region"].(string); ok {
+		if region != "us-east-1" {
+			t.Errorf("aws_region = %q, want %q", region, "us-east-1")
+		}
+	}
+
+	// supported should be true for this request
+	if supported, ok := logEntry["supported"].(bool); ok {
+		if !supported {
+			t.Errorf("supported = %v, want true", supported)
+		}
+	}
+
+	// duration_ms should be non-negative
+	if durationMs, ok := logEntry["duration_ms"].(float64); ok {
+		if durationMs < 0 {
+			t.Errorf("duration_ms = %v, should be non-negative", durationMs)
+		}
+	}
+}
+
 // TestSupports_CACentral1 tests support for ca-central-1 region binary
 func TestSupports_CACentral1(t *testing.T) {
 	mock := newMockPricingClient("ca-central-1", "USD")
-	plugin := NewAWSPublicPlugin("ca-central-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("ca-central-1", mock, logger)
 
 	tests := []struct {
 		name             string
@@ -334,7 +416,8 @@ func TestSupports_CACentral1(t *testing.T) {
 // TestSupports_SAEast1 tests support for sa-east-1 region binary
 func TestSupports_SAEast1(t *testing.T) {
 	mock := newMockPricingClient("sa-east-1", "USD")
-	plugin := NewAWSPublicPlugin("sa-east-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("sa-east-1", mock, logger)
 
 	tests := []struct {
 		name             string
@@ -429,7 +512,8 @@ func TestSupports_SAEast1(t *testing.T) {
 // TestSupports_APSoutheast1 tests support for ap-southeast-1 region binary (T010)
 func TestSupports_APSoutheast1(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock)
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
 
 	tests := []struct {
 		name             string

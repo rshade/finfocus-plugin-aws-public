@@ -3,6 +3,8 @@ module github.com/rshade/pulumicost-plugin-aws-public
 go 1.25.4
 
 require (
+	github.com/google/uuid v1.6.0
+	github.com/rs/zerolog v1.34.0
 	github.com/rshade/pulumicost-core v0.1.0
 	github.com/rshade/pulumicost-spec v0.4.1
 	google.golang.org/grpc v1.77.0
@@ -10,6 +12,9 @@ require (
 )
 
 require (
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect

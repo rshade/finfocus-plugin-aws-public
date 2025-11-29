@@ -2,27 +2,52 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/rs/zerolog"
 	"github.com/rshade/pulumicost-core/pkg/pluginsdk"
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
+	sdklogging "github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 )
 
+// version is the plugin version, set at build time via ldflags.
+var version = "0.0.3"
+
 func main() {
+	// Parse log level from environment (default: info)
+	level := zerolog.InfoLevel
+	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+		if parsed, err := zerolog.ParseLevel(lvl); err == nil {
+			level = parsed
+		}
+	}
+
+	// Create logger using SDK utility (outputs JSON to stderr)
+	logger := sdklogging.NewPluginLogger("aws-public", version, level, nil)
+
 	// Initialize pricing client
 	pricingClient, err := pricing.NewClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Failed to initialize pricing client: %v\n", err)
+		logger.Error().Err(err).Msg("failed to initialize pricing client")
 		os.Exit(1)
 	}
 	region := pricingClient.Region()
 
-	// Create plugin instance
-	awsPlugin := plugin.NewAWSPublicPlugin(region, pricingClient)
+	// Log startup with region info (US3: Plugin Startup Logging)
+	logger.Info().
+		Str("aws_region", region).
+		Msg("plugin started")
+
+	// Log PORT env var if set (debug level for troubleshooting)
+	if port := os.Getenv("PORT"); port != "" {
+		logger.Debug().Str("port", port).Msg("using PORT from environment")
+	}
+
+	// Create plugin instance with logger
+	awsPlugin := plugin.NewAWSPublicPlugin(region, pricingClient, logger)
 
 	// Setup context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -33,7 +58,7 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Received shutdown signal\n")
+		logger.Info().Msg("received shutdown signal")
 		cancel()
 	}()
 
@@ -43,7 +68,7 @@ func main() {
 		Port:   0, // Use PORT env var or random port
 	}
 	if err := pluginsdk.Serve(ctx, config); err != nil {
-		fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Error: %v\n", err)
+		logger.Error().Err(err).Msg("server error")
 		os.Exit(1)
 	}
 }
