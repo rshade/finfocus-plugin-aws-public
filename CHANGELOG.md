@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.4](https://github.com/rshade/pulumicost-plugin-aws-public/compare/pulumicost-plugin-aws-public-v0.0.3...pulumicost-plugin-aws-public-v0.0.4) (2025-11-30)
+
+
+### Features
+
+* **pricing:** add Canada and South America regions with real AWS pri… ([#43](https://github.com/rshade/pulumicost-plugin-aws-public/issues/43)) ([2406c34](https://github.com/rshade/pulumicost-plugin-aws-public/commit/2406c34e48ed975358d77b52240c901ed1a1f710))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-core to v0.1.1 ([#41](https://github.com/rshade/pulumicost-plugin-aws-public/issues/41)) ([251f432](https://github.com/rshade/pulumicost-plugin-aws-public/commit/251f4322e0cb9af7b444cb96e02fe5d9040eafe7))
+
 ## [0.0.3](https://github.com/rshade/pulumicost-plugin-aws-public/compare/pulumicost-plugin-aws-public-v0.0.2...pulumicost-plugin-aws-public-v0.0.3) (2025-11-29)
 
 
