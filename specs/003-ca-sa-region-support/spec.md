@@ -1,92 +1,79 @@
 # Feature Specification: Canada and South America Region Support
 
 **Feature Branch**: `003-ca-sa-region-support`
-**Created**: 2025-11-20
+**Created**: 2025-11-29
 **Status**: Draft
-**Input**: User description: "Add support for Canada and South America regions (ca-central-1, sa-east-1)"
+**Input**: User description: "Add pricing data and build configurations for: ca-central-1 (Canada Central / Montreal) sa-east-1 (South America / São Paulo) Implementation Tasks Add build tags: region_cac1, region_sae1 Create embed files: internal/pricing/embed_cac1.go internal/pricing/embed_sae1.go Update .goreleaser.yaml Update pricing generator Add tests Update documentation Acceptance Criteria Both region binaries build successfully Pricing data is region-specific All tests pass"
 
 ## User Scenarios & Testing
 
-### User Story 1 - Canada Region Cost Estimation (Priority: P1)
+### User Story 1 - Canada Region Support (Priority: P1)
 
-As a PulumiCost user with AWS resources in Canada (ca-central-1), I want to get accurate cost estimates for my EC2 instances and EBS volumes so that I can budget for my Canadian infrastructure deployments.
+As a PulumiCost user deploying infrastructure in Canada, I want to use a dedicated `ca-central-1` plugin binary so that I can estimate costs using accurate, region-specific pricing data without downloading unnecessary data for other regions.
 
-**Why this priority**: Canada is a popular region for businesses requiring data residency compliance in North America. Providing cost estimation enables users to make informed infrastructure decisions.
+**Why this priority**: Expanding region support is critical for users operating in specific geographies to get accurate cost estimates.
 
-**Independent Test**: Can be fully tested by requesting cost estimates for EC2 and EBS resources in ca-central-1 and verifying accurate pricing data is returned.
+**Independent Test**: Can be tested by building the `ca-central-1` binary and verifying it correctly estimates costs for resources in that region.
 
 **Acceptance Scenarios**:
 
-1. **Given** a ca-central-1 region binary is built, **When** a user requests cost estimation for a t3.micro EC2 instance, **Then** the system returns the correct hourly rate and monthly cost with USD currency
-2. **Given** a ca-central-1 region binary is built, **When** a user requests cost estimation for a gp3 EBS volume, **Then** the system returns the correct GB-month rate and calculated monthly cost
+1. **Given** the `pulumicost-plugin-aws-public-ca-central-1` binary is built, **When** it is started, **Then** it should run successfully and listen on a port.
+2. **Given** the running `ca-central-1` plugin, **When** a cost estimation request for a `ca-central-1` resource is made, **Then** it returns a valid cost estimate using Canadian pricing.
+3. **Given** the running `ca-central-1` plugin, **When** a cost estimation request for a `us-east-1` resource is made, **Then** it returns an `ERROR_CODE_UNSUPPORTED_REGION` error.
 
 ---
 
-### User Story 2 - South America Region Cost Estimation (Priority: P1)
+### User Story 2 - South America Region Support (Priority: P1)
 
-As a PulumiCost user with AWS resources in South America (sa-east-1), I want to get accurate cost estimates for my EC2 instances and EBS volumes so that I can budget for my São Paulo infrastructure deployments.
+As a PulumiCost user deploying infrastructure in South America, I want to use a dedicated `sa-east-1` plugin binary so that I can estimate costs using accurate, region-specific pricing data for the São Paulo region.
 
-**Why this priority**: South America is an important region for latency-sensitive applications serving Latin American users. Cost estimation enables proper budgeting for this market.
+**Why this priority**: Validates the plugin architecture's ability to support South American AWS regions.
 
-**Independent Test**: Can be fully tested by requesting cost estimates for EC2 and EBS resources in sa-east-1 and verifying accurate pricing data is returned.
-
-**Acceptance Scenarios**:
-
-1. **Given** a sa-east-1 region binary is built, **When** a user requests cost estimation for a m5.large EC2 instance, **Then** the system returns the correct hourly rate and monthly cost with USD currency
-2. **Given** a sa-east-1 region binary is built, **When** a user requests cost estimation for an io1 EBS volume, **Then** the system returns the correct GB-month rate and calculated monthly cost
-
----
-
-### User Story 3 - Region Mismatch Rejection (Priority: P2)
-
-As a PulumiCost system, I want to reject cost estimation requests for resources in regions not supported by the loaded binary so that users get clear feedback about using the correct regional binary.
-
-**Why this priority**: Ensures system integrity by preventing incorrect pricing from being returned when the wrong regional binary is used.
-
-**Independent Test**: Can be fully tested by sending a ca-central-1 resource request to an sa-east-1 binary and verifying proper error response.
+**Independent Test**: Can be tested by building the `sa-east-1` binary and verifying it correctly estimates costs for resources in that region.
 
 **Acceptance Scenarios**:
 
-1. **Given** a ca-central-1 binary is running, **When** a user requests cost estimation for a resource in us-east-1, **Then** the system returns ERROR_CODE_UNSUPPORTED_REGION with details about the mismatch
-2. **Given** an sa-east-1 binary is running, **When** a user requests cost estimation for a resource in eu-west-1, **Then** the system returns ERROR_CODE_UNSUPPORTED_REGION with details about the mismatch
+1. **Given** the `pulumicost-plugin-aws-public-sa-east-1` binary is built, **When** it is started, **Then** it should run successfully and listen on a port.
+2. **Given** the running `sa-east-1` plugin, **When** a cost estimation request for a `sa-east-1` resource is made, **Then** it returns a valid cost estimate using South American pricing.
+3. **Given** the running `sa-east-1` plugin, **When** a cost estimation request for a `ca-central-1` resource is made, **Then** it returns an `ERROR_CODE_UNSUPPORTED_REGION` error.
 
 ---
 
 ### Edge Cases
 
-- What happens when pricing data for a specific instance type is not available in the region?
-- How does the system handle concurrent cost estimation requests?
-- What happens if the embedded pricing JSON is corrupted during build?
+- What happens if pricing data for the new regions cannot be fetched during generation? The generation process should fail immediately (Exit code 1).
+- How does the system behave if a user tries to use the `ca-central-1` binary for a region that is technically close but different (e.g. `us-east-1`)? (Should fail as per Acceptance Scenarios).
+
+## Clarifications
+### Session 2025-11-29
+- Q: What happens if pricing data for the new regions cannot be fetched during generation? → A: Fail the generation process immediately (Exit code 1)
+- Q: What are the logging requirements for the new region binaries? → A: Use existing `rs/zerolog` and follow established patterns (stderr, prefixed, trace_id)
+
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: System MUST provide build tags `region_cac1` for ca-central-1 and `region_sae1` for sa-east-1
-- **FR-002**: System MUST create embed files `internal/pricing/embed_cac1.go` and `internal/pricing/embed_sae1.go` with region-specific pricing data
-- **FR-003**: System MUST update `.goreleaser.yaml` with build configurations for both new regions
-- **FR-004**: System MUST update the pricing generator tool to support ca-central-1 and sa-east-1 regions
-- **FR-005**: System MUST return accurate EC2 instance pricing for supported instance types in both regions
-- **FR-006**: System MUST return accurate EBS volume pricing for supported volume types (gp2, gp3, io1, io2) in both regions
-- **FR-007**: System MUST return stub responses ($0 estimates) for unsupported services (S3, Lambda, RDS, DynamoDB) in both regions
-- **FR-008**: System MUST reject requests for resources in regions not matching the binary's embedded region with ERROR_CODE_UNSUPPORTED_REGION
-- **FR-009**: System MUST update the fallback embed file to exclude the new region tags
-- **FR-010**: System MUST maintain thread-safety for concurrent pricing lookups
+- **FR-001**: System MUST support building a standalone binary for the Canada Central (`ca-central-1`) region.
+- **FR-002**: System MUST support building a standalone binary for the South America (`sa-east-1`) region.
+- **FR-003**: The Canada Central binary MUST include pricing data specific to the `ca-central-1` region.
+- **FR-004**: The South America binary MUST include pricing data specific to the `sa-east-1` region.
+- **FR-005**: The release process MUST automatically generate and publish artifacts for both new regions.
+- **FR-006**: The pricing data generation tools MUST be capable of fetching and formatting data for the new regions.
+- **FR-007**: Documentation MUST be updated to reflect support for the new regions.
+- FR-008: The system MUST provide automated tests to verify support for the new regions.
+- FR-009: The system MUST use existing `rs/zerolog` for logging, following established patterns (stderr, prefixed, trace_id).
 
 ### Key Entities
 
-- **Regional Pricing Data**: JSON files containing EC2 and EBS pricing for each region, embedded at build time
-- **Build Tag**: Go build constraint (region_cac1, region_sae1) that selects the appropriate embed file
-- **Regional Binary**: Compiled plugin binary containing only one region's pricing data
+- **Region Binary**: The resulting executable artifact for a specific region.
+- **Pricing Data**: The region-specific cost information embedded in the binary.
 
 ## Success Criteria
 
 ### Measurable Outcomes
 
-- **SC-001**: Both ca-central-1 and sa-east-1 region binaries build successfully without errors
-- **SC-002**: Each binary is under 20MB in size (consistent with existing regional binaries)
-- **SC-003**: Region mismatch detection responds in under 100ms
-- **SC-004**: All existing tests pass plus new region-specific tests pass
-- **SC-005**: Concurrent cost estimation requests are handled correctly without race conditions
-- **SC-006**: Cost estimates are returned with correct USD currency and billing details
-- **SC-007**: 100% of region mismatch requests are correctly rejected with appropriate error codes
+- **SC-001**: Binaries for `ca-central-1` and `sa-east-1` build successfully without compilation errors.
+- **SC-002**: Generated pricing data files for new regions are non-empty and contain valid JSON.
+- **SC-003**: All unit and integration tests, including new region-specific tests, pass (exit code 0).
+- **SC-004**: The release artifacts list includes `pulumicost-plugin-aws-public-ca-central-1` and `pulumicost-plugin-aws-public-sa-east-1`.

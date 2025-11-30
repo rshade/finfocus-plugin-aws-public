@@ -32,18 +32,49 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: false # Disable cache - we clean between regions to save disk
 
-      # 3. Generate pricing data for embedding
-      - name: Generate pricing data
-        run: make generate-pricing
-
-      # 4. Run GoReleaser
-      - name: Run GoReleaser
+      # 3. Install GoReleaser
+      - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
           version: latest
-          args: release --clean
+          install-only: true
+
+      # 4. Build all regions sequentially (one at a time to save disk)
+      - name: Build all regions
+        run: |
+          # Build one region at a time: generate pricing → build → clean cache
+          # This keeps disk usage constant (~200MB) regardless of region count
+          REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1"
+
+          mkdir -p dist
+
+          for region in $REGIONS; do
+            echo ""
+            echo "=============================================="
+            echo "Building region: $region"
+            echo "=============================================="
+            df -h / | tail -1
+
+            bash ./scripts/release-region.sh "$region"
+
+            echo "Disk after $region:"
+            df -h / | tail -1
+          done
+
+      # 5. Generate checksums for all archives
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+          cat checksums.txt
+
+      # 6. Upload release assets
+      - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+        run: |
+          TAG="${{ inputs.tag || github.event.release.tag_name }}"
+          echo "Uploading assets to release $TAG..."
+          gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber

@@ -128,7 +128,7 @@ gh workflow run release.yml --ref vX.Y.Z
 git checkout vX.Y.Z
 
 # Generate pricing data
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data --dummy
+go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data
 
 # Run GoReleaser (requires GITHUB_TOKEN)
 export GITHUB_TOKEN=<your-token>
@@ -236,7 +236,7 @@ git log v1.2.0..HEAD --oneline
 
 ```bash
 # Verify pricing data generation
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data --dummy
+go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data
 
 # Test local build
 goreleaser build --snapshot --clean
@@ -263,14 +263,12 @@ ls -la dist/
 
 **Solution**: Ensure workflow has `contents: write` permission in `.github/workflows/release.yml`
 
-## Future Enhancements
+## Pricing Data
 
-When implementing real AWS pricing:
-
-1. Update `tools/generate-pricing/main.go` to fetch real pricing
-2. Remove `--dummy` flag from `.goreleaser.yaml` before hook
-3. Add AWS credentials to GitHub Actions secrets
-4. Update documentation for pricing data sources
+The `tools/generate-pricing` tool fetches real pricing data from the AWS Price List API:
+- No AWS credentials required - uses public pricing endpoint
+- Data is fetched during build via GoReleaser before hook
+- Each region binary embeds its own pricing data
 
 ## Support
 

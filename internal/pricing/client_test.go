@@ -36,7 +36,7 @@ func TestClient_EC2OnDemandPricePerHour(t *testing.T) {
 		os           string
 		tenancy      string
 		wantFound    bool
-		wantPrice    float64
+		// Removed strict price check to allow multi-region testing
 	}{
 		{
 			name:         "t3.micro Linux Shared",
@@ -44,7 +44,6 @@ func TestClient_EC2OnDemandPricePerHour(t *testing.T) {
 			os:           "Linux",
 			tenancy:      "Shared",
 			wantFound:    true,
-			wantPrice:    0.0104,
 		},
 		{
 			name:         "t3.small Linux Shared",
@@ -52,7 +51,6 @@ func TestClient_EC2OnDemandPricePerHour(t *testing.T) {
 			os:           "Linux",
 			tenancy:      "Shared",
 			wantFound:    true,
-			wantPrice:    0.0208,
 		},
 		{
 			name:         "nonexistent instance type",
@@ -60,7 +58,6 @@ func TestClient_EC2OnDemandPricePerHour(t *testing.T) {
 			os:           "Linux",
 			tenancy:      "Shared",
 			wantFound:    false,
-			wantPrice:    0,
 		},
 	}
 
@@ -72,8 +69,27 @@ func TestClient_EC2OnDemandPricePerHour(t *testing.T) {
 				t.Errorf("EC2OnDemandPricePerHour() found = %v, want %v", found, tt.wantFound)
 			}
 
-			if price != tt.wantPrice {
-				t.Errorf("EC2OnDemandPricePerHour() price = %v, want %v", price, tt.wantPrice)
+			if tt.wantFound {
+				if price <= 0 {
+					t.Errorf("EC2OnDemandPricePerHour() price = %v, want > 0", price)
+				}
+				// Optional: strict check only for us-east-1 to verify exact parsing logic
+				if client.Region() == "us-east-1" {
+					var expected float64
+					switch tt.instanceType {
+					case "t3.micro":
+						expected = 0.0104
+					case "t3.small":
+						expected = 0.0208
+					}
+					if expected > 0 && price != expected {
+						t.Errorf("Region %s: Expected exact price %v, got %v", client.Region(), expected, price)
+					}
+				}
+			} else {
+				if price != 0 {
+					t.Errorf("EC2OnDemandPricePerHour() price = %v, want 0", price)
+				}
 			}
 		})
 	}
@@ -89,25 +105,21 @@ func TestClient_EBSPricePerGBMonth(t *testing.T) {
 		name       string
 		volumeType string
 		wantFound  bool
-		wantPrice  float64
 	}{
 		{
 			name:       "gp3",
 			volumeType: "gp3",
 			wantFound:  true,
-			wantPrice:  0.08,
 		},
 		{
 			name:       "gp2",
 			volumeType: "gp2",
 			wantFound:  true,
-			wantPrice:  0.10,
 		},
 		{
 			name:       "nonexistent volume type",
 			volumeType: "super-fast",
 			wantFound:  false,
-			wantPrice:  0,
 		},
 	}
 
@@ -119,8 +131,27 @@ func TestClient_EBSPricePerGBMonth(t *testing.T) {
 				t.Errorf("EBSPricePerGBMonth() found = %v, want %v", found, tt.wantFound)
 			}
 
-			if price != tt.wantPrice {
-				t.Errorf("EBSPricePerGBMonth() price = %v, want %v", price, tt.wantPrice)
+			if tt.wantFound {
+				if price <= 0 {
+					t.Errorf("EBSPricePerGBMonth() price = %v, want > 0", price)
+				}
+				// Optional: strict check only for us-east-1
+				if client.Region() == "us-east-1" {
+					var expected float64
+					switch tt.volumeType {
+					case "gp3":
+						expected = 0.08
+					case "gp2":
+						expected = 0.10
+					}
+					if expected > 0 && price != expected {
+						t.Errorf("Region %s: Expected exact price %v, got %v", client.Region(), expected, price)
+					}
+				}
+			} else {
+				if price != 0 {
+					t.Errorf("EBSPricePerGBMonth() price = %v, want 0", price)
+				}
 			}
 		})
 	}

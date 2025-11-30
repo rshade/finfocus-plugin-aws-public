@@ -1,9 +1,13 @@
+---
+description: "Task list template for feature implementation"
+---
+
 # Tasks: Canada and South America Region Support
 
 **Input**: Design documents from `/specs/003-ca-sa-region-support/`
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, quickstart.md
+**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: Tests are included as this project has constitution requirements for testing discipline.
+**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -15,112 +19,84 @@
 
 ## Path Conventions
 
-- **Single project**: Go plugin with `internal/`, `tools/`, `data/` at repository root
-- Paths based on plan.md structure
-
----
+- **Single project**: `src/`, `tests/` at repository root
+- **Web app**: `backend/src/`, `frontend/src/`
+- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
+- Paths shown below assume single project - adjust based on plan.md structure
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Generate pricing data for new regions
+**Purpose**: Project initialization and basic structure
 
-- [x] T001 Update pricing generator to support new regions in tools/generate-pricing/main.go
-- [x] T002 Generate pricing data for ca-central-1 in internal/pricing/data/aws_pricing_ca-central-1.json
-- [x] T003 [P] Generate pricing data for sa-east-1 in internal/pricing/data/aws_pricing_sa-east-1.json
+- [x] T001 Create task documentation structure in specs/003-ca-sa-region-support/
+- [x] T002 [P] Update .goreleaser.yaml with new build targets (cac1, sae1)
+- [x] T003 [P] Update tools/generate-pricing/main.go to support new region arguments
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Create embed files and update build configuration
+**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
 
-**CRITICAL**: No user story work can begin until this phase is complete
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T004 Create embed file for ca-central-1 in internal/pricing/embed_cac1.go
-- [x] T005 [P] Create embed file for sa-east-1 in internal/pricing/embed_sae1.go
-- [x] T006 Update fallback embed file to exclude new region tags in internal/pricing/embed_fallback.go
-- [x] T007 Add ca-central-1 build target to .goreleaser.yaml
-- [x] T008 [P] Add sa-east-1 build target to .goreleaser.yaml
-- [x] T009 Update GoReleaser before hook to include new regions in .goreleaser.yaml
+- [x] T004 Generate placeholder pricing data in internal/pricing/data/aws_pricing_ca-central-1.json (via updated tool)
+- [x] T005 Generate placeholder pricing data in internal/pricing/data/aws_pricing_sa-east-1.json (via updated tool)
 
-**Checkpoint**: Foundation ready - user story implementation can now begin
+**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
 ---
 
-## Phase 3: User Story 1 - Canada Region Cost Estimation (Priority: P1)
+## Phase 3: User Story 1 - Canada Region Support (Priority: P1) 🎯 MVP
 
-**Goal**: Provide accurate EC2 and EBS cost estimates for ca-central-1 resources
+**Goal**: Support for ca-central-1 region with dedicated binary and pricing data
 
-**Independent Test**: Build ca-central-1 binary and verify it returns correct pricing for t3.micro EC2 and gp3 EBS
+**Independent Test**: Build ca-central-1 binary and verify it runs and returns correct cost estimates
 
-### Tests for User Story 1
+### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
 
-- [x] T010 [P] [US1] Add ca-central-1 EC2 test cases to pricing client tests in internal/pricing/client_test.go
-- [x] T011 [P] [US1] Add ca-central-1 EBS test cases to pricing client tests in internal/pricing/client_test.go
-- [x] T012 [P] [US1] Add ca-central-1 plugin test cases in internal/plugin/plugin_test.go
+> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+
+- [x] T006 [P] [US1] Create integration test for ca-central-1 in internal/plugin/integration_test.go
 
 ### Implementation for User Story 1
 
-- [x] T013 [US1] Build and verify ca-central-1 binary with `go build -tags region_cac1`
-- [x] T014 [US1] Verify binary size is under 20MB for ca-central-1
-- [x] T015 [US1] Test ca-central-1 gRPC service responds correctly with grpcurl
+- [x] T007 [US1] Create embed_cac1.go in internal/pricing/embed_cac1.go
+- [x] T008 [US1] Verify build tags for ca-central-1
+- [x] T009 [US1] Run local build for ca-central-1 to verify artifact creation
 
-**Checkpoint**: User Story 1 complete - ca-central-1 binary fully functional
+**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
 ---
 
-## Phase 4: User Story 2 - South America Region Cost Estimation (Priority: P1)
+## Phase 4: User Story 2 - South America Region Support (Priority: P1)
 
-**Goal**: Provide accurate EC2 and EBS cost estimates for sa-east-1 resources
+**Goal**: Support for sa-east-1 region with dedicated binary and pricing data
 
-**Independent Test**: Build sa-east-1 binary and verify it returns correct pricing for m5.large EC2 and io1 EBS
+**Independent Test**: Build sa-east-1 binary and verify it runs and returns correct cost estimates
 
-### Tests for User Story 2
+### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
-- [x] T016 [P] [US2] Add sa-east-1 EC2 test cases to pricing client tests in internal/pricing/client_test.go
-- [x] T017 [P] [US2] Add sa-east-1 EBS test cases to pricing client tests in internal/pricing/client_test.go
-- [x] T018 [P] [US2] Add sa-east-1 plugin test cases in internal/plugin/plugin_test.go
+- [x] T010 [P] [US2] Create integration test for sa-east-1 in internal/plugin/integration_test.go
 
 ### Implementation for User Story 2
 
-- [x] T019 [US2] Build and verify sa-east-1 binary with `go build -tags region_sae1`
-- [x] T020 [US2] Verify binary size is under 20MB for sa-east-1
-- [x] T021 [US2] Test sa-east-1 gRPC service responds correctly with grpcurl
+- [x] T011 [US2] Create embed_sae1.go in internal/pricing/embed_sae1.go
+- [x] T012 [US2] Verify build tags for sa-east-1
+- [x] T013 [US2] Run local build for sa-east-1 to verify artifact creation
 
-**Checkpoint**: User Story 2 complete - sa-east-1 binary fully functional
-
----
-
-## Phase 5: User Story 3 - Region Mismatch Rejection (Priority: P2)
-
-**Goal**: Correctly reject requests for resources in non-matching regions with ERROR_CODE_UNSUPPORTED_REGION
-
-**Independent Test**: Send ca-central-1 resource request to sa-east-1 binary and verify proper error response
-
-### Tests for User Story 3
-
-- [x] T022 [P] [US3] Add region mismatch test for ca-central-1 binary rejecting other regions in internal/plugin/supports_test.go
-- [x] T023 [P] [US3] Add region mismatch test for sa-east-1 binary rejecting other regions in internal/plugin/supports_test.go
-- [x] T024 [P] [US3] Add cross-region validation tests in internal/plugin/projected_test.go
-
-### Implementation for User Story 3
-
-- [x] T025 [US3] Verify region mismatch latency is under 100ms
-- [x] T026 [US3] Verify ERROR_CODE_UNSUPPORTED_REGION includes correct error details
-
-**Checkpoint**: User Story 3 complete - region mismatch handling verified
+**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 5: Polish & Cross-Cutting Concerns
 
-**Purpose**: Validation and documentation
+**Purpose**: Improvements that affect multiple user stories
 
-- [x] T027 Run make lint and fix any issues
-- [x] T028 Run make test and verify all tests pass
-- [x] T029 [P] Build all region binaries with goreleaser build --snapshot --clean
-- [x] T030 Verify concurrent RPC handling with stress test
-- [x] T031 [P] Update CLAUDE.md with 003-ca-sa-region-support completion notes
+- [x] T014 [P] Update README.md with new supported regions
+- [x] T015 [P] Verify logging requirements (zerolog) across new regions
+- [x] T016 Run full test suite (unit + integration) for all regions
+- [x] T017 Verify release artifacts generation via goreleaser check
 
 ---
 
@@ -130,83 +106,74 @@
 
 - **Setup (Phase 1)**: No dependencies - can start immediately
 - **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
-- **User Stories (Phase 3-5)**: All depend on Foundational phase completion
-  - US1 and US2 can proceed in parallel (both P1)
-  - US3 requires binaries from US1/US2 for testing
-- **Polish (Phase 6)**: Depends on all user stories being complete
+- **User Stories (Phase 3+)**: All depend on Foundational phase completion
+  - User stories can then proceed in parallel (if staffed)
+  - Or sequentially in priority order (P1 → P2 → P3)
+- **Polish (Final Phase)**: Depends on all desired user stories being complete
 
 ### User Story Dependencies
 
-- **User Story 1 (P1)**: Can start after Foundational - No dependencies on other stories
-- **User Story 2 (P1)**: Can start after Foundational - No dependencies on other stories
-- **User Story 3 (P2)**: Can start after US1 and US2 binaries exist (for cross-region testing)
+- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
+- **User Story 2 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
 
 ### Within Each User Story
 
-- Tests written first
-- Build verification follows tests
-- Binary size and service validation complete the story
+- Tests (if included) MUST be written and FAIL before implementation
+- Models before services
+- Services before endpoints
+- Core implementation before integration
+- Story complete before moving to next priority
 
 ### Parallel Opportunities
 
-- T002, T003: Generate pricing data in parallel
-- T004, T005: Create embed files in parallel
-- T007, T008: Add build targets in parallel
-- T010, T011, T012: All US1 tests in parallel
-- T016, T017, T018: All US2 tests in parallel
-- T022, T023, T024: All US3 tests in parallel
-- US1 and US2 can be worked on in parallel (both P1 priority)
+- All Setup tasks marked [P] can run in parallel
+- All Foundational tasks marked [P] can run in parallel (within Phase 2)
+- Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
+- All tests for a user story marked [P] can run in parallel
+- Models within a story marked [P] can run in parallel
+- Different user stories can be worked on in parallel by different team members
 
 ---
 
-## Parallel Example: User Story 1 + User Story 2
+## Parallel Example: User Story 1
 
 ```bash
-# US1 and US2 are both P1 priority - work in parallel:
+# Launch all tests for User Story 1 together (if tests requested):
+Task: "Create integration test for ca-central-1 in internal/plugin/integration_test.go"
 
-# Developer A (US1):
-Task: "Add ca-central-1 EC2 test cases in internal/pricing/client_test.go"
-Task: "Add ca-central-1 EBS test cases in internal/pricing/client_test.go"
-Task: "Add ca-central-1 plugin test cases in internal/plugin/plugin_test.go"
-# Then:
-Task: "Build and verify ca-central-1 binary"
-
-# Developer B (US2):
-Task: "Add sa-east-1 EC2 test cases in internal/pricing/client_test.go"
-Task: "Add sa-east-1 EBS test cases in internal/pricing/client_test.go"
-Task: "Add sa-east-1 plugin test cases in internal/plugin/plugin_test.go"
-# Then:
-Task: "Build and verify sa-east-1 binary"
+# Launch all implementation tasks for User Story 1 together:
+Task: "Create embed_cac1.go in internal/pricing/embed_cac1.go"
+Task: "Verify build tags for ca-central-1"
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Stories 1 + 2)
+### MVP First (User Story 1 Only)
 
-1. Complete Phase 1: Setup (pricing data generation)
-2. Complete Phase 2: Foundational (embed files, GoReleaser config)
-3. Complete Phase 3: User Story 1 (ca-central-1)
-4. Complete Phase 4: User Story 2 (sa-east-1)
-5. **STOP and VALIDATE**: Both binaries build and serve correct pricing
-6. Deploy/demo if ready
+1. Complete Phase 1: Setup
+2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
+3. Complete Phase 3: User Story 1
+4. **STOP and VALIDATE**: Test User Story 1 independently
+5. Deploy/demo if ready
 
 ### Incremental Delivery
 
 1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 → Test ca-central-1 independently → Verify
-3. Add User Story 2 → Test sa-east-1 independently → Verify
-4. Add User Story 3 → Test region mismatch → Complete
-5. Polish phase for final validation
+2. Add User Story 1 → Test independently → Deploy/Demo (MVP!)
+3. Add User Story 2 → Test independently → Deploy/Demo
+4. Each story adds value without breaking previous stories
 
-### Single Developer Strategy
+### Parallel Team Strategy
 
-1. Complete Setup + Foundational (T001-T009)
-2. Complete US1 (T010-T015) - ca-central-1 fully working
-3. Complete US2 (T016-T021) - sa-east-1 fully working
-4. Complete US3 (T022-T026) - region validation confirmed
-5. Polish (T027-T031) - all tests pass, docs updated
+With multiple developers:
+
+1. Team completes Setup + Foundational together
+2. Once Foundational is done:
+   - Developer A: User Story 1
+   - Developer B: User Story 2
+3. Stories complete and integrate independently
 
 ---
 
@@ -214,8 +181,8 @@ Task: "Build and verify sa-east-1 binary"
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
-- US1 and US2 are both P1 priority and can be implemented in parallel
-- US3 depends on binaries from US1/US2 for cross-region testing
+- Each user story should be independently completable and testable
+- Verify tests fail before implementing
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
-- Total: 31 tasks across 6 phases
+- Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

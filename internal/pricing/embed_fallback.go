@@ -2,33 +2,119 @@
 
 package pricing
 
-// rawPricingJSON contains fallback dummy pricing data for development
-// This is used when no region-specific build tag is provided
+// rawPricingJSON contains fallback dummy pricing data for development/testing.
+// This is used when no region-specific build tag is provided.
+// The format matches the AWS Price List API structure to ensure the client can parse it.
 var rawPricingJSON = []byte(`{
-  "region": "unknown",
-  "currency": "USD",
-  "ec2": {
-    "t3.micro": {
-      "instance_type": "t3.micro",
-      "operating_system": "Linux",
-      "tenancy": "Shared",
-      "hourly_rate": 0.0104
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonEC2",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_T3MICRO": {
+      "sku": "SKU_T3MICRO",
+      "productFamily": "Compute Instance",
+      "attributes": {
+        "instanceType": "t3.micro",
+        "operatingSystem": "Linux",
+        "tenancy": "Shared",
+        "regionCode": "unknown",
+        "capacitystatus": "Used",
+        "preInstalledSw": "NA"
+      }
     },
-    "t3.small": {
-      "instance_type": "t3.small",
-      "operating_system": "Linux",
-      "tenancy": "Shared",
-      "hourly_rate": 0.0208
+    "SKU_T3SMALL": {
+      "sku": "SKU_T3SMALL",
+      "productFamily": "Compute Instance",
+      "attributes": {
+        "instanceType": "t3.small",
+        "operatingSystem": "Linux",
+        "tenancy": "Shared",
+        "regionCode": "unknown",
+        "capacitystatus": "Used",
+        "preInstalledSw": "NA"
+      }
+    },
+    "SKU_GP3": {
+      "sku": "SKU_GP3",
+      "productFamily": "Storage",
+      "attributes": {
+        "volumeApiName": "gp3",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_GP2": {
+      "sku": "SKU_GP2",
+      "productFamily": "Storage",
+      "attributes": {
+        "volumeApiName": "gp2",
+        "regionCode": "unknown"
+      }
     }
   },
-  "ebs": {
-    "gp3": {
-      "volume_type": "gp3",
-      "rate_per_gb_month": 0.08
-    },
-    "gp2": {
-      "volume_type": "gp2",
-      "rate_per_gb_month": 0.10
+  "terms": {
+    "OnDemand": {
+      "SKU_T3MICRO": {
+        "SKU_T3MICRO.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_T3MICRO",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_T3MICRO.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_T3MICRO.JRTCKXETXF.6YS6EN2CT7",
+              "description": "t3.micro hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.0104" }
+            }
+          }
+        }
+      },
+      "SKU_T3SMALL": {
+        "SKU_T3SMALL.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_T3SMALL",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_T3SMALL.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_T3SMALL.JRTCKXETXF.6YS6EN2CT7",
+              "description": "t3.small hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.0208" }
+            }
+          }
+        }
+      },
+      "SKU_GP3": {
+        "SKU_GP3.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_GP3",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_GP3.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_GP3.JRTCKXETXF.6YS6EN2CT7",
+              "description": "gp3 storage rate",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.08" }
+            }
+          }
+        }
+      },
+      "SKU_GP2": {
+        "SKU_GP2.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_GP2",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_GP2.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_GP2.JRTCKXETXF.6YS6EN2CT7",
+              "description": "gp2 storage rate",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.10" }
+            }
+          }
+        }
+      }
     }
   }
 }`)

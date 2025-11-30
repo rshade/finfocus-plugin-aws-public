@@ -25,8 +25,6 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/rs/xid v1.6.0/go.mod h1:7XoLgs4eV+QndskICGsho+ADou8ySMSjJKDIan90Nz0=
 github.com/rs/zerolog v1.34.0 h1:k43nTLIwcTVQAncfCw4KZ2VY6ukYoZaBPNOE8txlOeY=
 github.com/rs/zerolog v1.34.0/go.mod h1:bJsvje4Z08ROH4Nhs5iH600c3IkWhwp44iRc54W6wYQ=
-github.com/rshade/pulumicost-core v0.1.0 h1:MJa3z4n67M37rNljZ5qi2YPA/5YzgCDfh/qFdvUIGl8=
-github.com/rshade/pulumicost-core v0.1.0/go.mod h1:wOjHAy33DxKNo7pPLZPaM28dKWkTcskXy4MXwTgHMmU=
 github.com/rshade/pulumicost-spec v0.4.1 h1:xDJ0FeGlE/4e9txI1yp/edqNMVjXIAkYCRo9L2l9ukM=
 github.com/rshade/pulumicost-spec v0.4.1/go.mod h1:5qOgR1keUNC/T3olLWalC6BjHSVB5AYaRh1vurBMYBA=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=

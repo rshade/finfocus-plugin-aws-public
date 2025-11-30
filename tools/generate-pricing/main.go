@@ -1,9 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -11,14 +12,19 @@ import (
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	dummy := flag.Bool("dummy", false, "Generate dummy data")
+	service := flag.String("service", "AmazonEC2", "AWS Service Code (e.g. AmazonEC2)")
+	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()
+
+	if *dummy {
+		fmt.Println("Note: --dummy flag is deprecated and ignored. Fetching real data.")
+	}
 
 	regionList := strings.Split(*regions, ",")
 
 	for _, region := range regionList {
-		if err := generatePricingData(region, *outDir, *dummy); err != nil {
+		if err := generatePricingData(region, *service, *outDir); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to generate pricing for %s: %v\n", region, err)
 			os.Exit(1)
 		}
@@ -28,60 +34,25 @@ func main() {
 	fmt.Println("Pricing data generated successfully")
 }
 
-func generatePricingData(region, outDir string, dummy bool) error {
-	// For v1, only dummy mode is implemented
-	if !dummy {
-		return fmt.Errorf("real AWS pricing fetch not implemented yet - use --dummy flag")
-	}
+func generatePricingData(region, service, outDir string) error {
+	// URL: https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/{Service}/current/{Region}/index.json
+	// Note: The base URL is always us-east-1 for the API, but the path changes.
+	url := fmt.Sprintf("https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/%s/current/%s/index.json", service, region)
 
-	// Create dummy pricing data with a few instance types and volume types
-	data := map[string]interface{}{
-		"region":   region,
-		"currency": "USD",
-		"ec2": map[string]interface{}{
-			"t3.micro": map[string]interface{}{
-				"instance_type":    "t3.micro",
-				"operating_system": "Linux",
-				"tenancy":          "Shared",
-				"hourly_rate":      0.0104,
-			},
-			"t3.small": map[string]interface{}{
-				"instance_type":    "t3.small",
-				"operating_system": "Linux",
-				"tenancy":          "Shared",
-				"hourly_rate":      0.0208,
-			},
-			"t3.medium": map[string]interface{}{
-				"instance_type":    "t3.medium",
-				"operating_system": "Linux",
-				"tenancy":          "Shared",
-				"hourly_rate":      0.0416,
-			},
-			"m5.large": map[string]interface{}{
-				"instance_type":    "m5.large",
-				"operating_system": "Linux",
-				"tenancy":          "Shared",
-				"hourly_rate":      0.096,
-			},
-		},
-		"ebs": map[string]interface{}{
-			"gp3": map[string]interface{}{
-				"volume_type":       "gp3",
-				"rate_per_gb_month": 0.08,
-			},
-			"gp2": map[string]interface{}{
-				"volume_type":       "gp2",
-				"rate_per_gb_month": 0.10,
-			},
-			"io1": map[string]interface{}{
-				"volume_type":       "io1",
-				"rate_per_gb_month": 0.125,
-			},
-			"io2": map[string]interface{}{
-				"volume_type":       "io2",
-				"rate_per_gb_month": 0.125,
-			},
-		},
+	fmt.Printf("Fetching %s...\n", url)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return fmt.Errorf("failed to fetch URL: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to close response body: %v\n", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
 	// Ensure output directory exists
@@ -100,10 +71,10 @@ func generatePricingData(region, outDir string, dummy bool) error {
 		}
 	}()
 
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(data); err != nil {
-		return fmt.Errorf("failed to encode pricing data: %w", err)
+	// Stream directly to file
+	_, err = io.Copy(f, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
 	}
 
 	return nil

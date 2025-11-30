@@ -1,23 +1,48 @@
 package pricing
 
-// pricingData is the top-level structure for unmarshaling embedded JSON
-type pricingData struct {
-	Region   string                      `json:"region"`
-	Currency string                      `json:"currency"`
-	EC2      map[string]ec2OnDemandPrice `json:"ec2"`
-	EBS      map[string]ebsVolumePrice   `json:"ebs"`
+// awsPricing represents the structure of the official AWS Price List API JSON
+type awsPricing struct {
+	FormatVersion   string                                `json:"formatVersion"`
+	Disclaimer      string                                `json:"disclaimer"`
+	OfferCode       string                                `json:"offerCode"`
+	Version         string                                `json:"version"`
+	PublicationDate string                                `json:"publicationDate"`
+	Products        map[string]product                    `json:"products"`
+	Terms           map[string]map[string]map[string]term `json:"terms"` // Type -> SKU -> OfferTermCode -> Term
 }
 
-// ec2OnDemandPrice represents a single EC2 instance pricing entry
-type ec2OnDemandPrice struct {
-	InstanceType    string  `json:"instance_type"`
-	OperatingSystem string  `json:"operating_system"`
-	Tenancy         string  `json:"tenancy"`
-	HourlyRate      float64 `json:"hourly_rate"`
+type product struct {
+	Sku           string            `json:"sku"`
+	ProductFamily string            `json:"productFamily"`
+	Attributes    map[string]string `json:"attributes"`
 }
 
-// ebsVolumePrice represents a single EBS volume type pricing entry
-type ebsVolumePrice struct {
-	VolumeType     string  `json:"volume_type"`
-	RatePerGBMonth float64 `json:"rate_per_gb_month"`
+type term struct {
+	OfferTermCode   string                    `json:"offerTermCode"`
+	Sku             string                    `json:"sku"`
+	EffectiveDate   string                    `json:"effectiveDate"`
+	PriceDimensions map[string]priceDimension `json:"priceDimensions"`
+}
+
+type priceDimension struct {
+	RateCode     string            `json:"rateCode"`
+	Description  string            `json:"description"`
+	BeginRange   string            `json:"beginRange"`
+	EndRange     string            `json:"endRange"`
+	Unit         string            `json:"unit"`
+	PricePerUnit map[string]string `json:"pricePerUnit"` // Currency -> Amount (string)
+	AppliesTo    []string          `json:"appliesTo"`
+}
+
+// Internal lookup structures (distilled from raw JSON)
+type ec2Price struct {
+	Unit       string
+	HourlyRate float64
+	Currency   string
+}
+
+type ebsPrice struct {
+	Unit           string
+	RatePerGBMonth float64
+	Currency       string
 }

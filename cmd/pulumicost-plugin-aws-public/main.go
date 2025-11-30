@@ -7,10 +7,9 @@ import (
 	"syscall"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/pulumicost-core/pkg/pluginsdk"
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
-	sdklogging "github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
+	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 )
 
 // version is the plugin version, set at build time via ldflags.
@@ -26,7 +25,7 @@ func main() {
 	}
 
 	// Create logger using SDK utility (outputs JSON to stderr)
-	logger := sdklogging.NewPluginLogger("aws-public", version, level, nil)
+	logger := pluginsdk.NewPluginLogger("aws-public", version, level, nil)
 
 	// Initialize pricing client
 	pricingClient, err := pricing.NewClient()

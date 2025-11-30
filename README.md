@@ -52,6 +52,14 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 - `pulumicost-plugin-aws-public-ap-northeast-1` (Asia Pacific - Tokyo)
 - `pulumicost-plugin-aws-public-ap-south-1` (Asia Pacific - Mumbai)
 
+**Canada Regions:**
+
+- `pulumicost-plugin-aws-public-ca-central-1` (Canada Central - Montreal)
+
+**South America Regions:**
+
+- `pulumicost-plugin-aws-public-sa-east-1` (South America - São Paulo)
+
 ### Cost Estimation
 
 **EC2 Instances:**
@@ -84,18 +92,18 @@ go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 \
 ### Using GoReleaser
 
 ```bash
-# Generate pricing data for all supported regions
+# Generate pricing data for all supported regions (9 regions)
 go run ./tools/generate-pricing \
   --regions us-east-1,us-west-2,eu-west-1,\
-ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 \
-  --out-dir ./internal/pricing/data \
-  --dummy
+ap-southeast-1,ap-southeast-2,ap-northeast-1,\
+ap-south-1,ca-central-1,sa-east-1 \
+  --out-dir ./internal/pricing/data
 
-# Build all region binaries (7 regions × 3 OS × 2 architectures = 42 artifacts)
+# Build all region binaries (9 regions × 3 OS × 2 architectures)
 goreleaser build --snapshot --clean
 ```
 
-### Building Individual AP Region Binaries
+### Building Individual Region Binaries
 
 ```bash
 # Singapore (ap-southeast-1)
@@ -110,6 +118,12 @@ go build -tags region_apne1 -o pulumicost-plugin-aws-public-ap-northeast-1 \
 
 # Mumbai (ap-south-1)
 go build -tags region_aps1 -o pulumicost-plugin-aws-public-ap-south-1 ./cmd/pulumicost-plugin-aws-public
+
+# Canada (ca-central-1)
+go build -tags region_cac1 -o pulumicost-plugin-aws-public-ca-central-1 ./cmd/pulumicost-plugin-aws-public
+
+# South America (sa-east-1)
+go build -tags region_sae1 -o pulumicost-plugin-aws-public-sa-east-1 ./cmd/pulumicost-plugin-aws-public
 ```
 
 ## Usage

@@ -6,6 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is `pulumicost-plugin-aws-public`, a fallback PulumiCost plugin that estimates AWS resource costs using public AWS on-demand pricing data, without requiring CUR/Cost Explorer/Vantage data access. The plugin implements the gRPC CostSourceService protocol and is invoked as a separate process by PulumiCost core.
 
+## Code Style
+
+Go 1.25+: Follow standard conventions
+- **No Dummy Data:** Do not create dummy, fake, or hardcoded placeholder data for core functionality (especially pricing). Always implement fetchers for real authoritative data sources (e.g., AWS Price List API).
+
 ## Architecture
 
 ### Plugin Protocol (gRPC)
@@ -139,12 +144,12 @@ go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDProp
 # 3. Call RPCs: grpcurl -plaintext -d '{"resource": {...}}' localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost
 ```
 
+### Test Cleanup
+- **Cleanup Temporary Files:** Ensure all tests and build scripts remove any temporary files (e.g., `sample_ec2.json`, generated binaries, temporary output logs) created during execution. Do not leave artifacts cluttering the workspace.
+
 ### Generating Pricing Data
 ```bash
-# Generate dummy pricing data for development
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./data --dummy
-
-# (Future) Real AWS pricing fetch
+# Generate pricing data from AWS Price List API
 go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./data
 ```
 
@@ -339,10 +344,10 @@ func main() {
 - The fallback file uses negation: `//go:build !region_use1 && !region_usw2 && !region_euw1`
 - Always ensure exactly one embed file is selected at build time
 
-### Testing with Dummy Pricing
-- Use `--dummy` flag with `tools/generate-pricing` to create minimal test pricing data
-- This allows development/testing without AWS API access or credentials
-- Dummy data includes only essential instance types (e.g., `t3.micro`) and volume types
+### Pricing Data Generation
+- The `tools/generate-pricing` tool fetches real pricing data from AWS Price List API
+- No AWS credentials required - uses public pricing endpoint
+- Data includes all instance types and volume types available in each region
 
 ### Logging
 - **Never** log to stdout except for the PORT announcement
@@ -369,10 +374,10 @@ goreleaser release --clean
 ### Before Hooks
 The `.goreleaser.yaml` runs:
 ```bash
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./data --dummy
+go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./data
 ```
 
-This ensures pricing files exist before embedding. For production, remove `--dummy` and implement real AWS pricing fetch.
+This fetches real AWS pricing data and ensures pricing files exist before embedding.
 
 ## Configuration (v1)
 

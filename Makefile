@@ -18,7 +18,7 @@ develop: ensure generate-pricing ## Setup development environment (install deps 
 
 generate-pricing: ## Generate pricing data for all regions
 	@echo "Generating pricing data for all regions..."
-	@go run ./tools/generate-pricing --regions $(shell echo $(REGIONS) | tr ' ' ',') --out-dir ./internal/pricing/data --dummy
+	@go run ./tools/generate-pricing --regions $(shell echo $(REGIONS) | tr ' ' ',') --out-dir ./internal/pricing/data
 
 lint: ## Run golangci-lint
 	@echo "Running linter..."
