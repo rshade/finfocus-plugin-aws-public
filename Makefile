@@ -1,7 +1,7 @@
 .PHONY: help lint test build clean ensure develop generate-pricing build-region build-all-regions
 
 # All supported AWS regions
-REGIONS := us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1
+REGIONS := us-east-1 us-west-1 us-west-2 us-gov-west-1 us-gov-east-1 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1
 
 help: ## Show this help message
 	@echo "Available targets:"
