@@ -381,6 +381,35 @@ make build
 go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
 ```
 
+### Adding New AWS Regions
+
+To add support for a new AWS region:
+
+1. **Update regions.yaml**: Add the new region to `internal/pricing/regions.yaml`
+
+   ```yaml
+   regions:
+     - id: euw3      # Short code from scripts/region-tag.sh
+       name: eu-west-3  # Full AWS region name
+       tag: region_euw3 # Build tag
+   ```
+
+2. **Generate configs**: Run the generation scripts
+
+   ```bash
+   make generate-embeds    # Creates embed_euw3.go
+   make generate-goreleaser # Updates .goreleaser.yaml
+   make verify-regions     # Validates all configurations
+   ```
+
+3. **Test the region**: Build and test the new region
+
+   ```bash
+   make build-region REGION=eu-west-3
+   ```
+
+The automated system ensures consistency across region configurations.
+
 ### Testing
 
 ```bash

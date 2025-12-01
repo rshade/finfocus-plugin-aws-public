@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
@@ -106,9 +107,35 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	instanceType := resource.Sku
 
-	// Hardcoded assumptions for v1
-	os := "Linux"
-	tenancy := "Shared"
+	// Extract OS and tenancy from resource tags, with fallbacks
+	os := "Linux"       // Default fallback
+	tenancy := "Shared" // Default fallback
+
+	// Check for OS information in tags
+	if resource.Tags != nil {
+		// Common tags that might indicate OS
+		if platform, ok := resource.Tags["platform"]; ok && platform != "" {
+			// AWS uses "windows" for Windows platforms, otherwise assume Linux-based
+			if strings.ToLower(platform) == "windows" {
+				os = "Windows"
+			} else {
+				os = "Linux" // Treat other platforms as Linux-based
+			}
+		}
+
+		// Check for tenancy information in tags
+		if tenancyTag, ok := resource.Tags["tenancy"]; ok && tenancyTag != "" {
+			// Validate tenancy values (AWS supports Shared, Dedicated, Host)
+			switch strings.ToLower(tenancyTag) {
+			case "dedicated":
+				tenancy = "Dedicated"
+			case "host":
+				tenancy = "Host"
+			default:
+				tenancy = "Shared" // Default to Shared for any other value
+			}
+		}
+	}
 
 	// FR-020: Lookup pricing using embedded data
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, os, tenancy)

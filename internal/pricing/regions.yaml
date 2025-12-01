@@ -1,0 +1,29 @@
+regions:
+  - id: use1
+    name: us-east-1
+    tag: region_use1
+  - id: usw2
+    name: us-west-2
+    tag: region_usw2
+  - id: euw1
+    name: eu-west-1
+    tag: region_euw1
+  - id: apse1
+    name: ap-southeast-1
+    tag: region_apse1
+  - id: apse2
+    name: ap-southeast-2
+    tag: region_apse2
+  - id: apne1
+    name: ap-northeast-1
+    tag: region_apne1
+  - id: aps1
+    name: ap-south-1
+    tag: region_aps1
+  - id: cac1
+    name: ca-central-1
+    tag: region_cac1
+  - id: sae1
+    name: sa-east-1
+    tag: region_sae1
+

@@ -42,11 +42,16 @@ fi
 
 echo "=== Building region: $REGION (tag: $TAG) ==="
 
-# Step 1: Generate pricing data for this region only
+# Step 1: Generate region configs (embed files and GoReleaser config)
+echo "Generating region configs..."
+make generate-embeds
+make generate-goreleaser
+
+# Step 2: Generate pricing data for this region only
 echo "Generating pricing data for $REGION..."
 go run ./tools/generate-pricing --regions "$REGION" --out-dir ./internal/pricing/data
 
-# Step 2: Build using goreleaser with region-specific config
+# Step 3: Build using goreleaser with region-specific config
 # Note: We use --skip=validate,announce,publish to just build archives
 # The main workflow handles the final release upload
 echo "Building binaries for $REGION..."
@@ -108,7 +113,7 @@ mkdir -p dist
 mv _build/"$REGION"/*.{tar.gz,zip} dist/
 rm -rf _build
 
-# Step 3: Clean up to free disk space for next region
+# Step 4: Clean up to free disk space for next region
 echo "Cleaning up build cache..."
 rm -f .goreleaser.region.yaml
 # Remove the raw binaries but keep archives

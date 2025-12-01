@@ -60,9 +60,21 @@ jobs:
           version: '~> v2'
           install-only: true
 
+      - name: Generate region configs
+        run: |
+          echo "Generating embed files and GoReleaser config from regions.yaml..."
+          make generate-embeds
+          make generate-goreleaser
+
+      - name: Generate pricing data for all regions
+        run: make generate-pricing
+
+      - name: Verify regions
+        run: make verify-regions
+
       - name: Build all regions sequentially
         run: |
-          # Build one region at a time: generate pricing → build → verify → clean
+          # Build one region at a time: use generated configs → build → verify → clean
           # This keeps disk usage constant (~200MB) regardless of region count
           # Each region is verified immediately after build, before next clean
           REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1"

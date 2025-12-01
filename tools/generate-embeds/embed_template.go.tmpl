@@ -1,0 +1,8 @@
+//go:build {{.Tag}}
+
+package pricing
+
+import _ "embed"
+
+//go:embed data/aws_pricing_{{.Name}}.json
+var rawPricingJSON []byte
