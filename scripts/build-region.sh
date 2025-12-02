@@ -50,11 +50,16 @@ fi
 
 echo "=== Building region: $REGION (tag: $TAG) ==="
 
-# Step 1: Generate pricing data for this region only
+# Step 1: Generate region configs (embed files and GoReleaser config)
+echo "Generating region configs..."
+make generate-embeds
+make generate-goreleaser
+
+# Step 2: Generate pricing data for this region only
 echo "Generating pricing data for $REGION..."
 go run ./tools/generate-pricing --regions "$REGION" --out-dir ./internal/pricing/data
 
-# Step 2: Build using goreleaser with region-specific config
+# Step 3: Build using goreleaser with region-specific config
 echo "Building binaries for $REGION..."
 cat > ".goreleaser.region.yaml" << EOF
 version: 2
@@ -107,7 +112,7 @@ EOF
 
 goreleaser build --config .goreleaser.region.yaml --clean $SNAPSHOT_FLAG
 
-# Step 3: Clean up to free disk space for next region
+# Step 4: Clean up to free disk space for next region
 echo "Cleaning up build cache..."
 rm -f .goreleaser.region.yaml
 go clean -cache

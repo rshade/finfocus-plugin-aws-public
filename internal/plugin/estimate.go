@@ -190,9 +190,32 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 		return 0
 	}
 
-	// Hardcoded assumptions for v1
-	os := "Linux"
-	tenancy := "Shared"
+	// Extract OS and tenancy from attributes, with fallbacks
+	os := "Linux"       // Default fallback
+	tenancy := "Shared" // Default fallback
+
+	// Check for platform information in attributes
+	if platform, ok := getStringAttr(attrs, "platform"); ok && platform != "" {
+		// AWS uses "windows" for Windows platforms, otherwise assume Linux-based
+		if strings.ToLower(platform) == "windows" {
+			os = "Windows"
+		} else {
+			os = "Linux" // Treat other platforms as Linux-based
+		}
+	}
+
+	// Check for tenancy information in attributes
+	if tenancyAttr, ok := getStringAttr(attrs, "tenancy"); ok && tenancyAttr != "" {
+		// Validate tenancy values (AWS supports Shared, Dedicated, Host)
+		switch strings.ToLower(tenancyAttr) {
+		case "dedicated":
+			tenancy = "Dedicated"
+		case "host":
+			tenancy = "Host"
+		default:
+			tenancy = "Shared" // Default to Shared for any other value
+		}
+	}
 
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, os, tenancy)
 	if !found {

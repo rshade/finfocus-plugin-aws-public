@@ -41,14 +41,23 @@ jobs:
           version: latest
           install-only: true
 
-      # 4. Build all regions sequentially (one at a time to save disk)
+      # 4. Generate region configs
+      - name: Generate region configs
+        run: |
+          echo "Generating embed files and GoReleaser config from regions.yaml..."
+          make generate-embeds
+          make generate-goreleaser
+
+      # 5. Verify regions
+      - name: Verify regions
+        run: make verify-regions
+
+      # 6. Build all regions sequentially (one at a time to save disk)
       - name: Build all regions
         run: |
           # Build one region at a time: generate pricing → build → clean cache
           # This keeps disk usage constant (~200MB) regardless of region count
-          REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1"
-
-
+          REGIONS=$(sed -n 's/^ *name: //p' internal/pricing/regions.yaml | tr '\n' ' ' | xargs)
 
           for region in $REGIONS; do
             echo ""
@@ -63,14 +72,14 @@ jobs:
             df -h / | tail -1
           done
 
-      # 5. Generate checksums for all archives
+      # 7. Generate checksums for all archives
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum *.tar.gz *.zip > checksums.txt
+          sha256sum ./*.tar.gz ./*.zip > checksums.txt
           cat checksums.txt
 
-      # 6. Upload release assets
+      # 8. Upload release assets
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
