@@ -2,7 +2,7 @@ module github.com/rshade/pulumicost-plugin-aws-public/tools/generate-goreleaser
 
 go 1.25.4
 
-require github.com/goccy/go-yaml v1.11.3
+require github.com/goccy/go-yaml v1.19.0
 
 require (
 	github.com/fatih/color v1.10.0 // indirect
