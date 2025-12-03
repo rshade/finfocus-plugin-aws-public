@@ -1,7 +1,9 @@
 # All supported AWS regions (sourced from internal/pricing/regions.yaml)
+# Uses Go-based YAML parser for robust parsing (replaces fragile awk/sed)
 REGIONS_FILE := internal/pricing/regions.yaml
-REGIONS := $(shell awk '/name:/ {gsub(/.*name: /, ""); print}' $(REGIONS_FILE))
-REGIONS_CSV := $(shell awk '/name:/ {gsub(/.*name: /, ""); print}' $(REGIONS_FILE) | tr '\n' ',' | sed 's/,$$//')
+PARSE_REGIONS := cd tools/parse-regions && go run . -config ../../$(REGIONS_FILE)
+REGIONS := $(shell $(PARSE_REGIONS) -field name)
+REGIONS_CSV := $(shell $(PARSE_REGIONS) -field name | tr '\n' ',' | sed 's/,$$//')
 REGION_COUNT := $(words $(REGIONS))
 
 .PHONY: all

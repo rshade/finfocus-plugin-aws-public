@@ -54,6 +54,7 @@ REGIONS_CONFIG="$REPO_ROOT/internal/pricing/regions.yaml"
 PRICING_DIR="$REPO_ROOT/internal/pricing"
 EMBED_DIR="$PRICING_DIR"
 GORELEASER_CONFIG="$REPO_ROOT/.goreleaser.yaml"
+PARSE_REGIONS_TOOL="$REPO_ROOT/tools/parse-regions"
 
 if ! $QUIET; then
     echo "Verifying region configuration..."
@@ -69,13 +70,31 @@ if ! $QUIET; then
     echo "✓ regions.yaml exists"
 fi
 
-# Parse regions from YAML (basic parsing)
-# This is a simple implementation - in production, use a proper YAML parser
-readarray -t region_array < <(sed -n 's/^ *name: //p' "$REGIONS_CONFIG")
-readarray -t id_array < <(sed -n 's/^ *- id: //p' "$REGIONS_CONFIG")
-readarray -t tag_array < <(sed -n 's/^ *tag: //p' "$REGIONS_CONFIG")
+# Parse regions from YAML using proper YAML parser (Go tool)
+# This replaces fragile sed-based parsing with robust YAML handling
+if ! command -v go &> /dev/null; then
+    echo "ERROR: go is required but not found in PATH" >&2
+    exit 1
+fi
 
-if [[ ${#region_array[@]} -ne ${#id_array[@]} || ${#region_array[@]} -ne ${#tag_array[@]} ]]; then
+# Parse regions using Go tool - outputs id,name,tag per line as CSV
+# Tool has its own go.mod so must be run from its directory
+if ! region_data=$(cd "$PARSE_REGIONS_TOOL" && go run . -config "$REGIONS_CONFIG" -format csv 2>&1); then
+    echo "ERROR: Failed to parse regions.yaml: $region_data" >&2
+    exit 1
+fi
+
+# Build arrays from CSV output
+id_array=()
+region_array=()
+tag_array=()
+while IFS=',' read -r id name tag; do
+    id_array+=("$id")
+    region_array+=("$name")
+    tag_array+=("$tag")
+done <<< "$region_data"
+
+if [[ ${#region_array[@]} -ne ${#id_array[@]} ]] || [[ ${#region_array[@]} -ne ${#tag_array[@]} ]]; then
     echo "ERROR: regions.yaml is malformed (mismatched counts for name/id/tag)" >&2
     exit 1
 fi
