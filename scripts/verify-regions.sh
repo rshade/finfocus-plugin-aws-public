@@ -79,20 +79,46 @@ fi
 
 # Parse regions using Go tool - outputs id,name,tag per line as CSV
 # Tool has its own go.mod so must be run from its directory
-if ! region_data=$(cd "$PARSE_REGIONS_TOOL" && go run . -config "$REGIONS_CONFIG" -format csv 2>&1); then
-    echo "ERROR: Failed to parse regions.yaml: $region_data" >&2
+if ! region_data=$(cd "$PARSE_REGIONS_TOOL" && go run . -config "$REGIONS_CONFIG" -format csv); then
+    echo "ERROR: Failed to parse regions.yaml" >&2
     exit 1
 fi
 
-# Build arrays from CSV output
+# Build arrays from CSV output, validating each line has exactly 3 fields
 id_array=()
 region_array=()
 tag_array=()
-while IFS=',' read -r id name tag; do
+line_num=0
+while IFS= read -r line; do
+    line_num=$((line_num + 1))
+    # Skip empty lines
+    [[ -z "$line" ]] && continue
+
+    # Count commas to validate 3 fields (should have exactly 2 commas)
+    comma_count=$(echo "$line" | tr -cd ',' | wc -c)
+    if [[ "$comma_count" -ne 2 ]]; then
+        echo "ERROR: CSV line $line_num has invalid format (expected 3 fields, got $((comma_count + 1))): $line" >&2
+        exit 1
+    fi
+
+    # Parse the CSV fields
+    IFS=',' read -r id name tag <<< "$line"
+
+    # Validate no field is empty
+    if [[ -z "$id" ]] || [[ -z "$name" ]] || [[ -z "$tag" ]]; then
+        echo "ERROR: CSV line $line_num has empty field(s): $line" >&2
+        exit 1
+    fi
+
     id_array+=("$id")
     region_array+=("$name")
     tag_array+=("$tag")
 done <<< "$region_data"
+
+if [[ ${#region_array[@]} -eq 0 ]]; then
+    echo "ERROR: No regions parsed from regions.yaml" >&2
+    exit 1
+fi
 
 if [[ ${#region_array[@]} -ne ${#id_array[@]} ]] || [[ ${#region_array[@]} -ne ${#tag_array[@]} ]]; then
     echo "ERROR: regions.yaml is malformed (mismatched counts for name/id/tag)" >&2

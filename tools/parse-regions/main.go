@@ -36,6 +36,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/goccy/go-yaml"
@@ -90,11 +91,14 @@ func main() {
 	// Output in requested format
 	switch *format {
 	case "lines":
-		outputLines(regions, *field)
+		outputLines(os.Stdout, regions, *field)
 	case "json":
-		outputJSON(regions)
+		if err := outputJSON(os.Stdout, regions); err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+			os.Exit(1)
+		}
 	case "csv":
-		outputCSV(regions)
+		outputCSV(os.Stdout, regions)
 	}
 }
 
@@ -118,61 +122,65 @@ func loadRegionsConfig(filename string) ([]RegionConfig, error) {
 		return nil, fmt.Errorf("no regions defined in config file")
 	}
 
+	for i, r := range config.Regions {
+		if r.ID == "" || r.Name == "" || r.Tag == "" {
+			return nil, fmt.Errorf("region %d has empty id/name/tag", i)
+		}
+	}
+
 	return config.Regions, nil
 }
 
-// outputLines prints region data as lines to stdout.
+// outputLines writes region data as lines to the provided writer.
 //
-// When field is "all", it prints three groups of lines separated by "---":
+// When field is "all", it writes three groups of lines separated by "---":
 // first all IDs, then all names, then all tags. This allows shell scripts
 // to split the output into separate arrays.
 //
-// When field is "id", "name", or "tag", it prints only that field's values,
+// When field is "id", "name", or "tag", it writes only that field's values,
 // one per line.
-func outputLines(regions []RegionConfig, field string) {
+func outputLines(w io.Writer, regions []RegionConfig, field string) {
 	switch field {
 	case "id":
 		for _, r := range regions {
-			fmt.Println(r.ID)
+			fmt.Fprintln(w, r.ID)
 		}
 	case "name":
 		for _, r := range regions {
-			fmt.Println(r.Name)
+			fmt.Fprintln(w, r.Name)
 		}
 	case "tag":
 		for _, r := range regions {
-			fmt.Println(r.Tag)
+			fmt.Fprintln(w, r.Tag)
 		}
 	case "all":
 		// Output all fields grouped, separated by ---
 		for _, r := range regions {
-			fmt.Println(r.ID)
+			fmt.Fprintln(w, r.ID)
 		}
-		fmt.Println("---")
+		fmt.Fprintln(w, "---")
 		for _, r := range regions {
-			fmt.Println(r.Name)
+			fmt.Fprintln(w, r.Name)
 		}
-		fmt.Println("---")
+		fmt.Fprintln(w, "---")
 		for _, r := range regions {
-			fmt.Println(r.Tag)
+			fmt.Fprintln(w, r.Tag)
 		}
 	}
 }
 
-// outputJSON prints all regions as a JSON array to stdout.
-func outputJSON(regions []RegionConfig) {
-	encoder := json.NewEncoder(os.Stdout)
+// outputJSON writes all regions as a JSON array to the provided writer.
+// Returns an error if JSON encoding fails.
+func outputJSON(w io.Writer, regions []RegionConfig) error {
+	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(regions); err != nil {
-		fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
-		os.Exit(1)
-	}
+	return encoder.Encode(regions)
 }
 
-// outputCSV prints regions as CSV (id,name,tag) lines to stdout.
+// outputCSV writes regions as CSV (id,name,tag) lines to the provided writer.
 // No header is included; each line contains one region's data.
-func outputCSV(regions []RegionConfig) {
+func outputCSV(w io.Writer, regions []RegionConfig) {
 	for _, r := range regions {
-		fmt.Printf("%s,%s,%s\n", r.ID, r.Name, r.Tag)
+		fmt.Fprintf(w, "%s,%s,%s\n", r.ID, r.Name, r.Tag)
 	}
 }

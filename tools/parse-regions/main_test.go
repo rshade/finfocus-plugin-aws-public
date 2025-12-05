@@ -65,6 +65,36 @@ func TestLoadRegionsConfig(t *testing.T) {
 			wantErr:     true,
 			errContains: "no regions defined",
 		},
+		{
+			name: "region with empty id",
+			content: `regions:
+  - id: ""
+    name: us-east-1
+    tag: region_use1
+`,
+			wantErr:     true,
+			errContains: "empty id/name/tag",
+		},
+		{
+			name: "region with empty name",
+			content: `regions:
+  - id: use1
+    name: ""
+    tag: region_use1
+`,
+			wantErr:     true,
+			errContains: "empty id/name/tag",
+		},
+		{
+			name: "region with empty tag",
+			content: `regions:
+  - id: use1
+    name: us-east-1
+    tag: ""
+`,
+			wantErr:     true,
+			errContains: "empty id/name/tag",
+		},
 	}
 
 	for _, tt := range tests {
@@ -158,7 +188,14 @@ func TestRegionConfigFields(t *testing.T) {
 }
 
 // TestOutputLines tests the outputLines function with different field options.
+//
+// This test validates that outputLines correctly writes region data in various
+// field modes (id, name, tag, all) to the provided io.Writer. The function
+// accepts an io.Writer parameter to enable safe parallel test execution without
+// race conditions from reassigning os.Stdout.
 func TestOutputLines(t *testing.T) {
+	t.Parallel()
+
 	regions := []RegionConfig{
 		{ID: "use1", Name: "us-east-1", Tag: "region_use1"},
 		{ID: "usw2", Name: "us-west-2", Tag: "region_usw2"},
@@ -193,18 +230,10 @@ func TestOutputLines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Capture stdout
-			old := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-
-			outputLines(regions, tt.field)
-
-			w.Close()
-			os.Stdout = old
+			t.Parallel()
 
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			outputLines(&buf, regions, tt.field)
 			got := buf.String()
 
 			if got != tt.expected {
@@ -215,24 +244,20 @@ func TestOutputLines(t *testing.T) {
 }
 
 // TestOutputCSV tests the outputCSV function.
+//
+// This test validates that outputCSV correctly writes region data in CSV format
+// (id,name,tag per line) to the provided io.Writer. Each line contains exactly
+// 3 comma-separated fields with no header row.
 func TestOutputCSV(t *testing.T) {
+	t.Parallel()
+
 	regions := []RegionConfig{
 		{ID: "use1", Name: "us-east-1", Tag: "region_use1"},
 		{ID: "usw2", Name: "us-west-2", Tag: "region_usw2"},
 	}
 
-	// Capture stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	outputCSV(regions)
-
-	w.Close()
-	os.Stdout = old
-
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	outputCSV(&buf, regions)
 	got := buf.String()
 
 	expected := "use1,us-east-1,region_use1\nusw2,us-west-2,region_usw2\n"
@@ -241,24 +266,22 @@ func TestOutputCSV(t *testing.T) {
 	}
 }
 
-// TestOutputJSON tests the outputJSON function.
+// TestOutputJSON tests the outputJSON function for valid JSON output.
+//
+// This test validates that outputJSON correctly writes region data as a JSON
+// array to the provided io.Writer and that the output is properly formatted
+// with 2-space indentation.
 func TestOutputJSON(t *testing.T) {
+	t.Parallel()
+
 	regions := []RegionConfig{
 		{ID: "use1", Name: "us-east-1", Tag: "region_use1"},
 	}
 
-	// Capture stdout
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	outputJSON(regions)
-
-	w.Close()
-	os.Stdout = old
-
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	if err := outputJSON(&buf, regions); err != nil {
+		t.Fatalf("outputJSON returned error: %v", err)
+	}
 	got := buf.String()
 
 	// Parse the JSON output to verify structure
@@ -276,7 +299,55 @@ func TestOutputJSON(t *testing.T) {
 	}
 }
 
-// TestIntegrationWithRealConfig tests loading the actual regions.yaml if it exists.
+// TestOutputJSONFormatting tests that outputJSON produces properly indented JSON.
+//
+// This test validates the formatting of JSON output, specifically verifying
+// that the JSON uses 2-space indentation as configured in outputJSON.
+func TestOutputJSONFormatting(t *testing.T) {
+	t.Parallel()
+
+	regions := []RegionConfig{
+		{ID: "use1", Name: "us-east-1", Tag: "region_use1"},
+	}
+
+	var buf bytes.Buffer
+	if err := outputJSON(&buf, regions); err != nil {
+		t.Fatalf("outputJSON returned error: %v", err)
+	}
+	got := buf.String()
+
+	// Verify indentation - should have 2-space indentation
+	expectedJSON := `[
+  {
+    "id": "use1",
+    "name": "us-east-1",
+    "tag": "region_use1"
+  }
+]
+`
+	if got != expectedJSON {
+		t.Errorf("JSON formatting mismatch\nexpected:\n%s\ngot:\n%s", expectedJSON, got)
+	}
+}
+
+// TestIntegrationWithRealConfig verifies that the real regions.yaml parses into valid RegionConfig entries.
+//
+// This test exercises the integration between the parse-regions tool and the checked-in
+// internal/pricing/regions.yaml file. It ensures that all configured regions have non-empty
+// id, name, and tag fields and that at least one region is present.
+//
+// Test workflow:
+//  1. Locate regions.yaml relative to the repository root.
+//  2. Skip the test if the file is not present (e.g., in stripped environments).
+//  3. Call loadRegionsConfig on the real config file.
+//  4. Assert that at least one region is loaded and each has non-empty id/name/tag.
+//
+// Prerequisites:
+//   - Repository checked out with internal/pricing/regions.yaml present.
+//
+// Run with:
+//
+//	go test ./tools/parse-regions -run TestIntegrationWithRealConfig
 func TestIntegrationWithRealConfig(t *testing.T) {
 	// Try to find the real config file relative to test location
 	configPaths := []string{
