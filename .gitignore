@@ -50,3 +50,4 @@ local_troubleshoot.log.json
 # Generated helper binaries
 tools/generate-embeds/generate-embeds*
 tools/generate-goreleaser/generate-goreleaser*
+tools/parse-regions/parse-regions*

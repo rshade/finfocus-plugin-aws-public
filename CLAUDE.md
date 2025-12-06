@@ -105,6 +105,8 @@ internal/
 tools/
   generate-pricing/
     main.go          # Build-time tool to fetch/trim AWS pricing
+  parse-regions/
+    main.go          # CLI tool to parse regions.yaml (replaces fragile sed/awk)
 data/
   aws_pricing_*.json  # Generated pricing files (not in git)
 ```
