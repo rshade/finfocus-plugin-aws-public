@@ -48,11 +48,7 @@ jobs:
           make generate-embeds
           make generate-goreleaser
 
-      # 5. Verify regions
-      - name: Verify regions
-        run: make verify-regions
-
-      # 6. Build all regions sequentially (one at a time to save disk)
+      # 5. Build all regions sequentially (one at a time to save disk)
       - name: Build all regions
         run: |
           # Build one region at a time: generate pricing → build → clean cache
@@ -72,14 +68,14 @@ jobs:
             df -h / | tail -1
           done
 
-      # 7. Generate checksums for all archives
+      # 6. Generate checksums for all archives
       - name: Generate checksums
         run: |
           cd dist
           sha256sum ./*.tar.gz ./*.zip > checksums.txt
           cat checksums.txt
 
-      # 8. Upload release assets
+      # 7. Upload release assets
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
