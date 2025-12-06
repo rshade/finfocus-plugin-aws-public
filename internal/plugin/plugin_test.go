@@ -19,21 +19,27 @@ import (
 
 // mockPricingClient is a test double for pricing.PricingClient.
 type mockPricingClient struct {
-	region            string
-	currency          string
-	ec2Prices         map[string]float64 // key: "instanceType/os/tenancy"
-	ebsPrices         map[string]float64 // key: "volumeType"
-	ec2OnDemandCalled int
-	ebsPriceCalled    int
+	region               string
+	currency             string
+	ec2Prices            map[string]float64 // key: "instanceType/os/tenancy"
+	ebsPrices            map[string]float64 // key: "volumeType"
+	rdsInstancePrices    map[string]float64 // key: "instanceType/engine"
+	rdsStoragePrices     map[string]float64 // key: "volumeType"
+	ec2OnDemandCalled    int
+	ebsPriceCalled       int
+	rdsOnDemandCalled    int
+	rdsStoragePriceCalled int
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.
 func newMockPricingClient(region, currency string) *mockPricingClient {
 	return &mockPricingClient{
-		region:    region,
-		currency:  currency,
-		ec2Prices: make(map[string]float64),
-		ebsPrices: make(map[string]float64),
+		region:            region,
+		currency:          currency,
+		ec2Prices:         make(map[string]float64),
+		ebsPrices:         make(map[string]float64),
+		rdsInstancePrices: make(map[string]float64),
+		rdsStoragePrices:  make(map[string]float64),
 	}
 }
 
@@ -55,6 +61,19 @@ func (m *mockPricingClient) EC2OnDemandPricePerHour(instanceType, os, tenancy st
 func (m *mockPricingClient) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	m.ebsPriceCalled++
 	price, found := m.ebsPrices[volumeType]
+	return price, found
+}
+
+func (m *mockPricingClient) RDSOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
+	m.rdsOnDemandCalled++
+	key := instanceType + "/" + engine
+	price, found := m.rdsInstancePrices[key]
+	return price, found
+}
+
+func (m *mockPricingClient) RDSStoragePricePerGBMonth(volumeType string) (float64, bool) {
+	m.rdsStoragePriceCalled++
+	price, found := m.rdsStoragePrices[volumeType]
 	return price, found
 }
 

@@ -442,7 +442,6 @@ This allows the user to review and make the commit themselves, and ensures
 the commit message follows conventional commits format.
 
 ## Active Technologies
-
 - **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
 - **pulumicost-spec** protos for CostSourceService API
 - **zerolog** for structured JSON logging (stderr only)

@@ -66,7 +66,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	// Check resource type
 	switch resource.ResourceType {
-	case "ec2", "ebs":
+	case "ec2", "ebs", "rds":
 		// Fully supported
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
@@ -82,7 +82,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			Reason:    "",
 		}, nil
 
-	case "s3", "lambda", "rds", "dynamodb":
+	case "s3", "lambda", "dynamodb":
 		// Stub support - returns $0 estimates
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).

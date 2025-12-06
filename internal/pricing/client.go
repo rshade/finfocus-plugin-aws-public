@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,6 +25,17 @@ type PricingClient interface {
 	// EBSPricePerGBMonth returns monthly rate per GB for an EBS volume
 	// Returns (price, true) if found, (0, false) if not found
 	EBSPricePerGBMonth(volumeType string) (float64, bool)
+
+	// RDSOnDemandPricePerHour returns hourly rate for an RDS instance
+	// instanceType: e.g., "db.t3.medium"
+	// engine: normalized engine name, e.g., "MySQL", "PostgreSQL"
+	// Returns (price, true) if found, (0, false) if not found
+	RDSOnDemandPricePerHour(instanceType, engine string) (float64, bool)
+
+	// RDSStoragePricePerGBMonth returns monthly rate per GB for RDS storage
+	// volumeType: e.g., "gp2", "gp3", "io1"
+	// Returns (price, true) if found, (0, false) if not found
+	RDSStoragePricePerGBMonth(volumeType string) (float64, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -38,6 +50,10 @@ type Client struct {
 	// In-memory pricing indexes (built on first access)
 	ec2Index map[string]ec2Price
 	ebsIndex map[string]ebsPrice
+
+	// RDS pricing indexes (key: "instanceType/engine" for instances, "volumeType" for storage)
+	rdsInstanceIndex map[string]rdsInstancePrice
+	rdsStorageIndex  map[string]rdsStoragePrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON
@@ -69,6 +85,8 @@ func (c *Client) init() error {
 		// 3. Build Lookup Indexes
 		c.ec2Index = make(map[string]ec2Price)
 		c.ebsIndex = make(map[string]ebsPrice)
+		c.rdsInstanceIndex = make(map[string]rdsInstancePrice)
+		c.rdsStorageIndex = make(map[string]rdsStoragePrice)
 
 		// Helper to find OnDemand price for a SKU
 		getOnDemandPrice := func(sku string) (float64, string, bool) {
@@ -142,17 +160,90 @@ func (c *Client) init() error {
 					// Fallback for older/mapped names if necessary, but volumeApiName is standard for modern API
 					continue
 				}
-				
+
 				// We want "Storage" usage type, not IOPS fees or throughput fees
 				// usageType often contains "EBS:VolumeUsage.gp3"
 				// attributes["usagetype"] might be useful if strict filtering needed.
-				
+
 				rate, unit, found := getOnDemandPrice(sku)
 				if found {
 					// We only want the "per GB-Mo" price, not IOPS charges.
 					// Check unit.
 					if unit == "GB-Mo" {
 						c.ebsIndex[volType] = ebsPrice{
+							Unit:           unit,
+							RatePerGBMonth: rate,
+							Currency:       "USD",
+						}
+					}
+				}
+			}
+
+			// --- RDS Database Instances ---
+			// RDS uses productFamily="Database Instance" for compute pricing
+			if prod.ProductFamily == "Database Instance" {
+				instClass := attrs["instanceType"]     // e.g., "db.t3.medium"
+				engine := attrs["databaseEngine"]      // e.g., "MySQL", "PostgreSQL"
+				deployOption := attrs["deploymentOption"]
+
+				// Filter for Single-AZ On-Demand instances only
+				// - Must have valid instance class and engine
+				// - deploymentOption must be "Single-AZ" (excludes Multi-AZ pricing)
+				if instClass != "" && engine != "" && deployOption == "Single-AZ" {
+					// Composite key: "db.t3.medium/MySQL"
+					key := fmt.Sprintf("%s/%s", instClass, engine)
+
+					rate, unit, found := getOnDemandPrice(sku)
+					if found && unit == "Hrs" {
+						c.rdsInstanceIndex[key] = rdsInstancePrice{
+							Unit:       unit,
+							HourlyRate: rate,
+							Currency:   "USD",
+						}
+					}
+				}
+			}
+
+			// --- RDS Database Storage ---
+			// RDS storage uses productFamily="Database Storage"
+			if prod.ProductFamily == "Database Storage" {
+				volType := attrs["volumeType"] // e.g., "General Purpose", "Provisioned IOPS"
+				usageType := attrs["usagetype"]
+
+				// Map volume type names to API names
+				var apiVolType string
+				switch volType {
+				case "General Purpose":
+					// Check usagetype to distinguish gp2 vs gp3
+					if usageType != "" {
+						if strings.Contains(usageType, "gp3") {
+							apiVolType = "gp3"
+						} else {
+							apiVolType = "gp2" // Default GP to gp2
+						}
+					} else {
+						apiVolType = "gp2"
+					}
+				case "General Purpose (SSD)":
+					apiVolType = "gp2"
+				case "Provisioned IOPS", "Provisioned IOPS (SSD)":
+					// Check usagetype to distinguish io1 vs io2
+					if usageType != "" && strings.Contains(usageType, "io2") {
+						apiVolType = "io2"
+					} else {
+						apiVolType = "io1"
+					}
+				case "Magnetic":
+					apiVolType = "standard"
+				default:
+					continue // Unknown storage type
+				}
+
+				rate, unit, found := getOnDemandPrice(sku)
+				if found && unit == "GB-Mo" {
+					// Only store if we don't have it yet or this is a better match
+					if _, exists := c.rdsStorageIndex[apiVolType]; !exists {
+						c.rdsStorageIndex[apiVolType] = rdsStoragePrice{
 							Unit:           unit,
 							RatePerGBMonth: rate,
 							Currency:       "USD",
@@ -216,6 +307,54 @@ func (c *Client) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	}
 
 	price, found := c.ebsIndex[volumeType]
+	if !found {
+		return 0, false
+	}
+	return price.RatePerGBMonth, true
+}
+
+// RDSOnDemandPricePerHour returns hourly rate for an RDS instance
+// instanceType: e.g., "db.t3.medium"
+// engine: normalized engine name, e.g., "MySQL", "PostgreSQL"
+func (c *Client) RDSOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			log.Printf("[pulumicost-plugin-aws-public] WARN: RDS pricing lookup for %s/%s took %v (>50ms)",
+				instanceType, engine, elapsed)
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+
+	key := fmt.Sprintf("%s/%s", instanceType, engine)
+	price, found := c.rdsInstanceIndex[key]
+	if !found {
+		return 0, false
+	}
+	return price.HourlyRate, true
+}
+
+// RDSStoragePricePerGBMonth returns monthly rate per GB for RDS storage
+// volumeType: e.g., "gp2", "gp3", "io1", "standard"
+func (c *Client) RDSStoragePricePerGBMonth(volumeType string) (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			log.Printf("[pulumicost-plugin-aws-public] WARN: RDS storage pricing lookup for %s took %v (>50ms)",
+				volumeType, elapsed)
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+
+	price, found := c.rdsStorageIndex[volumeType]
 	if !found {
 		return 0, false
 	}

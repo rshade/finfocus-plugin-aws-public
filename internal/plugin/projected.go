@@ -14,9 +14,35 @@ import (
 )
 
 const (
-	hoursPerMonth = 730.0
-	defaultEBSGB  = 8
+	hoursPerMonth     = 730.0
+	defaultEBSGB      = 8
+	defaultRDSEngine  = "mysql"
+	defaultRDSStorage = "gp2"
+	defaultRDSSizeGB  = 20
 )
+
+// engineNormalization maps user-friendly engine names to AWS pricing API identifiers.
+// Multiple aliases (e.g., "postgres" and "postgresql") map to the same canonical name.
+var engineNormalization = map[string]string{
+	"mysql":        "MySQL",
+	"postgres":     "PostgreSQL",
+	"postgresql":   "PostgreSQL",
+	"mariadb":      "MariaDB",
+	"oracle":       "Oracle",
+	"oracle-se2":   "Oracle",
+	"sqlserver":    "SQL Server",
+	"sqlserver-ex": "SQL Server",
+	"sql-server":   "SQL Server",
+}
+
+// validRDSStorageTypes contains the supported RDS storage volume types.
+var validRDSStorageTypes = map[string]bool{
+	"gp2":      true,
+	"gp3":      true,
+	"io1":      true,
+	"io2":      true,
+	"standard": true,
+}
 
 // GetProjectedCost estimates the monthly cost for the given resource.
 func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.GetProjectedCostResponse, error) {
@@ -81,7 +107,9 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateEC2(traceID, resource)
 	case "ebs":
 		resp, err = p.estimateEBS(traceID, resource)
-	case "s3", "lambda", "rds", "dynamodb":
+	case "rds":
+		resp, err = p.estimateRDS(traceID, resource)
+	case "s3", "lambda", "dynamodb":
 		resp, err = p.estimateStub(resource)
 	default:
 		// Unknown resource type - return $0 with explanation
@@ -282,5 +310,132 @@ func (p *AWSPublicPlugin) estimateStub(resource *pbc.ResourceDescriptor) (*pbc.G
 		UnitPrice:     0,
 		Currency:      "USD",
 		BillingDetail: fmt.Sprintf("%s cost estimation not fully implemented - returns $0 estimate", resource.ResourceType),
+	}, nil
+}
+
+// estimateRDS calculates the projected monthly cost for an RDS instance.
+// traceID is passed from the parent handler to ensure consistent trace correlation.
+func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	instanceType := resource.Sku
+
+	// Extract engine from tags, default to MySQL
+	engine := defaultRDSEngine
+	engineDefaulted := true
+	if resource.Tags != nil {
+		if engineTag, ok := resource.Tags["engine"]; ok && engineTag != "" {
+			engine = strings.ToLower(engineTag)
+			engineDefaulted = false
+		}
+	}
+
+	// Normalize engine name for AWS pricing lookup
+	normalizedEngine, engineKnown := engineNormalization[engine]
+	if !engineKnown {
+		// Unknown engine - default to MySQL with note
+		normalizedEngine = "MySQL"
+		engineDefaulted = true
+	}
+
+	// Extract storage info from tags
+	storageType := defaultRDSStorage
+	storageDefaulted := true
+	if resource.Tags != nil {
+		if st, ok := resource.Tags["storage_type"]; ok && st != "" {
+			storageType = strings.ToLower(st)
+			storageDefaulted = false
+		}
+	}
+
+	// Validate storage type
+	if !validRDSStorageTypes[storageType] {
+		storageType = defaultRDSStorage
+		storageDefaulted = true
+	}
+
+	// Extract storage size from tags
+	storageSizeGB := defaultRDSSizeGB
+	sizeDefaulted := true
+	if resource.Tags != nil {
+		if sizeStr, ok := resource.Tags["storage_size"]; ok {
+			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
+				storageSizeGB = size
+				sizeDefaulted = false
+			}
+		}
+	}
+
+	// Lookup instance hourly rate
+	hourlyRate, found := p.pricing.RDSOnDemandPricePerHour(instanceType, normalizedEngine)
+	if !found {
+		// Unknown instance type - return $0 with explanation
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("instance_type", instanceType).
+			Str("engine", normalizedEngine).
+			Str("aws_region", p.region).
+			Str("pricing_source", "embedded").
+			Msg("RDS instance type not found in pricing data")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: fmt.Sprintf("RDS instance type %q not found in pricing data for %s", instanceType, normalizedEngine),
+		}, nil
+	}
+
+	// Lookup storage rate
+	storageRate, storageFound := p.pricing.RDSStoragePricePerGBMonth(storageType)
+	if !storageFound {
+		// Storage type not found, use 0 for storage cost
+		storageRate = 0
+	}
+
+	// Debug log successful lookup
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("instance_type", instanceType).
+		Str("engine", normalizedEngine).
+		Str("storage_type", storageType).
+		Int("storage_size_gb", storageSizeGB).
+		Str("aws_region", p.region).
+		Str("pricing_source", "embedded").
+		Float64("unit_price", hourlyRate).
+		Float64("storage_rate", storageRate).
+		Msg("RDS pricing lookup successful")
+
+	// Calculate monthly costs
+	instanceCostPerMonth := hourlyRate * hoursPerMonth
+	storageCostPerMonth := storageRate * float64(storageSizeGB)
+	totalCostPerMonth := instanceCostPerMonth + storageCostPerMonth
+
+	// Build billing detail message
+	var billingDetail string
+	defaultNotes := []string{}
+	if engineDefaulted {
+		defaultNotes = append(defaultNotes, "engine defaulted to MySQL")
+	}
+	if storageDefaulted {
+		defaultNotes = append(defaultNotes, "storage type defaulted")
+	}
+	if sizeDefaulted {
+		defaultNotes = append(defaultNotes, "size defaulted to 20GB")
+	}
+
+	if len(defaultNotes) > 0 {
+		billingDetail = fmt.Sprintf("RDS %s %s, 730 hrs/month + %dGB %s storage (%s)",
+			instanceType, normalizedEngine, storageSizeGB, storageType, strings.Join(defaultNotes, ", "))
+	} else {
+		billingDetail = fmt.Sprintf("RDS %s %s, 730 hrs/month + %dGB %s storage",
+			instanceType, normalizedEngine, storageSizeGB, storageType)
+	}
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  totalCostPerMonth,
+		UnitPrice:     hourlyRate,
+		Currency:      "USD",
+		BillingDetail: billingDetail,
 	}, nil
 }

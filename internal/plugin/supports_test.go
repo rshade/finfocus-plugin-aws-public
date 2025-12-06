@@ -74,7 +74,7 @@ func TestSupports(t *testing.T) {
 			wantReasonSubstr: "Limited support",
 		},
 		{
-			name: "RDS with limited support",
+			name: "RDS fully supported",
 			req: &pbc.SupportsRequest{
 				Resource: &pbc.ResourceDescriptor{
 					Provider:     "aws",
@@ -83,7 +83,7 @@ func TestSupports(t *testing.T) {
 				},
 			},
 			wantSupported:    true,
-			wantReasonSubstr: "Limited support",
+			wantReasonSubstr: "",
 		},
 		{
 			name: "DynamoDB with limited support",

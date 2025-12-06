@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -284,7 +285,7 @@ func TestGetProjectedCost_StubServices(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
-	testCases := []string{"s3", "lambda", "rds", "dynamodb"}
+	testCases := []string{"s3", "lambda", "dynamodb"} // RDS is now fully supported
 
 	for _, resourceType := range testCases {
 		t.Run(resourceType, func(t *testing.T) {
@@ -929,5 +930,320 @@ func TestDebugLogsContainStorageTypeForEBS(t *testing.T) {
 
 	if !foundStorageType {
 		t.Error("Debug log should contain storage_type field for EBS requests")
+	}
+}
+
+// TestGetProjectedCost_RDS_MySQL tests RDS cost estimation with MySQL engine
+func TestGetProjectedCost_RDS_MySQL(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.rdsInstancePrices["db.t3.medium/MySQL"] = 0.068
+	mock.rdsStoragePrices["gp3"] = 0.10
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "rds",
+			Sku:          "db.t3.medium",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine":       "mysql",
+				"storage_type": "gp3",
+				"storage_size": "100",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify instance cost: 0.068 * 730 = 49.64
+	// Storage cost: 0.10 * 100 = 10.00
+	// Total: 59.64
+	expectedInstanceCost := 0.068 * 730.0
+	expectedStorageCost := 0.10 * 100.0
+	expectedTotal := expectedInstanceCost + expectedStorageCost
+
+	if resp.CostPerMonth != expectedTotal {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedTotal)
+	}
+
+	if resp.UnitPrice != 0.068 {
+		t.Errorf("UnitPrice = %v, want 0.068", resp.UnitPrice)
+	}
+
+	if resp.Currency != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	}
+
+	if resp.BillingDetail == "" {
+		t.Error("BillingDetail should not be empty")
+	}
+
+	// Verify pricing client was called
+	if mock.rdsOnDemandCalled != 1 {
+		t.Errorf("RDSOnDemandPricePerHour called %d times, want 1", mock.rdsOnDemandCalled)
+	}
+}
+
+// TestGetProjectedCost_RDS_DefaultValues tests RDS with default values
+func TestGetProjectedCost_RDS_DefaultValues(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.rdsInstancePrices["db.m5.large/MySQL"] = 0.171
+	mock.rdsStoragePrices["gp2"] = 0.115
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "rds",
+			Sku:          "db.m5.large",
+			Region:       "us-east-1",
+			// No tags - should default to mysql, gp2, 20GB
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Instance cost: 0.171 * 730 = 124.83
+	// Storage cost: 0.115 * 20 = 2.30
+	// Total: 127.13
+	expectedInstanceCost := 0.171 * 730.0
+	expectedStorageCost := 0.115 * 20.0
+	expectedTotal := expectedInstanceCost + expectedStorageCost
+
+	// Use tolerance for floating-point comparison
+	tolerance := 0.0001
+	if diff := resp.CostPerMonth - expectedTotal; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v (within tolerance %v)", resp.CostPerMonth, expectedTotal, tolerance)
+	}
+
+	// BillingDetail should mention defaults
+	if resp.BillingDetail == "" {
+		t.Error("BillingDetail should not be empty")
+	}
+	if !strings.Contains(resp.BillingDetail, "defaulted") {
+		t.Errorf("BillingDetail should mention defaults, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_RDS_PostgreSQL tests RDS with PostgreSQL engine
+func TestGetProjectedCost_RDS_PostgreSQL(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.rdsInstancePrices["db.t3.medium/PostgreSQL"] = 0.068
+	mock.rdsStoragePrices["gp3"] = 0.10
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "rds",
+			Sku:          "db.t3.medium",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine":       "postgres",
+				"storage_type": "gp3",
+				"storage_size": "50",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify PostgreSQL was normalized correctly
+	if resp.UnitPrice != 0.068 {
+		t.Errorf("UnitPrice = %v, want 0.068", resp.UnitPrice)
+	}
+
+	// BillingDetail should show PostgreSQL
+	if !strings.Contains(resp.BillingDetail, "PostgreSQL") {
+		t.Errorf("BillingDetail should contain PostgreSQL, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_RDS_UnknownEngine tests defaulting to MySQL for unknown engine
+func TestGetProjectedCost_RDS_UnknownEngine(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
+	mock.rdsStoragePrices["gp2"] = 0.115
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "rds",
+			Sku:          "db.t3.micro",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "unknown-engine",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should default to MySQL pricing
+	if resp.UnitPrice != 0.017 {
+		t.Errorf("UnitPrice = %v, want 0.017 (MySQL default)", resp.UnitPrice)
+	}
+
+	// BillingDetail should mention it defaulted
+	if !strings.Contains(resp.BillingDetail, "defaulted") {
+		t.Errorf("BillingDetail should mention defaulted engine, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_RDS_UnknownInstance tests $0 return for unknown instance type
+func TestGetProjectedCost_RDS_UnknownInstance(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// Don't add any RDS pricing data
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "rds",
+			Sku:          "db.unknown.large",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should return $0 with explanation
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for unknown instance type", resp.CostPerMonth)
+	}
+
+	if resp.BillingDetail == "" {
+		t.Error("BillingDetail should explain why cost is $0")
+	}
+	if !strings.Contains(resp.BillingDetail, "not found") {
+		t.Errorf("BillingDetail should mention not found, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_RDS_AllEngines tests all supported database engines
+func TestGetProjectedCost_RDS_AllEngines(t *testing.T) {
+	tests := []struct {
+		name             string
+		engineTag        string
+		expectedNormalized string
+	}{
+		{"MySQL", "mysql", "MySQL"},
+		{"PostgreSQL", "postgres", "PostgreSQL"},
+		{"PostgreSQL alias", "postgresql", "PostgreSQL"},
+		{"MariaDB", "mariadb", "MariaDB"},
+		{"Oracle", "oracle", "Oracle"},
+		{"Oracle SE2", "oracle-se2", "Oracle"},
+		{"SQL Server", "sqlserver", "SQL Server"},
+		{"SQL Server Express", "sqlserver-ex", "SQL Server"},
+		{"SQL Server Alias", "sql-server", "SQL Server"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			mock.rdsInstancePrices["db.t3.micro/"+tt.expectedNormalized] = 0.05
+			mock.rdsStoragePrices["gp2"] = 0.115
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "rds",
+					Sku:          "db.t3.micro",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"engine": tt.engineTag,
+					},
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			// Should find pricing for the normalized engine
+			if resp.UnitPrice == 0 {
+				t.Errorf("UnitPrice = 0, expected non-zero for engine %s", tt.engineTag)
+			}
+
+			// BillingDetail should show normalized engine name
+			if !strings.Contains(resp.BillingDetail, tt.expectedNormalized) {
+				t.Errorf("BillingDetail should contain %s, got: %s", tt.expectedNormalized, resp.BillingDetail)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_RDS_InvalidStorageSize tests invalid storage size handling
+func TestGetProjectedCost_RDS_InvalidStorageSize(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
+	mock.rdsStoragePrices["gp2"] = 0.115
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name        string
+		storageSize string
+	}{
+		{"negative size", "-100"},
+		{"zero size", "0"},
+		{"non-numeric", "abc"},
+		{"empty string", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "rds",
+					Sku:          "db.t3.micro",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"engine":       "mysql",
+						"storage_size": tt.storageSize,
+					},
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			// Should default to 20GB storage
+			// Instance cost: 0.017 * 730 = 12.41
+			// Storage cost: 0.115 * 20 = 2.30
+			expectedStorageCost := 0.115 * 20.0
+			expectedInstanceCost := 0.017 * 730.0
+			expectedTotal := expectedInstanceCost + expectedStorageCost
+
+			if resp.CostPerMonth != expectedTotal {
+				t.Errorf("CostPerMonth = %v, want %v (with default 20GB storage)", resp.CostPerMonth, expectedTotal)
+			}
+
+			// Should mention defaulted
+			if !strings.Contains(resp.BillingDetail, "defaulted") {
+				t.Errorf("BillingDetail should mention defaulted, got: %s", resp.BillingDetail)
+			}
+		})
 	}
 }

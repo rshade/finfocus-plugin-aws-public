@@ -46,3 +46,17 @@ type ebsPrice struct {
 	RatePerGBMonth float64
 	Currency       string
 }
+
+// rdsInstancePrice represents the hourly compute cost for RDS instances
+type rdsInstancePrice struct {
+	Unit       string
+	HourlyRate float64
+	Currency   string
+}
+
+// rdsStoragePrice represents the per-GB-month cost for RDS storage
+type rdsStoragePrice struct {
+	Unit           string
+	RatePerGBMonth float64
+	Currency       string
+}

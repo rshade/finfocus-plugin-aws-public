@@ -14,9 +14,11 @@ import (
 
 // mockPricingClientActual implements pricing.PricingClient for actual cost testing.
 type mockPricingClientActual struct {
-	region    string
-	ec2Prices map[string]float64
-	ebsPrices map[string]float64
+	region            string
+	ec2Prices         map[string]float64
+	ebsPrices         map[string]float64
+	rdsInstancePrices map[string]float64
+	rdsStoragePrices  map[string]float64
 }
 
 func (m *mockPricingClientActual) Region() string {
@@ -34,6 +36,23 @@ func (m *mockPricingClientActual) EC2OnDemandPricePerHour(instanceType, _, _ str
 
 func (m *mockPricingClientActual) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	price, ok := m.ebsPrices[volumeType]
+	return price, ok
+}
+
+func (m *mockPricingClientActual) RDSOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
+	if m.rdsInstancePrices == nil {
+		return 0, false
+	}
+	key := instanceType + "/" + engine
+	price, ok := m.rdsInstancePrices[key]
+	return price, ok
+}
+
+func (m *mockPricingClientActual) RDSStoragePricePerGBMonth(volumeType string) (float64, bool) {
+	if m.rdsStoragePrices == nil {
+		return 0, false
+	}
+	price, ok := m.rdsStoragePrices[volumeType]
 	return price, ok
 }
 
@@ -400,7 +419,7 @@ func TestGetActualCostStubServices(t *testing.T) {
 	plugin := newTestPluginForActual()
 	ctx := context.Background()
 
-	stubServices := []string{"s3", "lambda", "rds", "dynamodb"}
+	stubServices := []string{"s3", "lambda", "dynamodb"}
 
 	for _, service := range stubServices {
 		t.Run(service, func(t *testing.T) {
