@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.6](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.5...v0.0.6) (2025-12-06)
+
+
+### Bug Fixes
+
+* **release:** fix automated release workflow for GoReleaser v2 ([84fc43e](https://github.com/rshade/pulumicost-plugin-aws-public/commit/84fc43e7ed052237c14e04e286de5af6cc2c2140))
+* **release:** remove verify-regions step blocking automated releases ([ebfe7e3](https://github.com/rshade/pulumicost-plugin-aws-public/commit/ebfe7e3436afe964070a0f614f1c3190299d4386))
+
 ## [0.0.5](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.4...v0.0.5) (2025-12-06)
 
 
