@@ -80,10 +80,24 @@ message GetProjectedCostResponse {
 - Must be thread-safe for concurrent gRPC calls
 
 ### Service Support (v1)
-- **Fully implemented**: EC2 instances, EBS volumes
-- **Stubbed/Partial**: S3, Lambda, RDS, DynamoDB
-  - Supports() returns `supported=true` with reason "Limited support - returns $0 estimate"
-  - GetProjectedCost() returns `cost_per_month=0` with billing_detail explaining not implemented
+
+**Fully implemented:**
+
+- EC2 instances
+- EBS volumes
+- EKS clusters
+
+**Stubbed/Partial:**
+
+- S3
+- Lambda
+- RDS
+- DynamoDB
+
+Stubbed services behavior:
+
+- Supports() returns `supported=true` with reason "Limited support - returns $0 estimate"
+- GetProjectedCost() returns `cost_per_month=0` with billing_detail explaining not implemented
 
 ## Directory Structure
 
@@ -215,6 +229,18 @@ From `pulumicost.v1.ErrorCode`:
 - `cost_per_month`: unit_price × size_GB
 - `billing_detail`: "EBS <sku> storage, <size>GB" (+ ", defaulted to 8GB" if size not specified)
 
+### EKS Clusters
+- `resource_type`: "eks" or "aws:eks/cluster:Cluster"
+- `sku`: Not used (cluster type determined by tags)
+- Support tier: Read from `tags["support_type"]`, defaults to "standard"
+  - "standard": $0.10/hour
+  - "extended": $0.50/hour
+- Assumptions (hardcoded for v1):
+  - `hoursPerMonth = 730` (24×7 on-demand)
+- `unit_price`: Hourly cluster management fee from pricing data
+- `cost_per_month`: unit_price × 730
+- `billing_detail`: "EKS cluster (<support_type> support), 730 hrs/month (control plane only, excludes worker nodes)"
+
 ### Stub Services (S3, Lambda, RDS, DynamoDB)
 - `resource_type`: "s3", "lambda", "rds", "dynamodb"
 - Supports() returns `supported=true` with `reason="Limited support - returns $0 estimate"`
@@ -228,6 +254,59 @@ From `pulumicost.v1.ErrorCode`:
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
 - GetProjectedCost() for mismatched region: returns gRPC error with ERROR_CODE_UNSUPPORTED_REGION and details map
+
+## Cost Estimation Scope
+
+Each service estimate covers specific cost components. Understanding what is included
+and excluded helps users accurately estimate total infrastructure costs.
+
+| Service | Included | Excluded |
+|---------|----------|----------|
+| EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS |
+| EBS | Storage GB-month | IOPS, throughput, snapshots |
+| EKS | Control plane hours | Worker nodes, add-ons, data transfer |
+| RDS | Not implemented | - |
+| S3 | Not implemented | - |
+| Lambda | Not implemented | - |
+| DynamoDB | Not implemented | - |
+
+### EKS Clusters
+
+EKS cost estimation covers **control plane only**:
+
+- **Included:** Hourly cluster management fee ($0.10/hr standard, $0.50/hr extended support)
+- **Excluded:**
+  - Worker node EC2 instances (estimate separately as EC2)
+  - Data transfer costs
+  - EKS add-ons (EBS CSI driver, CoreDNS, kube-proxy, etc.)
+  - Load balancer costs (ALB/NLB)
+  - Fargate pod costs
+
+To estimate total EKS cluster cost, sum:
+
+1. EKS control plane (this estimate)
+2. EC2 instances for worker nodes (estimate each as EC2)
+3. EBS volumes for persistent storage (estimate each as EBS)
+
+### EC2 Instances
+
+- **Included:** On-demand hourly instance cost for Linux, shared tenancy
+- **Excluded:**
+  - Spot instance pricing
+  - Reserved instance pricing
+  - Savings Plans pricing
+  - Data transfer costs
+  - EBS volumes (estimate separately)
+  - Elastic IP costs
+
+### EBS Volumes
+
+- **Included:** Storage cost per GB-month
+- **Excluded:**
+  - Provisioned IOPS (io1/io2)
+  - Provisioned throughput (gp3)
+  - Snapshot storage costs
+  - Data transfer costs
 
 ## Code Style Guidelines
 
@@ -461,6 +540,8 @@ the commit message follows conventional commits format.
 
 | Issue | Summary |
 |-------|---------|
+| #91 | EKS cost estimation scope documentation |
+| #76 | EKS cluster cost estimation (control plane only) |
 | 008 | E2E test mode, expected cost validation (t3.micro, gp2) |
 | 005 | zerolog logging, trace_id propagation, LOG_LEVEL |
 | 004 | GetActualCost fallback: `projected × (hours/730)` |
