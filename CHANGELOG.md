@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.7](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.6...v0.0.7) (2025-12-07)
+
+
+### Features
+
+* **eks:** implement EKS cluster cost estimation ([#76](https://github.com/rshade/pulumicost-plugin-aws-public/issues/76)) ([cc5a19a](https://github.com/rshade/pulumicost-plugin-aws-public/commit/cc5a19accba384c05397a77c9c8d65594192a825))
+
+
+### Bug Fixes
+
+* **resource:** enhance resource type compatibility ([#81](https://github.com/rshade/pulumicost-plugin-aws-public/issues/81)) ([74fd00d](https://github.com/rshade/pulumicost-plugin-aws-public/commit/74fd00dcf7cfc77b08c26574285eb750e58f4379))
+
 ## [0.0.6](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.5...v0.0.6) (2025-12-06)
 
 
