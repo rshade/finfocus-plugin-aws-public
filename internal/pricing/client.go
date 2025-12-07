@@ -59,7 +59,10 @@ type Client struct {
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
-// The provided logger is used for performance warnings during pricing lookups.
+// NewClient creates and returns a new Client that provides pricing lookups.
+// The provided logger is attached to the client and used for performance
+// warnings during pricing lookups and other client-level diagnostics.
+// It returns an initialized *Client or a non-nil error if initialization fails.
 func NewClient(logger zerolog.Logger) (*Client, error) {
 	c := &Client{
 		logger: logger, // Initialize the logger

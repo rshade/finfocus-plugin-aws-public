@@ -485,7 +485,9 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 //	detectService("ec2")                        -> "ec2"
 //	detectService("aws:ec2/instance:Instance")  -> "ec2"
 //	detectService("aws:ebs/volume:Volume")      -> "ebs"
-//	detectService("aws:unknown:Service")        -> "aws:unknown:Service"
+// detectService maps a provider resource type string to a normalized service identifier.
+// It returns one of "ec2", "ebs", "rds", "s3", "lambda", or "dynamodb" when a known mapping or pattern is found;
+// otherwise it returns the original resourceType unchanged.
 func detectService(resourceType string) string {
 	resourceTypeLower := strings.ToLower(resourceType)
 

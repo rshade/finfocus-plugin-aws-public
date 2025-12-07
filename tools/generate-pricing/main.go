@@ -114,7 +114,11 @@ func generateCombinedPricingData(region string, services []string, outDir string
 	return nil
 }
 
-// fetchServicePricing fetches pricing data for a single AWS service
+// fetchServicePricing retrieves AWS pricing data for the specified service and region.
+// It requests the Pricing API index JSON for the given service and region and parses it into an awsPricing value.
+// region is the AWS region code (for example, "us-east-1").
+// service is the AWS service code (for example, "AmazonEC2").
+// It returns the parsed awsPricing on success. An error is returned if the HTTP request fails, the response status is not 200 OK, reading the response body fails, or JSON unmarshaling fails.
 func fetchServicePricing(region, service string) (*awsPricing, error) {
 	url := fmt.Sprintf("https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/%s/current/%s/index.json", service, region)
 

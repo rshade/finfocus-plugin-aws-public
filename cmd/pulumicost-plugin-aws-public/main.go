@@ -15,6 +15,12 @@ import (
 // version is the plugin version, set at build time via ldflags.
 var version = "0.0.3"
 
+// main starts the aws-public plugin process, configures logging, initializes the pricing
+// client and plugin instance, and runs the plugin server until a shutdown signal is received.
+// It reads LOG_LEVEL and PORT from the environment, validates test-mode configuration,
+// logs the AWS region returned by the pricing client, and performs a graceful shutdown on
+// os.Interrupt or syscall.SIGTERM. On initialization or server errors the process exits with
+// a non-zero status.
 func main() {
 	// Parse log level from environment (default: info)
 	level := zerolog.InfoLevel
