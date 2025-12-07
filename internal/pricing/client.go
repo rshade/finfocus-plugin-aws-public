@@ -287,16 +287,14 @@ func (c *Client) init() error {
 				rate, unit, found := getOnDemandPrice(sku)
 				if found && unit == "Hrs" && rate > 0 {
 					// Extended support: ExtendedSupport operation or extendedSupport in usagetype
+					// Always update with valid non-zero rates. This handles cases where AWS pricing
+					// data may contain multiple entries or change order in future API responses.
 					if operation == "ExtendedSupport" || strings.Contains(usageType, "extendedSupport") {
-						if c.eksPricing.ExtendedHourlyRate == 0 {
-							c.eksPricing.ExtendedHourlyRate = rate
-						}
+						c.eksPricing.ExtendedHourlyRate = rate
 					} else {
 						// Standard support: CreateOperation with perCluster, or any non-extended EKS pricing
 						// This includes legacy data that doesn't have specific operation/usagetype
-						if c.eksPricing.StandardHourlyRate == 0 {
-							c.eksPricing.StandardHourlyRate = rate
-						}
+						c.eksPricing.StandardHourlyRate = rate
 					}
 				}
 			}

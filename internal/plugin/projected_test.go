@@ -1472,3 +1472,60 @@ func TestGetProjectedCost_EKS_ExtendedSupportViaTags(t *testing.T) {
 		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
 	}
 }
+
+// TestGetProjectedCost_EKS_SupportTypeCaseInsensitive verifies that support_type tag comparison
+// is case-insensitive. This is a regression test for issue #89 which identified that users
+// setting support_type: Extended or support_type: EXTENDED would incorrectly receive
+// standard pricing instead of extended pricing.
+func TestGetProjectedCost_EKS_SupportTypeCaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name        string
+		supportType string
+	}{
+		{"Uppercase Extended", "Extended"},
+		{"All caps EXTENDED", "EXTENDED"},
+		{"Mixed case ExTeNdEd", "ExTeNdEd"},
+		{"Lowercase extended", "extended"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			mock.eksStandardPrice = 0.10
+			mock.eksExtendedPrice = 0.50
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "eks",
+					Sku:          "cluster",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"support_type": tt.supportType,
+					},
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			// Should use extended support pricing ($0.50/hour)
+			expectedCost := 0.50 * 730.0
+			if resp.CostPerMonth != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v (extended pricing)", resp.CostPerMonth, expectedCost)
+			}
+
+			if resp.UnitPrice != 0.50 {
+				t.Errorf("UnitPrice = %v, want 0.50 (extended pricing)", resp.UnitPrice)
+			}
+
+			// Verify billing detail shows extended support
+			if !strings.Contains(resp.BillingDetail, "extended support") {
+				t.Errorf("BillingDetail should mention extended support, got: %s", resp.BillingDetail)
+			}
+		})
+	}
+}
