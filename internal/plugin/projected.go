@@ -521,9 +521,9 @@ func detectService(resourceType string) string {
 func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	// Determine support type from resource.Sku or tags
 	// resource.Sku = "cluster" (standard) or "cluster-extended" (extended support)
-	// OR use tags: tags["support_type"] == "extended"
+	// OR use tags: tags["support_type"] == "extended" (case-insensitive)
 	extendedSupport := resource.Sku == "cluster-extended" ||
-		(resource.Tags != nil && resource.Tags["support_type"] == "extended")
+		(resource.Tags != nil && strings.EqualFold(resource.Tags["support_type"], "extended"))
 
 	// Look up EKS pricing based on support type
 	hourlyRate, found := p.pricing.EKSClusterPricePerHour(extendedSupport)
