@@ -257,6 +257,96 @@ func TestGetActualCostEC2(t *testing.T) {
 	}
 }
 
+// TestGetActualCostEC2_PulumiFormat tests actual cost calculation for EC2 instances
+// using Pulumi resource type format.
+func TestGetActualCostEC2_PulumiFormat(t *testing.T) {
+	plugin := newTestPluginForActual()
+	ctx := context.Background()
+
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour) // 24 hours
+
+	// Use Tags to pass resource info with Pulumi resource type format
+	req := &pbc.GetActualCostRequest{
+		ResourceId: makeResourceJSON("aws", "aws:ec2/instance:Instance", "t3.micro", "us-east-1", nil),
+		Start:      timestamppb.New(from),
+		End:        timestamppb.New(to),
+	}
+
+	resp, err := plugin.GetActualCost(ctx, req)
+	if err != nil {
+		t.Fatalf("GetActualCost() with Pulumi format failed: %v", err)
+	}
+
+	if resp == nil {
+		t.Errorf("GetActualCost() returned nil response")
+		return
+	}
+	if len(resp.Results) == 0 {
+		t.Errorf("GetActualCost() returned empty results")
+		return
+	}
+
+	result := resp.Results[0]
+
+	// $0.0104/hr * 730 hrs = $7.592/month
+	// $7.592 * (24/730) = $0.2496
+	expectedCost := 0.2496
+	tolerance := expectedCost * 0.0001 // 0.01% tolerance
+	if diff := result.Cost - expectedCost; diff > tolerance || diff < -tolerance {
+		t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.Cost, expectedCost, tolerance)
+	}
+
+	if result.Source == "" {
+		t.Errorf("GetActualCost() source (billing_detail) is empty")
+	}
+}
+
+// TestGetActualCostEBS_PulumiFormat tests actual cost calculation for EBS volumes
+// using Pulumi resource type format.
+func TestGetActualCostEBS_PulumiFormat(t *testing.T) {
+	plugin := newTestPluginForActual()
+	ctx := context.Background()
+
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(168 * time.Hour) // 1 week
+
+	// Use ResourceId JSON with tags for size and Pulumi resource type format
+	req := &pbc.GetActualCostRequest{
+		ResourceId: makeResourceJSON("aws", "aws:ebs/volume:Volume", "gp3", "us-east-1", map[string]string{"size": "100"}),
+		Start:      timestamppb.New(from),
+		End:        timestamppb.New(to),
+	}
+
+	resp, err := plugin.GetActualCost(ctx, req)
+	if err != nil {
+		t.Fatalf("GetActualCost() with EBS Pulumi format failed: %v", err)
+	}
+
+	if resp == nil {
+		t.Errorf("GetActualCost() returned nil response")
+		return
+	}
+	if len(resp.Results) == 0 {
+		t.Errorf("GetActualCost() returned empty results")
+		return
+	}
+
+	result := resp.Results[0]
+
+	// $0.08/GB-month * 100GB = $8.00/month
+	// $8.00 * (168/730) = $1.8411
+	expectedCost := 1.8410958904109589
+	tolerance := expectedCost * 0.0001 // 0.01% tolerance
+	if diff := result.Cost - expectedCost; diff > tolerance || diff < -tolerance {
+		t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.Cost, expectedCost, tolerance)
+	}
+
+	if result.Source == "" {
+		t.Errorf("GetActualCost() source (billing_detail) is empty")
+	}
+}
+
 // TestGetActualCostEBS tests actual cost calculation for EBS volumes.
 func TestGetActualCostEBS(t *testing.T) {
 	plugin := newTestPluginForActual()

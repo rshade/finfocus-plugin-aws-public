@@ -200,6 +200,44 @@ func TestSupports(t *testing.T) {
 			wantReasonSubstr: "not supported",
 		},
 
+		// Pulumi resource type format support
+		{
+			name: "EC2 with Pulumi format",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:ec2/instance:Instance",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "EBS with Pulumi format",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:ebs/volume:Volume",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "S3 with Pulumi format",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:s3/bucket:Bucket",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "Limited support",
+		},
+
 		// Invalid requests
 		{
 			name:             "Nil request",

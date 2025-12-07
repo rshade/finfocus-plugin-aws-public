@@ -48,9 +48,12 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 		return nil, err
 	}
 
+	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
+	serviceType := detectService(resource.ResourceType)
+
 	var spec *pbc.PricingSpec
 
-	switch resource.ResourceType {
+	switch serviceType {
 	case "ec2":
 		spec = p.ec2PricingSpec(resource)
 	case "ebs":

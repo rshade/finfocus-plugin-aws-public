@@ -47,6 +47,38 @@ func TestGetPricingSpec_EC2(t *testing.T) {
 	assert.NotEmpty(t, resp.Spec.Assumptions)
 }
 
+// TestGetPricingSpec_EC2_PulumiFormat tests EC2 pricing spec with Pulumi resource type format.
+func TestGetPricingSpec_EC2_PulumiFormat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:ec2/instance:Instance",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.Spec)
+	assert.Equal(t, "aws", resp.Spec.Provider)
+	assert.Equal(t, "aws:ec2/instance:Instance", resp.Spec.ResourceType) // Should preserve original format
+	assert.Equal(t, "t3.micro", resp.Spec.Sku)
+	assert.Equal(t, "us-east-1", resp.Spec.Region)
+	assert.Equal(t, "per_hour", resp.Spec.BillingMode)
+	assert.Equal(t, 0.0104, resp.Spec.RatePerUnit)
+	assert.Equal(t, "USD", resp.Spec.Currency)
+	assert.Equal(t, "hour", resp.Spec.Unit)
+	assert.Equal(t, "aws-public", resp.Spec.Source)
+	assert.Contains(t, resp.Spec.Description, "Linux")
+	assert.Contains(t, resp.Spec.Description, "Shared")
+	assert.NotEmpty(t, resp.Spec.Assumptions)
+}
+
 // TestGetPricingSpec_EC2_NotFound verifies handling of unknown instance types.
 func TestGetPricingSpec_EC2_NotFound(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -90,6 +122,37 @@ func TestGetPricingSpec_EBS(t *testing.T) {
 	require.NotNil(t, resp.Spec)
 	assert.Equal(t, "aws", resp.Spec.Provider)
 	assert.Equal(t, "ebs", resp.Spec.ResourceType)
+	assert.Equal(t, "gp3", resp.Spec.Sku)
+	assert.Equal(t, "us-east-1", resp.Spec.Region)
+	assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)
+	assert.Equal(t, 0.08, resp.Spec.RatePerUnit)
+	assert.Equal(t, "USD", resp.Spec.Currency)
+	assert.Equal(t, "GB-month", resp.Spec.Unit)
+	assert.Equal(t, "aws-public", resp.Spec.Source)
+	assert.Contains(t, resp.Spec.Description, "gp3")
+	assert.NotEmpty(t, resp.Spec.Assumptions)
+}
+
+// TestGetPricingSpec_EBS_PulumiFormat tests EBS pricing spec with Pulumi resource type format.
+func TestGetPricingSpec_EBS_PulumiFormat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ebsPrices["gp3"] = 0.08
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:ebs/volume:Volume",
+			Sku:          "gp3",
+			Region:       "us-east-1",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.Spec)
+	assert.Equal(t, "aws", resp.Spec.Provider)
+	assert.Equal(t, "aws:ebs/volume:Volume", resp.Spec.ResourceType) // Should preserve original format
 	assert.Equal(t, "gp3", resp.Spec.Sku)
 	assert.Equal(t, "us-east-1", resp.Spec.Region)
 	assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)

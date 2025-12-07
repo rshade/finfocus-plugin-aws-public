@@ -66,8 +66,11 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 		return nil, stWithDetails.Err()
 	}
 
-	// Route to appropriate estimator based on resource type
-	switch resource.ResourceType {
+	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
+	serviceType := detectService(resource.ResourceType)
+
+	// Route to appropriate estimator based on normalized resource type
+	switch serviceType {
 	case "ec2":
 		return p.estimateEC2(traceID, resource)
 	case "ebs":
