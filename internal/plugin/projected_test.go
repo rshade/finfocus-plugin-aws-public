@@ -1396,6 +1396,46 @@ func TestGetProjectedCost_EKS_ExtendedSupport(t *testing.T) {
 	}
 }
 
+// TestGetProjectedCost_EKS_MissingPricing tests behavior when EKS pricing data is unavailable.
+// This mirrors TestGetProjectedCost_UnknownInstanceType for EC2 and
+// TestGetProjectedCost_RDS_UnknownInstance for RDS.
+func TestGetProjectedCost_EKS_MissingPricing(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	// Don't set eksStandardPrice or eksExtendedPrice - pricing is missing
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "eks",
+			Sku:          "cluster",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should return $0 with explanation
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for missing pricing", resp.CostPerMonth)
+	}
+
+	if resp.UnitPrice != 0 {
+		t.Errorf("UnitPrice = %v, want 0 for missing pricing", resp.UnitPrice)
+	}
+
+	if resp.BillingDetail == "" {
+		t.Error("BillingDetail should explain missing pricing")
+	}
+
+	if !strings.Contains(resp.BillingDetail, "not available") {
+		t.Errorf("BillingDetail should mention not available: %s", resp.BillingDetail)
+	}
+}
+
 // TestGetProjectedCost_EKS_ExtendedSupportViaTags tests EKS extended support via tags
 func TestGetProjectedCost_EKS_ExtendedSupportViaTags(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")

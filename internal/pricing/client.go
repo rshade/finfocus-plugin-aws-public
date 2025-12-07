@@ -301,6 +301,18 @@ func (c *Client) init() error {
 				}
 			}
 		}
+
+		// Validate EKS pricing data was loaded successfully
+		if c.eksPricing == nil || c.eksPricing.StandardHourlyRate == 0 {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("EKS standard pricing not found in embedded data")
+		}
+		if c.eksPricing != nil && c.eksPricing.ExtendedHourlyRate == 0 {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("EKS extended support pricing not found in embedded data")
+		}
 	})
 	return c.err
 }
