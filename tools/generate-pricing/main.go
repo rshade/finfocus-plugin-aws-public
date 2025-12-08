@@ -13,7 +13,7 @@ import (
 )
 
 // main is the program entry point that fetches and writes combined AWS pricing data for one or more regions.
-// 
+//
 // It parses command-line flags to determine regions (`--regions`), output directory (`--out-dir`), and
 // services (`--service`). The deprecated `--dummy` flag is accepted but ignored. For each region, it calls
 // generateCombinedPricingData to fetch pricing for the requested services and write a combined JSON file;
@@ -22,7 +22,7 @@ import (
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	service := flag.String("service", "AmazonEC2", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS)")
+	service := flag.String("service", "AmazonEC2,AmazonS3", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS,AmazonS3)")
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()

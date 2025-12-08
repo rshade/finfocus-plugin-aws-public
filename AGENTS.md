@@ -36,6 +36,7 @@
 - Thread-safe pricing lookups for concurrent gRPC calls
 
 ## Active Technologies
+- Embedded JSON files in Go binaries (no runtime storage) (011-s3-cost-estimation)
 
 - Go 1.25.4 + gRPC, zerolog, embedded JSON pricing data (010-eks-cost-estimation)
 - Embedded JSON pricing data (no runtime storage) (010-eks-cost-estimation)

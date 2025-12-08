@@ -57,6 +57,14 @@ type ebsPrice struct {
 	Currency       string
 }
 
+// s3Price represents the per-GB-month storage cost for S3 buckets.
+// Distilled from raw AWS pricing JSON for fast lookups.
+type s3Price struct {
+	Unit           string
+	RatePerGBMonth float64
+	Currency       string
+}
+
 // rdsInstancePrice represents the hourly compute cost for RDS instances
 type rdsInstancePrice struct {
 	Unit       string

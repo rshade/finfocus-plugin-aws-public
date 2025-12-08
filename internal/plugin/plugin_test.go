@@ -23,12 +23,14 @@ type mockPricingClient struct {
 	currency              string
 	ec2Prices             map[string]float64 // key: "instanceType/os/tenancy"
 	ebsPrices             map[string]float64 // key: "volumeType"
+	s3Prices              map[string]float64 // key: "storageClass"
 	rdsInstancePrices     map[string]float64 // key: "instanceType/engine"
 	rdsStoragePrices      map[string]float64 // key: "volumeType"
 	eksStandardPrice      float64            // EKS cluster standard support hourly rate
 	eksExtendedPrice      float64            // EKS cluster extended support hourly rate
 	ec2OnDemandCalled     int
 	ebsPriceCalled        int
+	s3PriceCalled         int
 	rdsOnDemandCalled     int
 	rdsStoragePriceCalled int
 	eksPriceCalled        int
@@ -41,6 +43,7 @@ func newMockPricingClient(region, currency string) *mockPricingClient {
 		currency:          currency,
 		ec2Prices:         make(map[string]float64),
 		ebsPrices:         make(map[string]float64),
+		s3Prices:          make(map[string]float64),
 		rdsInstancePrices: make(map[string]float64),
 		rdsStoragePrices:  make(map[string]float64),
 	}
@@ -64,6 +67,12 @@ func (m *mockPricingClient) EC2OnDemandPricePerHour(instanceType, os, tenancy st
 func (m *mockPricingClient) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	m.ebsPriceCalled++
 	price, found := m.ebsPrices[volumeType]
+	return price, found
+}
+
+func (m *mockPricingClient) S3PricePerGBMonth(storageClass string) (float64, bool) {
+	m.s3PriceCalled++
+	price, found := m.s3Prices[storageClass]
 	return price, found
 }
 

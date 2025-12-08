@@ -17,6 +17,7 @@ type mockPricingClientActual struct {
 	region            string
 	ec2Prices         map[string]float64
 	ebsPrices         map[string]float64
+	s3Prices          map[string]float64
 	rdsInstancePrices map[string]float64
 	rdsStoragePrices  map[string]float64
 }
@@ -36,6 +37,11 @@ func (m *mockPricingClientActual) EC2OnDemandPricePerHour(instanceType, _, _ str
 
 func (m *mockPricingClientActual) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	price, ok := m.ebsPrices[volumeType]
+	return price, ok
+}
+
+func (m *mockPricingClientActual) S3PricePerGBMonth(storageClass string) (float64, bool) {
+	price, ok := m.s3Prices[storageClass]
 	return price, ok
 }
 

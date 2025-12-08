@@ -27,6 +27,10 @@ type PricingClient interface {
 	// Returns (price, true) if found, (0, false) if not found
 	EBSPricePerGBMonth(volumeType string) (float64, bool)
 
+	// S3PricePerGBMonth returns monthly rate per GB for S3 storage
+	// Returns (price, true) if found, (0, false) if not found
+	S3PricePerGBMonth(storageClass string) (float64, bool)
+
 	// RDSOnDemandPricePerHour returns hourly rate for an RDS instance
 	// instanceType: e.g., "db.t3.medium"
 	// engine: normalized engine name, e.g., "MySQL", "PostgreSQL"
@@ -57,6 +61,7 @@ type Client struct {
 	// In-memory pricing indexes (built on first access)
 	ec2Index map[string]ec2Price
 	ebsIndex map[string]ebsPrice
+	s3Index  map[string]s3Price
 
 	// RDS pricing indexes (key: "instanceType/engine" for instances, "volumeType" for storage)
 	rdsInstanceIndex map[string]rdsInstancePrice
@@ -101,6 +106,7 @@ func (c *Client) init() error {
 		// 3. Build Lookup Indexes
 		c.ec2Index = make(map[string]ec2Price)
 		c.ebsIndex = make(map[string]ebsPrice)
+		c.s3Index = make(map[string]s3Price)
 		c.rdsInstanceIndex = make(map[string]rdsInstancePrice)
 		c.rdsStorageIndex = make(map[string]rdsStoragePrice)
 
@@ -191,6 +197,25 @@ func (c *Client) init() error {
 							RatePerGBMonth: rate,
 							Currency:       "USD",
 						}
+					}
+				}
+			}
+
+			// --- S3 Storage ---
+			// S3 uses productFamily="Storage" and servicecode="AmazonS3"
+			// Index by storageClass (e.g., "Standard", "Standard - Infrequent Access")
+			if prod.ProductFamily == "Storage" && attrs["servicecode"] == "AmazonS3" {
+				storageClass := attrs["storageClass"]
+				if storageClass == "" {
+					continue
+				}
+
+				rate, unit, found := getOnDemandPrice(sku)
+				if found && unit == "GB-Mo" {
+					c.s3Index[storageClass] = s3Price{
+						Unit:           unit,
+						RatePerGBMonth: rate,
+						Currency:       "USD",
 					}
 				}
 			}
@@ -374,6 +399,31 @@ func (c *Client) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	}
 
 	price, found := c.ebsIndex[volumeType]
+	if !found {
+		return 0, false
+	}
+	return price.RatePerGBMonth, true
+}
+
+// S3PricePerGBMonth returns monthly rate per GB for S3 storage
+func (c *Client) S3PricePerGBMonth(storageClass string) (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "S3").
+				Str("storage_class", storageClass).
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+
+	price, found := c.s3Index[storageClass]
 	if !found {
 		return 0, false
 	}

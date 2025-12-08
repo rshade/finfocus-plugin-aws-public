@@ -145,7 +145,9 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateRDS(traceID, resource)
 	case "eks":
 		resp, err = p.estimateEKS(traceID, resource)
-	case "s3", "lambda", "dynamodb":
+	case "s3":
+		resp, err = p.estimateS3(traceID, resource)
+	case "lambda", "dynamodb":
 		resp, err = p.estimateStub(resource)
 	default:
 		// Unknown resource type - return $0 with explanation
@@ -330,6 +332,72 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 	}
 
 	// FR-022, FR-023, FR-024: Return response
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  costPerMonth,
+		UnitPrice:     ratePerGBMonth,
+		Currency:      "USD",
+		BillingDetail: billingDetail,
+	}, nil
+}
+
+// estimateS3 calculates projected monthly cost for S3 storage.
+func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	storageClass := resource.Sku
+
+	// Extract size from tags, default to 1GB
+	sizeGB := 1.0
+	sizeAssumed := true
+
+	if resource.Tags != nil {
+		if sizeStr, ok := resource.Tags["size"]; ok {
+			if size, err := strconv.ParseFloat(sizeStr, 64); err == nil && size > 0 {
+				sizeGB = size
+				sizeAssumed = false
+			}
+		}
+	}
+
+	// Lookup pricing using embedded data
+	ratePerGBMonth, found := p.pricing.S3PricePerGBMonth(storageClass)
+	if !found {
+		// Unknown storage class - return $0 with explanation
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("storage_class", storageClass).
+			Str("aws_region", p.region).
+			Str("pricing_source", "embedded").
+			Msg("S3 storage class not found in pricing data")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: fmt.Sprintf("S3 storage class %q not found in pricing data", storageClass),
+		}, nil
+	}
+
+	// Debug log successful lookup
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("storage_class", storageClass).
+		Str("aws_region", p.region).
+		Str("pricing_source", "embedded").
+		Float64("unit_price", ratePerGBMonth).
+		Msg("S3 pricing lookup successful")
+
+	// Calculate monthly cost
+	costPerMonth := ratePerGBMonth * sizeGB
+
+	// Include assumption in billing_detail if size was defaulted
+	var billingDetail string
+	if sizeAssumed {
+		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB (defaulted), $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
+	} else {
+		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB, $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
+	}
+
 	return &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
