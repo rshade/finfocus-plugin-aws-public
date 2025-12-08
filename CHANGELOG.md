@@ -72,6 +72,7 @@
 
 ### Features
 
+* **lambda:** implement Lambda function cost estimation with request and GB-second pricing ([#53](https://github.com/rshade/pulumicost-plugin-aws-public/issues/53)) ([commit-hash](https://github.com/rshade/pulumicost-plugin-aws-public/commit/commit-hash))
 * **eks:** add EKS pricing validation and missing pricing test coverage ([#93](https://github.com/rshade/pulumicost-plugin-aws-public/issues/93)) ([de697c4](https://github.com/rshade/pulumicost-plugin-aws-public/commit/de697c49f36ddf6eb6e16c313e8582e38ed8ed52)), closes [#90](https://github.com/rshade/pulumicost-plugin-aws-public/issues/90)
 
 ### Bug Fixes

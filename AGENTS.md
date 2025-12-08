@@ -53,6 +53,8 @@ v0.0.10/v0.0.11 were broken by filtering that stripped 85% of data.
 - `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
 
 ## Active Technologies
+- Embedded JSON files in Go binaries (no runtime storage) (011-s3-cost-estimation)
+- Embedded JSON files (no runtime storage) (001-lambda-cost-estimation)
 
 - Embedded JSON files in Go binaries (no runtime storage) (011-s3-cost-estimation)
 - Go 1.25.5 + gRPC, zerolog, embedded JSON pricing data (010-eks-cost-estimation)
