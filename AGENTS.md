@@ -11,7 +11,7 @@
 
 ### Go Standards
 
-- **Version**: Go 1.25.4 minimum
+- **Version**: Go 1.25.5 minimum
 - **Formatting**: Standard gofmt/gofmt -w
 - **Imports**: Group by standard library, third-party, local packages
 - **Naming**: PascalCase for exported, camelCase for unexported
@@ -36,16 +36,16 @@
 - Thread-safe pricing lookups for concurrent gRPC calls
 
 ## Active Technologies
-- Embedded JSON files in Go binaries (no runtime storage) (011-s3-cost-estimation)
 
-- Go 1.25.4 + gRPC, zerolog, embedded JSON pricing data (010-eks-cost-estimation)
+- Embedded JSON files in Go binaries (no runtime storage) (011-s3-cost-estimation)
+- Go 1.25.5 + gRPC, zerolog, embedded JSON pricing data (010-eks-cost-estimation)
 - Embedded JSON pricing data (no runtime storage) (010-eks-cost-estimation)
-- Go 1.25.4 + GoReleaser, gRPC, build tags (006-region-build-matrix)
+- Go 1.25.5 + GoReleaser, gRPC, build tags (006-region-build-matrix)
 - Embedded JSON files in Go binaries (006-region-build-matrix)
 
 ## Recent Changes
 
-- 006-region-build-matrix: Added Go 1.25.4 + GoReleaser, gRPC, build tags
+- 006-region-build-matrix: Added Go 1.25.5 + GoReleaser, gRPC, build tags
 
 ## Custom Commands
 
