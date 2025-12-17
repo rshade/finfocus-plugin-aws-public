@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.9](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.8...v0.0.9) (2025-12-17)
+
+
+### Features
+
+* **finops:** implement GetRecommendations RPC for cost optimization ([#106](https://github.com/rshade/pulumicost-plugin-aws-public/issues/106)) ([deb8eff](https://github.com/rshade/pulumicost-plugin-aws-public/commit/deb8effc4cd16cbd1add1c32e6757a5317a7cfbc)), closes [#105](https://github.com/rshade/pulumicost-plugin-aws-public/issues/105)
+* **s3:** implement S3 storage cost estimation ([#99](https://github.com/rshade/pulumicost-plugin-aws-public/issues/99)) ([06167dc](https://github.com/rshade/pulumicost-plugin-aws-public/commit/06167dc150c5119ecb18d08b1b546a482e9ecfee))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.7 ([#100](https://github.com/rshade/pulumicost-plugin-aws-public/issues/100)) ([b623aa3](https://github.com/rshade/pulumicost-plugin-aws-public/commit/b623aa30c5b6715e14a4226b78f668b5f6957a07))
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.8 ([#107](https://github.com/rshade/pulumicost-plugin-aws-public/issues/107)) ([a9a3360](https://github.com/rshade/pulumicost-plugin-aws-public/commit/a9a33605c9125b7b1e43a81afe96b57aca22675c))
+* **deps:** update module google.golang.org/protobuf to v1.36.11 ([#101](https://github.com/rshade/pulumicost-plugin-aws-public/issues/101)) ([463e44a](https://github.com/rshade/pulumicost-plugin-aws-public/commit/463e44ae649bc89a2e558bd047dd7fcfe5bc8b2c))
+* **resource:** Support Pulumi resource type format ([#97](https://github.com/rshade/pulumicost-plugin-aws-public/issues/97)) ([2fb4008](https://github.com/rshade/pulumicost-plugin-aws-public/commit/2fb4008af3908522654171939eabd02e4a796562)), closes [#82](https://github.com/rshade/pulumicost-plugin-aws-public/issues/82)
+
 ## [0.0.8](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.7...v0.0.8) (2025-12-07)
 
 
