@@ -9,8 +9,6 @@ import (
 
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -19,29 +17,86 @@ const (
 	defaultRDSEngine  = "mysql"
 	defaultRDSStorage = "gp2"
 	defaultRDSSizeGB  = 20
-
-	// Supported Resource Types (normalized to lowercase)
-	resTypeEC2InstanceLegacy = "aws:ec2:instance"
-	resTypeEC2Instance       = "aws:ec2/instance:instance"
-
-	resTypeEBSVolumeLegacy = "aws:ec2/volume:volume"
-	resTypeEBSVolume       = "aws:ebs/volume:volume"
-
-	resTypeRDSInstanceLegacy = "aws:rds:instance"
-	resTypeRDSInstance       = "aws:rds/instance:instance"
-
-	resTypeS3BucketLegacy = "aws:s3:bucket"
-	resTypeS3Bucket       = "aws:s3/bucket:bucket"
-
-	resTypeLambdaFunctionLegacy = "aws:lambda:function"
-	resTypeLambdaFunction       = "aws:lambda/function:function"
-
-	resTypeDynamoDBTableLegacy = "aws:dynamodb:table"
-	resTypeDynamoDBTable       = "aws:dynamodb/table:table"
-
-	resTypeEKSClusterLegacy = "aws:eks:cluster"
-	resTypeEKSCluster       = "aws:eks/cluster:cluster"
 )
+
+const (
+	resTypeEC2Instance          = "aws:ec2/instance:Instance"
+	resTypeEC2InstanceLegacy    = "ec2/instance" // Legacy format without aws: prefix
+	resTypeEBSVolume            = "aws:ebs/volume:Volume"
+	resTypeEBSVolumeLegacy      = "ec2/volume" // Legacy format
+	resTypeRDSInstance          = "aws:rds/instance:Instance"
+	resTypeRDSInstanceLegacy    = "rds/instance" // Legacy format
+	resTypeS3Bucket             = "aws:s3/bucket:Bucket"
+	resTypeS3BucketLegacy       = "s3/bucket" // Legacy format
+	resTypeLambdaFunction       = "aws:lambda/function:Function"
+	resTypeLambdaFunctionLegacy = "lambda/function" // Legacy format
+	resTypeDynamoDBTable        = "aws:dynamodb/table:Table"
+	resTypeDynamoDBTableLegacy  = "dynamodb/table" // Legacy format
+	resTypeEKSCluster           = "aws:eks/cluster:Cluster"
+	resTypeEKSClusterLegacy     = "eks/cluster" // Legacy format
+)
+
+// extractAWSSKU extracts AWS SKU from tags with priority: instanceType > instance_class > type > volumeType > volume_type
+// This implements the same logic as SDK mapping.ExtractAWSSKU() until it's available
+func extractAWSSKU(tags map[string]string) string {
+	if tags == nil {
+		return ""
+	}
+
+	// Priority order: instanceType > instance_class > type > volumeType > volume_type
+	keys := []string{"instanceType", "instance_class", "type", "volumeType", "volume_type"}
+	for _, key := range keys {
+		if value, ok := tags[key]; ok && value != "" {
+			return value
+		}
+	}
+
+	return ""
+}
+
+// extractAWSRegion extracts AWS region from tags with priority: region > availabilityZone (with AZ parsing)
+// This implements the same logic as SDK mapping.ExtractAWSRegion()
+func extractAWSRegion(tags map[string]string) string {
+	if tags == nil {
+		return ""
+	}
+
+	// Check explicit region first (SDK priority)
+	if region, ok := tags["region"]; ok && region != "" {
+		return region
+	}
+
+	// Try to derive from availability zone
+	if az, ok := tags["availabilityZone"]; ok && az != "" {
+		return extractAWSRegionFromAZ(az)
+	}
+
+	return ""
+}
+
+// extractAWSRegionFromAZ derives the AWS region from an availability zone string.
+// Matches SDK behavior: removes trailing lowercase letter, returns input as-is if no trailing letter.
+func extractAWSRegionFromAZ(az string) string {
+	if az == "" {
+		return ""
+	}
+
+	length := len(az)
+	// Single character cannot be a valid AZ (e.g., just "a")
+	// Valid AZ format is at minimum "region" + "az-letter" (e.g., "us-east-1a")
+	if length == 1 {
+		return ""
+	}
+
+	// If the last character is a lowercase letter, remove it
+	lastChar := az[length-1]
+	if lastChar >= 'a' && lastChar <= 'z' {
+		return az[:length-1]
+	}
+
+	// Return as-is if no trailing letter (might already be a region)
+	return az
+}
 
 // engineNormalization maps user-friendly engine names to AWS pricing API identifiers.
 // Multiple aliases (e.g., "postgres" and "postgresql") map to the same canonical name.
@@ -71,9 +126,11 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
-	if req == nil || req.Resource == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing resource descriptor", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	// FR-009, FR-010: Use SDK validation + custom region check (US2)
+	if _, err := p.ValidateProjectedCostRequest(ctx, req); err != nil {
+		// Extract error code from error details for proper logging
+		errCode := extractErrorCode(err)
+		p.logErrorWithID(traceID, "GetProjectedCost", err, errCode)
 		return nil, err
 	}
 
@@ -88,47 +145,6 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 			Str("region", resource.Region).
 			Str("provider", resource.Provider).
 			Msg("Test mode: request details")
-	}
-
-	// FR-029: Validate required fields
-	if resource.Provider == "" || resource.ResourceType == "" || resource.Sku == "" || resource.Region == "" {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "resource descriptor missing required fields (provider, resource_type, sku, region)", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		return nil, err
-	}
-
-	// FR-027 & FR-028: Check region match
-	if resource.Region != p.region {
-		// Create error details map with trace_id
-		details := map[string]string{
-			"trace_id":       traceID,
-			"pluginRegion":   p.region,
-			"requiredRegion": resource.Region,
-		}
-
-		// Create ErrorDetail
-		errDetail := &pbc.ErrorDetail{
-			Code:    pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION,
-			Message: fmt.Sprintf("Resource region %q does not match plugin region %q", resource.Region, p.region),
-			Details: details,
-		}
-
-		// Return error with details
-		st := status.New(codes.FailedPrecondition, errDetail.Message)
-		stWithDetails, err := st.WithDetails(errDetail)
-		if err != nil {
-			p.logger.Warn().
-				Str(pluginsdk.FieldTraceID, traceID).
-				Str("grpc_code", codes.FailedPrecondition.String()).
-				Str("message", errDetail.Message).
-				Str("error_code", pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION.String()).
-				Err(err). // Log the error returned by WithDetails
-				Msg("failed to attach error details to gRPC status for region mismatch")
-			p.logErrorWithID(traceID, "GetProjectedCost", st.Err(), pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION)
-			return nil, st.Err() // Return original status without details
-		}
-		p.logErrorWithID(traceID, "GetProjectedCost", stWithDetails.Err(), pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION)
-		return nil, stWithDetails.Err()
 	}
 
 	// Route to appropriate estimator based on resource type
@@ -193,40 +209,17 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 // estimateEC2 calculates the projected monthly cost for an EC2 instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
 func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// FR-012: Use resource.Sku first, fallback to tags extraction
 	instanceType := resource.Sku
-
-	// Extract OS and tenancy from resource tags, with fallbacks
-	os := "Linux"       // Default fallback
-	tenancy := "Shared" // Default fallback
-
-	// Check for OS information in tags
-	if resource.Tags != nil {
-		// Common tags that might indicate OS
-		if platform, ok := resource.Tags["platform"]; ok && platform != "" {
-			// AWS uses "windows" for Windows platforms, otherwise assume Linux-based
-			if strings.ToLower(platform) == "windows" {
-				os = "Windows"
-			} else {
-				os = "Linux" // Treat other platforms as Linux-based
-			}
-		}
-
-		// Check for tenancy information in tags
-		if tenancyTag, ok := resource.Tags["tenancy"]; ok && tenancyTag != "" {
-			// Validate tenancy values (AWS supports Shared, Dedicated, Host)
-			switch strings.ToLower(tenancyTag) {
-			case "dedicated":
-				tenancy = "Dedicated"
-			case "host":
-				tenancy = "Host"
-			default:
-				tenancy = "Shared" // Default to Shared for any other value
-			}
-		}
+	if instanceType == "" {
+		instanceType = extractAWSSKU(resource.Tags)
 	}
 
+	// Extract OS and tenancy using shared helper (FR-001, FR-002)
+	ec2Attrs := ExtractEC2AttributesFromTags(resource.Tags)
+
 	// FR-020: Lookup pricing using embedded data
-	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, os, tenancy)
+	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, ec2Attrs.OS, ec2Attrs.Tenancy)
 	if !found {
 		// FR-035: Unknown instance types return $0 with explanation
 		p.logger.Debug().
@@ -241,7 +234,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("EC2 instance type %q not found in pricing data for %s/%s", instanceType, os, tenancy),
+			BillingDetail: fmt.Sprintf("EC2 instance type %q not found in pricing data for %s/%s", instanceType, ec2Attrs.OS, ec2Attrs.Tenancy),
 		}, nil
 	}
 
@@ -263,14 +256,18 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
-		BillingDetail: fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", os, tenancy),
+		BillingDetail: fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", ec2Attrs.OS, ec2Attrs.Tenancy),
 	}, nil
 }
 
 // estimateEBS calculates the projected monthly cost for an EBS volume.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
 func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// FR-012: Use resource.Sku first, fallback to tags extraction
 	volumeType := resource.Sku
+	if volumeType == "" {
+		volumeType = extractAWSSKU(resource.Tags)
+	}
 
 	// FR-041 & FR-042: Extract size from tags, default to 8GB
 	sizeGB := defaultEBSGB
@@ -420,7 +417,11 @@ func (p *AWSPublicPlugin) estimateStub(resource *pbc.ResourceDescriptor) (*pbc.G
 // estimateRDS calculates the projected monthly cost for an RDS instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
 func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// FR-012: Use resource.Sku first, fallback to tags extraction
 	instanceType := resource.Sku
+	if instanceType == "" {
+		instanceType = extractAWSSKU(resource.Tags)
+	}
 
 	// Extract engine from tags, default to MySQL
 	engine := defaultRDSEngine
@@ -568,7 +569,7 @@ func detectService(resourceType string) string {
 	}
 
 	// Fallback: simple containment check for common patterns
-	if strings.Contains(resourceTypeLower, "ec2/instance") {
+	if strings.Contains(resourceTypeLower, "ec2/instance") || strings.Contains(resourceTypeLower, "aws:ec2:instance") {
 		return "ec2"
 	}
 	if strings.Contains(resourceTypeLower, "ebs/volume") || strings.Contains(resourceTypeLower, "ec2/volume") {
@@ -579,6 +580,15 @@ func detectService(resourceType string) string {
 	}
 	if strings.Contains(resourceTypeLower, "eks/cluster") {
 		return "eks"
+	}
+	if strings.Contains(resourceTypeLower, "s3/bucket") || strings.Contains(resourceTypeLower, "aws:s3:bucket") {
+		return "s3"
+	}
+	if strings.Contains(resourceTypeLower, "lambda/function") || strings.Contains(resourceTypeLower, "aws:lambda:function") {
+		return "lambda"
+	}
+	if strings.Contains(resourceTypeLower, "dynamodb/table") || strings.Contains(resourceTypeLower, "aws:dynamodb:table") {
+		return "dynamodb"
 	}
 
 	return resourceType

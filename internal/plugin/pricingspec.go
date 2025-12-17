@@ -7,7 +7,6 @@ import (
 
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
-	"google.golang.org/grpc/codes"
 )
 
 // GetPricingSpec returns detailed pricing specification for a resource type.
@@ -16,37 +15,22 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
-	if req == nil || req.Resource == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing resource descriptor", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "GetPricingSpec", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	// FR-009, FR-010: Use SDK validation + custom region check (US2)
+	// GetPricingSpecRequest wraps GetProjectedCostRequest internally
+	projReq := &pbc.GetProjectedCostRequest{Resource: nil}
+	if req != nil {
+		projReq.Resource = req.Resource
+	}
+	if _, err := p.ValidateProjectedCostRequest(ctx, projReq); err != nil {
+		p.logger.Error().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetPricingSpec").
+			Err(err).
+			Msg("validation failed")
 		return nil, err
 	}
 
 	resource := req.Resource
-
-	// Validate required fields
-	if resource.Provider == "" || resource.ResourceType == "" || resource.Sku == "" || resource.Region == "" {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "resource descriptor missing required fields (provider, resource_type, sku, region)", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "GetPricingSpec", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		return nil, err
-	}
-
-	// Check region match
-	if resource.Region != p.region {
-		details := map[string]string{
-			"trace_id":       traceID,
-			"pluginRegion":   p.region,
-			"requiredRegion": resource.Region,
-		}
-		errDetail := &pbc.ErrorDetail{
-			Code:    pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION,
-			Message: fmt.Sprintf("Resource region %q does not match plugin region %q", resource.Region, p.region),
-			Details: details,
-		}
-		err := p.newErrorWithID(traceID, codes.FailedPrecondition, errDetail.Message, pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION)
-		p.logErrorWithID(traceID, "GetPricingSpec", err, pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION)
-		return nil, err
-	}
 
 	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
 	serviceType := detectService(resource.ResourceType)

@@ -139,6 +139,14 @@ go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulum
 goreleaser build --snapshot --clean
 ```
 
+**Build Verification Tip:** When verifying that code compiles correctly with
+region build tags, building a single region is sufficient. Don't wait for all
+54 builds (9 regions × 6 architectures). Use a single-region build instead:
+
+```bash
+go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public
+```
+
 ### Testing
 ```bash
 # Run all unit tests (preferred)
@@ -531,6 +539,8 @@ This allows the user to review and make the commit themselves, and ensures
 the commit message follows conventional commits format.
 
 ## Active Technologies
+- Go 1.25+ + pulumicost-spec v0.4.8 (pluginsdk, mapping packages), (013-sdk-migration)
+- N/A (embedded pricing data via go:embed) (013-sdk-migration)
 
 - **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
 - **pulumicost-spec** protos for CostSourceService API

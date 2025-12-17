@@ -9,6 +9,8 @@ import (
 
 	"github.com/rs/zerolog"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -497,23 +499,16 @@ func TestGetActualCostZeroDuration(t *testing.T) {
 		End:        timestamppb.New(ts),
 	}
 
-	resp, err := plugin.GetActualCost(ctx, req)
-	if err != nil {
-		t.Errorf("GetActualCost() unexpected error: %v", err)
-		return
-	}
-	if resp == nil {
-		t.Errorf("GetActualCost() returned nil response")
-		return
-	}
-	if len(resp.Results) == 0 {
-		t.Errorf("GetActualCost() returned empty results")
+	_, err := plugin.GetActualCost(ctx, req)
+	if err == nil {
+		t.Errorf("GetActualCost() expected error for zero duration (SDK enforcement), got nil")
 		return
 	}
 
-	result := resp.Results[0]
-	if result.Cost != 0 {
-		t.Errorf("GetActualCost() cost = %v, want 0 for zero duration", result.Cost)
+	// Verify it's an InvalidArgument error
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.InvalidArgument {
+		t.Errorf("GetActualCost() expected InvalidArgument error, got %v", err)
 	}
 }
 

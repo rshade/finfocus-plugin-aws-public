@@ -160,42 +160,24 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
-	// Validate request
-	if req == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing request", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	// Validate request and extract resource (includes SDK validation, parsing, region check)
+	resource, err := p.ValidateActualCostRequest(ctx, req)
+	if err != nil {
+		// Error already formatted with trace_id and code in ValidateActualCostRequest
 		p.logErrorWithID(traceID, "GetActualCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
 
-	// Validate timestamps (proto uses Start/End)
-	if req.Start == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing Start timestamp", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "GetActualCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		return nil, err
-	}
-	if req.End == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing End timestamp", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "GetActualCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		return nil, err
-	}
-
-	// Parse timestamps
+	// Parse timestamps and calculate runtime hours
+	// Note: req.Start and req.End are guaranteed non-nil by ValidateActualCostRequest
 	fromTime := req.Start.AsTime()
 	toTime := req.End.AsTime()
 
-	// Calculate runtime hours
 	runtimeHours, err := calculateRuntimeHours(fromTime, toTime)
 	if err != nil {
 		statusErr := p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid time range: %v", err), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		p.logErrorWithID(traceID, "GetActualCost", statusErr, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, statusErr
-	}
-
-	// Parse ResourceDescriptor from ResourceId (JSON) or Tags
-	resource, err := p.parseResourceFromRequest(req)
-	if err != nil {
-		p.logErrorWithID(traceID, "GetActualCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		return nil, err
 	}
 
 	// Test mode: Enhanced logging for request details (US3)
@@ -308,11 +290,16 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	}
 
 	// Extract resource info from tags
+	// FR-012: Try direct "sku" tag first, then use SDK mapping for AWS-specific keys
+	sku := tags["sku"]
+	if sku == "" {
+		sku = extractAWSSKU(tags)
+	}
 	resource := &pbc.ResourceDescriptor{
 		Provider:     tags["provider"],
 		ResourceType: tags["resource_type"],
-		Sku:          tags["sku"],
-		Region:       tags["region"],
+		Sku:          sku,
+		Region:       extractAWSRegion(tags), // FR-013: SDK mapping checks "region" then "availabilityZone"
 		Tags:         make(map[string]string),
 	}
 

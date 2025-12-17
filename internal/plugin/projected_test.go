@@ -1529,3 +1529,285 @@ func TestGetProjectedCost_EKS_SupportTypeCaseInsensitive(t *testing.T) {
 		})
 	}
 }
+
+// TestExtractAWSSKU tests SDK-style SKU extraction with priority ordering
+func TestExtractAWSSKU(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     map[string]string
+		expected string
+	}{
+		{
+			name:     "nil tags",
+			tags:     nil,
+			expected: "",
+		},
+		{
+			name:     "empty tags",
+			tags:     map[string]string{},
+			expected: "",
+		},
+		{
+			name: "instanceType priority",
+			tags: map[string]string{
+				"type":           "t2.micro",
+				"instance_class": "m5",
+				"instanceType":   "t3.micro",
+				"volumeType":     "gp3",
+				"volume_type":    "io1",
+			},
+			expected: "t3.micro",
+		},
+		{
+			name: "instance_class priority over type",
+			tags: map[string]string{
+				"type":           "t2.micro",
+				"instance_class": "m5",
+				"volumeType":     "gp3",
+			},
+			expected: "m5",
+		},
+		{
+			name: "type priority over volume types",
+			tags: map[string]string{
+				"type":        "t2.micro",
+				"volumeType":  "gp3",
+				"volume_type": "io1",
+			},
+			expected: "t2.micro",
+		},
+		{
+			name: "volumeType priority",
+			tags: map[string]string{
+				"volumeType":  "gp3",
+				"volume_type": "io1",
+			},
+			expected: "gp3",
+		},
+		{
+			name: "volume_type fallback",
+			tags: map[string]string{
+				"volume_type": "io1",
+			},
+			expected: "io1",
+		},
+		{
+			name: "type alone fallback",
+			tags: map[string]string{
+				"type": "t3.micro",
+			},
+			expected: "t3.micro",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractAWSSKU(tt.tags)
+			if result != tt.expected {
+				t.Errorf("extractAWSSKU() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestExtractAWSRegion tests SDK-style region extraction
+func TestExtractAWSRegion(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     map[string]string
+		expected string
+	}{
+		{
+			name:     "nil tags",
+			tags:     nil,
+			expected: "",
+		},
+		{
+			name: "direct region tag",
+			tags: map[string]string{
+				"region": "us-west-2",
+			},
+			expected: "us-west-2",
+		},
+		{
+			name: "availability zone extraction",
+			tags: map[string]string{
+				"availabilityZone": "us-east-1a",
+			},
+			expected: "us-east-1",
+		},
+		{
+			name: "region priority over availability zone",
+			tags: map[string]string{
+				"region":           "us-west-2",
+				"availabilityZone": "us-east-1b",
+			},
+			expected: "us-west-2", // SDK: region has priority over availabilityZone
+		},
+		{
+			name: "availability zone with trailing letter (d)",
+			tags: map[string]string{
+				"availabilityZone": "invalid",
+			},
+			expected: "invali", // SDK strips trailing lowercase letter 'd'
+		},
+		{
+			name: "empty availability zone",
+			tags: map[string]string{
+				"availabilityZone": "",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractAWSRegion(tt.tags)
+			if result != tt.expected {
+				t.Errorf("extractAWSRegion() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_EBS_VolumeSizeAlias tests volume_size alias extraction (T055)
+func TestGetProjectedCost_EBS_VolumeSizeAlias(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ebsPrices["gp3"] = 0.08 // $0.08/GB-month
+
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name          string
+		tags          map[string]string
+		expectSize    int
+		expectAssumed bool
+	}{
+		{
+			name: "size tag priority",
+			tags: map[string]string{
+				"volumeType":  "gp3",
+				"size":        "100",
+				"volume_size": "200", // Should be ignored due to priority
+			},
+			expectSize:    100,
+			expectAssumed: false,
+		},
+		{
+			name: "volume_size alias",
+			tags: map[string]string{
+				"volumeType":  "gp3",
+				"volume_size": "150",
+			},
+			expectSize:    150,
+			expectAssumed: false,
+		},
+		{
+			name: "default size when no tags",
+			tags: map[string]string{
+				"volumeType": "gp3",
+			},
+			expectSize:    8,
+			expectAssumed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:ebs/volume:Volume",
+					Sku:          "gp3",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			}
+
+			resp, err := plugin.GetProjectedCost(context.Background(), req)
+			if err != nil {
+				t.Fatalf("GetProjectedCost failed: %v", err)
+			}
+
+			// Verify size is correctly extracted
+			expectedCost := 0.08 * float64(tt.expectSize)
+			if resp.CostPerMonth != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			}
+
+			// Verify billing detail includes size and defaulted annotation
+			if tt.expectAssumed {
+				if !strings.Contains(resp.BillingDetail, "(defaulted)") {
+					t.Errorf("BillingDetail should contain '(defaulted)' for assumed size, got: %s", resp.BillingDetail)
+				}
+			} else {
+				if strings.Contains(resp.BillingDetail, "(defaulted)") {
+					t.Errorf("BillingDetail should not contain '(defaulted)' for explicit size, got: %s", resp.BillingDetail)
+				}
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_RDS_EngineDefaulted tests engine default tracking (T057)
+func TestGetProjectedCost_RDS_EngineDefaulted(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
+
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name            string
+		tags            map[string]string
+		expectDefaulted bool
+	}{
+		{
+			name: "explicit engine",
+			tags: map[string]string{
+				"instanceType": "db.t3.micro",
+				"engine":       "postgres",
+			},
+			expectDefaulted: false,
+		},
+		{
+			name: "defaulted engine",
+			tags: map[string]string{
+				"instanceType": "db.t3.micro",
+				// No engine tag - should default to MySQL
+			},
+			expectDefaulted: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:rds/instance:Instance",
+					Sku:          "db.t3.micro",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			}
+
+			resp, err := plugin.GetProjectedCost(context.Background(), req)
+			if err != nil {
+				t.Fatalf("GetProjectedCost failed: %v", err)
+			}
+
+			// Verify billing detail includes defaulted annotation when expected
+			if tt.expectDefaulted {
+				if !strings.Contains(resp.BillingDetail, "engine defaulted to MySQL") {
+					t.Errorf("BillingDetail should contain 'engine defaulted to MySQL', got: %s", resp.BillingDetail)
+				}
+			} else {
+				if strings.Contains(resp.BillingDetail, "defaulted") {
+					t.Errorf("BillingDetail should not contain 'defaulted' for explicit engine, got: %s", resp.BillingDetail)
+				}
+			}
+		})
+	}
+}

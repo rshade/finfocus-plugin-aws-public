@@ -7,20 +7,8 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/goccy/go-yaml"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/regionsconfig"
 )
-
-// RegionConfig describes a single AWS region entry in regions.yaml.
-type RegionConfig struct {
-	ID   string `yaml:"id"`
-	Name string `yaml:"name"`
-	Tag  string `yaml:"tag"`
-}
-
-// Config contains all configured regions.
-type Config struct {
-	Regions []RegionConfig `yaml:"regions"`
-}
 
 // main is the program entrypoint. It parses command-line flags for the regions
 // config path (`-config`), template path (`-template`) and output directory
@@ -35,8 +23,8 @@ func main() {
 	outputDir := flag.String("output", "./internal/pricing", "Output directory")
 	flag.Parse()
 
-	// Parse config
-	config, err := loadConfig(*configPath)
+	// Load and validate config using shared regionsconfig package (FR-004, FR-005)
+	config, err := regionsconfig.LoadAndValidate(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)
@@ -59,27 +47,6 @@ func main() {
 	}
 }
 
-// loadConfig reads the YAML file at filename and unmarshals its contents into a Config.
-// It returns the populated Config on success, or an error if the file cannot be read,
-// the YAML cannot be parsed, or no regions are defined.
-func loadConfig(filename string) (*Config, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
-
-	if len(config.Regions) == 0 {
-		return nil, fmt.Errorf("no regions defined in config file")
-	}
-
-	return &config, nil
-}
-
 // generateEmbedFile creates an embed_<region.ID>.go file in outputDir by executing
 // tmpl with the region's ID, Name, and Tag as template data.
 //
@@ -91,7 +58,7 @@ func loadConfig(filename string) (*Config, error) {
 //
 // It returns any error encountered while creating, writing, or closing the file. If closing
 // the file fails but a prior error occurred, the prior error is preserved.
-func generateEmbedFile(region RegionConfig, tmpl *template.Template, outputDir string) (err error) {
+func generateEmbedFile(region regionsconfig.RegionConfig, tmpl *template.Template, outputDir string) (err error) {
 	filename := fmt.Sprintf("embed_%s.go", region.ID)
 	destPath := filepath.Join(outputDir, filename)
 
