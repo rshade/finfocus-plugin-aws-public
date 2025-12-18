@@ -5,10 +5,6 @@ import (
 	"time"
 
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 )
 
 // calculateRuntimeHours computes the duration between two timestamps in hours.
@@ -26,44 +22,13 @@ func calculateRuntimeHours(from, to time.Time) (float64, error) {
 // by routing to the appropriate estimator (EC2, EBS, or stub).
 // This reuses the existing GetProjectedCost logic without proto marshaling overhead.
 // traceID is passed from the parent handler for consistent trace correlation.
+//
+// PRECONDITION: resource must be non-nil and already validated by caller.
+// This function is called internally after validation in GetActualCost.
 func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	// Validate required fields
+	// Defensive nil check - callers should validate, but be safe
 	if resource == nil {
-		return nil, status.Error(codes.InvalidArgument, "missing resource descriptor")
-	}
-
-	if resource.Provider == "" || resource.ResourceType == "" || resource.Sku == "" || resource.Region == "" {
-		return nil, status.Error(codes.InvalidArgument, "resource descriptor missing required fields (provider, resource_type, sku, region)")
-	}
-
-	// Check region match
-	if resource.Region != p.region {
-		details := map[string]string{
-			"trace_id":       traceID,
-			"pluginRegion":   p.region,
-			"requiredRegion": resource.Region,
-		}
-
-		errDetail := &pbc.ErrorDetail{
-			Code:    pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION,
-			Message: fmt.Sprintf("Resource region %q does not match plugin region %q", resource.Region, p.region),
-			Details: details,
-		}
-
-		st := status.New(codes.FailedPrecondition, errDetail.Message)
-		stWithDetails, err := st.WithDetails(errDetail)
-		if err != nil {
-			// Log a warning if details could not be attached
-			p.logger.Warn().
-				Str(pluginsdk.FieldTraceID, traceID). // Use traceID directly here
-				Str("grpc_code", codes.FailedPrecondition.String()).
-				Str("message", errDetail.Message).
-				Str("error_code", pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION.String()).
-				Err(err). // Log the error returned by WithDetails
-				Msg("failed to attach error details to gRPC status for region mismatch in actual cost calculation")
-			return nil, st.Err() // Return original status without details
-		}
-		return nil, stWithDetails.Err()
+		return nil, fmt.Errorf("resource descriptor is nil (caller must validate)")
 	}
 
 	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)

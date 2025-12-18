@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/rs/zerolog"
@@ -30,9 +31,9 @@ func main() {
 // logs the AWS region returned by the pricing client, and performs a graceful shutdown on
 // os.Interrupt or syscall.SIGTERM.
 func run() error {
-	// Parse log level from environment (default: info)
+	// Parse log level from environment using SDK (PULUMICOST_LOG_LEVEL > LOG_LEVEL > info)
 	level := zerolog.InfoLevel
-	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+	if lvl := pluginsdk.GetLogLevel(); lvl != "" {
 		if parsed, err := zerolog.ParseLevel(lvl); err == nil {
 			level = parsed
 		}
@@ -57,9 +58,26 @@ func run() error {
 		Str("aws_region", region).
 		Msg("plugin started")
 
-	// Log PORT env var if set (debug level for troubleshooting)
-	if port := os.Getenv("PORT"); port != "" {
-		logger.Debug().Str("port", port).Msg("using PORT from environment")
+	// Determine port with SDK fallback (PULUMICOST_PLUGIN_PORT > PORT > ephemeral)
+	// Note: pluginsdk.GetPort() only checks PULUMICOST_PLUGIN_PORT. We maintain
+	// backward compatibility with the generic PORT env var for earlier plugin
+	// versions and common deployment patterns (e.g., container platforms that
+	// inject PORT). This is intentional and should not be removed.
+	port := pluginsdk.GetPort()
+	if port == 0 {
+		// Backward compatibility: check generic PORT env var
+		if portStr := os.Getenv("PORT"); portStr != "" {
+			if parsed, err := strconv.Atoi(portStr); err == nil {
+				port = parsed
+			}
+		}
+	}
+
+	// Log port source for troubleshooting
+	if port > 0 {
+		logger.Debug().Int("port", port).Msg("using configured port")
+	} else {
+		logger.Debug().Msg("using ephemeral port")
 	}
 
 	// Create plugin instance with logger
@@ -81,7 +99,7 @@ func run() error {
 	// Serve using pluginsdk
 	config := pluginsdk.ServeConfig{
 		Plugin: awsPlugin,
-		Port:   0, // Use PORT env var or random port
+		Port:   port, // Use determined port (0 for ephemeral)
 	}
 	if err := pluginsdk.Serve(ctx, config); err != nil {
 		logger.Error().Err(err).Msg("server error")

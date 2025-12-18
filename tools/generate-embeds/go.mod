@@ -1,5 +1,10 @@
 module github.com/rshade/pulumicost-plugin-aws-public/tools/generate-embeds
 
-go 1.25.4
+go 1.25.5
 
-require github.com/goccy/go-yaml v1.19.1
+require github.com/rshade/pulumicost-plugin-aws-public v0.0.0
+
+require gopkg.in/yaml.v3 v3.0.1 // indirect
+
+// Use local parent module for internal packages
+replace github.com/rshade/pulumicost-plugin-aws-public => ../..
