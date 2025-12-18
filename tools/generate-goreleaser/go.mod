@@ -1,13 +1,10 @@
 module github.com/rshade/pulumicost-plugin-aws-public/tools/generate-goreleaser
 
-go 1.25.4
+go 1.25.5
 
-require github.com/goccy/go-yaml v1.19.1
+require github.com/rshade/pulumicost-plugin-aws-public v0.0.0
 
-require (
-	github.com/fatih/color v1.10.0 // indirect
-	github.com/mattn/go-colorable v0.1.8 // indirect
-	github.com/mattn/go-isatty v0.0.12 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-)
+require gopkg.in/yaml.v3 v3.0.1 // indirect
+
+// Use local parent module for internal packages
+replace github.com/rshade/pulumicost-plugin-aws-public => ../..
