@@ -46,6 +46,15 @@ type PricingClient interface {
 	// extendedSupport: true for extended support pricing, false for standard support.
 	// Returns (price, true) if found, (0, false) if not found.
 	EKSClusterPricePerHour(extendedSupport bool) (float64, bool)
+
+	// LambdaPricePerRequest returns the cost per request (same for all architectures)
+	// Returns (price, true) if found, (0, false) if not found
+	LambdaPricePerRequest() (float64, bool)
+
+	// LambdaPricePerGBSecond returns the cost per GB-second of compute duration.
+	// arch: "x86_64" or "arm64" (defaults to x86_64 if unrecognized)
+	// Returns (price, true) if found, (0, false) if not found
+	LambdaPricePerGBSecond(arch string) (float64, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -69,6 +78,9 @@ type Client struct {
 
 	// EKS pricing (single cluster rate)
 	eksPricing *eksPrice
+
+	// Lambda pricing (single rate per region)
+	lambdaPricing *lambdaPrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -323,6 +335,35 @@ func (c *Client) init() error {
 					}
 				}
 			}
+
+			// --- Lambda Functions ---
+			// Lambda uses two product families:
+			// 1. "AWS Lambda" (Requests): group="AWS-Lambda-Requests"
+			// 2. "Serverless" (Duration): group="AWS-Lambda-Duration" (x86) or
+			//    "AWS-Lambda-Duration-ARM" (arm64/Graviton2)
+			if prod.ProductFamily == "AWS Lambda" || prod.ProductFamily == "Serverless" {
+				group := attrs["group"]
+
+				// Initialize lambdaPricing struct if nil
+				if c.lambdaPricing == nil {
+					c.lambdaPricing = &lambdaPrice{
+						Currency: "USD",
+					}
+				}
+
+				rate, unit, found := getOnDemandPrice(sku)
+				if found {
+					if group == "AWS-Lambda-Requests" && unit == "Requests" {
+						c.lambdaPricing.RequestPrice = rate
+					} else if group == "AWS-Lambda-Duration" && (unit == "Second" || unit == "Lambda-GB-Second") {
+						// x86_64 duration pricing (per GB-second)
+						c.lambdaPricing.X86GBSecondPrice = rate
+					} else if group == "AWS-Lambda-Duration-ARM" && (unit == "Second" || unit == "Lambda-GB-Second") {
+						// arm64/Graviton2 duration pricing (per GB-second)
+						c.lambdaPricing.ARMGBSecondPrice = rate
+					}
+				}
+			}
 		}
 
 		// Validate EKS pricing data was loaded successfully
@@ -520,3 +561,85 @@ func (c *Client) EKSClusterPricePerHour(extendedSupport bool) (float64, bool) {
 	}
 	return 0, false
 }
+
+// LambdaPricePerRequest returns the cost per request for AWS Lambda invocations.
+// The rate is sourced from AWS Price List API product family "AWS Lambda" with
+// group "AWS-Lambda-Requests". Standard pricing is $0.20 per 1 million requests
+// ($0.0000002 per request) as of December 2025.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) LambdaPricePerRequest() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "Lambda").
+				Str("metric", "Requests").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+
+	if c.lambdaPricing == nil || c.lambdaPricing.RequestPrice == 0 {
+		return 0, false
+	}
+	return c.lambdaPricing.RequestPrice, true
+}
+
+// LambdaPricePerGBSecond returns the cost per GB-second of compute duration.
+// The rate is sourced from AWS Price List API product family "Serverless" with
+// group "AWS-Lambda-Duration" (x86) or "AWS-Lambda-Duration-ARM" (arm64).
+// This represents the compute cost based on allocated memory and execution time.
+//
+// Architecture pricing (as of December 2025):
+//   - x86_64: ~$0.0000166667 per GB-second
+//   - arm64:  ~$0.0000133334 per GB-second (~20% cheaper)
+//
+// arch parameter accepts: "x86_64", "arm64", "x86", "arm" (defaults to x86_64)
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) LambdaPricePerGBSecond(arch string) (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "Lambda").
+				Str("metric", "GB-Second").
+				Str("architecture", arch).
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+
+	if c.lambdaPricing == nil {
+		return 0, false
+	}
+
+	// Normalize architecture string and select appropriate price
+	switch strings.ToLower(arch) {
+	case "arm64", "arm":
+		if c.lambdaPricing.ARMGBSecondPrice > 0 {
+			return c.lambdaPricing.ARMGBSecondPrice, true
+		}
+		// Fall back to x86 if ARM pricing not available
+		if c.lambdaPricing.X86GBSecondPrice > 0 {
+			return c.lambdaPricing.X86GBSecondPrice, true
+		}
+		return 0, false
+	default:
+		// x86_64, x86, or any unrecognized value defaults to x86
+		if c.lambdaPricing.X86GBSecondPrice > 0 {
+			return c.lambdaPricing.X86GBSecondPrice, true
+		}
+		return 0, false
+	}
+}
+

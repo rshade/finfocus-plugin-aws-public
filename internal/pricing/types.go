@@ -89,3 +89,27 @@ type eksPrice struct {
 	ExtendedHourlyRate float64 // Extended support hourly rate
 	Currency           string
 }
+
+// lambdaPrice holds the regional pricing configuration for AWS Lambda.
+// Derived from AWS Pricing API product families "Serverless" and "AWS Lambda".
+// Lambda pricing varies by architecture (x86 vs ARM/Graviton2), with ARM being
+// approximately 20% cheaper for compute duration.
+type lambdaPrice struct {
+	// RequestPrice is the cost per request (same for both architectures).
+	// Source: Product Family "AWS Lambda", Group "AWS-Lambda-Requests"
+	// Typical rate: $0.20 per 1M requests ($0.0000002 per request)
+	RequestPrice float64
+
+	// X86GBSecondPrice is the cost per GB-second for x86_64 architecture.
+	// Source: Product Family "Serverless", Group "AWS-Lambda-Duration"
+	// Typical rate: ~$0.0000166667 per GB-second
+	X86GBSecondPrice float64
+
+	// ARMGBSecondPrice is the cost per GB-second for arm64 (Graviton2) architecture.
+	// Source: Product Family "Serverless", Group "AWS-Lambda-Duration-ARM"
+	// Typical rate: ~$0.0000133334 per GB-second (~20% cheaper than x86)
+	ARMGBSecondPrice float64
+
+	// Currency code (e.g., "USD")
+	Currency string
+}

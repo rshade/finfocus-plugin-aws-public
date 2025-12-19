@@ -163,7 +163,9 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateEKS(traceID, resource)
 	case "s3":
 		resp, err = p.estimateS3(traceID, resource)
-	case "lambda", "dynamodb":
+	case "lambda":
+		resp, err = p.estimateLambda(traceID, resource)
+	case "dynamodb":
 		resp, err = p.estimateStub(resource)
 	default:
 		// Unknown resource type - return $0 with explanation
@@ -647,3 +649,130 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 		BillingDetail: fmt.Sprintf("EKS cluster (%s), 730 hrs/month (control plane only, excludes worker nodes)", supportType),
 	}, nil
 }
+
+// estimateLambda calculates projected monthly cost for Lambda functions.
+// Uses request count and GB-seconds from resource tags.
+func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// 1. Determine Memory (SKU -> MB)
+	memoryMB := 128
+	memoryDefaulted := false
+	if resource.Sku != "" {
+		if mem, err := strconv.Atoi(resource.Sku); err == nil && mem > 0 {
+			memoryMB = mem
+		} else {
+			memoryDefaulted = true
+		}
+	} else {
+		memoryDefaulted = true
+	}
+
+	// 2. Extract Usage Tags (Requests, Duration, Architecture)
+	requestsPerMonth := int64(0)
+	avgDurationMs := 100
+	architecture := "x86_64" // Default to x86_64 per FR-011
+	requestsDefaulted := true
+	durationDefaulted := true
+	archDefaulted := true
+
+	if resource.Tags != nil {
+		if reqStr, ok := resource.Tags["requests_per_month"]; ok {
+			if reqs, err := strconv.ParseInt(reqStr, 10, 64); err == nil && reqs >= 0 {
+				requestsPerMonth = reqs
+				requestsDefaulted = false
+			}
+		}
+		if durStr, ok := resource.Tags["avg_duration_ms"]; ok {
+			if dur, err := strconv.Atoi(durStr); err == nil && dur > 0 {
+				avgDurationMs = dur
+				durationDefaulted = false
+			}
+		}
+		// FR-011: Read architecture from tags
+		if archStr, ok := resource.Tags["arch"]; ok && archStr != "" {
+			architecture = archStr
+			archDefaulted = false
+		} else if archStr, ok := resource.Tags["architecture"]; ok && archStr != "" {
+			architecture = archStr
+			archDefaulted = false
+		}
+	}
+
+	// 3. Lookup Pricing (with architecture)
+	reqPrice, reqFound := p.pricing.LambdaPricePerRequest()
+	gbSecPrice, gbSecFound := p.pricing.LambdaPricePerGBSecond(architecture)
+
+	if !reqFound || !gbSecFound {
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("aws_region", p.region).
+			Str("architecture", architecture).
+			Msg("Lambda pricing data not found")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: "Lambda pricing data not available for this region",
+		}, nil
+	}
+
+	// 4. Calculate Costs
+	// Memory (GB) = Memory (MB) / 1024
+	memoryGB := float64(memoryMB) / 1024.0
+	// Duration (Seconds) = Duration (ms) / 1000
+	durationSeconds := float64(avgDurationMs) / 1000.0
+	// Total GB-Seconds = Memory (GB) * Duration (Seconds) * Request Count
+	totalGBSec := memoryGB * durationSeconds * float64(requestsPerMonth)
+
+	requestCost := float64(requestsPerMonth) * reqPrice
+	computeCost := totalGBSec * gbSecPrice
+	totalCost := requestCost + computeCost
+
+	// 5. Build Billing Detail
+	var notes []string
+	if memoryDefaulted {
+		notes = append(notes, "memory defaulted")
+	}
+	if requestsDefaulted {
+		notes = append(notes, "requests defaulted")
+	}
+	if durationDefaulted {
+		notes = append(notes, "duration defaulted")
+	}
+	if archDefaulted {
+		notes = append(notes, "arch defaulted to x86_64")
+	}
+
+	// Normalize architecture display name
+	archDisplay := "x86_64"
+	if strings.ToLower(architecture) == "arm64" || strings.ToLower(architecture) == "arm" {
+		archDisplay = "arm64"
+	}
+
+	detail := fmt.Sprintf("Lambda %dMB (%s), %d requests/month, %dms avg duration",
+		memoryMB, archDisplay, requestsPerMonth, avgDurationMs)
+	if len(notes) > 0 {
+		detail += fmt.Sprintf(" (%s)", strings.Join(notes, ", "))
+	}
+	detail += fmt.Sprintf(", %.0f GB-seconds", totalGBSec)
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Int("memory_mb", memoryMB).
+		Str("architecture", archDisplay).
+		Int64("requests", requestsPerMonth).
+		Int("duration_ms", avgDurationMs).
+		Float64("gb_seconds", totalGBSec).
+		Float64("total_cost", totalCost).
+		Msg("Lambda cost estimated")
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  totalCost,
+		UnitPrice:     gbSecPrice, // Using GB-second price as unit price
+		Currency:      "USD",
+		BillingDetail: detail,
+	}, nil
+}
+

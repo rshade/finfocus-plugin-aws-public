@@ -26,6 +26,7 @@ type mockPricingClient struct {
 	s3Prices              map[string]float64 // key: "storageClass"
 	rdsInstancePrices     map[string]float64 // key: "instanceType/engine"
 	rdsStoragePrices      map[string]float64 // key: "volumeType"
+	lambdaPrices          map[string]float64 // key: "request" or "gb-second"
 	eksStandardPrice      float64            // EKS cluster standard support hourly rate
 	eksExtendedPrice      float64            // EKS cluster extended support hourly rate
 	ec2OnDemandCalled     int
@@ -34,6 +35,8 @@ type mockPricingClient struct {
 	rdsOnDemandCalled     int
 	rdsStoragePriceCalled int
 	eksPriceCalled        int
+	lambdaRequestCalled   int
+	lambdaGBSecondCalled  int
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.
@@ -46,6 +49,7 @@ func newMockPricingClient(region, currency string) *mockPricingClient {
 		s3Prices:          make(map[string]float64),
 		rdsInstancePrices: make(map[string]float64),
 		rdsStoragePrices:  make(map[string]float64),
+		lambdaPrices:      make(map[string]float64),
 	}
 }
 
@@ -55,6 +59,26 @@ func (m *mockPricingClient) Region() string {
 
 func (m *mockPricingClient) Currency() string {
 	return m.currency
+}
+
+func (m *mockPricingClient) LambdaPricePerRequest() (float64, bool) {
+	m.lambdaRequestCalled++
+	price, found := m.lambdaPrices["request"]
+	return price, found
+}
+
+func (m *mockPricingClient) LambdaPricePerGBSecond(arch string) (float64, bool) {
+	m.lambdaGBSecondCalled++
+	// Check for architecture-specific pricing first
+	switch strings.ToLower(arch) {
+	case "arm64", "arm":
+		if price, found := m.lambdaPrices["gb-second-arm64"]; found {
+			return price, true
+		}
+	}
+	// Fall back to default gb-second (x86)
+	price, found := m.lambdaPrices["gb-second"]
+	return price, found
 }
 
 func (m *mockPricingClient) EC2OnDemandPricePerHour(instanceType, os, tenancy string) (float64, bool) {

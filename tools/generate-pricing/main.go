@@ -22,7 +22,7 @@ import (
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	service := flag.String("service", "AmazonEC2,AmazonS3", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS,AmazonS3)")
+	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS,AmazonS3,AWSLambda)")
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()

@@ -62,7 +62,7 @@ func TestSupports(t *testing.T) {
 			wantReasonSubstr: "",
 		},
 		{
-			name: "Lambda with limited support",
+			name: "Lambda fully supported",
 			req: &pbc.SupportsRequest{
 				Resource: &pbc.ResourceDescriptor{
 					Provider:     "aws",
@@ -71,7 +71,7 @@ func TestSupports(t *testing.T) {
 				},
 			},
 			wantSupported:    true,
-			wantReasonSubstr: "Limited support",
+			wantReasonSubstr: "",
 		},
 		{
 			name: "RDS fully supported",
@@ -488,7 +488,7 @@ func TestSupports_SAEast1(t *testing.T) {
 			wantReasonSubstr: "",
 		},
 		{
-			name: "Lambda in sa-east-1 (limited support)",
+			name: "Lambda in sa-east-1 (fully supported)",
 			req: &pbc.SupportsRequest{
 				Resource: &pbc.ResourceDescriptor{
 					Provider:     "aws",
@@ -497,7 +497,7 @@ func TestSupports_SAEast1(t *testing.T) {
 				},
 			},
 			wantSupported:    true,
-			wantReasonSubstr: "Limited support",
+			wantReasonSubstr: "",
 		},
 		{
 			name: "EC2 in eu-west-1 (wrong for sa-east-1 binary)",

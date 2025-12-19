@@ -22,6 +22,7 @@ type mockPricingClientActual struct {
 	s3Prices          map[string]float64
 	rdsInstancePrices map[string]float64
 	rdsStoragePrices  map[string]float64
+	lambdaPrices      map[string]float64
 }
 
 func (m *mockPricingClientActual) Region() string {
@@ -30,6 +31,30 @@ func (m *mockPricingClientActual) Region() string {
 
 func (m *mockPricingClientActual) Currency() string {
 	return "USD"
+}
+
+func (m *mockPricingClientActual) LambdaPricePerRequest() (float64, bool) {
+	if m.lambdaPrices == nil {
+		return 0, false
+	}
+	price, ok := m.lambdaPrices["request"]
+	return price, ok
+}
+
+func (m *mockPricingClientActual) LambdaPricePerGBSecond(arch string) (float64, bool) {
+	if m.lambdaPrices == nil {
+		return 0, false
+	}
+	// FR-011: Support ARM architecture pricing
+	switch strings.ToLower(arch) {
+	case "arm64", "arm":
+		if price, found := m.lambdaPrices["gb-second-arm64"]; found {
+			return price, true
+		}
+	}
+	// Default to x86 pricing
+	price, ok := m.lambdaPrices["gb-second"]
+	return price, ok
 }
 
 func (m *mockPricingClientActual) EC2OnDemandPricePerHour(instanceType, _, _ string) (float64, bool) {

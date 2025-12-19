@@ -16,10 +16,11 @@ public pricing data at build time and serves cost estimates via gRPC.
 
 - **EC2 Instances**: On-demand Linux instances with shared tenancy
 - **EBS Volumes**: All volume types (gp2, gp3, io1, io2, etc.)
+- **Lambda Functions**: Request-based and compute-duration pricing
 
 **Stub Support (returns $0 with explanation):**
 
-- S3, Lambda, RDS, DynamoDB
+- S3, RDS, DynamoDB
 
 ## Features
 
@@ -74,6 +75,14 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 - Monthly cost: `rate_per_gb_month × volume_size_gb`
 - Size extraction: From `tags["size"]` or `tags["volume_size"]`
 - Default size: 8 GB if not specified
+
+**Lambda Functions:**
+
+- Pricing lookup: Requests and Compute Duration (GB-seconds)
+- Monthly cost: `(requests × price_per_request) + (gb_seconds × price_per_gb_second)`
+- GB-seconds: `(memory_mb / 1024) × (avg_duration_ms / 1000) × requests`
+- Tag requirements: `requests_per_month`, `avg_duration_ms`
+- Defaults: 128MB memory, 0 requests, 100ms duration if tags missing
 
 ## Installation
 
@@ -387,10 +396,10 @@ export PULUMICOST_TEST_MODE=true
 
 Reference values for E2E test validation (as of 2025-12-01):
 
-| Resource | SKU | Region | Monthly Cost | Tolerance |
-|----------|-----|--------|--------------|-----------|
-| EC2 | t3.micro | us-east-1 | $7.592 | ±1% |
-| EBS | gp2 (8GB) | us-east-1 | $0.80 | ±5% |
+| Resource | SKU       | Region    | Monthly Cost | Tolerance |
+|----------|-----------|-----------|--------------|-----------|
+| EC2      | t3.micro  | us-east-1 | $7.592       | ±1%       |
+| EBS      | gp2 (8GB) | us-east-1 | $0.80        | ±5%       |
 
 ### Enhanced Logging
 
@@ -507,7 +516,7 @@ If instance type is not found in pricing data, returns $0 with explanation.
 
 ### Stub Services
 
-S3, Lambda, RDS, DynamoDB return $0 with:
+S3, RDS, DynamoDB return $0 with:
 
 ```text
 "s3 cost estimation not fully implemented - returns $0 estimate"

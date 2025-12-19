@@ -1811,3 +1811,329 @@ func TestGetProjectedCost_RDS_EngineDefaulted(t *testing.T) {
 		})
 	}
 }
+
+// TestGetProjectedCost_Lambda_Basic tests basic Lambda cost estimation
+func TestGetProjectedCost_Lambda_Basic(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.lambdaPrices["request"] = 0.0000002     // $0.20 per 1M
+	mock.lambdaPrices["gb-second"] = 0.0000166667 // Standard price
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:lambda/function:Function",
+			Sku:          "512", // 512 MB
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"requests_per_month": "1000000", // 1M requests
+				"avg_duration_ms":    "200",     // 200 ms
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Calculation:
+	// Memory: 512 MB / 1024 = 0.5 GB
+	// Duration: 200 ms / 1000 = 0.2 s
+	// GB-Seconds: 0.5 * 0.2 * 1,000,000 = 100,000
+	// Request Cost: 1,000,000 * 0.0000002 = 0.20
+	// Compute Cost: 100,000 * 0.0000166667 = 1.66667
+	// Total: 1.86667
+
+	expectedCost := 1.86667
+	tolerance := 0.00001
+	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	if resp.UnitPrice != 0.0000166667 {
+		t.Errorf("UnitPrice = %v, want 0.0000166667", resp.UnitPrice)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "Lambda 512MB") {
+		t.Errorf("BillingDetail missing memory info: %s", resp.BillingDetail)
+	}
+
+	// FR-011: Verify architecture is shown (defaults to x86_64)
+	if !strings.Contains(resp.BillingDetail, "x86_64") {
+		t.Errorf("BillingDetail missing architecture info: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_Lambda_Defaults tests Lambda with missing tags (default values)
+func TestGetProjectedCost_Lambda_Defaults(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.lambdaPrices["request"] = 0.0000002
+	mock.lambdaPrices["gb-second"] = 0.0000166667
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:lambda/function:Function",
+			Sku:          "128",
+			Region:       "us-east-1",
+			// No tags - should default to 0 requests
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should be 0 cost because default requests = 0
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "defaulted") {
+		t.Errorf("BillingDetail should mention defaults: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_Lambda_InvalidMemory tests Lambda with invalid memory SKU
+func TestGetProjectedCost_Lambda_InvalidMemory(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.lambdaPrices["request"] = 0.0000002
+	mock.lambdaPrices["gb-second"] = 0.0000166667
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:lambda/function:Function",
+			Sku:          "unknown", // Invalid SKU
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"requests_per_month": "1000000",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should default to 128MB
+	// 128MB = 0.125 GB
+	// Default duration = 100ms = 0.1s
+	// GB-Seconds = 0.125 * 0.1 * 1,000,000 = 12,500
+	// Request Cost: 0.20
+	// Compute Cost: 12,500 * 0.0000166667 = 0.20833375
+	// Total: 0.40833375
+
+	expectedCost := 0.40833375
+	tolerance := 0.00001
+	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v (with default 128MB)", resp.CostPerMonth, expectedCost)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "defaulted") {
+		t.Errorf("BillingDetail should mention defaults: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_Lambda_ARM64 tests Lambda with arm64 architecture (FR-011).
+// ARM architecture is approximately 20% cheaper than x86_64 for compute duration.
+func TestGetProjectedCost_Lambda_ARM64(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.lambdaPrices["request"] = 0.0000002
+	mock.lambdaPrices["gb-second"] = 0.0000166667      // x86 price
+	mock.lambdaPrices["gb-second-arm64"] = 0.0000133334 // ARM price (~20% cheaper)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:lambda/function:Function",
+			Sku:          "512", // 512 MB
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"requests_per_month": "1000000", // 1M requests
+				"avg_duration_ms":    "200",     // 200 ms
+				"arch":               "arm64",   // FR-011: ARM architecture
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Calculation with ARM pricing:
+	// Memory: 512 MB / 1024 = 0.5 GB
+	// Duration: 200 ms / 1000 = 0.2 s
+	// GB-Seconds: 0.5 * 0.2 * 1,000,000 = 100,000
+	// Request Cost: 1,000,000 * 0.0000002 = 0.20
+	// Compute Cost: 100,000 * 0.0000133334 = 1.33334 (ARM price)
+	// Total: 1.53334
+
+	expectedCost := 1.53334
+	tolerance := 0.00001
+	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v (with ARM pricing)", resp.CostPerMonth, expectedCost)
+	}
+
+	// Verify ARM pricing used
+	if resp.UnitPrice != 0.0000133334 {
+		t.Errorf("UnitPrice = %v, want 0.0000133334 (ARM rate)", resp.UnitPrice)
+	}
+
+	// Verify billing detail mentions ARM architecture
+	if !strings.Contains(resp.BillingDetail, "arm64") {
+		t.Errorf("BillingDetail should mention arm64: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_Lambda_ArchitectureVariants tests various architecture tag formats (FR-011).
+// The plugin should accept multiple formats: arm64, arm, x86_64, x86, or architecture tag.
+func TestGetProjectedCost_Lambda_ArchitectureVariants(t *testing.T) {
+	tests := []struct {
+		name         string
+		tags         map[string]string
+		wantARMPrice bool
+		wantArch     string
+	}{
+		{
+			name: "arch tag arm64",
+			tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+				"arch":               "arm64",
+			},
+			wantARMPrice: true,
+			wantArch:     "arm64",
+		},
+		{
+			name: "arch tag arm",
+			tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+				"arch":               "arm",
+			},
+			wantARMPrice: true,
+			wantArch:     "arm",
+		},
+		{
+			name: "architecture tag arm64",
+			tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+				"architecture":       "arm64",
+			},
+			wantARMPrice: true,
+			wantArch:     "arm64",
+		},
+		{
+			name: "arch tag x86_64",
+			tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+				"arch":               "x86_64",
+			},
+			wantARMPrice: false,
+			wantArch:     "x86_64",
+		},
+		{
+			name: "arch tag x86",
+			tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+				"arch":               "x86",
+			},
+			wantARMPrice: false,
+			wantArch:     "x86",
+		},
+		{
+			name: "no arch defaults to x86_64",
+			tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+			},
+			wantARMPrice: false,
+			wantArch:     "x86_64",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			mock.lambdaPrices["request"] = 0.0000002
+			mock.lambdaPrices["gb-second"] = 0.0000166667
+			mock.lambdaPrices["gb-second-arm64"] = 0.0000133334
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:lambda/function:Function",
+					Sku:          "128",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			expectedPrice := 0.0000166667
+			if tt.wantARMPrice {
+				expectedPrice = 0.0000133334
+			}
+
+			if resp.UnitPrice != expectedPrice {
+				t.Errorf("UnitPrice = %v, want %v", resp.UnitPrice, expectedPrice)
+			}
+
+			// Verify billing detail mentions correct architecture
+			if !strings.Contains(resp.BillingDetail, tt.wantArch) {
+				t.Errorf("BillingDetail should contain %s: %s", tt.wantArch, resp.BillingDetail)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_Lambda_ARMFallbackToX86 tests that ARM falls back to x86 when ARM pricing unavailable.
+// This handles edge cases where a region might not have ARM pricing data.
+func TestGetProjectedCost_Lambda_ARMFallbackToX86(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.lambdaPrices["request"] = 0.0000002
+	mock.lambdaPrices["gb-second"] = 0.0000166667
+	// Note: No ARM pricing set (gb-second-arm64)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:lambda/function:Function",
+			Sku:          "128",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"requests_per_month": "1000",
+				"avg_duration_ms":    "100",
+				"arch":               "arm64", // Request ARM but no ARM pricing
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should fall back to x86 pricing when ARM not available
+	if resp.UnitPrice != 0.0000166667 {
+		t.Errorf("UnitPrice = %v, want 0.0000166667 (fallback to x86)", resp.UnitPrice)
+	}
+}
+

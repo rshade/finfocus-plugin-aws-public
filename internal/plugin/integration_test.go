@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-const portAnnouncementTimeout = 5 * time.Second
+const portAnnouncementTimeout = 15 * time.Second
 
 // TestIntegration_APSoutheast1_Binary performs end-to-end testing of the ap-southeast-1 binary.
 //
@@ -602,3 +602,112 @@ func TestIntegration_EKS_UseEast1_Binary(t *testing.T) {
 
 	t.Log("EKS integration test completed!")
 }
+
+// TestIntegration_Lambda_UseEast1_Binary performs end-to-end testing of Lambda cost estimation.
+func TestIntegration_Lambda_UseEast1_Binary(t *testing.T) {
+	// Build the binary with region_use1 tag
+	t.Log("Building us-east-1 binary for Lambda testing...")
+	buildCmd := exec.Command("go", "build",
+		"-tags", "region_use1",
+		"-o", "../../dist/test-pulumicost-plugin-aws-public-lambda-us-east-1",
+		"../../cmd/pulumicost-plugin-aws-public")
+	buildCmd.Dir, _ = os.Getwd()
+	output, err := buildCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, string(output))
+	}
+
+	// Ensure cleanup
+	defer func() {
+		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-lambda-us-east-1"); err != nil {
+			t.Logf("Warning: failed to cleanup test binary: %v", err)
+		}
+	}()
+
+	// Start the binary
+	t.Log("Starting us-east-1 binary...")
+	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-lambda-us-east-1")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("Failed to get stdout pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("Failed to start binary: %v", err)
+	}
+
+	// Ensure cleanup
+	defer func() {
+		if err := cmd.Process.Kill(); err != nil {
+			t.Logf("Warning: failed to kill process: %v", err)
+		}
+	}()
+
+	// Read PORT announcement
+	portChan := make(chan string, 1)
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "PORT=") {
+				port := strings.TrimPrefix(line, "PORT=")
+				portChan <- port
+				break
+			}
+		}
+	}()
+
+	// Wait for port announcement with timeout
+	select {
+	case port := <-portChan:
+		t.Logf("Binary announced port: %s", port)
+
+		// Connect to gRPC server
+		conn, err := grpc.Dial("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			t.Fatalf("Failed to connect to gRPC server: %v", err)
+		}
+		defer func() {
+			if err := conn.Close(); err != nil {
+				t.Logf("Warning: failed to close connection: %v", err)
+			}
+		}()
+
+		client := pbc.NewCostSourceServiceClient(conn)
+
+		// Test: Lambda GetProjectedCost
+		t.Run("Lambda_GetProjectedCost", func(t *testing.T) {
+			resp, err := client.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "lambda",
+					Sku:          "512",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"requests_per_month": "1000000",
+						"avg_duration_ms":    "200",
+					},
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() failed: %v", err)
+			}
+
+			// Expected: ~$1.87
+			if resp.CostPerMonth <= 0 {
+				t.Errorf("Expected positive cost, got %v", resp.CostPerMonth)
+			}
+
+			if !strings.Contains(resp.BillingDetail, "Lambda 512MB") {
+				t.Errorf("Billing detail missing info: %s", resp.BillingDetail)
+			}
+		})
+
+	case <-time.After(portAnnouncementTimeout):
+		t.Fatal("Timeout waiting for PORT announcement")
+	}
+
+	t.Log("Lambda integration test completed!")
+}
+

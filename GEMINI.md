@@ -88,3 +88,10 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 - `internal/plugin/supports.go`: Logic to determine if a resource is supported.
 - `internal/plugin/projected.go`: Logic to calculate projected costs.
 - `CLAUDE.md`: Detailed reference for architecture and protocol.
+
+## Active Technologies
+- Go 1.25+ + gRPC (pulumicost.v1 protocol), internal/pricing (embedded data), zerolog (014-lambda-cost-estimation)
+- Embedded JSON pricing data (using `//go:embed`) (014-lambda-cost-estimation)
+
+## Recent Changes
+- 014-lambda-cost-estimation: Added Go 1.25+ + gRPC (pulumicost.v1 protocol), internal/pricing (embedded data), zerolog
