@@ -574,7 +574,7 @@ func detectService(resourceType string) string {
 	if strings.Contains(resourceTypeLower, "ec2/instance") || strings.Contains(resourceTypeLower, "aws:ec2:instance") {
 		return "ec2"
 	}
-	if strings.Contains(resourceTypeLower, "ebs/volume") || strings.Contains(resourceTypeLower, "ec2/volume") {
+	if strings.Contains(resourceTypeLower, "ebs/volume") || strings.Contains(resourceTypeLower, "ec2/volume") || strings.Contains(resourceTypeLower, "aws:ebs:volume") {
 		return "ebs"
 	}
 	if strings.Contains(resourceTypeLower, "rds/instance") {
@@ -744,7 +744,10 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 		notes = append(notes, "arch defaulted to x86_64")
 	}
 
-	// Normalize architecture display name
+	// Normalize architecture display name for consistent billing details.
+	// User input "arm" is normalized to "arm64" to match AWS Lambda's official
+	// architecture naming (x86_64, arm64). This ensures billing details are
+	// consistent regardless of whether the user specifies "arm" or "arm64".
 	archDisplay := "x86_64"
 	if strings.ToLower(architecture) == "arm64" || strings.ToLower(architecture) == "arm" {
 		archDisplay = "arm64"

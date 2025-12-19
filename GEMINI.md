@@ -53,8 +53,8 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 
 ### Architecture Patterns
 
-- **One Resource per RPC:** Handles one resource cost estimation per call.
-- **No Batching:** Do not assume batch processing.
+- **Batch Processing:** `GetRecommendations` supports batching via `TargetResources` (max 100 items).
+- **One Resource per RPC (Legacy):** Other RPCs still handle single resources.
 - **Region Tags:** Use Go build tags (e.g., `//go:build region_use1`).
 - **Error Handling:** Use proto-defined `ErrorCode` enum.
 
@@ -92,6 +92,3 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 ## Active Technologies
 - Go 1.25+ + gRPC (pulumicost.v1 protocol), internal/pricing (embedded data), zerolog (014-lambda-cost-estimation)
 - Embedded JSON pricing data (using `//go:embed`) (014-lambda-cost-estimation)
-
-## Recent Changes
-- 014-lambda-cost-estimation: Added Go 1.25+ + gRPC (pulumicost.v1 protocol), internal/pricing (embedded data), zerolog

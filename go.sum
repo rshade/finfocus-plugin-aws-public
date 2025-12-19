@@ -49,8 +49,6 @@ github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncj
 github.com/rs/xid v1.6.0/go.mod h1:7XoLgs4eV+QndskICGsho+ADou8ySMSjJKDIan90Nz0=
 github.com/rs/zerolog v1.34.0 h1:k43nTLIwcTVQAncfCw4KZ2VY6ukYoZaBPNOE8txlOeY=
 github.com/rs/zerolog v1.34.0/go.mod h1:bJsvje4Z08ROH4Nhs5iH600c3IkWhwp44iRc54W6wYQ=
-github.com/rshade/pulumicost-spec v0.4.8 h1:VG9+KV5SpqI/tZJ1d75RTcUQfK9NWddRQusHeLazR+M=
-github.com/rshade/pulumicost-spec v0.4.8/go.mod h1:mJ+LSqeFM0dRv4auB63R9NpPbS5YKS/10mDeosdVNJ4=
 github.com/rshade/pulumicost-spec v0.4.9 h1:R2GqVYpMlN6SUw2/V99uha+KA9UlvhSR8QuaNyOmdeY=
 github.com/rshade/pulumicost-spec v0.4.9/go.mod h1:mJ+LSqeFM0dRv4auB63R9NpPbS5YKS/10mDeosdVNJ4=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=

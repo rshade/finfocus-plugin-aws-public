@@ -1,0 +1,34 @@
+rpc: GetRecommendations
+description: >
+  Calculate cost recommendations for a batch of resources.
+  Supports legacy single-resource mode via Filter.
+
+request:
+  fields:
+    target_resources:
+      type: list<ResourceDescriptor>
+      description: Primary scope. List of resources to analyze.
+      validation: max_items=100
+    filter:
+      type: RecommendationFilter
+      description: Criteria to select resources from the scope.
+  
+  behavior:
+    - If `target_resources` is populated:
+      - Analyze each resource in the list.
+      - Apply `filter` criteria (AND logic) to each resource.
+    - If `target_resources` is empty:
+      - Fallback: Use `filter.sku` and `filter.resource_type` as a single virtual resource.
+    - If both empty:
+      - Return empty response.
+
+response:
+  fields:
+    recommendations:
+      type: list<Recommendation>
+      description: List of generated recommendations.
+
+errors:
+  INVALID_ARGUMENT:
+    condition: `len(target_resources) > 100`
+    description: Batch size exceeds limit.

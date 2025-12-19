@@ -820,3 +820,367 @@ func TestGetRecommendations_ErrorLogsContainErrorCode(t *testing.T) {
 		t.Errorf("error_code = %q, should contain INVALID_RESOURCE", errorCode)
 	}
 }
+
+// TestGetRecommendations_Batch verifies US1: Batch resource analysis.
+// It sends a request with multiple resources in TargetResources and verifies
+// that recommendations are generated for each supported resource.
+func TestGetRecommendations_Batch(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	// Setup pricing for test resources
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+	mock.ebsPrices["gp2"] = 0.10
+	mock.ebsPrices["gp3"] = 0.08
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096
+	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"}, // Upgrade
+			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}}, // Upgrade
+			{ResourceType: "aws:ec2:Instance", Sku: "m5.large", Region: "us-east-1", Provider: "aws"}, // Upgrade + Graviton
+			{ResourceType: "aws:ec2:Instance", Sku: "t3.medium", Region: "us-east-1", Provider: "aws"}, // No upgrade (already new)
+			{ResourceType: "aws:ebs:Volume", Sku: "gp3", Region: "us-east-1", Provider: "aws"}, // No upgrade
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	if resp == nil {
+		t.Fatal("Expected non-nil response")
+	}
+
+	// Expected recommendations:
+	// 1. t2.medium -> t3.medium (1 rec)
+	// 2. gp2 -> gp3 (1 rec)
+	// 3. m5.large -> m6i.large (1 rec) + m6g.large (1 rec)
+	// 4. t3.medium -> None
+	// 5. gp3 -> None
+	// Total: 4 recommendations
+	expectedCount := 4
+	if len(resp.Recommendations) != expectedCount {
+		t.Errorf("Expected %d recommendations, got %d", expectedCount, len(resp.Recommendations))
+	}
+}
+
+// TestGetRecommendations_FilteredBatch verifies US2: Filtered batch analysis.
+// It sends a batch request with a filter and verifies that only matching resources
+// are included in the recommendations.
+func TestGetRecommendations_FilteredBatch(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-west-2", Provider: "aws"},
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "eu-west-1", Provider: "aws"},
+		},
+		Filter: &pbc.RecommendationFilter{
+			Region: "us-east-1", // Only match the first resource
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Only the us-east-1 resource should match the filter
+	// t2.medium -> t3.medium = 1 recommendation
+	expectedCount := 1
+	if len(resp.Recommendations) != expectedCount {
+		t.Errorf("Expected %d recommendations for filtered batch, got %d", expectedCount, len(resp.Recommendations))
+	}
+
+	// Verify the recommendation is for the correct region
+	if len(resp.Recommendations) > 0 {
+		rec := resp.Recommendations[0]
+		if rec.Resource == nil || rec.Resource.Region != "us-east-1" {
+			t.Errorf("Expected recommendation for us-east-1, got %v", rec.Resource)
+		}
+	}
+}
+
+// TestGetRecommendations_FilteredBatch_ByResourceType verifies filtering by resource type.
+func TestGetRecommendations_FilteredBatch_ByResourceType(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+	mock.ebsPrices["gp2"] = 0.10
+	mock.ebsPrices["gp3"] = 0.08
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
+			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}},
+		},
+		Filter: &pbc.RecommendationFilter{
+			ResourceType: "aws:ebs:Volume", // Only match EBS volumes
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Only the EBS volume should match - gp2 -> gp3 = 1 recommendation
+	expectedCount := 1
+	if len(resp.Recommendations) != expectedCount {
+		t.Errorf("Expected %d recommendations for filtered batch, got %d", expectedCount, len(resp.Recommendations))
+	}
+
+	// Verify the recommendation is for EBS
+	if len(resp.Recommendations) > 0 {
+		rec := resp.Recommendations[0]
+		if rec.Resource == nil || rec.Resource.ResourceType != "ebs" {
+			t.Errorf("Expected recommendation for ebs, got %v", rec.Resource)
+		}
+	}
+}
+
+// TestGetRecommendations_Legacy verifies US3: Legacy single-resource fallback.
+// When TargetResources is empty but Filter has Sku and ResourceType,
+// the plugin should construct a single-item scope from Filter fields.
+func TestGetRecommendations_Legacy(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	// Legacy mode: no TargetResources, only Filter with Sku
+	req := &pbc.GetRecommendationsRequest{
+		// TargetResources intentionally empty
+		Filter: &pbc.RecommendationFilter{
+			ResourceType: "ec2",
+			Sku:          "t2.medium",
+			Region:       "us-east-1",
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Should generate recommendations from the filter-based single-item scope
+	// t2.medium -> t3.medium = 1 recommendation
+	expectedCount := 1
+	if len(resp.Recommendations) != expectedCount {
+		t.Errorf("Expected %d recommendations for legacy mode, got %d", expectedCount, len(resp.Recommendations))
+	}
+}
+
+// TestGetRecommendations_LegacyWithDefaultRegion verifies legacy mode uses plugin region.
+func TestGetRecommendations_LegacyWithDefaultRegion(t *testing.T) {
+	mock := newMockPricingClient("us-west-2", "USD")
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096
+	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-west-2", mock, logger)
+
+	// Legacy mode without explicit region - should use plugin's region
+	req := &pbc.GetRecommendationsRequest{
+		Filter: &pbc.RecommendationFilter{
+			ResourceType: "ec2",
+			Sku:          "m5.large",
+			// Region intentionally empty
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Should generate recommendations using plugin's region (us-west-2)
+	// m5.large -> m6i.large (gen) + m6g.large (Graviton) = 2 recommendations
+	expectedCount := 2
+	if len(resp.Recommendations) != expectedCount {
+		t.Errorf("Expected %d recommendations for legacy mode with default region, got %d", expectedCount, len(resp.Recommendations))
+	}
+
+	// Verify all recommendations use the plugin's region
+	for _, rec := range resp.Recommendations {
+		if rec.Resource == nil || rec.Resource.Region != "us-west-2" {
+			t.Errorf("Expected recommendation for us-west-2, got %v", rec.Resource)
+		}
+	}
+}
+
+// TestGetRecommendations_SummaryLogging verifies summary logging per batch.
+// Only one log entry should be generated per batch at INFO level.
+func TestGetRecommendations_SummaryLogging(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+	mock.ebsPrices["gp2"] = 0.10
+	mock.ebsPrices["gp3"] = 0.08
+
+	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
+			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}},
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
+		},
+	}
+
+	_, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Parse all log entries
+	lines := strings.Split(strings.TrimSpace(logBuf.String()), "\n")
+	infoLogs := 0
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
+			t.Fatalf("Failed to parse log line as JSON: %v\nLine: %s", err, line)
+		}
+		if level, ok := logEntry["level"].(string); ok && level == "info" {
+			infoLogs++
+		}
+	}
+
+	// Should have exactly 1 INFO log (the summary)
+	if infoLogs != 1 {
+		t.Errorf("Expected 1 INFO log entry (summary), got %d", infoLogs)
+	}
+
+	// Verify the summary log contains expected fields
+	logEntry, err := parseLastLogEntry(&logBuf)
+	if err != nil {
+		t.Fatalf("Failed to parse log output: %v", err)
+	}
+
+	// Check for summary fields
+	if _, ok := logEntry["total_resources"]; !ok {
+		t.Error("Summary log should contain total_resources")
+	}
+	if _, ok := logEntry["matched_resources"]; !ok {
+		t.Error("Summary log should contain matched_resources")
+	}
+	if _, ok := logEntry["total_savings"]; !ok {
+		t.Error("Summary log should contain total_savings")
+	}
+}
+
+// TestGetRecommendations_EmptyBothModes verifies empty response for no context.
+func TestGetRecommendations_EmptyBothModes(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	// No TargetResources and no valid Filter
+	req := &pbc.GetRecommendationsRequest{
+		// TargetResources: empty
+		// Filter: nil
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Should return empty recommendations
+	if len(resp.Recommendations) != 0 {
+		t.Errorf("Expected 0 recommendations for empty request, got %d", len(resp.Recommendations))
+	}
+}
+
+// TestGetRecommendations_ProviderFilter verifies that non-AWS resources are skipped.
+func TestGetRecommendations_ProviderFilter(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
+			{ResourceType: "gcp:compute:Instance", Sku: "n1-standard-1", Region: "us-central1", Provider: "gcp"}, // Should be skipped
+			{ResourceType: "azure:vm:Instance", Sku: "Standard_B1s", Region: "eastus", Provider: "azure"},       // Should be skipped
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Only the AWS resource should be processed
+	expectedCount := 1 // t2.medium -> t3.medium
+	if len(resp.Recommendations) != expectedCount {
+		t.Errorf("Expected %d recommendations (AWS only), got %d", expectedCount, len(resp.Recommendations))
+	}
+}
+
+// TestGetRecommendations_BatchSizeLimit verifies that batch requests exceeding
+// the maximum size of 100 resources are rejected with an appropriate error.
+func TestGetRecommendations_BatchSizeLimit(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	// Create 101 resources (exceeds limit of 100)
+	resources := make([]*pbc.ResourceDescriptor, 101)
+	for i := range resources {
+		resources[i] = &pbc.ResourceDescriptor{
+			ResourceType: "aws:ec2:Instance",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+			Provider:     "aws",
+		}
+	}
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: resources,
+	}
+
+	_, err := plugin.GetRecommendations(context.Background(), req)
+	if err == nil {
+		t.Fatal("Expected error for batch size exceeding limit")
+	}
+
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatal("Expected gRPC status error")
+	}
+
+	if st.Code() != codes.InvalidArgument {
+		t.Errorf("Code = %v, want %v", st.Code(), codes.InvalidArgument)
+	}
+
+	if !strings.Contains(st.Message(), "exceeds maximum") {
+		t.Errorf("Message should mention exceeds maximum, got: %s", st.Message())
+	}
+}
