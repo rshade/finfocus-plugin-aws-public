@@ -377,6 +377,23 @@ func (c *Client) init() error {
 				Str("region", c.region).
 				Msg("EKS extended support pricing not found in embedded data")
 		}
+
+		// Validate Lambda pricing data was loaded successfully
+		if c.lambdaPricing == nil || c.lambdaPricing.RequestPrice == 0 {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("Lambda request pricing not found in embedded data")
+		}
+		if c.lambdaPricing != nil && c.lambdaPricing.X86GBSecondPrice == 0 {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("Lambda x86 GB-second pricing not found in embedded data")
+		}
+		if c.lambdaPricing != nil && c.lambdaPricing.ARMGBSecondPrice == 0 {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("Lambda ARM GB-second pricing not found in embedded data")
+		}
 	})
 	return c.err
 }

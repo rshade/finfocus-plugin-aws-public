@@ -23,6 +23,11 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// portAnnouncementTimeout is the maximum time to wait for the binary to announce its PORT.
+// Increased from 5s to 15s to accommodate slower startup when parsing larger embedded
+// pricing data (particularly Lambda pricing which adds ~40% more pricing entries).
+// On resource-constrained CI environments, the JSON unmarshaling and index building
+// can take longer than on development machines.
 const portAnnouncementTimeout = 15 * time.Second
 
 // TestIntegration_APSoutheast1_Binary performs end-to-end testing of the ap-southeast-1 binary.
@@ -411,7 +416,7 @@ func TestIntegration_EKS_UseEast1_Binary(t *testing.T) {
 	t.Log("Building us-east-1 binary for EKS testing...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1",
+		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1-eks",
 		"../../cmd/pulumicost-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	output, err := buildCmd.CombinedOutput()
@@ -421,14 +426,14 @@ func TestIntegration_EKS_UseEast1_Binary(t *testing.T) {
 
 	// Ensure cleanup
 	defer func() {
-		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-us-east-1"); err != nil {
+		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-us-east-1-eks"); err != nil {
 			t.Logf("Warning: failed to cleanup test binary: %v", err)
 		}
 	}()
 
 	// Start the binary
 	t.Log("Starting us-east-1 binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1")
+	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1-eks")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to get stdout pipe: %v", err)
@@ -609,7 +614,7 @@ func TestIntegration_Lambda_UseEast1_Binary(t *testing.T) {
 	t.Log("Building us-east-1 binary for Lambda testing...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-lambda-us-east-1",
+		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1-lambda",
 		"../../cmd/pulumicost-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	output, err := buildCmd.CombinedOutput()
@@ -619,14 +624,14 @@ func TestIntegration_Lambda_UseEast1_Binary(t *testing.T) {
 
 	// Ensure cleanup
 	defer func() {
-		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-lambda-us-east-1"); err != nil {
+		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-us-east-1-lambda"); err != nil {
 			t.Logf("Warning: failed to cleanup test binary: %v", err)
 		}
 	}()
 
 	// Start the binary
 	t.Log("Starting us-east-1 binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-lambda-us-east-1")
+	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1-lambda")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to get stdout pipe: %v", err)

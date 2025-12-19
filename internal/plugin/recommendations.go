@@ -27,10 +27,26 @@ const (
 	modTypeVolumeUpgrade = "volume_type_upgrade"
 	// defaultEBSVolumeGB is the default volume size when not specified in tags.
 	defaultEBSVolumeGB = 100
+	// maxBatchSize is the maximum number of resources allowed in a single batch request.
+	maxBatchSize = 100
 )
 
 // Ensure AWSPublicPlugin implements RecommendationsProvider.
 var _ pluginsdk.RecommendationsProvider = (*AWSPublicPlugin)(nil)
+
+// ProcessingContext holds state during batch request processing.
+type ProcessingContext struct {
+	Scope      []*pbc.ResourceDescriptor
+	Filter     *pbc.RecommendationFilter
+	BatchStats BatchStats
+}
+
+// BatchStats tracks aggregation metrics for logging.
+type BatchStats struct {
+	TotalResources   int
+	MatchedResources int
+	TotalSavings     float64
+}
 
 // GetRecommendations returns cost optimization recommendations.
 // Implements FR-001 from spec.md.
@@ -49,38 +65,78 @@ func (p *AWSPublicPlugin) GetRecommendations(
 		return nil, err
 	}
 
-	// Generate recommendations based on filter (pulumicost-spec v0.4.8+)
-	// FR-008: Return empty list when no filter context provided
-	var recommendations []*pbc.Recommendation
+	// Validate batch size (max 100 resources per request)
+	if len(req.TargetResources) > maxBatchSize {
+		err := p.newErrorWithID(traceID, codes.InvalidArgument,
+			fmt.Sprintf("batch size %d exceeds maximum of %d", len(req.TargetResources), maxBatchSize),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		p.logErrorWithID(traceID, "GetRecommendations", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, err
+	}
 
-	if req.Filter != nil && req.Filter.Sku != "" {
-		// Determine resource type from filter
-		resourceType := req.Filter.ResourceType
-		region := req.Filter.Region
-		if region == "" {
-			region = p.region // Default to plugin's region
+	// Normalize input into ProcessingContext (T006)
+	pctx := p.normalizeInput(req)
+
+	// Generate recommendations by iterating over scope (T007)
+	var recommendations []*pbc.Recommendation
+	for _, resource := range pctx.Scope {
+		// Provider check: only process AWS resources (T011)
+		if resource.Provider != "" && resource.Provider != "aws" {
+			continue
 		}
 
-		// Normalize resource type using detectService
-		service := detectService(resourceType)
+		// Apply filter criteria using AND logic (T010)
+		if !p.matchesFilter(resource, pctx.Filter) {
+			continue
+		}
+
+		pctx.BatchStats.MatchedResources++
+
+		// Determine region (default to plugin's region if not specified)
+		region := resource.Region
+		if region == "" {
+			region = p.region
+		}
+
+		// Generate recommendations based on resource type
+		service := detectService(resource.ResourceType)
+		var recs []*pbc.Recommendation
 
 		switch service {
 		case "ec2":
-			// FR-002, FR-003: Generate EC2 generation upgrade and Graviton recommendations
-			recommendations = append(recommendations, p.generateEC2Recommendations(req.Filter.Sku, region)...)
+			recs = p.generateEC2Recommendations(resource.Sku, region)
 		case "ebs":
-			// FR-004: Generate EBS volume type recommendations
-			recommendations = append(recommendations, p.getEBSRecommendations(req.Filter.Sku, region, req.Filter.Tags)...)
+			recs = p.getEBSRecommendations(resource.Sku, region, resource.Tags)
 		}
+
+		// Populate correlation info (T008): Use tags for correlation
+		for _, rec := range recs {
+			if rec.Resource != nil {
+				// Use resource_id tag if available for correlation
+				if resourceID := resource.Tags["resource_id"]; resourceID != "" {
+					rec.Resource.Id = resourceID
+				}
+				// Use name tag if available
+				if name := resource.Tags["name"]; name != "" {
+					rec.Resource.Name = name
+				}
+			}
+			pctx.BatchStats.TotalSavings += rec.Impact.GetEstimatedSavings()
+		}
+
+		recommendations = append(recommendations, recs...)
 	}
 
-	// FR-010: Include trace_id in all log entries
+	// FR-010: Summary logging (one line per batch, not per resource)
 	p.logger.Info().
 		Str(pluginsdk.FieldTraceID, traceID).
 		Str(pluginsdk.FieldOperation, "GetRecommendations").
+		Int("total_resources", pctx.BatchStats.TotalResources).
+		Int("matched_resources", pctx.BatchStats.MatchedResources).
 		Int("recommendation_count", len(recommendations)).
+		Float64("total_savings", pctx.BatchStats.TotalSavings).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
-		Msg("recommendations generated")
+		Msg("batch recommendations generated")
 
 	return &pbc.GetRecommendationsResponse{
 		Recommendations: recommendations,
@@ -364,3 +420,64 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 		Source: sourceAWSPublic,
 	}}
 }
+
+// matchesFilter checks if a resource matches the given filter criteria.
+// Implements FR-005 (AND operation).
+func (p *AWSPublicPlugin) matchesFilter(resource *pbc.ResourceDescriptor, filter *pbc.RecommendationFilter) bool {
+	if filter == nil {
+		return true
+	}
+
+	// Check Region
+	if filter.Region != "" && filter.Region != resource.Region {
+		return false
+	}
+
+	// Check ResourceType
+	if filter.ResourceType != "" && filter.ResourceType != resource.ResourceType {
+		return false
+	}
+
+	// Check Sku
+	if filter.Sku != "" && filter.Sku != resource.Sku {
+		return false
+	}
+
+	// Check Tags (if filter has tags, resource must have all of them with matching values)
+	if len(filter.Tags) > 0 {
+		for k, v := range filter.Tags {
+			if resVal, ok := resource.Tags[k]; !ok || resVal != v {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// normalizeInput converts a GetRecommendationsRequest into a ProcessingContext.
+// If TargetResources is populated, uses it as the scope.
+// Otherwise, constructs a single-item scope from Filter fields (legacy mode).
+func (p *AWSPublicPlugin) normalizeInput(req *pbc.GetRecommendationsRequest) *ProcessingContext {
+	pctx := &ProcessingContext{
+		Filter: req.Filter,
+	}
+
+	if len(req.TargetResources) > 0 {
+		// Batch mode: use TargetResources as scope
+		pctx.Scope = req.TargetResources
+	} else if req.Filter != nil && req.Filter.Sku != "" {
+		// Legacy mode: construct single-item scope from Filter
+		pctx.Scope = []*pbc.ResourceDescriptor{{
+			ResourceType: req.Filter.ResourceType,
+			Sku:          req.Filter.Sku,
+			Region:       req.Filter.Region,
+			Tags:         req.Filter.Tags,
+			Provider:     "aws", // Implicit for this plugin
+		}}
+	}
+
+	pctx.BatchStats.TotalResources = len(pctx.Scope)
+	return pctx
+}
+
