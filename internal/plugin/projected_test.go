@@ -1816,7 +1816,7 @@ func TestGetProjectedCost_RDS_EngineDefaulted(t *testing.T) {
 func TestGetProjectedCost_Lambda_Basic(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	mock.lambdaPrices["request"] = 0.0000002     // $0.20 per 1M
+	mock.lambdaPrices["request"] = 0.0000002      // $0.20 per 1M
 	mock.lambdaPrices["gb-second"] = 0.0000166667 // Standard price
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
@@ -1946,7 +1946,7 @@ func TestGetProjectedCost_Lambda_ARM64(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.lambdaPrices["request"] = 0.0000002
-	mock.lambdaPrices["gb-second"] = 0.0000166667      // x86 price
+	mock.lambdaPrices["gb-second"] = 0.0000166667       // x86 price
 	mock.lambdaPrices["gb-second-arm64"] = 0.0000133334 // ARM price (~20% cheaper)
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
@@ -2162,6 +2162,7 @@ func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
 	}
 
 	// Verify financial cost is still present
+	// $0.0104/hour × 730 hours/month = $7.592/month for t3.micro on-demand
 	expectedCost := 0.0104 * 730.0
 	if resp.CostPerMonth != expectedCost {
 		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
@@ -2549,14 +2550,14 @@ func TestGetProjectedCost_DynamoDB(t *testing.T) {
 			expectedCost: 16.25, // (10 * 0.25) + (1 * 1.25) + (50 * 0.25) = 2.5 + 1.25 + 12.5 = 16.25
 		},
 		{
-			name: "On-Demand default (using on-demand SKU)",
-			sku:  "on-demand",
+			name: "Case-insensitive SKU (ON-DEMAND)",
+			sku:  "ON-DEMAND", // Uppercase SKU should normalize to on-demand mode
 			tags: map[string]string{
 				"read_requests_per_month":  "10000000",
 				"write_requests_per_month": "1000000",
 				"storage_gb":               "50",
 			},
-			expectedCost: 16.25,
+			expectedCost: 16.25, // Same as on-demand: (10 * 0.25) + (1 * 1.25) + (50 * 0.25)
 		},
 		{
 			name: "Provisioned basic",

@@ -457,6 +457,39 @@ func (c *Client) init() error {
 				Str("region", c.region).
 				Msg("Lambda ARM GB-second pricing not found in embedded data")
 		}
+
+		// Validate DynamoDB pricing data was loaded successfully
+		if c.dynamoDBPricing == nil {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("DynamoDB pricing not found in embedded data")
+		} else {
+			if c.dynamoDBPricing.OnDemandReadPrice == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("DynamoDB on-demand read pricing not found in embedded data")
+			}
+			if c.dynamoDBPricing.OnDemandWritePrice == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("DynamoDB on-demand write pricing not found in embedded data")
+			}
+			if c.dynamoDBPricing.StoragePrice == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("DynamoDB storage pricing not found in embedded data")
+			}
+			if c.dynamoDBPricing.ProvisionedRCUPrice == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("DynamoDB provisioned RCU pricing not found in embedded data")
+			}
+			if c.dynamoDBPricing.ProvisionedWCUPrice == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("DynamoDB provisioned WCU pricing not found in embedded data")
+			}
+		}
 	})
 	return c.err
 }
@@ -726,6 +759,18 @@ func (c *Client) LambdaPricePerGBSecond(arch string) (float64, bool) {
 // DynamoDBOnDemandReadPrice returns the cost per read request unit.
 // Returns (price, true) if found, (0, false) if not found.
 func (c *Client) DynamoDBOnDemandReadPrice() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "DynamoDB").
+				Str("metric", "OnDemandRead").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
 	if err := c.init(); err != nil {
 		return 0, false
 	}
@@ -738,6 +783,18 @@ func (c *Client) DynamoDBOnDemandReadPrice() (float64, bool) {
 // DynamoDBOnDemandWritePrice returns the cost per write request unit.
 // Returns (price, true) if found, (0, false) if not found.
 func (c *Client) DynamoDBOnDemandWritePrice() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "DynamoDB").
+				Str("metric", "OnDemandWrite").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
 	if err := c.init(); err != nil {
 		return 0, false
 	}
@@ -750,6 +807,18 @@ func (c *Client) DynamoDBOnDemandWritePrice() (float64, bool) {
 // DynamoDBStoragePricePerGBMonth returns the monthly rate per GB for table storage.
 // Returns (price, true) if found, (0, false) if not found.
 func (c *Client) DynamoDBStoragePricePerGBMonth() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "DynamoDB").
+				Str("metric", "Storage").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
 	if err := c.init(); err != nil {
 		return 0, false
 	}
@@ -762,6 +831,18 @@ func (c *Client) DynamoDBStoragePricePerGBMonth() (float64, bool) {
 // DynamoDBProvisionedRCUPrice returns the cost per RCU-hour.
 // Returns (price, true) if found, (0, false) if not found.
 func (c *Client) DynamoDBProvisionedRCUPrice() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "DynamoDB").
+				Str("metric", "ProvisionedRCU").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
 	if err := c.init(); err != nil {
 		return 0, false
 	}
@@ -774,6 +855,18 @@ func (c *Client) DynamoDBProvisionedRCUPrice() (float64, bool) {
 // DynamoDBProvisionedWCUPrice returns the cost per WCU-hour.
 // Returns (price, true) if found, (0, false) if not found.
 func (c *Client) DynamoDBProvisionedWCUPrice() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "DynamoDB").
+				Str("metric", "ProvisionedWCU").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
 	if err := c.init(); err != nil {
 		return 0, false
 	}
