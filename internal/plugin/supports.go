@@ -69,8 +69,27 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	// Check resource type
 	switch normalizedType {
-	case "ec2", "ebs", "rds", "eks", "s3", "lambda":
-		// Fully supported
+	case "ec2":
+		// EC2 fully supported with carbon estimation
+		supportedMetrics := getSupportedMetrics(normalizedType)
+		p.logger.Info().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "Supports").
+			Str(pluginsdk.FieldResourceType, resource.ResourceType).
+			Str("aws_region", resource.Region).
+			Bool("supported", true).
+			Int("supported_metrics_count", len(supportedMetrics)).
+			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
+			Msg("resource support check")
+
+		return &pbc.SupportsResponse{
+			Supported:        true,
+			Reason:           "",
+			SupportedMetrics: supportedMetrics,
+		}, nil
+
+	case "ebs", "rds", "eks", "s3", "lambda":
+		// Supported but no carbon estimation yet
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
 			Str(pluginsdk.FieldOperation, "Supports").
@@ -81,12 +100,13 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			Msg("resource support check")
 
 		return &pbc.SupportsResponse{
-			Supported: true,
-			Reason:    "",
+			Supported:        true,
+			Reason:           "",
+			SupportedMetrics: nil, // No additional metrics for these types yet
 		}, nil
 
 	case "dynamodb":
-		// Stub support - returns $0 estimates
+		// Stub support - returns $0 estimates, no carbon
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
 			Str(pluginsdk.FieldOperation, "Supports").
@@ -97,8 +117,9 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			Msg("resource support check")
 
 		return &pbc.SupportsResponse{
-			Supported: true,
-			Reason:    fmt.Sprintf("Limited support - %s cost estimation not fully implemented, returns $0 estimate", resource.ResourceType),
+			Supported:        true,
+			Reason:           fmt.Sprintf("Limited support - %s cost estimation not fully implemented, returns $0 estimate", resource.ResourceType),
+			SupportedMetrics: nil, // No additional metrics for stub types
 		}, nil
 
 	default:
@@ -113,8 +134,23 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			Msg("resource support check")
 
 		return &pbc.SupportsResponse{
-			Supported: false,
-			Reason:    fmt.Sprintf("Resource type %q not supported", resource.ResourceType),
+			Supported:        false,
+			Reason:           fmt.Sprintf("Resource type %q not supported", resource.ResourceType),
+			SupportedMetrics: nil,
 		}, nil
+	}
+}
+
+// getSupportedMetrics returns the list of supported metric kinds for a given resource type.
+// Currently, only EC2 supports carbon footprint estimation.
+// This function enables PulumiCost core to discover which plugins provide which metrics.
+func getSupportedMetrics(resourceType string) []pbc.MetricKind {
+	switch resourceType {
+	case "ec2":
+		// EC2 supports carbon footprint estimation via CCF data
+		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
+	default:
+		// Other resource types don't have additional metrics yet
+		return nil
 	}
 }

@@ -2137,3 +2137,381 @@ func TestGetProjectedCost_Lambda_ARMFallbackToX86(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// Carbon Estimation Tests (T017-T019)
+// ============================================================================
+
+// TestGetProjectedCost_EC2_WithCarbonMetrics tests that EC2 responses include carbon metrics (T017)
+func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify financial cost is still present
+	expectedCost := 0.0104 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	// Verify carbon metrics are present
+	if len(resp.ImpactMetrics) == 0 {
+		t.Fatal("ImpactMetrics should not be empty for known EC2 instance type")
+	}
+
+	// Find carbon footprint metric
+	var carbonMetric *pbc.ImpactMetric
+	for _, m := range resp.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonMetric = m
+			break
+		}
+	}
+
+	if carbonMetric == nil {
+		t.Fatal("ImpactMetrics should contain METRIC_KIND_CARBON_FOOTPRINT")
+	}
+
+	// Verify carbon value is reasonable (500-5000 gCO2e for t3.micro monthly)
+	if carbonMetric.Value < 500 || carbonMetric.Value > 5000 {
+		t.Errorf("Carbon value = %v, want between 500 and 5000 gCO2e", carbonMetric.Value)
+	}
+
+	// Verify unit is correct
+	if carbonMetric.Unit != "gCO2e" {
+		t.Errorf("Carbon unit = %q, want %q", carbonMetric.Unit, "gCO2e")
+	}
+}
+
+// TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance tests that carbon is 0 for unknown instance types (T018)
+func TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["unknown.instance/Linux/Shared"] = 0.01 // Add pricing so financial cost works
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "unknown.instance",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Financial cost should still work
+	if resp.CostPerMonth == 0 {
+		t.Error("CostPerMonth should be non-zero for instance with pricing")
+	}
+
+	// Carbon metrics should be empty for unknown instance type
+	if len(resp.ImpactMetrics) > 0 {
+		t.Errorf("ImpactMetrics should be empty for unknown instance type, got %d metrics", len(resp.ImpactMetrics))
+	}
+}
+
+// TestGetProjectedCost_EC2_RegionAffectsCarbon tests that region affects carbon value (T019)
+func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
+	// Test with us-east-1 plugin
+	mockUSEast := newMockPricingClient("us-east-1", "USD")
+	mockUSEast.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	loggerUSEast := zerolog.New(nil).Level(zerolog.InfoLevel)
+	pluginUSEast := NewAWSPublicPlugin("us-east-1", mockUSEast, loggerUSEast)
+
+	respUSEast, err := pluginUSEast.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(us-east-1) error: %v", err)
+	}
+
+	// Test with eu-north-1 plugin (Sweden - very low carbon grid)
+	mockEUNorth := newMockPricingClient("eu-north-1", "USD")
+	mockEUNorth.ec2Prices["t3.micro/Linux/Shared"] = 0.0116
+	loggerEUNorth := zerolog.New(nil).Level(zerolog.InfoLevel)
+	pluginEUNorth := NewAWSPublicPlugin("eu-north-1", mockEUNorth, loggerEUNorth)
+
+	respEUNorth, err := pluginEUNorth.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "eu-north-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(eu-north-1) error: %v", err)
+	}
+
+	// Both should have carbon metrics
+	if len(respUSEast.ImpactMetrics) == 0 {
+		t.Fatal("us-east-1 should have ImpactMetrics")
+	}
+	if len(respEUNorth.ImpactMetrics) == 0 {
+		t.Fatal("eu-north-1 should have ImpactMetrics")
+	}
+
+	var carbonUSEast, carbonEUNorth float64
+	for _, m := range respUSEast.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonUSEast = m.Value
+		}
+	}
+	for _, m := range respEUNorth.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonEUNorth = m.Value
+		}
+	}
+
+	// EU North (Sweden) should have much lower carbon than US East (Virginia)
+	// Grid factor ratio is roughly 43x (0.000379 / 0.0000088)
+	if carbonUSEast <= carbonEUNorth*10 {
+		t.Errorf("us-east-1 carbon (%v) should be at least 10x higher than eu-north-1 carbon (%v)",
+			carbonUSEast, carbonEUNorth)
+	}
+
+	t.Logf("Carbon comparison: us-east-1=%v gCO2e, eu-north-1=%v gCO2e (ratio: %.1fx)",
+		carbonUSEast, carbonEUNorth, carbonUSEast/carbonEUNorth)
+}
+
+// TestGetProjectedCost_EC2_RequestLevelUtilization tests request-level utilization override (T031)
+func TestGetProjectedCost_EC2_RequestLevelUtilization(t *testing.T) {
+	mockClient := newMockPricingClient("us-east-1", "USD")
+	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+
+	// Request with high utilization (80%)
+	respHigh, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		UtilizationPercentage: 0.8,
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(high util) error: %v", err)
+	}
+
+	// Request with low utilization (20%)
+	respLow, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		UtilizationPercentage: 0.2,
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(low util) error: %v", err)
+	}
+
+	// Extract carbon values
+	var carbonHigh, carbonLow float64
+	for _, m := range respHigh.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonHigh = m.Value
+		}
+	}
+	for _, m := range respLow.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonLow = m.Value
+		}
+	}
+
+	// Higher utilization should result in higher carbon
+	if carbonHigh <= carbonLow {
+		t.Errorf("high utilization carbon (%v) should be greater than low utilization carbon (%v)",
+			carbonHigh, carbonLow)
+	}
+
+	t.Logf("Utilization impact: 80%%=%v gCO2e, 20%%=%v gCO2e", carbonHigh, carbonLow)
+}
+
+// TestGetProjectedCost_EC2_PerResourceUtilization tests per-resource utilization override (T032)
+func TestGetProjectedCost_EC2_PerResourceUtilization(t *testing.T) {
+	mockClient := newMockPricingClient("us-east-1", "USD")
+	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+
+	perResourceUtil := 0.9 // 90% utilization
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		UtilizationPercentage: 0.5, // This should be overridden by per-resource
+		Resource: &pbc.ResourceDescriptor{
+			Provider:              "aws",
+			ResourceType:          "ec2",
+			Sku:                   "t3.micro",
+			Region:                "us-east-1",
+			UtilizationPercentage: &perResourceUtil,
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost error: %v", err)
+	}
+
+	// Also test with default (no override)
+	respDefault, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(default) error: %v", err)
+	}
+
+	// Extract carbon values
+	var carbonWithOverride, carbonDefault float64
+	for _, m := range resp.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonWithOverride = m.Value
+		}
+	}
+	for _, m := range respDefault.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonDefault = m.Value
+		}
+	}
+
+	// 90% utilization should produce more carbon than default 50%
+	if carbonWithOverride <= carbonDefault {
+		t.Errorf("90%% utilization carbon (%v) should be greater than default 50%% carbon (%v)",
+			carbonWithOverride, carbonDefault)
+	}
+
+	t.Logf("Per-resource override: 90%%=%v gCO2e, default 50%%=%v gCO2e", carbonWithOverride, carbonDefault)
+}
+
+// TestGetProjectedCost_EC2_UtilizationPriority tests utilization priority order (T033)
+func TestGetProjectedCost_EC2_UtilizationPriority(t *testing.T) {
+	mockClient := newMockPricingClient("us-east-1", "USD")
+	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+
+	// Test 1: Per-resource should override request-level
+	perResourceUtil := 0.95 // 95%
+	respPerResource, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		UtilizationPercentage: 0.2, // This should be ignored
+		Resource: &pbc.ResourceDescriptor{
+			Provider:              "aws",
+			ResourceType:          "ec2",
+			Sku:                   "t3.micro",
+			Region:                "us-east-1",
+			UtilizationPercentage: &perResourceUtil,
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(perResource) error: %v", err)
+	}
+
+	// Test 2: Request-level with no per-resource
+	respRequest, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		UtilizationPercentage: 0.95, // Same as per-resource above for comparison
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(request) error: %v", err)
+	}
+
+	// Extract carbon values
+	var carbonPerResource, carbonRequest float64
+	for _, m := range respPerResource.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonPerResource = m.Value
+		}
+	}
+	for _, m := range respRequest.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonRequest = m.Value
+		}
+	}
+
+	// Both should use 95% utilization, so carbon should be approximately equal
+	// Allow 1% tolerance for floating point
+	tolerance := carbonPerResource * 0.01
+	diff := carbonPerResource - carbonRequest
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > tolerance {
+		t.Errorf("per-resource priority not working: per-resource carbon (%v) != request carbon (%v)",
+			carbonPerResource, carbonRequest)
+	}
+
+	t.Logf("Priority verification: per-resource(95%%)=%v gCO2e, request(95%%)=%v gCO2e",
+		carbonPerResource, carbonRequest)
+}
+
+// TestGetProjectedCost_EC2_GPUInstance tests GPU instance types still return financial cost (T044)
+// GPU power consumption is not included in carbon estimates for v1.
+func TestGetProjectedCost_EC2_GPUInstance(t *testing.T) {
+	mockClient := newMockPricingClient("us-east-1", "USD")
+	// GPU instance pricing
+	mockClient.ec2Prices["p3.2xlarge/Linux/Shared"] = 3.06
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "p3.2xlarge", // NVIDIA V100 GPU instance
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetProjectedCost(GPU) error: %v", err)
+	}
+
+	// Financial cost should still be returned
+	if resp.CostPerMonth < 2000 {
+		t.Errorf("GPU instance cost should be > $2000/month, got %v", resp.CostPerMonth)
+	}
+
+	// Carbon metrics may or may not be present depending on CCF data
+	// If present, they won't include GPU power (known limitation)
+	var hasCarbon bool
+	for _, m := range resp.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			hasCarbon = true
+			t.Logf("GPU instance carbon: %v gCO2e (CPU only, GPU power not included)", m.Value)
+		}
+	}
+
+	t.Logf("p3.2xlarge: $%.2f/month, carbon metrics present=%v", resp.CostPerMonth, hasCarbon)
+}
+

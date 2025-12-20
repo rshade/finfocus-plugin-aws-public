@@ -35,9 +35,10 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 	serviceType := detectService(resource.ResourceType)
 
 	// Route to appropriate estimator based on normalized resource type
+	// For GetActualCost, we don't have a request, so pass nil (uses default utilization)
 	switch serviceType {
 	case "ec2":
-		return p.estimateEC2(traceID, resource)
+		return p.estimateEC2(traceID, resource, &pbc.GetProjectedCostRequest{Resource: resource})
 	case "ebs":
 		return p.estimateEBS(traceID, resource)
 	case "s3", "lambda", "rds", "dynamodb":

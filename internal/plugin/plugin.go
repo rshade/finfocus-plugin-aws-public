@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
@@ -19,10 +20,11 @@ import (
 
 // AWSPublicPlugin implements the pluginsdk.Plugin interface for AWS public pricing.
 type AWSPublicPlugin struct {
-	region   string
-	pricing  pricing.PricingClient
-	logger   zerolog.Logger // logger is immutable (copy-on-write)
-	testMode bool           // true when PULUMICOST_TEST_MODE=true
+	region          string
+	pricing         pricing.PricingClient
+	carbonEstimator carbon.CarbonEstimator
+	logger          zerolog.Logger // logger is immutable (copy-on-write)
+	testMode        bool           // true when PULUMICOST_TEST_MODE=true
 }
 
 // NewAWSPublicPlugin creates a new AWSPublicPlugin instance.
@@ -37,10 +39,11 @@ func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logg
 	}
 
 	return &AWSPublicPlugin{
-		region:   region,
-		pricing:  pricingClient,
-		logger:   logger,
-		testMode: testMode,
+		region:          region,
+		pricing:         pricingClient,
+		carbonEstimator: carbon.NewEstimator(),
+		logger:          logger,
+		testMode:        testMode,
 	}
 }
 

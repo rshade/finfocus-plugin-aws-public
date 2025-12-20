@@ -546,6 +546,17 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 
 See [LICENSE](LICENSE) file for details.
 
+## Attribution
+
+### Cloud Carbon Footprint
+
+This project uses instance specification data from
+[Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/) for carbon
+emission estimation.
+
+> Copyright 2021 Thoughtworks, Inc.
+> Licensed under the Apache License, Version 2.0
+
 ## Links
 
 - [PulumiCost Core](https://github.com/rshade/pulumicost-core)

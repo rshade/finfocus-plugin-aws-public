@@ -547,6 +547,128 @@ func TestSupports_SAEast1(t *testing.T) {
 	}
 }
 
+// ============================================================================
+// Carbon Estimation Supports Tests (T026-T027)
+// ============================================================================
+
+// TestSupports_EC2_SupportedMetrics tests that EC2 returns supported_metrics with carbon footprint (T026)
+func TestSupports_EC2_SupportedMetrics(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Supports() returned error: %v", err)
+	}
+
+	if !resp.Supported {
+		t.Fatal("EC2 should be supported")
+	}
+
+	// Verify SupportedMetrics contains METRIC_KIND_CARBON_FOOTPRINT
+	if len(resp.SupportedMetrics) == 0 {
+		t.Fatal("SupportedMetrics should not be empty for EC2")
+	}
+
+	foundCarbon := false
+	for _, m := range resp.SupportedMetrics {
+		if m == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			foundCarbon = true
+			break
+		}
+	}
+
+	if !foundCarbon {
+		t.Errorf("SupportedMetrics should contain METRIC_KIND_CARBON_FOOTPRINT, got %v", resp.SupportedMetrics)
+	}
+}
+
+// TestSupports_DynamoDB_NoSupportedMetrics tests that DynamoDB doesn't include carbon in supported_metrics (T027)
+func TestSupports_DynamoDB_NoSupportedMetrics(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Supports() returned error: %v", err)
+	}
+
+	// DynamoDB is stub-supported but should NOT have carbon metrics
+	if !resp.Supported {
+		t.Fatal("DynamoDB should be supported (with limited support)")
+	}
+
+	// SupportedMetrics should be empty for DynamoDB (no carbon estimation)
+	if len(resp.SupportedMetrics) > 0 {
+		t.Errorf("SupportedMetrics should be empty for DynamoDB, got %v", resp.SupportedMetrics)
+	}
+}
+
+// TestSupports_AllResourceTypes_SupportedMetrics tests supported_metrics for all resource types
+func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		resourceType string
+		wantCarbon   bool
+	}{
+		{"ec2", true},                       // EC2 has carbon
+		{"aws:ec2/instance:Instance", true}, // Pulumi format
+		{"ebs", false},                      // EBS no carbon (v1)
+		{"eks", false},                      // EKS no carbon (v1)
+		{"rds", false},                      // RDS no carbon (v1)
+		{"s3", false},                       // S3 no carbon (v1)
+		{"lambda", false},                   // Lambda no carbon (v1)
+		{"dynamodb", false},                 // DynamoDB no carbon (stub)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.resourceType, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			hasCarbon := false
+			for _, m := range resp.SupportedMetrics {
+				if m == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+					hasCarbon = true
+					break
+				}
+			}
+
+			if hasCarbon != tt.wantCarbon {
+				t.Errorf("carbon in SupportedMetrics = %v, want %v", hasCarbon, tt.wantCarbon)
+			}
+		})
+	}
+}
+
 // TestSupports_APSoutheast1 tests support for ap-southeast-1 region binary (T010)
 func TestSupports_APSoutheast1(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")

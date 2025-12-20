@@ -34,7 +34,9 @@ go.work.sum
 
 # Generated pricing data files
 data/*.json
+data/*.csv
 internal/pricing/data/*.json
+internal/carbon/data/*.csv
 
 # Plugin binaries
 pulumicost-plugin-aws-public*

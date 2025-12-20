@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 )
@@ -154,7 +155,7 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	serviceType := detectService(resource.ResourceType)
 	switch serviceType {
 	case "ec2":
-		resp, err = p.estimateEC2(traceID, resource)
+		resp, err = p.estimateEC2(traceID, resource, req)
 	case "ebs":
 		resp, err = p.estimateEBS(traceID, resource)
 	case "rds":
@@ -210,7 +211,7 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 
 // estimateEC2 calculates the projected monthly cost for an EC2 instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDescriptor, req *pbc.GetProjectedCostRequest) (*pbc.GetProjectedCostResponse, error) {
 	// FR-012: Use resource.Sku first, fallback to tags extraction
 	instanceType := resource.Sku
 	if instanceType == "" {
@@ -254,12 +255,46 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 	costPerMonth := hourlyRate * hoursPerMonth
 
 	// FR-022, FR-023, FR-024: Return response with all required fields
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", ec2Attrs.OS, ec2Attrs.Tenancy),
-	}, nil
+	}
+
+	// Carbon estimation: Calculate carbon footprint for EC2 instance
+	utilization := carbon.GetUtilization(req.UtilizationPercentage, resource.UtilizationPercentage)
+	carbonGrams, carbonOK := p.carbonEstimator.EstimateCarbonGrams(
+		instanceType, resource.Region, utilization, hoursPerMonth,
+	)
+
+	if carbonOK {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("instance_type", instanceType).
+			Str("aws_region", resource.Region).
+			Float64("utilization", utilization).
+			Float64("carbon_grams", carbonGrams).
+			Msg("Carbon estimation successful")
+	} else {
+		// Unknown instance type for carbon - log warning but continue with financial cost
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("instance_type", instanceType).
+			Msg("Carbon estimation skipped - instance type not in CCF data")
+	}
+
+	return resp, nil
 }
 
 // estimateEBS calculates the projected monthly cost for an EBS volume.
