@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.11](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.10...v0.0.11) (2025-12-20)
+
+
+### Features
+
+* **elb:** implement Elastic Load Balancing (ALB/NLB) cost estimation ([#154](https://github.com/rshade/pulumicost-plugin-aws-public/issues/154)) ([62989a0](https://github.com/rshade/pulumicost-plugin-aws-public/commit/62989a0b0245d05c771c9317db1269776f674dcf)), closes [#017](https://github.com/rshade/pulumicost-plugin-aws-public/issues/017)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-plugin-aws-public to v0.0.10 ([#148](https://github.com/rshade/pulumicost-plugin-aws-public/issues/148)) ([e8402cd](https://github.com/rshade/pulumicost-plugin-aws-public/commit/e8402cd555f312ce658b54ab308f1b01eb408060))
+* prevent panic in recommendations batch processing and improve validation ([#153](https://github.com/rshade/pulumicost-plugin-aws-public/issues/153)) ([84c2b82](https://github.com/rshade/pulumicost-plugin-aws-public/commit/84c2b825eb1167508a433461a7e676e72b1a4ecd))
+
 ## [0.0.10](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.9...v0.0.10) (2025-12-20)
 
 
