@@ -30,6 +30,10 @@ type mockPricingClient struct {
 	dynamoDBPrices        map[string]float64 // key: "on-demand-read", "on-demand-write", "provisioned-rcu", "provisioned-wcu", "storage"
 	eksStandardPrice      float64            // EKS cluster standard support hourly rate
 	eksExtendedPrice      float64            // EKS cluster extended support hourly rate
+	albHourlyPrice        float64            // ALB fixed hourly rate
+	albLCUPrice           float64            // ALB cost per LCU-hour
+	nlbHourlyPrice        float64            // NLB fixed hourly rate
+	nlbNLCUPrice          float64            // NLB cost per NLCU-hour
 	ec2OnDemandCalled     int
 	ebsPriceCalled        int
 	s3PriceCalled         int
@@ -39,6 +43,7 @@ type mockPricingClient struct {
 	lambdaRequestCalled   int
 	lambdaGBSecondCalled  int
 	dynamoDBCalled        int
+	elbCalled             int
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.
@@ -156,6 +161,38 @@ func (m *mockPricingClient) EKSClusterPricePerHour(extendedSupport bool) (float6
 	}
 	if m.eksStandardPrice > 0 {
 		return m.eksStandardPrice, true
+	}
+	return 0, false
+}
+
+func (m *mockPricingClient) ALBPricePerHour() (float64, bool) {
+	m.elbCalled++
+	if m.albHourlyPrice > 0 {
+		return m.albHourlyPrice, true
+	}
+	return 0, false
+}
+
+func (m *mockPricingClient) ALBPricePerLCU() (float64, bool) {
+	m.elbCalled++
+	if m.albLCUPrice > 0 {
+		return m.albLCUPrice, true
+	}
+	return 0, false
+}
+
+func (m *mockPricingClient) NLBPricePerHour() (float64, bool) {
+	m.elbCalled++
+	if m.nlbHourlyPrice > 0 {
+		return m.nlbHourlyPrice, true
+	}
+	return 0, false
+}
+
+func (m *mockPricingClient) NLBPricePerNLCU() (float64, bool) {
+	m.elbCalled++
+	if m.nlbNLCUPrice > 0 {
+		return m.nlbNLCUPrice, true
 	}
 	return 0, false
 }

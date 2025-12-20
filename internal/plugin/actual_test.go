@@ -116,6 +116,22 @@ func (m *mockPricingClientActual) EKSClusterPricePerHour(extendedSupport bool) (
 	return 0.10, true // Standard EKS rate
 }
 
+func (m *mockPricingClientActual) ALBPricePerHour() (float64, bool) {
+	return 0.0225, true
+}
+
+func (m *mockPricingClientActual) ALBPricePerLCU() (float64, bool) {
+	return 0.008, true
+}
+
+func (m *mockPricingClientActual) NLBPricePerHour() (float64, bool) {
+	return 0.0225, true
+}
+
+func (m *mockPricingClientActual) NLBPricePerNLCU() (float64, bool) {
+	return 0.006, true
+}
+
 func newTestPluginForActual() *AWSPublicPlugin {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	return NewAWSPublicPlugin("us-east-1", &mockPricingClientActual{

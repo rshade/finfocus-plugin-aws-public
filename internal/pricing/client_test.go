@@ -374,3 +374,73 @@ func TestClient_DynamoDBPricing(t *testing.T) {
 		}
 	}
 }
+
+func TestClient_ELBPricing(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	region := client.Region()
+	t.Logf("Testing ELB pricing for region: %s", region)
+
+	// Test ALB Hourly Rate
+	albHourly, albHourlyFound := client.ALBPricePerHour()
+	if albHourlyFound {
+		if albHourly <= 0 {
+			t.Errorf("ALB hourly price should be positive, got: %v", albHourly)
+		}
+		t.Logf("ALB hourly price = $%.4f", albHourly)
+	} else {
+		t.Errorf("ALB hourly price should be found in region %s", region)
+	}
+
+	// Test ALB LCU Rate
+	albLCU, albLCUFound := client.ALBPricePerLCU()
+	if albLCUFound {
+		if albLCU <= 0 {
+			t.Errorf("ALB LCU price should be positive, got: %v", albLCU)
+		}
+		t.Logf("ALB LCU price = $%.4f", albLCU)
+	} else {
+		t.Errorf("ALB LCU price should be found in region %s", region)
+	}
+
+	// Test NLB Hourly Rate
+	nlbHourly, nlbHourlyFound := client.NLBPricePerHour()
+	if nlbHourlyFound {
+		if nlbHourly <= 0 {
+			t.Errorf("NLB hourly price should be positive, got: %v", nlbHourly)
+		}
+		t.Logf("NLB hourly price = $%.4f", nlbHourly)
+	} else {
+		t.Errorf("NLB hourly price should be found in region %s", region)
+	}
+
+	// Test NLB NLCU Rate
+	nlbNLCU, nlbNLCUFound := client.NLBPricePerNLCU()
+	if nlbNLCUFound {
+		if nlbNLCU <= 0 {
+			t.Errorf("NLB NLCU price should be positive, got: %v", nlbNLCU)
+		}
+		t.Logf("NLB NLCU price = $%.4f", nlbNLCU)
+	} else {
+		t.Errorf("NLB NLCU price should be found in region %s", region)
+	}
+
+	// Optional: strict check only for us-east-1
+	if region == "us-east-1" {
+		if albHourlyFound && albHourly != 0.0225 {
+			t.Errorf("us-east-1: Expected ALB hourly price 0.0225, got %v", albHourly)
+		}
+		if albLCUFound && albLCU != 0.008 {
+			t.Errorf("us-east-1: Expected ALB LCU price 0.008, got %v", albLCU)
+		}
+		if nlbHourlyFound && nlbHourly != 0.0225 {
+			t.Errorf("us-east-1: Expected NLB hourly price 0.0225, got %v", nlbHourly)
+		}
+		if nlbNLCUFound && nlbNLCU != 0.006 {
+			t.Errorf("us-east-1: Expected NLB NLCU price 0.006, got %v", nlbNLCU)
+		}
+	}
+}

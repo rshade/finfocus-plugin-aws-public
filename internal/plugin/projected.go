@@ -35,6 +35,10 @@ const (
 	resTypeDynamoDBTableLegacy  = "dynamodb/table" // Legacy format
 	resTypeEKSCluster           = "aws:eks/cluster:Cluster"
 	resTypeEKSClusterLegacy     = "eks/cluster" // Legacy format
+	resTypeELB                  = "aws:lb/loadbalancer:LoadBalancer"
+	resTypeALB                  = "aws:alb/loadbalancer:LoadBalancer"
+	resTypeNLB                  = "aws:nlb/loadbalancer:LoadBalancer"
+	resTypeELBLegacy            = "elb/loadbalancer"
 )
 
 // extractAWSSKU extracts AWS SKU from tags with priority: instanceType > instance_class > type > volumeType > volume_type
@@ -168,6 +172,8 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateLambda(traceID, resource)
 	case "dynamodb":
 		resp, err = p.estimateDynamoDB(traceID, resource)
+	case "elb":
+		resp, err = p.estimateELB(traceID, resource)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
@@ -555,6 +561,108 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	}, nil
 }
 
+// estimateELB calculates projected monthly cost for load balancers.
+func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// 1. Identify Load Balancer Type (ALB vs NLB)
+	// Default to ALB per clarification
+	lbType := "alb"
+	skuLower := strings.ToLower(resource.Sku)
+	if strings.Contains(skuLower, "nlb") || strings.Contains(skuLower, "network") {
+		lbType = "nlb"
+	} else if strings.Contains(skuLower, "alb") || strings.Contains(skuLower, "application") {
+		lbType = "alb"
+	}
+
+	// 2. Extract Capacity Units from Tags
+	capacityUnits := 0.0
+	tagFound := false
+	if resource.Tags != nil {
+		// Specific tags take precedence
+		if lbType == "alb" {
+			if s, ok := resource.Tags["lcu_per_hour"]; ok {
+				if v, err := strconv.ParseFloat(s, 64); err == nil {
+					capacityUnits = v
+					tagFound = true
+				}
+			}
+		} else {
+			if s, ok := resource.Tags["nlcu_per_hour"]; ok {
+				if v, err := strconv.ParseFloat(s, 64); err == nil {
+					capacityUnits = v
+					tagFound = true
+				}
+			}
+		}
+
+		// Generic fallback if specific tag not found or invalid
+		if !tagFound {
+			if s, ok := resource.Tags["capacity_units"]; ok {
+				if v, err := strconv.ParseFloat(s, 64); err == nil {
+					capacityUnits = v
+				}
+			}
+		}
+	}
+
+	// 3. Lookup Pricing
+	var fixedRate, cuRate float64
+	var fixedFound, cuFound bool
+	var cuMetricName string
+
+	if lbType == "alb" {
+		fixedRate, fixedFound = p.pricing.ALBPricePerHour()
+		cuRate, cuFound = p.pricing.ALBPricePerLCU()
+		cuMetricName = "LCU"
+	} else {
+		fixedRate, fixedFound = p.pricing.NLBPricePerHour()
+		cuRate, cuFound = p.pricing.NLBPricePerNLCU()
+		cuMetricName = "NLCU"
+	}
+
+	if !fixedFound || !cuFound {
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("lb_type", lbType).
+			Str("aws_region", p.region).
+			Msg("ELB pricing data not found")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: fmt.Sprintf("%s pricing data not available for this region", strings.ToUpper(lbType)),
+		}, nil
+	}
+
+	// 4. Calculate Costs
+	fixedMonthly := hoursPerMonth * fixedRate
+	cuMonthly := hoursPerMonth * capacityUnits * cuRate
+	totalMonthly := fixedMonthly + cuMonthly
+
+	// 5. Build Billing Detail
+	billingDetail := fmt.Sprintf("%s, 730 hrs/month, %.1f %s avg/hr",
+		strings.ToUpper(lbType), capacityUnits, cuMetricName)
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("lb_type", lbType).
+		Float64("capacity_units", capacityUnits).
+		Str("aws_region", p.region).
+		Float64("fixed_rate", fixedRate).
+		Float64("cu_rate", cuRate).
+		Float64("total_cost", totalMonthly).
+		Msg("ELB cost estimated")
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  totalMonthly,
+		UnitPrice:     fixedRate, // Using fixed hourly as primary unit price
+		Currency:      "USD",
+		BillingDetail: billingDetail,
+	}, nil
+}
+
 // estimateStub returns $0 cost for services not yet implemented.
 func (p *AWSPublicPlugin) estimateStub(resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	// FR-025 & FR-026: Return $0 with explanation
@@ -718,6 +826,8 @@ func detectService(resourceType string) string {
 		return "dynamodb"
 	case "eks", resTypeEKSCluster, resTypeEKSClusterLegacy:
 		return "eks"
+	case "elb", "alb", "nlb", resTypeELB, resTypeALB, resTypeNLB, resTypeELBLegacy:
+		return "elb"
 	}
 
 	// Fallback: simple containment check for common patterns
@@ -741,6 +851,9 @@ func detectService(resourceType string) string {
 	}
 	if strings.Contains(resourceTypeLower, "dynamodb/table") || strings.Contains(resourceTypeLower, "aws:dynamodb:table") {
 		return "dynamodb"
+	}
+	if strings.Contains(resourceTypeLower, "lb/loadbalancer") || strings.Contains(resourceTypeLower, "alb/loadbalancer") || strings.Contains(resourceTypeLower, "nlb/loadbalancer") {
+		return "elb"
 	}
 
 	return resourceType

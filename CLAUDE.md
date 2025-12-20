@@ -87,6 +87,7 @@ message GetProjectedCostResponse {
 - EBS volumes
 - EKS clusters
 - DynamoDB (On-Demand and Provisioned modes)
+- Elastic Load Balancing (ALB/NLB) - Application Load Balancers and Network Load Balancers
 
 **Stubbed/Partial:**
 
@@ -131,6 +132,69 @@ tools/
     main.go          # CLI tool to parse regions.yaml (replaces fragile sed/awk)
 data/
   aws_pricing_*.json  # Generated pricing files (not in git)
+```
+
+## Build Tag System (CRITICAL)
+
+**The plugin uses Go build tags to embed region-specific AWS pricing data. This is CRITICAL for production.**
+
+### How It Works
+
+The plugin has 12 region-specific embed files in `internal/pricing/`:
+- `embed_use1.go` (us-east-1) → requires `-tags=region_use1`
+- `embed_usw2.go` (us-west-2) → requires `-tags=region_usw2`
+- `embed_euw1.go` (eu-west-1) → requires `-tags=region_euw1`
+- `embed_apse1.go` (ap-southeast-1) → requires `-tags=region_apse1`
+- `embed_apse2.go` (ap-southeast-2) → requires `-tags=region_apse2`
+- `embed_apne1.go` (ap-northeast-1) → requires `-tags=region_apne1`
+- `embed_aps1.go` (ap-south-1) → requires `-tags=region_aps1`
+- `embed_cac1.go` (ca-central-1) → requires `-tags=region_cac1`
+- `embed_sae1.go` (sa-east-1) → requires `-tags=region_sae1`
+- `embed_govw1.go` (us-gov-west-1) → requires `-tags=region_govw1`
+- `embed_gove1.go` (us-gov-east-1) → requires `-tags=region_gove1`
+- `embed_usw1.go` (us-west-1) → requires `-tags=region_usw1`
+- `embed_fallback.go` → Used when NO region tag (dummy pricing for testing)
+
+### ⚠️ CRITICAL v0.0.10 Issue (FIXED in v0.0.11+)
+
+The released v0.0.10 binary was built **WITHOUT region tags**, resulting in:
+- All EC2 prices returned $0
+- Only test SKUs (t3.micro, t3.small) had prices
+- Real instance types (m5.large, c5.xlarge, etc.) were unsupported
+- Silent failure - no error message, just $0 costs
+
+**Root cause:** Binary was built with `make build` or `go build` instead of through the automated release workflow.
+
+**Prevention in v0.0.11+:**
+- Build verification tests fail if pricing data < 1MB
+- Functional integration test queries binary to verify real costs are returned
+- CI workflow runs pricing verification before merge
+- Release workflow verifies all binaries have pricing embedded
+- Clear Makefile warnings when building without region tags
+
+### Building Correctly
+
+**For development/testing (fallback pricing):**
+```bash
+make build  # ⚠️  Only for testing plugin structure, NOT for releases
+```
+
+**For production or real cost testing (REQUIRED for releases):**
+```bash
+make build-default-region  # Build us-east-1 with real pricing (RECOMMENDED)
+# OR
+make build-region REGION=us-east-1  # Build any region with real pricing
+# OR
+make build-all-regions  # Build all 12 regions with real pricing
+```
+
+**Verification:**
+```bash
+# Unit test - fails if pricing data < 1MB
+go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/...
+
+# Functional test - actually queries binary for real costs
+go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v
 ```
 
 ## Common Commands
@@ -185,10 +249,32 @@ go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDProp
 - **Cleanup Temporary Files:** Ensure all tests and build scripts remove any temporary files (e.g., `sample_ec2.json`, generated binaries, temporary output logs) created during execution. Do not leave artifacts cluttering the workspace.
 
 ### Generating Pricing Data
+
+**For Development/Testing (Recommended):**
 ```bash
-# Generate pricing data from AWS Price List API
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./data
+# Generate pricing data for single region only (saves space, tests all logic)
+go run ./tools/generate-pricing --regions us-east-1 --out-dir ./data
+
+# Clean up old region data first if switching regions
+rm -f ./data/aws_pricing_*.json
 ```
+
+**For Regional Verification (Before Release):**
+```bash
+# Generate pricing data for all supported regions
+# This is ONLY needed to verify regional binary embedding works correctly
+rm -f ./data/aws_pricing_*.json  # Clean old data first
+go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ca-central-1,sa-east-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 --out-dir ./data
+
+# Then build all regional binaries
+goreleaser build --snapshot --clean
+```
+
+**Why Single-Region Testing is Sufficient:**
+- Pricing parser logic is region-agnostic; testing with us-east-1 verifies all parsing logic works
+- ELB estimation code is independent of region (uses pricing client interface)
+- Build-tag system is verified by compiling one region successfully
+- SC-003 (regional support) is validated by pricing client tests, not by building all regions
 
 ### Generating Carbon Data
 ```bash
@@ -278,7 +364,20 @@ From `pulumicost.v1.ErrorCode`:
 - `cost_per_month`: unit_price × 730
 - `billing_detail`: "EKS cluster (<support_type> support), 730 hrs/month (control plane only, excludes worker nodes)"
 
-### Stub Services (S3, Lambda, RDS, DynamoDB)
+### Elastic Load Balancing (ALB/NLB)
+- `resource_type`: "elb", "alb", or "nlb"
+- `sku`: Load balancer type: "alb" (Application) or "nlb" (Network), defaults to ALB if unspecified
+- Capacity Units: Read from `tags["lcu_per_hour"]` (ALB) or `tags["nlcu_per_hour"]` (NLB), fallback to `tags["capacity_units"]`
+- Pricing: Fixed hourly rate + capacity unit charges
+  - ALB: Fixed hourly (e.g., $0.0225) + LCU rate (e.g., $0.008/LCU-hr)
+  - NLB: Fixed hourly (e.g., $0.0225) + NLCU rate (e.g., $0.006/NLCU-hr)
+- Assumptions (hardcoded for v1):
+  - `hoursPerMonth = 730` (24×7 on-demand)
+- `unit_price`: Fixed hourly rate from pricing data
+- `cost_per_month`: (fixed_rate × 730) + (capacity_units × cu_rate × 730)
+- `billing_detail`: "<ALB|NLB>, 730 hrs/month, <capacity_units> <LCU|NLCU> avg/hr"
+
+### Stub Services (S3, Lambda, RDS)
 - `resource_type`: "s3", "lambda", "rds", "dynamodb"
 - Supports() returns `supported=true` with `reason="Limited support - returns $0 estimate"`
 - GetProjectedCost() returns:
@@ -302,6 +401,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e |
 | EBS | Storage GB-month | IOPS, throughput, snapshots | ❌ [#135](https://github.com/rshade/pulumicost-plugin-aws-public/issues/135) |
 | EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) |
+| ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | ❌ Future |
 | RDS | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | S3 | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | Lambda | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |

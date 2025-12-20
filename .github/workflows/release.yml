@@ -69,14 +69,18 @@ jobs:
             df -h / | tail -1
           done
 
-      # 6. Generate checksums for all archives
+      # 6. Verify all binaries have real pricing embedded
+      - name: Verify binaries have embedded pricing
+        run: bash ./scripts/verify-release-binaries.sh dist/
+
+      # 7. Generate checksums for all archives
       - name: Generate checksums
         run: |
           cd dist
           sha256sum ./*.tar.gz ./*.zip > checksums.txt
           cat checksums.txt
 
-      # 7. Upload release assets
+      # 8. Upload release assets
       - name: Upload release assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

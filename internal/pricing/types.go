@@ -140,3 +140,18 @@ type dynamoDBPrice struct {
 	// Currency code (e.g., "USD")
 	Currency string
 }
+
+// elbPrice represents the regional pricing for Elastic Load Balancers (ALB and NLB).
+// Derived from AWS Pricing API for service AWSELB.
+type elbPrice struct {
+	// ALBHourlyRate is the fixed hourly cost for an Application Load Balancer.
+	ALBHourlyRate float64
+	// ALBLCURate is the cost per LCU-hour for an Application Load Balancer.
+	ALBLCURate float64
+	// NLBHourlyRate is the fixed hourly cost for a Network Load Balancer.
+	NLBHourlyRate float64
+	// NLBNLCURate is the cost per NLCU-hour for a Network Load Balancer.
+	NLBNLCURate float64
+	// Currency is the pricing currency (e.g., "USD").
+	Currency string
+}

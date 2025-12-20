@@ -60,10 +60,30 @@ test: ## Run all tests
 	@echo "Running tests..."
 	@go test -v ./...
 
+.PHONY: test-integration
+test-integration: ## Run integration tests (verify real pricing is embedded)
+	@echo "Running integration tests..."
+	@echo "Building binaries and testing gRPC server responses..."
+	@go test -v -tags=integration ./internal/plugin/... -run TestIntegration_VerifyPricingEmbedded
+
 .PHONY: build
-build: ## Build plugin (no build tags - uses fallback)
-	@echo "Building plugin..."
+build: ## ⚠️  Build with FALLBACK pricing (development only - do NOT release)
+	@echo ""
+	@echo "⚠️  WARNING: Building with fallback/dummy pricing (development mode)"
+	@echo "   Only test SKUs (t3.micro, t3.small, gp2, gp3) have prices"
+	@echo "   Real instance types will return \$$0 cost"
+	@echo ""
+	@echo "For real pricing data, use one of:"
+	@echo "  make build-default-region      # Build us-east-1 with real pricing"
+	@echo "  make build-region REGION=us-east-1  # Build any region with real pricing"
+	@echo "  make build-all-regions         # Build all 12 regions"
+	@echo ""
 	@go build -o pulumicost-plugin-aws-public ./cmd/pulumicost-plugin-aws-public
+
+.PHONY: build-default-region
+build-default-region: ## Build us-east-1 with real AWS pricing (RECOMMENDED)
+	@echo "Building us-east-1 with real pricing..."
+	@$(MAKE) build-region REGION=us-east-1
 
 .PHONY: build-region
 build-region: ## Build region-specific binary (usage: make build-region REGION=us-east-1)

@@ -28,13 +28,47 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 ### Key Commands
 
 - `make build` - Build with fallback pricing
-- `make build-region REGION=<region>` - Build for a specific region
-- `make build-all-regions` - Build for all regions
+- `make build-region REGION=<region>` - Build for a specific region (recommended: us-east-1 for testing)
+- `make build-all-regions` - Build for all regions (only before release verification)
 - `make test` - Run all tests
 - `go test ./internal/plugin -v` - Run tests for specific package
 - `make lint` - Run `golangci-lint`
-- `make generate-pricing` - Fetch pricing from AWS API
+- `make generate-pricing` - Fetch pricing from AWS API (default: all 9 regions)
 - `make clean` - Remove build artifacts
+
+### Development Workflow: Pricing Data Management
+
+**For Daily Development/Testing:**
+```bash
+# Generate only us-east-1 pricing data (fast, space-efficient)
+rm -f ./data/aws_pricing_*.json  # Clean old data if switching
+go run ./tools/generate-pricing --regions us-east-1 --out-dir ./data
+
+# Build single region binary
+make build-region REGION=us-east-1
+
+# Run tests (all tests use us-east-1 for ELB, EC2, DynamoDB, etc.)
+make test
+```
+
+**Before Release/Regional Verification:**
+```bash
+# Clean old data FIRST
+rm -f ./data/aws_pricing_*.json
+
+# Generate all regions
+go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ca-central-1,sa-east-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 --out-dir ./data
+
+# Build all regional binaries
+make build-all-regions
+```
+
+**Why Single-Region Testing is Sufficient for Features Like ELB:**
+- Pricing parser logic is region-agnostic; us-east-1 tests all parsing code paths
+- Estimation logic (ALB/NLB cost calculations) is independent of region
+- Build-tag verification works with one region
+- Functional correctness validated through unit/integration tests
+- Regional verification needed only for release artifact verification
 
 ### Running Locally
 
@@ -94,8 +128,9 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 - Embedded JSON pricing data (using `//go:embed`) (014-lambda-cost-estimation)
 - Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk (016-dynamodb-cost)
 - N/A (Embedded pricing data) (016-dynamodb-cost)
-- Go 1.25+ + gRPC, zerolog, pluginsdk (017-fix-recommendation-panic)
-- N/A (embedded pricing data) (017-fix-recommendation-panic)
+- Go 1.25+ + gRPC, pulumicost.v1 protocol, rs/zerolog, pluginsdk (017-elb-cost-estimation)
+- Embedded JSON pricing data using `//go:embed`, parsed into indexed maps (017-elb-cost-estimation)
+- Embedded JSON pricing data (Go 1.16+ `embed`), parsed into indexed maps (017-elb-cost-estimation)
 
 ## Recent Changes
 - 016-dynamodb-cost: Added Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk
