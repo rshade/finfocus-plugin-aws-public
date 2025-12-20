@@ -88,7 +88,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			SupportedMetrics: supportedMetrics,
 		}, nil
 
-	case "ebs", "rds", "eks", "s3", "lambda":
+	case "ebs", "rds", "eks", "s3", "lambda", "dynamodb":
 		// Supported but no carbon estimation yet
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
@@ -103,23 +103,6 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			Supported:        true,
 			Reason:           "",
 			SupportedMetrics: nil, // No additional metrics for these types yet
-		}, nil
-
-	case "dynamodb":
-		// Stub support - returns $0 estimates, no carbon
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
-			Str(pluginsdk.FieldResourceType, resource.ResourceType).
-			Str("aws_region", resource.Region).
-			Bool("supported", true).
-			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
-			Msg("resource support check")
-
-		return &pbc.SupportsResponse{
-			Supported:        true,
-			Reason:           fmt.Sprintf("Limited support - %s cost estimation not fully implemented, returns $0 estimate", resource.ResourceType),
-			SupportedMetrics: nil, // No additional metrics for stub types
 		}, nil
 
 	default:

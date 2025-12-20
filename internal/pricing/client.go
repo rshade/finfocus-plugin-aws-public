@@ -55,6 +55,26 @@ type PricingClient interface {
 	// arch: "x86_64" or "arm64" (defaults to x86_64 if unrecognized)
 	// Returns (price, true) if found, (0, false) if not found
 	LambdaPricePerGBSecond(arch string) (float64, bool)
+
+	// DynamoDBOnDemandReadPrice returns the cost per read request unit.
+	// Returns (price, true) if found, (0, false) if not found
+	DynamoDBOnDemandReadPrice() (float64, bool)
+
+	// DynamoDBOnDemandWritePrice returns the cost per write request unit.
+	// Returns (price, true) if found, (0, false) if not found
+	DynamoDBOnDemandWritePrice() (float64, bool)
+
+	// DynamoDBStoragePricePerGBMonth returns the monthly rate per GB for table storage.
+	// Returns (price, true) if found, (0, false) if not found
+	DynamoDBStoragePricePerGBMonth() (float64, bool)
+
+	// DynamoDBProvisionedRCUPrice returns the cost per RCU-hour.
+	// Returns (price, true) if found, (0, false) if not found
+	DynamoDBProvisionedRCUPrice() (float64, bool)
+
+	// DynamoDBProvisionedWCUPrice returns the cost per WCU-hour.
+	// Returns (price, true) if found, (0, false) if not found
+	DynamoDBProvisionedWCUPrice() (float64, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -81,6 +101,9 @@ type Client struct {
 
 	// Lambda pricing (single rate per region)
 	lambdaPricing *lambdaPrice
+
+	// DynamoDB pricing (single rate per region)
+	dynamoDBPricing *dynamoDBPrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -361,6 +384,46 @@ func (c *Client) init() error {
 					} else if group == "AWS-Lambda-Duration-ARM" && (unit == "Second" || unit == "Lambda-GB-Second") {
 						// arm64/Graviton2 duration pricing (per GB-second)
 						c.lambdaPricing.ARMGBSecondPrice = rate
+					}
+				}
+			}
+
+			// --- DynamoDB Tables ---
+			// DynamoDB uses several product families:
+			// 1. "Amazon DynamoDB PayPerRequest Throughput" (On-Demand): group="DDB-ReadUnits" / "DDB-WriteUnits"
+			// 2. "Provisioned IOPS" (Provisioned): usagetype containing "ReadCapacityUnit" / "WriteCapacityUnit"
+			// 3. "Database Storage": usagetype containing "TimedStorage-ByteHrs"
+			if attrs["servicecode"] == "AmazonDynamoDB" {
+				// Initialize dynamoDBPricing struct if nil
+				if c.dynamoDBPricing == nil {
+					c.dynamoDBPricing = &dynamoDBPrice{
+						Currency: "USD",
+					}
+				}
+
+				rate, unit, found := getOnDemandPrice(sku)
+				if found {
+					if prod.ProductFamily == "Amazon DynamoDB PayPerRequest Throughput" {
+						group := attrs["group"]
+						switch group {
+						case "DDB-ReadUnits":
+							c.dynamoDBPricing.OnDemandReadPrice = rate
+						case "DDB-WriteUnits":
+							c.dynamoDBPricing.OnDemandWritePrice = rate
+						}
+					} else if prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput") {
+						usageType := attrs["usagetype"]
+						if strings.Contains(usageType, "ReadCapacityUnit") && unit == "Hrs" {
+							c.dynamoDBPricing.ProvisionedRCUPrice = rate
+						} else if strings.Contains(usageType, "WriteCapacityUnit") && unit == "Hrs" {
+							c.dynamoDBPricing.ProvisionedWCUPrice = rate
+						}
+					} else if prod.ProductFamily == "Database Storage" {
+						usageType := attrs["usagetype"]
+						// TimedStorage-ByteHrs is the standard storage usage type
+						if strings.Contains(usageType, "TimedStorage-ByteHrs") && unit == "GB-Mo" {
+							c.dynamoDBPricing.StoragePrice = rate
+						}
 					}
 				}
 			}
@@ -658,5 +721,65 @@ func (c *Client) LambdaPricePerGBSecond(arch string) (float64, bool) {
 		}
 		return 0, false
 	}
+}
+
+// DynamoDBOnDemandReadPrice returns the cost per read request unit.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) DynamoDBOnDemandReadPrice() (float64, bool) {
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.dynamoDBPricing == nil || c.dynamoDBPricing.OnDemandReadPrice == 0 {
+		return 0, false
+	}
+	return c.dynamoDBPricing.OnDemandReadPrice, true
+}
+
+// DynamoDBOnDemandWritePrice returns the cost per write request unit.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) DynamoDBOnDemandWritePrice() (float64, bool) {
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.dynamoDBPricing == nil || c.dynamoDBPricing.OnDemandWritePrice == 0 {
+		return 0, false
+	}
+	return c.dynamoDBPricing.OnDemandWritePrice, true
+}
+
+// DynamoDBStoragePricePerGBMonth returns the monthly rate per GB for table storage.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) DynamoDBStoragePricePerGBMonth() (float64, bool) {
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.dynamoDBPricing == nil || c.dynamoDBPricing.StoragePrice == 0 {
+		return 0, false
+	}
+	return c.dynamoDBPricing.StoragePrice, true
+}
+
+// DynamoDBProvisionedRCUPrice returns the cost per RCU-hour.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) DynamoDBProvisionedRCUPrice() (float64, bool) {
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.dynamoDBPricing == nil || c.dynamoDBPricing.ProvisionedRCUPrice == 0 {
+		return 0, false
+	}
+	return c.dynamoDBPricing.ProvisionedRCUPrice, true
+}
+
+// DynamoDBProvisionedWCUPrice returns the cost per WCU-hour.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) DynamoDBProvisionedWCUPrice() (float64, bool) {
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.dynamoDBPricing == nil || c.dynamoDBPricing.ProvisionedWCUPrice == 0 {
+		return 0, false
+	}
+	return c.dynamoDBPricing.ProvisionedWCUPrice, true
 }
 

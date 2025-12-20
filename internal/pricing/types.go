@@ -113,3 +113,30 @@ type lambdaPrice struct {
 	// Currency code (e.g., "USD")
 	Currency string
 }
+
+// dynamoDBPrice holds the regional pricing configuration for Amazon DynamoDB.
+// Derived from AWS Pricing API for service AmazonDynamoDB.
+type dynamoDBPrice struct {
+	// OnDemandReadPrice is the cost per read request unit.
+	// Source: Product Family "Amazon DynamoDB PayPerRequest Throughput", Group "DDB-ReadUnits"
+	OnDemandReadPrice float64
+
+	// OnDemandWritePrice is the cost per write request unit.
+	// Source: Product Family "Amazon DynamoDB PayPerRequest Throughput", Group "DDB-WriteUnits"
+	OnDemandWritePrice float64
+
+	// ProvisionedRCUPrice is the cost per RCU-hour.
+	// Source: Product Family "Provisioned IOPS", UsageType containing "ReadCapacityUnit"
+	ProvisionedRCUPrice float64
+
+	// ProvisionedWCUPrice is the cost per WCU-hour.
+	// Source: Product Family "Provisioned IOPS", UsageType containing "WriteCapacityUnit"
+	ProvisionedWCUPrice float64
+
+	// StoragePrice is the cost per GB-month of table storage.
+	// Source: Product Family "Database Storage", UsageType containing "TimedStorage-ByteHrs"
+	StoragePrice float64
+
+	// Currency code (e.g., "USD")
+	Currency string
+}

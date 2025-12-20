@@ -86,7 +86,7 @@ func TestSupports(t *testing.T) {
 			wantReasonSubstr: "",
 		},
 		{
-			name: "DynamoDB with limited support",
+			name: "DynamoDB fully supported",
 			req: &pbc.SupportsRequest{
 				Resource: &pbc.ResourceDescriptor{
 					Provider:     "aws",
@@ -95,7 +95,7 @@ func TestSupports(t *testing.T) {
 				},
 			},
 			wantSupported:    true,
-			wantReasonSubstr: "Limited support",
+			wantReasonSubstr: "",
 		},
 
 		// Wrong region

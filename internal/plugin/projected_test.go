@@ -2517,3 +2517,107 @@ func TestGetProjectedCost_EC2_GPUInstance(t *testing.T) {
 	t.Logf("p3.2xlarge: $%.2f/month, carbon metrics present=%v", resp.CostPerMonth, hasCarbon)
 }
 
+// ============================================================================
+// DynamoDB Tests
+// ============================================================================
+
+// TestGetProjectedCost_DynamoDB tests DynamoDB cost estimation (P1, P2)
+func TestGetProjectedCost_DynamoDB(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.dynamoDBPrices["on-demand-read"] = 0.25 / 1_000_000
+	mock.dynamoDBPrices["on-demand-write"] = 1.25 / 1_000_000
+	mock.dynamoDBPrices["storage"] = 0.25
+	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
+	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name         string
+		sku          string
+		tags         map[string]string
+		expectedCost float64
+	}{
+		{
+			name: "On-Demand basic",
+			sku:  "on-demand",
+			tags: map[string]string{
+				"read_requests_per_month":  "10000000", // 10M
+				"write_requests_per_month": "1000000",  // 1M
+				"storage_gb":               "50",
+			},
+			expectedCost: 16.25, // (10 * 0.25) + (1 * 1.25) + (50 * 0.25) = 2.5 + 1.25 + 12.5 = 16.25
+		},
+		{
+			name: "On-Demand default (using on-demand SKU)",
+			sku:  "on-demand",
+			tags: map[string]string{
+				"read_requests_per_month":  "10000000",
+				"write_requests_per_month": "1000000",
+				"storage_gb":               "50",
+			},
+			expectedCost: 16.25,
+		},
+		{
+			name: "Provisioned basic",
+			sku:  "provisioned",
+			tags: map[string]string{
+				"read_capacity_units":  "100",
+				"write_capacity_units": "50",
+				"storage_gb":           "50",
+			},
+			expectedCost: 45.715, // (100 * 730 * 0.00013) + (50 * 730 * 0.00065) + (50 * 0.25) = 9.49 + 23.725 + 12.5 = 45.715
+		},
+		{
+			name: "On-Demand storage only",
+			sku:  "on-demand",
+			tags: map[string]string{
+				"storage_gb": "100",
+			},
+			expectedCost: 25.0,
+		},
+		{
+			name:         "Missing tags (fallback to 0)",
+			sku:          "on-demand",
+			tags:         map[string]string{},
+			expectedCost: 0.0,
+		},
+		{
+			name: "Invalid numeric tags",
+			sku:  "on-demand",
+			tags: map[string]string{
+				"read_requests_per_month": "invalid",
+				"storage_gb":              "100GB",
+			},
+			expectedCost: 0.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "dynamodb",
+					Sku:          tt.sku,
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			// Use tolerance for floating-point comparison
+			tolerance := 0.0001
+			if diff := resp.CostPerMonth - tt.expectedCost; diff < -tolerance || diff > tolerance {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.expectedCost)
+			}
+
+			if resp.BillingDetail == "" {
+				t.Error("BillingDetail should not be empty")
+			}
+		})
+	}
+}
