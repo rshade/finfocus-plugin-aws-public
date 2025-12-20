@@ -2,7 +2,10 @@ package carbon
 
 // GridEmissionFactors maps AWS region codes to grid carbon intensity.
 // Values are in metric tons CO2eq per kWh.
-// Source: Cloud Carbon Footprint methodology.
+//
+// Source: Cloud Carbon Footprint methodology
+// Data vintage: 2024 (update annually from CCF repository)
+// Reference: https://www.cloudcarbonfootprint.org/docs/methodology
 var GridEmissionFactors = map[string]float64{
 	"us-east-1":      0.000379,    // Virginia (SERC)
 	"us-east-2":      0.000411,    // Ohio (RFC)

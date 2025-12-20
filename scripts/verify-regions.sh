@@ -188,6 +188,17 @@ for region in "${region_array[@]}"; do
     fi
 done
 
+# Check carbon data file
+CARBON_DATA="$REPO_ROOT/internal/carbon/data/ccf_instance_specs.csv"
+if [[ ! -f "$CARBON_DATA" ]]; then
+    echo "ERROR: Carbon data file missing: $CARBON_DATA" >&2
+    echo "Run 'make generate-carbon-data' to fetch it." >&2
+    exit 1
+fi
+if ! $QUIET; then
+    echo "✓ Carbon data file exists"
+fi
+
 if ! $QUIET; then
     echo "All region configurations verified successfully!"
 fi

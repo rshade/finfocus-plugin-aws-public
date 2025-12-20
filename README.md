@@ -26,6 +26,7 @@ public pricing data at build time and serves cost estimates via gRPC.
 
 - **gRPC Protocol**: Implements `CostSourceService` from `pulumicost.v1` proto
 - **Region-Specific Binaries**: One binary per AWS region with embedded pricing
+- **Carbon Footprint Estimation**: EC2 instances include gCO2e metrics using CCF methodology
 - **Thread-Safe**: Concurrent RPC calls are handled safely
 - **Graceful Errors**: Proto-defined error codes with detailed error information
 - **No AWS Credentials Required**: Uses embedded public pricing data
@@ -83,6 +84,40 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 - GB-seconds: `(memory_mb / 1024) × (avg_duration_ms / 1000) × requests`
 - Tag requirements: `requests_per_month`, `avg_duration_ms`
 - Defaults: 128MB memory, 0 requests, 100ms duration if tags missing
+
+### Carbon Estimation (EC2 Only)
+
+EC2 instances include carbon footprint estimation using the
+[Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/) methodology.
+
+**Formula:**
+
+```text
+avgWatts = minWatts + (utilization × (maxWatts - minWatts))
+energyKWh = (avgWatts × vCPUs × hours) / 1000
+energyWithPUE = energyKWh × 1.135  (AWS PUE)
+carbonGrams = energyWithPUE × gridIntensity × 1,000,000
+```
+
+**Features:**
+
+- Returns `METRIC_KIND_CARBON_FOOTPRINT` in `ImpactMetrics` (unit: gCO2e)
+- Supports 500+ EC2 instance types from CCF coefficients
+- Region-specific grid emission factors for 12 AWS regions
+- Utilization override: per-resource > request-level > 50% default
+
+**Utilization Override:**
+
+```json
+{
+  "utilization_percentage": 0.8,
+  "resource": {
+    "utilization_percentage": 0.9
+  }
+}
+```
+
+Priority: `resource.utilization_percentage` > `request.utilization_percentage` > 0.5
 
 ## Installation
 
@@ -257,7 +292,14 @@ message ResourceDescriptor {
   "cost_per_month": 7.592,
   "unit_price": 0.0104,
   "currency": "USD",
-  "billing_detail": "On-demand Linux, Shared tenancy, 730 hrs/month"
+  "billing_detail": "On-demand Linux, Shared tenancy, 730 hrs/month",
+  "impact_metrics": [
+    {
+      "kind": "METRIC_KIND_CARBON_FOOTPRINT",
+      "value": 3507.6,
+      "unit": "gCO2e"
+    }
+  ]
 }
 ```
 
@@ -333,6 +375,7 @@ rpc Supports(SupportsRequest) returns (SupportsResponse);
 - `supported: true` - For EC2/EBS in plugin's region
 - `supported: true` with reason - For stub services (S3, Lambda, etc.)
 - `supported: false` with reason - For region mismatch or unknown types
+- `supported_metrics` - For EC2: includes `METRIC_KIND_CARBON_FOOTPRINT`
 
 ### GetProjectedCost()
 
@@ -348,6 +391,7 @@ rpc GetProjectedCost(GetProjectedCostRequest) returns (GetProjectedCostResponse)
 - `unit_price` - Hourly rate (EC2) or per-GB-month rate (EBS)
 - `currency` - Always "USD"
 - `billing_detail` - Human-readable explanation of calculation
+- `impact_metrics` - Array of environmental metrics (EC2 only: carbon footprint in gCO2e)
 
 ## Error Handling
 

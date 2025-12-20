@@ -2185,9 +2185,10 @@ func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
 		t.Fatal("ImpactMetrics should contain METRIC_KIND_CARBON_FOOTPRINT")
 	}
 
-	// Verify carbon value is reasonable (500-5000 gCO2e for t3.micro monthly)
-	if carbonMetric.Value < 500 || carbonMetric.Value > 5000 {
-		t.Errorf("Carbon value = %v, want between 500 and 5000 gCO2e", carbonMetric.Value)
+	// Verify carbon value is reasonable for t3.micro monthly in us-east-1
+	// Expected ~3500 gCO2e based on CCF formula; allow 2000-5000 range for variance
+	if carbonMetric.Value < 2000 || carbonMetric.Value > 5000 {
+		t.Errorf("Carbon value = %v, want between 2000 and 5000 gCO2e", carbonMetric.Value)
 	}
 
 	// Verify unit is correct
@@ -2287,8 +2288,9 @@ func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
 
 	// EU North (Sweden) should have much lower carbon than US East (Virginia)
 	// Grid factor ratio is roughly 43x (0.000379 / 0.0000088)
-	if carbonUSEast <= carbonEUNorth*10 {
-		t.Errorf("us-east-1 carbon (%v) should be at least 10x higher than eu-north-1 carbon (%v)",
+	// We use 30x as threshold to allow some margin while validating the ratio is significant
+	if carbonUSEast <= carbonEUNorth*30 {
+		t.Errorf("us-east-1 carbon (%v) should be at least 30x higher than eu-north-1 carbon (%v)",
 			carbonUSEast, carbonEUNorth)
 	}
 

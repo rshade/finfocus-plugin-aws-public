@@ -29,6 +29,9 @@ jobs:
       - name: Generate pricing data
         run: go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1,ca-central-1,sa-east-1 --out-dir ./internal/pricing/data
 
+      - name: Generate carbon data
+        run: make generate-carbon-data
+
       - name: Run tests
         run: make test
 
@@ -68,6 +71,9 @@ jobs:
 
       - name: Generate pricing data for all regions
         run: make generate-pricing
+
+      - name: Generate carbon data
+        run: make generate-carbon-data
 
       - name: Verify regions
         run: make verify-regions

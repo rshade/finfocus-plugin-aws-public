@@ -47,6 +47,7 @@ jobs:
           echo "Generating embed files and GoReleaser config from regions.yaml..."
           make generate-embeds
           make generate-goreleaser
+          make generate-carbon-data
 
       # 5. Build all regions sequentially (one at a time to save disk)
       - name: Build all regions

@@ -22,13 +22,18 @@ ensure: ## Install development dependencies (goreleaser, golangci-lint)
 	@echo "Dependencies installed successfully"
 
 .PHONY: develop
-develop: ensure generate-pricing ## Setup development environment (install deps + generate pricing data)
+develop: ensure generate-pricing generate-carbon-data ## Setup development environment (install deps + generate data)
 	@echo "Development environment ready"
 
 .PHONY: generate-pricing
 generate-pricing: ## Generate pricing data for all regions
 	@echo "Generating pricing data for all regions..."
 	@go run ./tools/generate-pricing --regions $(REGIONS_CSV) --out-dir ./internal/pricing/data
+
+.PHONY: generate-carbon-data
+generate-carbon-data: ## Fetch CCF instance specs for carbon estimation
+	@echo "Fetching Cloud Carbon Footprint instance specs..."
+	@go run ./tools/generate-carbon-data --out-dir ./internal/carbon/data
 
 .PHONY: generate-embeds
 generate-embeds: ## Generate embed files from regions.yaml

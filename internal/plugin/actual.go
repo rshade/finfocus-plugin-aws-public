@@ -34,8 +34,9 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
 	serviceType := detectService(resource.ResourceType)
 
-	// Route to appropriate estimator based on normalized resource type
-	// For GetActualCost, we don't have a request, so pass nil (uses default utilization)
+	// Route to appropriate estimator based on normalized resource type.
+	// For GetActualCost, we construct a minimal request with just the resource.
+	// This means UtilizationPercentage is 0, which falls through to default (50%).
 	switch serviceType {
 	case "ec2":
 		return p.estimateEC2(traceID, resource, &pbc.GetProjectedCostRequest{Resource: resource})
