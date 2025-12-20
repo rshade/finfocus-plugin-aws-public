@@ -25,6 +25,8 @@ func DefaultEC2Attributes() EC2Attributes {
 
 // ExtractEC2AttributesFromTags extracts and normalizes EC2 attributes from a
 // ResourceDescriptor.Tags map. Returns default values for missing or invalid fields.
+// This function serves as the definitive internal source of truth for mapping
+// user-provided tags to AWS pricing identifiers (FR-009).
 //
 // Platform normalization:
 //   - "windows" (case-insensitive) → "Windows"

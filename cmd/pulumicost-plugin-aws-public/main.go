@@ -67,6 +67,10 @@ func run() error {
 	if port == 0 {
 		// Backward compatibility: check generic PORT env var
 		if portStr := os.Getenv("PORT"); portStr != "" {
+			logger.Warn().
+				Str("env_var", "PORT").
+				Str("replacement", "PULUMICOST_PLUGIN_PORT").
+				Msg("PORT environment variable is deprecated and will be removed in v0.1.0. Please use PULUMICOST_PLUGIN_PORT instead.")
 			if parsed, err := strconv.Atoi(portStr); err == nil {
 				port = parsed
 			}

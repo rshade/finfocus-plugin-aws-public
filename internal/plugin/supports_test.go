@@ -62,6 +62,18 @@ func TestSupports(t *testing.T) {
 			wantReasonSubstr: "",
 		},
 		{
+			name: "S3 global fallback (empty region)",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "s3",
+					Region:       "", // Empty region should fallback to plugin region
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
 			name: "Lambda fully supported",
 			req: &pbc.SupportsRequest{
 				Resource: &pbc.ResourceDescriptor{

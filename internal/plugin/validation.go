@@ -10,6 +10,23 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// validateProvider checks that the provider is "aws".
+// Returns an error if the provider is empty or set to a non-AWS value.
+//
+// Design Note: Validation functions (GetProjectedCost, GetActualCost) are stricter than
+// recommendation generation (GetRecommendations), which tolerates empty provider as implicit "aws".
+// This is intentional: users must explicitly specify "aws" for cost estimation, but recommendations
+// can be lenient since they're informational. This prevents accidental silent filtering of cost estimates.
+func (p *AWSPublicPlugin) validateProvider(traceID string, provider string) error {
+	if provider == "" {
+		return p.newErrorWithID(traceID, codes.InvalidArgument, "provider is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+	if provider != "aws" {
+		return p.newErrorWithID(traceID, codes.InvalidArgument, "only 'aws' provider is supported", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+	return nil
+}
+
 // ValidateProjectedCostRequest validates the request using SDK helpers and custom region checks.
 // Returns the extracted resource descriptor if valid.
 func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.ResourceDescriptor, error) {
@@ -21,16 +38,40 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req 
 		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
-	// Custom region check
-	if req.Resource.Region != p.region {
-		return nil, p.RegionMismatchError(traceID, req.Resource.Region)
+	resource := req.Resource
+
+	// Comprehensive field validation (T011)
+	if err := p.validateProvider(traceID, resource.Provider); err != nil {
+		return nil, err
+	}
+	if resource.ResourceType == "" {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "resource_type is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
-	return req.Resource, nil
+	// Custom region check
+	effectiveRegion := resource.Region
+	service := detectService(resource.ResourceType)
+
+	// For global services with empty region, use the plugin's region (T012)
+	if effectiveRegion == "" && (service == "s3" || service == "iam") {
+		effectiveRegion = p.region
+		// Note: We do not mutate the incoming request. The effective region is used
+		// only for validation, not returned to the caller.
+	}
+
+	if effectiveRegion != p.region {
+		return nil, p.RegionMismatchError(traceID, effectiveRegion)
+	}
+
+	return resource, nil
 }
 
 // ValidateActualCostRequest validates the request using SDK helpers and custom region checks.
 // Returns the extracted resource descriptor if valid.
+//
+// Side Effect: For global services (S3, IAM) with empty region, this function sets the
+// returned resource's Region field to the plugin's region. This allows downstream cost
+// estimation to work correctly without requiring explicit region specification.
 //
 // Fallback chain (FR-018, FR-019):
 //  1. req.Arn - Parse AWS ARN and extract region/service (SKU must come from tags)
@@ -58,16 +99,20 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 
 		// Custom region check (ARN region vs plugin binary region)
 		// Note: Global services (like S3) may have empty region in ARN
-		if resource.Region != "" && resource.Region != p.region {
-			return nil, p.RegionMismatchError(traceID, resource.Region)
-		}
-		// For global services with empty region, use the plugin's region
-		if resource.Region == "" {
+		effectiveRegion := resource.Region
+		service := detectService(resource.ResourceType)
+		if effectiveRegion == "" && (service == "s3" || service == "iam") {
+			effectiveRegion = p.region
+			// Set resource region so caller knows the effective region
+			resource.Region = p.region
 			p.logger.Debug().
 				Str("resource_type", resource.ResourceType).
 				Str("assigned_region", p.region).
 				Msg("assigned plugin region to global service with empty ARN region")
-			resource.Region = p.region
+		}
+
+		if effectiveRegion != "" && effectiveRegion != p.region {
+			return nil, p.RegionMismatchError(traceID, effectiveRegion)
 		}
 
 		return resource, nil
@@ -84,9 +129,23 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
-	// Custom region check
-	if resource.Region != p.region {
-		return nil, p.RegionMismatchError(traceID, resource.Region)
+	// Custom region check (consistent with ValidateProjectedCostRequest)
+	effectiveRegion := resource.Region
+	service := detectService(resource.ResourceType)
+
+	// For global services with empty region, use the plugin's region
+	if effectiveRegion == "" && (service == "s3" || service == "iam") {
+		effectiveRegion = p.region
+		// Set resource region so caller knows the effective region
+		resource.Region = p.region
+		p.logger.Debug().
+			Str("resource_type", resource.ResourceType).
+			Str("assigned_region", p.region).
+			Msg("assigned plugin region to global service with empty region")
+	}
+
+	if effectiveRegion != p.region {
+		return nil, p.RegionMismatchError(traceID, effectiveRegion)
 	}
 
 	return resource, nil
@@ -109,6 +168,12 @@ func validateTimestamps(req *pbc.GetActualCostRequest) error {
 // parseResourceFromARN extracts a ResourceDescriptor from the ARN + tags combination.
 // ARN provides: provider, region, resource_type (via service mapping)
 // Tags must provide: sku (instance type, volume type, etc.)
+//
+// Security Note: ARN validation is delegated to ParseARN(), which must:
+//   - Validate ARN format strictly (prevent malformed ARN injection)
+//   - Enforce reasonable length limits (prevent DoS via huge ARNs)
+//   - Reject path traversal attempts or special sequences
+// Tag values are extracted from user input and should be treated as untrusted.
 func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*pbc.ResourceDescriptor, error) {
 	arn, err := ParseARN(req.Arn)
 	if err != nil {

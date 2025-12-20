@@ -94,6 +94,8 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 - Embedded JSON pricing data (using `//go:embed`) (014-lambda-cost-estimation)
 - Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk (016-dynamodb-cost)
 - N/A (Embedded pricing data) (016-dynamodb-cost)
+- Go 1.25+ + gRPC, zerolog, pluginsdk (017-fix-recommendation-panic)
+- N/A (embedded pricing data) (017-fix-recommendation-panic)
 
 ## Recent Changes
 - 016-dynamodb-cost: Added Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk

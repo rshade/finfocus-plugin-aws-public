@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog"
 )
 
 // CSV column indices from CCF aws-instances.csv
@@ -32,13 +34,38 @@ type InstanceSpec struct {
 var (
 	instanceSpecs     map[string]InstanceSpec
 	instanceSpecsOnce sync.Once
+	logger            zerolog.Logger = zerolog.Nop()
+	loggerOnce        sync.Once
 )
+
+// SetLogger sets the logger for the carbon package.
+//
+// Thread-safety: This function is safe to call from multiple goroutines due to sync.Once.
+// However, only the first call takes effect - subsequent calls are no-ops. To ensure the
+// custom logger is used for parsing diagnostics, call SetLogger during process initialization
+// before any GetInstanceSpec or InstanceSpecCount calls. If called after parsing has started,
+// the default no-op logger will be used instead.
+func SetLogger(l zerolog.Logger) {
+	loggerOnce.Do(func() {
+		logger = l
+	})
+}
 
 func init() {
 	if instanceSpecsCSV == "" {
 		panic("CCF instance specs not embedded. Run: make generate-carbon-data")
 	}
 }
+
+// Initialization Order Note:
+// The carbon package is designed to be initialized lazily on first use via sync.Once.
+// The parseInstanceSpecs() function may be called from multiple goroutines (concurrent gRPC calls),
+// but sync.Once ensures it only runs once. If SetLogger() is called before any concurrent access
+// to GetInstanceSpec() or InstanceSpecCount(), the logger will be properly initialized and used
+// for diagnostic messages. If GetInstanceSpec() is called before SetLogger(), the logger defaults
+// to zerolog.Nop() (no-op logger). This is safe but means early initialization diagnostics are silenced.
+// Recommended: Call carbon.SetLogger() during plugin initialization (in main/run function) before
+// any gRPC server starts accepting requests.
 
 // parseInstanceSpecs initializes the package-level instanceSpecs map by parsing
 // the embedded CSV of EC2 instance power specifications.
@@ -59,6 +86,7 @@ func parseInstanceSpecs() {
 	// Skip header row
 	_, err := reader.Read()
 	if err != nil {
+		logger.Error().Err(err).Msg("failed to read CCF instance specs CSV header")
 		return
 	}
 
@@ -69,6 +97,7 @@ func parseInstanceSpecs() {
 		}
 		if err != nil {
 			// Skip malformed rows
+			logger.Warn().Err(err).Msg("skipping malformed CCF instance specs CSV row")
 			continue
 		}
 

@@ -361,3 +361,62 @@ func TestValidateActualCostRequest_ARN(t *testing.T) {
 		})
 	}
 }
+
+// TestRegionFallbackGlobalServices tests that global services (S3, IAM) with empty regions
+// are properly handled using the plugin's region for validation (issue: missing region fallback test coverage).
+// This test verifies the defensive checks in ValidateActualCostRequest for ARN parsing.
+func TestRegionFallbackGlobalServices(t *testing.T) {
+	logger := zerolog.Nop()
+	p := NewAWSPublicPlugin("us-east-1", nil, logger)
+	ctx := context.Background()
+	now := time.Now()
+
+	tests := []struct {
+		name      string
+		req       *pbc.GetActualCostRequest
+		wantError bool
+		checkRegion bool
+	}{
+		{
+			name: "ActualCost: S3 ARN (empty region) uses plugin region for validation",
+			req: &pbc.GetActualCostRequest{
+				Arn:   "arn:aws:s3:::my-bucket",
+				Start: timestamppb.New(now.Add(-1 * time.Hour)),
+				End:   timestamppb.New(now),
+				Tags: map[string]string{
+					"sku": "STANDARD",
+				},
+			},
+			wantError:   false,
+			checkRegion: true,
+		},
+		{
+			name: "ActualCost: IAM ARN (empty region) uses plugin region for validation",
+			req: &pbc.GetActualCostRequest{
+				Arn:   "arn:aws:iam::123456789012:role/MyRole",
+				Start: timestamppb.New(now.Add(-1 * time.Hour)),
+				End:   timestamppb.New(now),
+				Tags: map[string]string{
+					"sku": "role",
+				},
+			},
+			wantError:   false,
+			checkRegion: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := p.ValidateActualCostRequest(ctx, tt.req)
+			if tt.wantError {
+				require.Error(t, err, "expected validation error")
+			} else {
+				require.NoError(t, err, "validation should pass for global services")
+				assert.NotNil(t, res)
+				if tt.checkRegion {
+					assert.Equal(t, "us-east-1", res.Region, "global service should have plugin region assigned")
+				}
+			}
+		})
+	}
+}

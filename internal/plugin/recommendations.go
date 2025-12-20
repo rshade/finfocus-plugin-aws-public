@@ -48,12 +48,12 @@ type BatchStats struct {
 	TotalSavings     float64
 }
 
-// GetRecommendations returns cost optimization recommendations.
-// Implements FR-001 from spec.md.
-func (p *AWSPublicPlugin) GetRecommendations(
-	ctx context.Context,
-	req *pbc.GetRecommendationsRequest,
-) (*pbc.GetRecommendationsResponse, error) {
+// GetRecommendations generates cost optimization recommendations for the requested resources.
+// It supports batch processing of resources provided in the target_resources field.
+// For each matching resource, it populates correlation info (Id and Name) in the recommendation
+// object by extracting the "resource_id" and "name" tags from the input ResourceDescriptor.
+// This allows the caller to correlate recommendations back to their infrastructure definitions.
+func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRecommendationsRequest) (*pbc.GetRecommendationsResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
@@ -121,7 +121,18 @@ func (p *AWSPublicPlugin) GetRecommendations(
 					rec.Resource.Name = name
 				}
 			}
-			pctx.BatchStats.TotalSavings += rec.Impact.GetEstimatedSavings()
+			if rec.Impact != nil {
+				pctx.BatchStats.TotalSavings += rec.Impact.GetEstimatedSavings()
+			} else {
+				resourceSKU := ""
+				if rec.Resource != nil {
+					resourceSKU = rec.Resource.Sku
+				}
+				p.logger.Warn().
+					Str("recommendation_id", rec.Id).
+					Str("resource_sku", resourceSKU).
+					Msg("recommendation missing impact data, skipping savings aggregation")
+			}
 		}
 
 		recommendations = append(recommendations, recs...)

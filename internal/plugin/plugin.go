@@ -58,6 +58,9 @@ func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logg
 		logger.Info().Msg("Test mode enabled")
 	}
 
+	// Inject logger into carbon package for CSV parsing error logging (T004)
+	carbon.SetLogger(logger)
+
 	return &AWSPublicPlugin{
 		region:          region,
 		pricing:         pricingClient,

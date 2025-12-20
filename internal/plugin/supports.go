@@ -30,6 +30,12 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	resource := req.Resource
 
+	// Normalize resource type (handles Pulumi formats like aws:eks/cluster:Cluster)
+	// Note: detectService() is called multiple times across validation and support checks.
+	// For optimization opportunity: consider caching normalized service types per resource_type
+	// to avoid repeated string parsing if high-frequency batches of identical resource types occur.
+	normalizedType := detectService(resource.ResourceType)
+
 	// Check provider
 	if resource.Provider != "aws" {
 		p.logger.Info().
@@ -48,7 +54,12 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	}
 
 	// Check region match
-	if resource.Region != p.region {
+	effectiveRegion := resource.Region
+	if effectiveRegion == "" && (normalizedType == "s3" || normalizedType == "iam") {
+		effectiveRegion = p.region
+	}
+
+	if effectiveRegion != p.region {
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
 			Str(pluginsdk.FieldOperation, "Supports").
@@ -63,9 +74,6 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			Reason:    fmt.Sprintf("Region not supported by this binary (plugin region: %s, resource region: %s)", p.region, resource.Region),
 		}, nil
 	}
-
-	// Normalize resource type (handles Pulumi formats like aws:eks/cluster:Cluster)
-	normalizedType := detectService(resource.ResourceType)
 
 	// Check resource type
 	switch normalizedType {
