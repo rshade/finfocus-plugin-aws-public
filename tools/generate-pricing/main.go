@@ -22,7 +22,7 @@ import (
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS,AmazonS3,AWSLambda,AmazonEKS,AmazonDynamoDB)")
+	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS,AmazonS3,AWSLambda,AmazonEKS,AmazonDynamoDB,AWSELB)")
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()
@@ -149,6 +149,11 @@ func generateCombinedPricingData(region string, services []string, outDir string
 					pf == "Provisioned IOPS" || strings.Contains(pf, "Throughput") {
 					keep = true
 				}
+			case "AWSELB":
+				// Filter for ALB and NLB products
+				if pf == "Load Balancer-Application" || pf == "Load Balancer-Network" {
+					keep = true
+				}
 			default:
 				keep = true // Keep unknown services for safety
 			}
@@ -182,16 +187,16 @@ func generateCombinedPricingData(region string, services []string, outDir string
 						cleanProd, _ := json.Marshal(prod)
 
 						// Clean term JSON
-						var t struct {
+						var termData map[string]struct {
 							PriceDimensions map[string]struct {
 								Unit         string            `json:"unit"`
 								PricePerUnit map[string]string `json:"pricePerUnit"`
 							} `json:"priceDimensions"`
 						}
-						if err := json.Unmarshal(term, &t); err != nil {
+						if err := json.Unmarshal(term, &termData); err != nil {
 							continue
 						}
-						cleanTerm, _ := json.Marshal(t)
+						cleanTerm, _ := json.Marshal(termData)
 
 						combined.Products[sku] = cleanProd
 						combined.Terms["OnDemand"][sku] = cleanTerm

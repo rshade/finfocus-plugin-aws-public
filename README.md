@@ -121,14 +121,40 @@ Priority: `resource.utilization_percentage` > `request.utilization_percentage` >
 
 ## Installation
 
+### ⚠️ IMPORTANT: Build Tags Required
+
+**The plugin requires Go build tags to embed region-specific pricing data.**
+
+The v0.0.10 release was built without build tags, resulting in all costs returning $0.
+Always use one of the methods below to build with the correct `-tags` flag.
+
 ### From Source
+
+**For development/testing (fallback pricing):**
 
 ```bash
 # Clone the repository
 git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
 cd pulumicost-plugin-aws-public
 
-# Build for specific region
+# Build with fallback pricing (development only - NOT for production)
+make build
+```
+
+**For production (real AWS pricing - RECOMMENDED):**
+
+```bash
+# Clone the repository
+git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
+cd pulumicost-plugin-aws-public
+
+# Build for default region (us-east-1 with real pricing)
+make build-default-region
+
+# OR build for any region with real pricing
+make build-region REGION=us-east-1
+
+# OR use go build directly with region tags
 go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 \
   ./cmd/pulumicost-plugin-aws-public
 ```
@@ -585,6 +611,57 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 3. Make your changes
 4. Run `make lint && make test`
 5. Submit a pull request
+
+## Release Checklist (v0.0.11+)
+
+**Before releasing a new version, ensure pricing data is embedded in all binaries.**
+
+### Pre-Release (Before Creating Tag)
+
+- [ ] Verify pricing data files exist: `ls -lh internal/pricing/data/aws_pricing_*.json`
+- [ ] Run unit tests with region tag: `go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/...`
+- [ ] Run functional pricing test: `go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v`
+- [ ] Run full test suite: `make test`
+- [ ] Run linter: `make lint`
+
+### During Release
+
+- [ ] Use automated release workflow: GitHub Actions will build all regions
+- [ ] Do NOT manually build with `make build` (uses fallback pricing)
+- [ ] Do NOT build outside the CI/CD pipeline
+- [ ] Verify workflow completes successfully
+
+### Post-Release Verification
+
+- [ ] Download released binary for primary region (us-east-1)
+- [ ] Check binary size: `stat -c%s pulumicost-plugin-aws-public-us-east-1` → should be > 10MB
+- [ ] Verify binary signature/checksum matches release
+
+### Testing Real Pricing
+
+```bash
+# Download released binary
+wget https://github.com/rshade/pulumicost-plugin-aws-public/releases/download/v0.x.x/pulumicost-plugin-aws-public_v0.x.x_Linux_x86_64
+
+# Extract and test against real Pulumi plan
+./pulumicost-plugin-aws-public-us-east-1 &
+# Plugin starts and announces PORT
+
+# Use gRPC client to verify costs for real instance types:
+# - t3.micro should cost ~$7.59/month
+# - m5.large should cost ~$96/month
+# - NOT $0 for all instance types
+```
+
+**v0.0.10 Issue (DO NOT REPEAT):**
+
+The v0.0.10 release shipped with fallback pricing (all costs = $0) because the binary
+was built without region tags. This checklist prevents recurrence by:
+
+1. Running verification tests in CI before merge
+2. Running functional tests that query the binary for real costs
+3. Verifying binary sizes after building all regions
+4. Automating the release workflow (reduces manual errors)
 
 ## License
 

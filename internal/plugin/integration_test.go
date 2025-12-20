@@ -23,12 +23,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// portAnnouncementTimeout is the maximum time to wait for the binary to announce its PORT.
-// Increased from 5s to 15s to accommodate slower startup when parsing larger embedded
-// pricing data (particularly Lambda pricing which adds ~40% more pricing entries).
-// On resource-constrained CI environments, the JSON unmarshaling and index building
-// can take longer than on development machines.
-const portAnnouncementTimeout = 15 * time.Second
+// Note: portAnnouncementTimeout is defined in validation_integration_test.go
+// with env var override support (PULUMICOST_PORT_TIMEOUT). That version is shared
+// across all integration tests in this package.
 
 // TestIntegration_APSoutheast1_Binary performs end-to-end testing of the ap-southeast-1 binary.
 //
@@ -111,7 +108,7 @@ func TestIntegration_APSoutheast1_Binary(t *testing.T) {
 	// Connect to the gRPC server
 	t.Log("Connecting to gRPC server...")
 	addr := fmt.Sprintf("localhost:%d", port)
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -311,7 +308,7 @@ func TestIntegration_TraceIDPropagation(t *testing.T) {
 	// Connect to the gRPC server
 	t.Log("Connecting to gRPC server...")
 	addr := fmt.Sprintf("localhost:%d", port)
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
@@ -470,7 +467,7 @@ func TestIntegration_EKS_UseEast1_Binary(t *testing.T) {
 		t.Logf("Binary announced port: %s", port)
 
 		// Connect to gRPC server
-		conn, err := grpc.Dial("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			t.Fatalf("Failed to connect to gRPC server: %v", err)
 		}
@@ -668,7 +665,7 @@ func TestIntegration_Lambda_UseEast1_Binary(t *testing.T) {
 		t.Logf("Binary announced port: %s", port)
 
 		// Connect to gRPC server
-		conn, err := grpc.Dial("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient("localhost:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			t.Fatalf("Failed to connect to gRPC server: %v", err)
 		}

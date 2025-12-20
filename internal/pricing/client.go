@@ -75,6 +75,22 @@ type PricingClient interface {
 	// DynamoDBProvisionedWCUPrice returns the cost per WCU-hour.
 	// Returns (price, true) if found, (0, false) if not found
 	DynamoDBProvisionedWCUPrice() (float64, bool)
+
+	// ALBPricePerHour returns the fixed hourly rate for an Application Load Balancer.
+	// Returns (price, true) if found, (0, false) if not found.
+	ALBPricePerHour() (float64, bool)
+
+	// ALBPricePerLCU returns the cost per LCU-hour for an Application Load Balancer.
+	// Returns (price, true) if found, (0, false) if not found.
+	ALBPricePerLCU() (float64, bool)
+
+	// NLBPricePerHour returns the fixed hourly rate for a Network Load Balancer.
+	// Returns (price, true) if found, (0, false) if not found.
+	NLBPricePerHour() (float64, bool)
+
+	// NLBPricePerNLCU returns the cost per NLCU-hour for a Network Load Balancer.
+	// Returns (price, true) if found, (0, false) if not found.
+	NLBPricePerNLCU() (float64, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -104,6 +120,9 @@ type Client struct {
 
 	// DynamoDB pricing (single rate per region)
 	dynamoDBPricing *dynamoDBPrice
+
+	// ELB pricing (single rate per region)
+	elbPricing *elbPrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -427,6 +446,42 @@ func (c *Client) init() error {
 					}
 				}
 			}
+
+			// --- Elastic Load Balancing (ALB/NLB) ---
+			// AWSELB service uses:
+			// - pf="Load Balancer-Application" for ALB
+			// - pf="Load Balancer-Network" for NLB
+			// Rates:
+			// - usagetype="LoadBalancerUsage" (Fixed Hourly)
+			// - usagetype="LCUUsage" (Capacity Units)
+			if prod.ProductFamily == "Load Balancer-Application" || prod.ProductFamily == "Load Balancer-Network" {
+				usageType := attrs["usagetype"]
+
+				// Initialize elbPricing struct if nil
+				if c.elbPricing == nil {
+					c.elbPricing = &elbPrice{
+						Currency: "USD",
+					}
+				}
+
+				rate, unit, found := getOnDemandPrice(sku)
+				if found {
+					switch prod.ProductFamily {
+					case "Load Balancer-Application":
+						if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
+							c.elbPricing.ALBHourlyRate = rate
+						} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+							c.elbPricing.ALBLCURate = rate
+						}
+					case "Load Balancer-Network":
+						if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
+							c.elbPricing.NLBHourlyRate = rate
+						} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+							c.elbPricing.NLBNLCURate = rate
+						}
+					}
+				}
+			}
 		}
 
 		// Validate EKS pricing data was loaded successfully
@@ -488,6 +543,34 @@ func (c *Client) init() error {
 				c.logger.Warn().
 					Str("region", c.region).
 					Msg("DynamoDB provisioned WCU pricing not found in embedded data")
+			}
+		}
+
+		// Validate ELB pricing data was loaded successfully
+		if c.elbPricing == nil {
+			c.logger.Warn().
+				Str("region", c.region).
+				Msg("ELB pricing not found in embedded data")
+		} else {
+			if c.elbPricing.ALBHourlyRate == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("ALB hourly pricing not found in embedded data")
+			}
+			if c.elbPricing.ALBLCURate == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("ALB LCU pricing not found in embedded data")
+			}
+			if c.elbPricing.NLBHourlyRate == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("NLB hourly pricing not found in embedded data")
+			}
+			if c.elbPricing.NLBNLCURate == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Msg("NLB NLCU pricing not found in embedded data")
 			}
 		}
 	})
@@ -875,4 +958,101 @@ func (c *Client) DynamoDBProvisionedWCUPrice() (float64, bool) {
 	}
 	return c.dynamoDBPricing.ProvisionedWCUPrice, true
 }
+
+// ALBPricePerHour returns the fixed hourly rate for an Application Load Balancer.
+func (c *Client) ALBPricePerHour() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "ELB").
+				Str("lb_type", "ALB").
+				Str("metric", "FixedHourly").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.elbPricing == nil || c.elbPricing.ALBHourlyRate == 0 {
+		return 0, false
+	}
+	return c.elbPricing.ALBHourlyRate, true
+}
+
+// ALBPricePerLCU returns the cost per LCU-hour for an Application Load Balancer.
+func (c *Client) ALBPricePerLCU() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "ELB").
+				Str("lb_type", "ALB").
+				Str("metric", "LCU").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.elbPricing == nil || c.elbPricing.ALBLCURate == 0 {
+		return 0, false
+	}
+	return c.elbPricing.ALBLCURate, true
+}
+
+// NLBPricePerHour returns the fixed hourly rate for a Network Load Balancer.
+func (c *Client) NLBPricePerHour() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "ELB").
+				Str("lb_type", "NLB").
+				Str("metric", "FixedHourly").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.elbPricing == nil || c.elbPricing.NLBHourlyRate == 0 {
+		return 0, false
+	}
+	return c.elbPricing.NLBHourlyRate, true
+}
+
+// NLBPricePerNLCU returns the cost per NLCU-hour for a Network Load Balancer.
+func (c *Client) NLBPricePerNLCU() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "ELB").
+				Str("lb_type", "NLB").
+				Str("metric", "NLCU").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.elbPricing == nil || c.elbPricing.NLBNLCURate == 0 {
+		return 0, false
+	}
+	return c.elbPricing.NLBNLCURate, true
+}
+
 

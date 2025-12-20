@@ -43,6 +43,14 @@ jobs:
       - name: Run linter
         run: golangci-lint run --timeout=5m
 
+      - name: Verify pricing data is embedded
+        run: go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/... -v
+        if: always()
+
+      - name: Verify binary has real pricing (functional test)
+        run: go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v -timeout=30s
+        if: always()
+
   build:
     name: Build
     runs-on: ubuntu-latest

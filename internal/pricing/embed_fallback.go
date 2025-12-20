@@ -59,6 +59,38 @@ var rawPricingJSON = []byte(`{
         "servicecode": "AmazonEKS",
         "regionCode": "unknown"
       }
+    },
+    "SKU_ALB_HOURLY": {
+      "sku": "SKU_ALB_HOURLY",
+      "productFamily": "Load Balancer-Application",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LoadBalancerUsage"
+      }
+    },
+    "SKU_ALB_LCU": {
+      "sku": "SKU_ALB_LCU",
+      "productFamily": "Load Balancer-Application",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LCUUsage"
+      }
+    },
+    "SKU_NLB_HOURLY": {
+      "sku": "SKU_NLB_HOURLY",
+      "productFamily": "Load Balancer-Network",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LoadBalancerUsage"
+      }
+    },
+    "SKU_NLB_NLCU": {
+      "sku": "SKU_NLB_NLCU",
+      "productFamily": "Load Balancer-Network",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LCUUsage"
+      }
     }
   },
   "terms": {
@@ -134,6 +166,66 @@ var rawPricingJSON = []byte(`{
               "description": "EKS cluster hourly rate",
               "unit": "Hrs",
               "pricePerUnit": { "USD": "0.10" }
+            }
+          }
+        }
+      },
+      "SKU_ALB_HOURLY": {
+        "SKU_ALB_HOURLY.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_ALB_HOURLY",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_ALB_HOURLY.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_ALB_HOURLY.JRTCKXETXF.6YS6EN2CT7",
+              "description": "ALB hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.0225" }
+            }
+          }
+        }
+      },
+      "SKU_ALB_LCU": {
+        "SKU_ALB_LCU.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_ALB_LCU",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_ALB_LCU.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_ALB_LCU.JRTCKXETXF.6YS6EN2CT7",
+              "description": "ALB LCU rate",
+              "unit": "LCU-Hrs",
+              "pricePerUnit": { "USD": "0.008" }
+            }
+          }
+        }
+      },
+      "SKU_NLB_HOURLY": {
+        "SKU_NLB_HOURLY.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_NLB_HOURLY",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_NLB_HOURLY.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_NLB_HOURLY.JRTCKXETXF.6YS6EN2CT7",
+              "description": "NLB hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.0225" }
+            }
+          }
+        }
+      },
+      "SKU_NLB_NLCU": {
+        "SKU_NLB_NLCU.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_NLB_NLCU",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_NLB_NLCU.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_NLB_NLCU.JRTCKXETXF.6YS6EN2CT7",
+              "description": "NLB NLCU rate",
+              "unit": "LCU-Hrs",
+              "pricePerUnit": { "USD": "0.006" }
             }
           }
         }

@@ -100,7 +100,7 @@ func TestIntegration_CACentral1_Binary(t *testing.T) {
 	// Connect to the gRPC server
 	t.Log("Connecting to gRPC server...")
 	addr := fmt.Sprintf("localhost:%d", port)
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
