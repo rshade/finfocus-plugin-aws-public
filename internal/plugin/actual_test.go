@@ -57,6 +57,26 @@ func (m *mockPricingClientActual) LambdaPricePerGBSecond(arch string) (float64, 
 	return price, ok
 }
 
+func (m *mockPricingClientActual) DynamoDBOnDemandReadPrice() (float64, bool) {
+	return 0.25 / 1_000_000, true
+}
+
+func (m *mockPricingClientActual) DynamoDBOnDemandWritePrice() (float64, bool) {
+	return 1.25 / 1_000_000, true
+}
+
+func (m *mockPricingClientActual) DynamoDBStoragePricePerGBMonth() (float64, bool) {
+	return 0.25, true
+}
+
+func (m *mockPricingClientActual) DynamoDBProvisionedRCUPrice() (float64, bool) {
+	return 0.00013, true
+}
+
+func (m *mockPricingClientActual) DynamoDBProvisionedWCUPrice() (float64, bool) {
+	return 0.00065, true
+}
+
 func (m *mockPricingClientActual) EC2OnDemandPricePerHour(instanceType, _, _ string) (float64, bool) {
 	price, ok := m.ec2Prices[instanceType]
 	return price, ok

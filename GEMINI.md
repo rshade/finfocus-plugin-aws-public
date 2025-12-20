@@ -92,3 +92,8 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 ## Active Technologies
 - Go 1.25+ + gRPC (pulumicost.v1 protocol), internal/pricing (embedded data), zerolog (014-lambda-cost-estimation)
 - Embedded JSON pricing data (using `//go:embed`) (014-lambda-cost-estimation)
+- Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk (016-dynamodb-cost)
+- N/A (Embedded pricing data) (016-dynamodb-cost)
+
+## Recent Changes
+- 016-dynamodb-cost: Added Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk

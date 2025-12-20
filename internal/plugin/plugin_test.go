@@ -27,6 +27,7 @@ type mockPricingClient struct {
 	rdsInstancePrices     map[string]float64 // key: "instanceType/engine"
 	rdsStoragePrices      map[string]float64 // key: "volumeType"
 	lambdaPrices          map[string]float64 // key: "request" or "gb-second"
+	dynamoDBPrices        map[string]float64 // key: "on-demand-read", "on-demand-write", "provisioned-rcu", "provisioned-wcu", "storage"
 	eksStandardPrice      float64            // EKS cluster standard support hourly rate
 	eksExtendedPrice      float64            // EKS cluster extended support hourly rate
 	ec2OnDemandCalled     int
@@ -37,6 +38,7 @@ type mockPricingClient struct {
 	eksPriceCalled        int
 	lambdaRequestCalled   int
 	lambdaGBSecondCalled  int
+	dynamoDBCalled        int
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.
@@ -50,6 +52,7 @@ func newMockPricingClient(region, currency string) *mockPricingClient {
 		rdsInstancePrices: make(map[string]float64),
 		rdsStoragePrices:  make(map[string]float64),
 		lambdaPrices:      make(map[string]float64),
+		dynamoDBPrices:    make(map[string]float64),
 	}
 }
 
@@ -78,6 +81,36 @@ func (m *mockPricingClient) LambdaPricePerGBSecond(arch string) (float64, bool) 
 	}
 	// Fall back to default gb-second (x86)
 	price, found := m.lambdaPrices["gb-second"]
+	return price, found
+}
+
+func (m *mockPricingClient) DynamoDBOnDemandReadPrice() (float64, bool) {
+	m.dynamoDBCalled++
+	price, found := m.dynamoDBPrices["on-demand-read"]
+	return price, found
+}
+
+func (m *mockPricingClient) DynamoDBOnDemandWritePrice() (float64, bool) {
+	m.dynamoDBCalled++
+	price, found := m.dynamoDBPrices["on-demand-write"]
+	return price, found
+}
+
+func (m *mockPricingClient) DynamoDBStoragePricePerGBMonth() (float64, bool) {
+	m.dynamoDBCalled++
+	price, found := m.dynamoDBPrices["storage"]
+	return price, found
+}
+
+func (m *mockPricingClient) DynamoDBProvisionedRCUPrice() (float64, bool) {
+	m.dynamoDBCalled++
+	price, found := m.dynamoDBPrices["provisioned-rcu"]
+	return price, found
+}
+
+func (m *mockPricingClient) DynamoDBProvisionedWCUPrice() (float64, bool) {
+	m.dynamoDBCalled++
+	price, found := m.dynamoDBPrices["provisioned-wcu"]
 	return price, found
 }
 

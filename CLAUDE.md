@@ -86,13 +86,13 @@ message GetProjectedCostResponse {
 - EC2 instances
 - EBS volumes
 - EKS clusters
+- DynamoDB (On-Demand and Provisioned modes)
 
 **Stubbed/Partial:**
 
 - S3
 - Lambda
 - RDS
-- DynamoDB
 
 Stubbed services behavior:
 
@@ -305,7 +305,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | RDS | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | S3 | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | Lambda | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
-| DynamoDB | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
+| DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 
 ### EKS Clusters
 
@@ -344,6 +344,37 @@ To estimate total EKS cluster cost, sum:
   - Provisioned throughput (gp3)
   - Snapshot storage costs
   - Data transfer costs
+
+### DynamoDB Tables
+
+DynamoDB cost estimation supports both capacity modes:
+
+**On-Demand Mode:**
+- **Included:**
+  - Read request units ($0.25 per million in us-east-1)
+  - Write request units ($1.25 per million in us-east-1)
+  - Storage per GB-month ($0.25/GB)
+- **Required tags:** `read_requests_per_month`, `write_requests_per_month`, `storage_gb`
+
+**Provisioned Mode:**
+- **Included:**
+  - Read Capacity Units (RCU) per hour
+  - Write Capacity Units (WCU) per hour
+  - Storage per GB-month
+- **Required tags:** `read_capacity_units`, `write_capacity_units`, `storage_gb`
+
+**Excluded (both modes):**
+- Global tables replication costs
+- DynamoDB Streams
+- DynamoDB Accelerator (DAX)
+- On-demand backup and restore
+- Point-in-time recovery
+- Data transfer costs
+
+**SKU behavior:**
+- `sku: "on-demand"` - Use on-demand pricing (case-insensitive)
+- `sku: "provisioned"` - Use provisioned capacity pricing (case-insensitive)
+- SKU is required by the SDK validation
 
 ### Carbon Estimation (EC2 Only)
 

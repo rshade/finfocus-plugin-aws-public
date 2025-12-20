@@ -167,7 +167,7 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	case "lambda":
 		resp, err = p.estimateLambda(traceID, resource)
 	case "dynamodb":
-		resp, err = p.estimateStub(resource)
+		resp, err = p.estimateDynamoDB(traceID, resource)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
@@ -435,6 +435,121 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 	return &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
+		Currency:      "USD",
+		BillingDetail: billingDetail,
+	}, nil
+}
+
+// estimateDynamoDB calculates projected monthly cost for DynamoDB tables.
+func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	capacityMode := strings.ToLower(resource.Sku)
+	if capacityMode == "" {
+		capacityMode = "on-demand"
+	}
+
+	var readUnits, writeUnits int64
+	var storageGB float64
+	var billingDetail string
+	var unitPrice float64
+
+	// Extract common storage
+	if resource.Tags != nil {
+		if s, ok := resource.Tags["storage_gb"]; ok {
+			if v, err := strconv.ParseFloat(s, 64); err == nil && v > 0 {
+				storageGB = v
+			}
+		}
+	}
+
+	storagePrice, _ := p.pricing.DynamoDBStoragePricePerGBMonth()
+	storageCost := storageGB * storagePrice
+
+	if capacityMode == "provisioned" {
+		// Provisioned Mode
+		if resource.Tags != nil {
+			if s, ok := resource.Tags["read_capacity_units"]; ok {
+				readUnits, _ = strconv.ParseInt(s, 10, 64)
+			}
+			if s, ok := resource.Tags["write_capacity_units"]; ok {
+				writeUnits, _ = strconv.ParseInt(s, 10, 64)
+			}
+		}
+
+		rcuPrice, _ := p.pricing.DynamoDBProvisionedRCUPrice()
+		wcuPrice, _ := p.pricing.DynamoDBProvisionedWCUPrice()
+		unitPrice = rcuPrice // Use RCU as primary unit price
+
+		// Monthly cost = (RCU * 730 * price) + (WCU * 730 * price) + (Storage * price)
+		rcuCost := float64(readUnits) * 730 * rcuPrice
+		wcuCost := float64(writeUnits) * 730 * wcuPrice
+		totalCost := rcuCost + wcuCost + storageCost
+
+		billingDetail = fmt.Sprintf("DynamoDB provisioned, %d RCUs, %d WCUs, 730 hrs/month, %.0fGB storage",
+			readUnits, writeUnits, storageGB)
+
+		// FR-007 & US3: Explicitly mention zero/missing inputs if total cost is 0
+		if totalCost == 0 {
+			billingDetail += " (missing or zero usage inputs)"
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("capacity_mode", "provisioned").
+			Int64("rcu", readUnits).
+			Int64("wcu", writeUnits).
+			Float64("storage_gb", storageGB).
+			Msg("DynamoDB provisioned lookup successful")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  totalCost,
+			UnitPrice:     unitPrice,
+			Currency:      "USD",
+			BillingDetail: billingDetail,
+		}, nil
+
+	}
+
+	// Default to On-Demand Mode
+	if resource.Tags != nil {
+		if s, ok := resource.Tags["read_requests_per_month"]; ok {
+			readUnits, _ = strconv.ParseInt(s, 10, 64)
+		}
+		if s, ok := resource.Tags["write_requests_per_month"]; ok {
+			writeUnits, _ = strconv.ParseInt(s, 10, 64)
+		}
+	}
+
+	readPrice, _ := p.pricing.DynamoDBOnDemandReadPrice()
+	writePrice, _ := p.pricing.DynamoDBOnDemandWritePrice()
+	unitPrice = storagePrice // Use storage as primary unit price for on-demand
+
+	// Monthly cost = (Reads * readPrice) + (Writes * writePrice) + (Storage * storagePrice)
+	// Prices are per request unit
+	readCost := float64(readUnits) * readPrice
+	writeCost := float64(writeUnits) * writePrice
+	totalCost := readCost + writeCost + storageCost
+
+	billingDetail = fmt.Sprintf("DynamoDB on-demand, %d reads, %d writes, %.0fGB storage",
+		readUnits, writeUnits, storageGB)
+
+	// FR-007 & US3: Explicitly mention zero/missing inputs if total cost is 0
+	if totalCost == 0 {
+		billingDetail += " (missing or zero usage inputs)"
+	}
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("capacity_mode", "on-demand").
+		Int64("read_units", readUnits).
+		Int64("write_units", writeUnits).
+		Float64("storage_gb", storageGB).
+		Msg("DynamoDB on-demand lookup successful")
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  totalCost,
+		UnitPrice:     unitPrice,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
 	}, nil

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.0] (2025-12-19)
+
+### Features
+
+* **dynamodb:** implement DynamoDB cost estimation for On-Demand and Provisioned modes ([#54](https://github.com/rshade/pulumicost-plugin-aws-public/issues/54))
+
 ## [0.0.9](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.8...v0.0.9) (2025-12-17)
 
 

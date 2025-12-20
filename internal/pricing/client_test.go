@@ -300,3 +300,77 @@ func TestClient_EKSClusterPricePerHour(t *testing.T) {
 		t.Logf("Extended support pricing not available for region %s (this may be expected)", client.Region())
 	}
 }
+
+func TestClient_DynamoDBPricing(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	region := client.Region()
+	t.Logf("Testing DynamoDB pricing for region: %s", region)
+
+	// Test On-Demand Read Price
+	readPrice, readFound := client.DynamoDBOnDemandReadPrice()
+	if readFound {
+		if readPrice <= 0 {
+			t.Errorf("DynamoDB On-Demand read price should be positive, got: %v", readPrice)
+		}
+		t.Logf("DynamoDB On-Demand read price = $%.8f", readPrice)
+	}
+
+	// Test On-Demand Write Price
+	writePrice, writeFound := client.DynamoDBOnDemandWritePrice()
+	if writeFound {
+		if writePrice <= 0 {
+			t.Errorf("DynamoDB On-Demand write price should be positive, got: %v", writePrice)
+		}
+		t.Logf("DynamoDB On-Demand write price = $%.8f", writePrice)
+	}
+
+	// Test Storage Price
+	storagePrice, storageFound := client.DynamoDBStoragePricePerGBMonth()
+	if storageFound {
+		if storagePrice <= 0 {
+			t.Errorf("DynamoDB Storage price should be positive, got: %v", storagePrice)
+		}
+		t.Logf("DynamoDB Storage price = $%.4f", storagePrice)
+	}
+
+	// Test Provisioned RCU Price
+	rcuPrice, rcuFound := client.DynamoDBProvisionedRCUPrice()
+	if rcuFound {
+		if rcuPrice <= 0 {
+			t.Errorf("DynamoDB Provisioned RCU price should be positive, got: %v", rcuPrice)
+		}
+		t.Logf("DynamoDB Provisioned RCU price = $%.8f", rcuPrice)
+	}
+
+	// Test Provisioned WCU Price
+	wcuPrice, wcuFound := client.DynamoDBProvisionedWCUPrice()
+	if wcuFound {
+		if wcuPrice <= 0 {
+			t.Errorf("DynamoDB Provisioned WCU price should be positive, got: %v", wcuPrice)
+		}
+		t.Logf("DynamoDB Provisioned WCU price = $%.8f", wcuPrice)
+	}
+
+	// Optional: strict check only for us-east-1
+	if region == "us-east-1" {
+		if readFound && readPrice != 0.25/1_000_000 {
+			t.Errorf("us-east-1: Expected On-Demand read price 0.25/1M, got %v", readPrice)
+		}
+		if writeFound && writePrice != 1.25/1_000_000 {
+			t.Errorf("us-east-1: Expected On-Demand write price 1.25/1M, got %v", writePrice)
+		}
+		if storageFound && storagePrice != 0.25 {
+			t.Errorf("us-east-1: Expected Storage price 0.25, got %v", storagePrice)
+		}
+		if rcuFound && rcuPrice != 0.00013 {
+			t.Errorf("us-east-1: Expected Provisioned RCU price 0.00013, got %v", rcuPrice)
+		}
+		if wcuFound && wcuPrice != 0.00065 {
+			t.Errorf("us-east-1: Expected Provisioned WCU price 0.00065, got %v", wcuPrice)
+		}
+	}
+}
