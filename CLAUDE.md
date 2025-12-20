@@ -135,6 +135,11 @@ data/
 
 ## Common Commands
 
+> **⚠️ IMPORTANT:** Before building, run `make generate-carbon-data` to
+> generate the CCF instance specs CSV. This file is in `.gitignore` and
+> required for carbon estimation. The build will panic at startup if missing.
+> Use `make develop` to set up the complete development environment.
+
 ### Building
 ```bash
 # Standard build (no region tags, uses default fallback)

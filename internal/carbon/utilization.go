@@ -12,7 +12,12 @@ package carbon
 // requestUtil if greater than 0, and finally DefaultUtilization. Any selected value
 // is clamped to the range [0.0, 1.0]; if perResourceUtil is nil it is ignored.
 //
- // Returns the chosen utilization as a float64 in the range [0.0, 1.0].
+ // GetUtilization selects the CPU utilization to use for carbon calculations.
+// If perResourceUtil is non-nil and greater than 0, its value (clamped to [0.0, 1.0]) is used.
+// Otherwise, if requestUtil is greater than 0, requestUtil (clamped to [0.0, 1.0]) is used.
+// If neither provides a positive value, DefaultUtilization is returned.
+// perResourceUtil is an optional per-resource override; requestUtil is the request-level value.
+// The returned value is a float64 in the range [0.0, 1.0].
 func GetUtilization(requestUtil float64, perResourceUtil *float64) float64 {
 	// Priority 1: Per-resource override
 	if perResourceUtil != nil && *perResourceUtil > 0 {
@@ -28,7 +33,7 @@ func GetUtilization(requestUtil float64, perResourceUtil *float64) float64 {
 	return DefaultUtilization
 }
 
-// Clamp restricts a value to the range [min, max].
+// Clamp returns v constrained to the inclusive range [min, max]. If v is less than min, Clamp returns min; if v is greater than max, Clamp returns max; otherwise it returns v.
 func Clamp(v, min, max float64) float64 {
 	if v < min {
 		return min

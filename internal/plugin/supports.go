@@ -146,7 +146,10 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 // getSupportedMetrics returns the metric kinds supported for the given normalized resource type.
 // It currently returns carbon-footprint for "ec2" and nil for other resource types.
 // resourceType is the normalized resource type (for example, "ec2").
-// The returned slice contains supported pbc.MetricKind values or nil if no metrics are supported.
+// getSupportedMetrics returns the list of pbc.MetricKind values supported for the given
+// normalized resourceType. resourceType is the normalized resource type (for example,
+// "ec2"). It returns a slice of supported metric kinds, or nil if no metrics are
+// supported for that resource type.
 func getSupportedMetrics(resourceType string) []pbc.MetricKind {
 	switch resourceType {
 	case "ec2":

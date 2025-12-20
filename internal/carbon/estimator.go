@@ -55,11 +55,7 @@ func (e *Estimator) EstimateCarbonGrams(instanceType, region string, utilization
 //   - gridIntensity: Grid carbon intensity (metric tons CO2eq/kWh)
 //   - hours: Operating hours
 //
-// CalculateCarbonGrams computes the carbon emissions in grams CO2e for an instance using the Cloud Carbon Footprint formula.
-// minWatts is the idle watts per vCPU. maxWatts is the watts per vCPU at 100% utilization.
-// vCPUCount is the number of virtual CPUs. utilization is the CPU utilization (0.0 to 1.0).
-// gridIntensity is the grid carbon intensity in metric tons CO2e per kWh. hours is the operating duration in hours.
-// It returns the estimated carbon emissions in grams CO2e.
+// Returns the estimated carbon emissions in grams of CO2e.
 func CalculateCarbonGrams(minWatts, maxWatts float64, vCPUCount int, utilization, gridIntensity, hours float64) float64 {
 	// Step 1: Average watts based on utilization (linear interpolation)
 	avgWatts := minWatts + (utilization * (maxWatts - minWatts))

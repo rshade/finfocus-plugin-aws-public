@@ -6,6 +6,10 @@ package carbon
 // Source: Cloud Carbon Footprint methodology
 // Data vintage: 2024 (update annually from CCF repository)
 // Reference: https://www.cloudcarbonfootprint.org/docs/methodology
+//
+// TODO(#140): Grid emission factors are currently hardcoded.
+// Future enhancement: Fetch grid factors from CCF repository during code generation.
+// See: https://github.com/cloud-carbon-footprint/cloud-carbon-coefficients/tree/main/data
 var GridEmissionFactors = map[string]float64{
 	"us-east-1":      0.000379,    // Virginia (SERC)
 	"us-east-2":      0.000411,    // Ohio (RFC)
@@ -25,10 +29,9 @@ var GridEmissionFactors = map[string]float64{
 // This is the global average from CCF.
 const DefaultGridFactor = 0.00039278
 
-// GetGridFactor returns the grid emission factor for a region.
-// GetGridFactor retrieves the grid carbon emission factor for the given AWS region.
-// If the region is not present in GridEmissionFactors, DefaultGridFactor is returned.
-// The factor is expressed in metric tons CO2e per kWh.
+// GetGridFactor returns the grid carbon emission factor for the given AWS region
+// in metric tons CO2e per kWh. If the region is not listed in GridEmissionFactors,
+// DefaultGridFactor (global average) is returned.
 func GetGridFactor(region string) float64 {
 	if factor, ok := GridEmissionFactors[region]; ok {
 		return factor

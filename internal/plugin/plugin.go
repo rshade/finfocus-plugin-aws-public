@@ -40,6 +40,16 @@ type AWSPublicPlugin struct {
 //   - logger: zerolog.Logger to use for plugin logging.
 //
 // Returns:
+// NewAWSPublicPlugin creates and returns an AWSPublicPlugin configured for the given AWS region.
+// The returned plugin is initialized with the provided pricing client and logger, a new carbon estimator,
+// and a test mode flag derived from the environment.
+//
+// Parameters:
+//   - region: AWS region used for pricing and lookups.
+//   - pricingClient: client used to retrieve AWS pricing data.
+//   - logger: logger used by the plugin for structured logs.
+//
+// Returns:
 //   A pointer to an initialized AWSPublicPlugin.
 func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logger zerolog.Logger) *AWSPublicPlugin {
 	testMode := IsTestMode()
