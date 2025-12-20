@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.10](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.9...v0.0.10) (2025-12-20)
+
+
+### Features
+
+* **carbon:** implement carbon emission estimation for EC2 instances ([#132](https://github.com/rshade/pulumicost-plugin-aws-public/issues/132)) ([6de8039](https://github.com/rshade/pulumicost-plugin-aws-public/commit/6de80391c5b483a907d0d5851609b9a7daacb3fa))
+* **dynamodb:** implement DynamoDB On-Demand and Provisioned cost est… ([#141](https://github.com/rshade/pulumicost-plugin-aws-public/issues/141)) ([5d5814d](https://github.com/rshade/pulumicost-plugin-aws-public/commit/5d5814ddc1789fcd7ce8dae3ce809a361a0983bf))
+* **lambda:** implement Lambda function cost estimation ([#121](https://github.com/rshade/pulumicost-plugin-aws-public/issues/121)) ([193cc41](https://github.com/rshade/pulumicost-plugin-aws-public/commit/193cc4184687516cd56e07b038b2772047c9cfa1)), closes [#53](https://github.com/rshade/pulumicost-plugin-aws-public/issues/53)
+* **recommendations:** support target_resources batch processing ([#122](https://github.com/rshade/pulumicost-plugin-aws-public/issues/122)) ([80165f6](https://github.com/rshade/pulumicost-plugin-aws-public/commit/80165f69b75864b84bde51b6568f323be0ada09d)), closes [#118](https://github.com/rshade/pulumicost-plugin-aws-public/issues/118)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/goccy/go-yaml to v1.19.1 ([#108](https://github.com/rshade/pulumicost-plugin-aws-public/issues/108)) ([5e3587a](https://github.com/rshade/pulumicost-plugin-aws-public/commit/5e3587ad913a39d858d3741484676a7cdc1c388c))
+* **deps:** update module github.com/rshade/pulumicost-plugin-aws-public to v0.0.9 ([#117](https://github.com/rshade/pulumicost-plugin-aws-public/issues/117)) ([0e8fa71](https://github.com/rshade/pulumicost-plugin-aws-public/commit/0e8fa710c60e1cd7d54fbd3530e0b10aeacd91b7))
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.10 ([#131](https://github.com/rshade/pulumicost-plugin-aws-public/issues/131)) ([de00623](https://github.com/rshade/pulumicost-plugin-aws-public/commit/de006236e7c5439404a0904de5ecdc9d582b53a0))
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.9 ([#119](https://github.com/rshade/pulumicost-plugin-aws-public/issues/119)) ([861b171](https://github.com/rshade/pulumicost-plugin-aws-public/commit/861b17175b2f89f3aded3747e0b95c73b9437083))
+
 ## [0.1.0] (2025-12-19)
 
 ### Features
