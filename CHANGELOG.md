@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.12](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.11...v0.0.12) (2025-12-21)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-plugin-aws-public to v0.0.11 ([#167](https://github.com/rshade/pulumicost-plugin-aws-public/issues/167)) ([820b46b](https://github.com/rshade/pulumicost-plugin-aws-public/commit/820b46b3153ddc7e29b7736c2b1843a2720fc1aa))
+* **elb:** address CodeRabbit review comments for ELB cost estimation ([#168](https://github.com/rshade/pulumicost-plugin-aws-public/issues/168)) ([f3e7cea](https://github.com/rshade/pulumicost-plugin-aws-public/commit/f3e7cea9d12543e63484cec35c110cd1bd1f8883))
+
 ## [0.0.11](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.10...v0.0.11) (2025-12-20)
 
 
