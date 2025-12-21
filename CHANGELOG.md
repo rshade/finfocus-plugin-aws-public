@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.13](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.12...v0.0.13) (2025-12-21)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-plugin-aws-public to v0.0.12 ([#173](https://github.com/rshade/pulumicost-plugin-aws-public/issues/173)) ([a1b7dc7](https://github.com/rshade/pulumicost-plugin-aws-public/commit/a1b7dc73d5704e031daa1143ffc4073827246303))
+
 ## [0.0.12](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.11...v0.0.12) (2025-12-21)
 
 
