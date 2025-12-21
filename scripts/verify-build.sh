@@ -30,6 +30,10 @@ fi
 
 # Get binary size (cross-platform)
 SIZE=$(stat -c%s "$BINARY" 2>/dev/null || stat -f%z "$BINARY" 2>/dev/null)
+if [ -z "$SIZE" ]; then
+    echo "❌ ERROR: Could not determine binary size for: $BINARY"
+    exit 1
+fi
 MIN_SIZE=10000000  # 10MB minimum with embedded JSON
 
 echo "Verifying binary: $BINARY"

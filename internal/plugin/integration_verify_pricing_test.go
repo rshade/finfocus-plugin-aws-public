@@ -65,7 +65,11 @@ func TestIntegration_VerifyPricingEmbedded(t *testing.T) {
 		"-tags", "region_use1",
 		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1",
 		"../../cmd/pulumicost-plugin-aws-public")
-	buildCmd.Dir, _ = os.Getwd()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	buildCmd.Dir = wd
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
@@ -74,7 +78,7 @@ func TestIntegration_VerifyPricingEmbedded(t *testing.T) {
 	// Start the binary
 	t.Log("Starting gRPC server...")
 	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1")
-	cmd.Dir, _ = os.Getwd()
+	cmd.Dir = wd
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -91,7 +95,7 @@ func TestIntegration_VerifyPricingEmbedded(t *testing.T) {
 	scanner := bufio.NewScanner(stdout)
 	portRegex := regexp.MustCompile(`^PORT=(\d+)$`)
 
-	timeout := time.After(5 * time.Second)
+	timeout := time.After(portAnnouncementTimeout)
 	portChan := make(chan int, 1)
 
 	go func() {

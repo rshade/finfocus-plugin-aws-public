@@ -45,11 +45,11 @@ jobs:
 
       - name: Verify pricing data is embedded
         run: go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/... -v
-        if: always()
+        if: success()
 
       - name: Verify binary has real pricing (functional test)
         run: go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v -timeout=30s
-        if: always()
+        if: success()
 
   build:
     name: Build

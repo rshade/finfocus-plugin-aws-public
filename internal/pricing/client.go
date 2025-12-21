@@ -453,7 +453,7 @@ func (c *Client) init() error {
 			// - pf="Load Balancer-Network" for NLB
 			// Rates:
 			// - usagetype="LoadBalancerUsage" (Fixed Hourly)
-			// - usagetype="LCUUsage" (Capacity Units)
+			// - usagetype="LCUUsage" (ALB) or "NLCUUsage" (NLB) for Capacity Units
 			if prod.ProductFamily == "Load Balancer-Application" || prod.ProductFamily == "Load Balancer-Network" {
 				usageType := attrs["usagetype"]
 
@@ -476,7 +476,7 @@ func (c *Client) init() error {
 					case "Load Balancer-Network":
 						if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
 							c.elbPricing.NLBHourlyRate = rate
-						} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+						} else if strings.HasSuffix(usageType, "NLCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "NLCU-Hrs" {
 							c.elbPricing.NLBNLCURate = rate
 						}
 					}

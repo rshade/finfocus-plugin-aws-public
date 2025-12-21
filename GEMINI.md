@@ -39,6 +39,7 @@ estimates AWS infrastructure costs using publicly available on-demand pricing.
 ### Development Workflow: Pricing Data Management
 
 **For Daily Development/Testing:**
+
 ```bash
 # Generate only us-east-1 pricing data (fast, space-efficient)
 rm -f ./data/aws_pricing_*.json  # Clean old data if switching
@@ -52,6 +53,7 @@ make test
 ```
 
 **Before Release/Regional Verification:**
+
 ```bash
 # Clean old data FIRST
 rm -f ./data/aws_pricing_*.json
@@ -64,6 +66,7 @@ make build-all-regions
 ```
 
 **Why Single-Region Testing is Sufficient for Features Like ELB:**
+
 - Pricing parser logic is region-agnostic; us-east-1 tests all parsing code paths
 - Estimation logic (ALB/NLB cost calculations) is independent of region
 - Build-tag verification works with one region
@@ -84,6 +87,27 @@ make build-all-regions
 - **Linting:** Strict adherence to `golangci-lint`.
 - **Documentation:** Comprehensive Go doc comments for exported functions.
 - **No Dummy Data:** Always implement fetchers for real data sources.
+
+### ⚠️ CRITICAL: No Pricing Data Filtering
+
+**DO NOT filter, trim, or strip pricing data in `tools/generate-pricing`.**
+
+The v0.0.10/v0.0.11 releases were broken because filtering stripped 85% of data:
+
+- EC2 products: ~90,000 → ~12,000 (filtered)
+- Many instance types returned $0
+
+**Rules:**
+
+1. Merge ALL products without filtering by ProductFamily
+2. Keep ALL attributes (do not strip to "required" fields)
+3. Keep ALL OnDemand terms
+4. No "optimization" - full ~150MB data is required per region
+
+**Immutable tests prevent regression:**
+
+- `TestEmbeddedPricingDataSize` - Fails if < 100MB
+- `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
 
 ### Architecture Patterns
 
@@ -124,13 +148,11 @@ make build-all-regions
 - `CLAUDE.md`: Detailed reference for architecture and protocol.
 
 ## Active Technologies
-- Go 1.25+ + gRPC (pulumicost.v1 protocol), internal/pricing (embedded data), zerolog (014-lambda-cost-estimation)
-- Embedded JSON pricing data (using `//go:embed`) (014-lambda-cost-estimation)
-- Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk (016-dynamodb-cost)
-- N/A (Embedded pricing data) (016-dynamodb-cost)
-- Go 1.25+ + gRPC, pulumicost.v1 protocol, rs/zerolog, pluginsdk (017-elb-cost-estimation)
-- Embedded JSON pricing data using `//go:embed`, parsed into indexed maps (017-elb-cost-estimation)
-- Embedded JSON pricing data (Go 1.16+ `embed`), parsed into indexed maps (017-elb-cost-estimation)
+
+- Go 1.25+ + gRPC (pulumicost.v1), rs/zerolog, pluginsdk; embedded JSON pricing via `//go:embed` parsed into indexed maps
 
 ## Recent Changes
-- 016-dynamodb-cost: Added Go 1.25+ + gRPC, RS/Zerolog, Pluginsdk
+
+- 017-elb-cost-estimation: Added ELB (ALB/NLB) cost estimation with pricing data
+- 016-dynamodb-cost: Added DynamoDB cost estimation with On-Demand and Provisioned modes
+- 014-lambda-cost-estimation: Added Lambda cost estimation framework

@@ -15,7 +15,7 @@
 set -e
 
 DIST_DIR="${1:-.}"
-MIN_SIZE=10000000  # 10MB minimum with embedded JSON
+MIN_SIZE=30000000  # 30MB minimum with full embedded JSON (compressed archives from ~150MB binaries)
 
 if [ ! -d "$DIST_DIR" ]; then
     echo "ERROR: Directory not found: $DIST_DIR"
@@ -46,6 +46,12 @@ done
 echo ""
 if [ $FAILED -gt 0 ]; then
     echo "❌ FAILURE: $FAILED binary/binaries have missing or incomplete pricing data"
+    exit 1
+fi
+
+if [ $VERIFIED -eq 0 ]; then
+    echo "❌ FAILURE: No binaries found matching pattern 'pulumicost-plugin-aws-public-*_Linux_x86_64' in $DIST_DIR"
+    echo "   Check that GoReleaser completed successfully and dist directory structure is correct"
     exit 1
 fi
 

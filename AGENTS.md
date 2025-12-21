@@ -35,6 +35,23 @@
 - Region-specific binaries with build tags
 - Thread-safe pricing lookups for concurrent gRPC calls
 
+### ⚠️ CRITICAL: No Pricing Data Filtering
+
+**DO NOT filter or strip pricing data in `tools/generate-pricing`.**
+
+v0.0.10/v0.0.11 were broken by filtering that stripped 85% of data.
+
+**Rules:**
+
+1. Merge ALL products without filtering
+2. Keep ALL attributes and OnDemand terms
+3. Full ~150MB data required per region
+
+**Tests prevent regression:**
+
+- `TestEmbeddedPricingDataSize` - Fails if < 100MB
+- `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
+
 ## Active Technologies
 
 - Embedded JSON files in Go binaries (no runtime storage) (011-s3-cost-estimation)

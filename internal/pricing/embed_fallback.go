@@ -89,7 +89,7 @@ var rawPricingJSON = []byte(`{
       "productFamily": "Load Balancer-Network",
       "attributes": {
         "regionCode": "unknown",
-        "usagetype": "LCUUsage"
+        "usagetype": "NLCUUsage"
       }
     }
   },
@@ -224,7 +224,7 @@ var rawPricingJSON = []byte(`{
             "SKU_NLB_NLCU.JRTCKXETXF.6YS6EN2CT7": {
               "rateCode": "SKU_NLB_NLCU.JRTCKXETXF.6YS6EN2CT7",
               "description": "NLB NLCU rate",
-              "unit": "LCU-Hrs",
+              "unit": "NLCU-Hrs",
               "pricePerUnit": { "USD": "0.006" }
             }
           }

@@ -73,11 +73,44 @@ message GetProjectedCostResponse {
   - `ap-south-1` → `region_aps1` (Mumbai)
 
 ### Embedded Pricing Data
-- At build time: `tools/generate-pricing` fetches/trims AWS public pricing
-- Output: `data/aws_pricing_<region>.json` files
+- At build time: `tools/generate-pricing` fetches AWS public pricing
+- Output: `internal/pricing/data/aws_pricing_<region>.json` files (~150MB each)
 - These files are embedded into binaries using `//go:embed` in region-specific files under `internal/pricing/`
 - The pricing client parses embedded JSON once using `sync.Once` and builds lookup indexes
 - Must be thread-safe for concurrent gRPC calls
+
+### ⚠️ CRITICAL: No Pricing Data Filtering
+
+**DO NOT filter, trim, or strip pricing data in `tools/generate-pricing`.**
+
+The v0.0.10 and v0.0.11 releases were broken because aggressive filtering was
+added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
+
+- EC2 products reduced from ~90,000 to ~12,000
+- EBS volume pricing was missing
+- Many instance types returned $0
+
+**Rules for pricing data handling:**
+
+1. **Merge ALL products** - The `generateCombinedPricingData()` function must
+   merge all products without filtering
+2. **Keep ALL attributes** - Do not strip product attributes to "required"
+   fields
+3. **Keep ALL terms** - Merge all OnDemand terms without filtering by
+   ProductFamily
+4. **No "optimization"** - Do not add filtering to "reduce binary size" - the
+   full data is required
+
+**Immutable tests prevent regression:**
+
+- `TestEmbeddedPricingDataSize` - Fails if data < 100MB (v0.0.10 had ~5MB)
+- `TestEmbeddedPricingProductCount` - Fails if < 50,000 (v0.0.10 had ~16,000)
+
+**If you need to change `tools/generate-pricing/main.go`:**
+
+1. Verify the generated JSON is still ~150MB for us-east-1
+2. Run `go test -tags=region_use1 ./internal/pricing/...` to verify thresholds
+3. Check that product count is ~98,000 for us-east-1
 
 ### Service Support (v1)
 
@@ -175,11 +208,13 @@ The released v0.0.10 binary was built **WITHOUT region tags**, resulting in:
 ### Building Correctly
 
 **For development/testing (fallback pricing):**
+
 ```bash
 make build  # ⚠️  Only for testing plugin structure, NOT for releases
 ```
 
 **For production or real cost testing (REQUIRED for releases):**
+
 ```bash
 make build-default-region  # Build us-east-1 with real pricing (RECOMMENDED)
 # OR
@@ -189,6 +224,7 @@ make build-all-regions  # Build all 12 regions with real pricing
 ```
 
 **Verification:**
+
 ```bash
 # Unit test - fails if pricing data < 1MB
 go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/...
@@ -365,6 +401,7 @@ From `pulumicost.v1.ErrorCode`:
 - `billing_detail`: "EKS cluster (<support_type> support), 730 hrs/month (control plane only, excludes worker nodes)"
 
 ### Elastic Load Balancing (ALB/NLB)
+
 - `resource_type`: "elb", "alb", or "nlb"
 - `sku`: Load balancer type: "alb" (Application) or "nlb" (Network), defaults to ALB if unspecified
 - Capacity Units: Read from `tags["lcu_per_hour"]` (ALB) or `tags["nlcu_per_hour"]` (NLB), fallback to `tags["capacity_units"]`
@@ -378,6 +415,7 @@ From `pulumicost.v1.ErrorCode`:
 - `billing_detail`: "<ALB|NLB>, 730 hrs/month, <capacity_units> <LCU|NLCU> avg/hr"
 
 ### Stub Services (S3, Lambda, RDS)
+
 - `resource_type`: "s3", "lambda", "rds", "dynamodb"
 - Supports() returns `supported=true` with `reason="Limited support - returns $0 estimate"`
 - GetProjectedCost() returns:

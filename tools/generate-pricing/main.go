@@ -92,120 +92,18 @@ func generateCombinedPricingData(region string, services []string, outDir string
 			return fmt.Errorf("failed to fetch %s: %w", service, err)
 		}
 
-		// Filter and merge products
-		keepCount := 0
-		for sku, rawProd := range data.Products {
-			var p struct {
-				ProductFamily string            `json:"productFamily"`
-				Attributes    map[string]string `json:"attributes"`
-			}
-			if err := json.Unmarshal(rawProd, &p); err != nil {
-				continue
-			}
+		// Merge all products - no filtering, keep full data for accurate cost estimation
+		for sku, product := range data.Products {
+			combined.Products[sku] = product
+		}
 
-			keep := false
-			pf := p.ProductFamily
-			sc := p.Attributes["servicecode"]
-
-			switch service {
-			case "AmazonEC2":
-				if pf == "Compute Instance" {
-					// Aggressive filtering for EC2: only standard on-demand usage, Linux/Windows/RHEL/SUSE
-					capacityStatus := p.Attributes["capacitystatus"]
-					preInstalledSw := p.Attributes["preInstalledSw"]
-					os := p.Attributes["operatingSystem"]
-					if capacityStatus == "Used" && (preInstalledSw == "NA" || preInstalledSw == "") &&
-						(os == "Linux" || os == "Windows" || strings.Contains(os, "Red Hat") || strings.Contains(os, "SUSE")) {
-						keep = true
-					}
-				}
-			case "AmazonS3":
-				if pf == "Storage" && sc == "AmazonS3" {
-					keep = true
-				}
-			case "AWSLambda":
-				if pf == "AWS Lambda" || pf == "Serverless" {
-					keep = true
-				}
-			case "AmazonRDS":
-				if pf == "Database Instance" || pf == "Database Storage" {
-					// Aggressive filtering for RDS: only Single-AZ for instances
-					if pf == "Database Instance" {
-						deployOption := p.Attributes["deploymentOption"]
-						if deployOption == "Single-AZ" {
-							keep = true
-						}
-					} else {
-						keep = true
-					}
-				}
-			case "AmazonEKS":
-				if sc == "AmazonEKS" {
-					keep = true
-				}
-			case "AmazonDynamoDB":
-				// Filter for standard table storage, on-demand throughput, and provisioned throughput
-				if pf == "Database Storage" || pf == "Amazon DynamoDB PayPerRequest Throughput" ||
-					pf == "Provisioned IOPS" || strings.Contains(pf, "Throughput") {
-					keep = true
-				}
-			case "AWSELB":
-				// Filter for ALB and NLB products
-				if pf == "Load Balancer-Application" || pf == "Load Balancer-Network" {
-					keep = true
-				}
-			default:
-				keep = true // Keep unknown services for safety
-			}
-
-			if keep {
-				// ONLY keep if it has an OnDemand term
-				if onDemand, ok := data.Terms["OnDemand"]; ok {
-					if term, ok := onDemand[sku]; ok {
-						// Clean product JSON to keep only required attributes
-						var prod struct {
-							Sku           string            `json:"sku"`
-							ProductFamily string            `json:"productFamily"`
-							Attributes    map[string]string `json:"attributes"`
-						}
-						if err := json.Unmarshal(rawProd, &prod); err != nil {
-							continue
-						}
-
-						cleanAttrs := make(map[string]string)
-						requiredAttrs := []string{
-							"instanceType", "operatingSystem", "tenancy", "capacitystatus", "preInstalledSw",
-							"volumeApiName", "storageClass", "servicecode", "databaseEngine",
-							"deploymentOption", "volumeType", "regionCode", "group", "usagetype",
-						}
-						for _, attr := range requiredAttrs {
-							if val, ok := prod.Attributes[attr]; ok {
-								cleanAttrs[attr] = val
-							}
-						}
-						prod.Attributes = cleanAttrs
-						cleanProd, _ := json.Marshal(prod)
-
-						// Clean term JSON
-						var termData map[string]struct {
-							PriceDimensions map[string]struct {
-								Unit         string            `json:"unit"`
-								PricePerUnit map[string]string `json:"pricePerUnit"`
-							} `json:"priceDimensions"`
-						}
-						if err := json.Unmarshal(term, &termData); err != nil {
-							continue
-						}
-						cleanTerm, _ := json.Marshal(termData)
-
-						combined.Products[sku] = cleanProd
-						combined.Terms["OnDemand"][sku] = cleanTerm
-						keepCount++
-					}
-				}
+		// Merge OnDemand terms
+		if onDemand, ok := data.Terms["OnDemand"]; ok {
+			for sku, term := range onDemand {
+				combined.Terms["OnDemand"][sku] = term
 			}
 		}
-		fmt.Printf("Merged %d products for %s\n", keepCount, service)
+		fmt.Printf("Merged %d products for %s\n", len(data.Products), service)
 
 		// Keep metadata from first service
 		if combined.OfferCode == "" {

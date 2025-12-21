@@ -580,14 +580,14 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 		// Specific tags take precedence
 		if lbType == "alb" {
 			if s, ok := resource.Tags["lcu_per_hour"]; ok {
-				if v, err := strconv.ParseFloat(s, 64); err == nil {
+				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
 					capacityUnits = v
 					tagFound = true
 				}
 			}
 		} else {
 			if s, ok := resource.Tags["nlcu_per_hour"]; ok {
-				if v, err := strconv.ParseFloat(s, 64); err == nil {
+				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
 					capacityUnits = v
 					tagFound = true
 				}
@@ -597,7 +597,7 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 		// Generic fallback if specific tag not found or invalid
 		if !tagFound {
 			if s, ok := resource.Tags["capacity_units"]; ok {
-				if v, err := strconv.ParseFloat(s, 64); err == nil {
+				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
 					capacityUnits = v
 				}
 			}
