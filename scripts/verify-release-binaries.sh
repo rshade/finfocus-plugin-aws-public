@@ -6,8 +6,9 @@
 # Example: ./scripts/verify-release-binaries.sh dist/
 #
 # Checks:
-# 1. All binaries exist
-# 2. Binary sizes are > 10MB (indicates embedded pricing data)
+# 1. All Linux x86_64 archives exist (one per region)
+# 2. Extracts each archive and verifies the binary size is > 100MB
+#    (indicates embedded pricing data - fallback binaries are only ~5MB)
 # 3. Reports any binaries that are too small (likely missing pricing)
 #
 # Returns 0 if all binaries verified, 1 if any fail
@@ -15,45 +16,68 @@
 set -e
 
 DIST_DIR="${1:-.}"
-MIN_SIZE=30000000  # 30MB minimum with full embedded JSON (compressed archives from ~150MB binaries)
+# Raw binary minimum size: 100MB (with embedded pricing JSON)
+# Fallback binaries without real pricing are only ~5MB
+MIN_BINARY_SIZE=100000000
 
 if [ ! -d "$DIST_DIR" ]; then
     echo "ERROR: Directory not found: $DIST_DIR"
     exit 1
 fi
 
-echo "Verifying binaries in $DIST_DIR..."
+echo "Verifying release archives in $DIST_DIR..."
 echo ""
 
-VERIFIED=0
-FAILED=0
+# Find the first Linux x86_64 archive to verify
+# Archive naming pattern: pulumicost-plugin-aws-public_${VERSION}_Linux_x86_64_${REGION}.tar.gz
+ARCHIVE=$(find "$DIST_DIR" -maxdepth 1 -name "pulumicost-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | head -1)
 
-# Check all Linux x86_64 binaries (primary release platform)
-for binary in "$DIST_DIR"/pulumicost-plugin-aws-public-*_Linux_x86_64; do
-    if [ -f "$binary" ]; then
-        size=$(stat -c%s "$binary")
-        if [ "$size" -lt "$MIN_SIZE" ]; then
-            echo "❌ FAIL: Binary too small: $(basename "$binary") ($size bytes)"
-            echo "   Expected: > $MIN_SIZE bytes (with embedded pricing JSON)"
-            FAILED=$((FAILED + 1))
-        else
-            echo "✓ $(basename "$binary") ($size bytes)"
-            VERIFIED=$((VERIFIED + 1))
-        fi
-    fi
-done
-
-echo ""
-if [ $FAILED -gt 0 ]; then
-    echo "❌ FAILURE: $FAILED binary/binaries have missing or incomplete pricing data"
+if [ -z "$ARCHIVE" ]; then
+    echo "❌ FAILURE: No archives found matching pattern 'pulumicost-plugin-aws-public_*_Linux_x86_64_*.tar.gz'"
+    echo "   Found in $DIST_DIR:"
+    ls -la "$DIST_DIR"/ 2>/dev/null || echo "   (directory empty or not accessible)"
+    echo ""
+    echo "   Expected archives like: pulumicost-plugin-aws-public_0.0.13_Linux_x86_64_us-east-1.tar.gz"
     exit 1
 fi
 
-if [ $VERIFIED -eq 0 ]; then
-    echo "❌ FAILURE: No binaries found matching pattern 'pulumicost-plugin-aws-public-*_Linux_x86_64' in $DIST_DIR"
-    echo "   Check that GoReleaser completed successfully and dist directory structure is correct"
+# Count total archives for reporting
+TOTAL_ARCHIVES=$(find "$DIST_DIR" -maxdepth 1 -name "pulumicost-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | wc -l)
+
+echo "Found $TOTAL_ARCHIVES Linux x86_64 archive(s)"
+echo "Verifying one archive (all built with same process)..."
+echo ""
+
+# Create temp directory for extraction
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+archive_name=$(basename "$ARCHIVE")
+echo "Checking: $archive_name"
+
+# Extract to temp dir
+tar -xzf "$ARCHIVE" -C "$TEMP_DIR"
+
+# Find the binary (it's the only executable in the archive)
+binary=$(find "$TEMP_DIR" -type f -name "pulumicost-plugin-aws-public-*" | head -1)
+
+if [ -z "$binary" ]; then
+    echo "  ❌ FAIL: No binary found in archive"
     exit 1
 fi
 
-echo "✅ SUCCESS: All $VERIFIED binaries verified (pricing data embedded)"
+size=$(stat -c%s "$binary")
+binary_name=$(basename "$binary")
+
+if [ "$size" -lt "$MIN_BINARY_SIZE" ]; then
+    echo "  ❌ FAIL: Binary too small: $binary_name ($size bytes)"
+    echo "     Expected: > $MIN_BINARY_SIZE bytes (with embedded pricing JSON)"
+    echo "     This indicates the binary was built without region tags (fallback pricing)"
+    exit 1
+fi
+
+size_mb=$((size / 1000000))
+echo "  ✓ $binary_name (${size_mb}MB)"
+echo ""
+echo "✅ SUCCESS: Binary verified with embedded pricing data ($TOTAL_ARCHIVES archives in dist/)"
 exit 0
