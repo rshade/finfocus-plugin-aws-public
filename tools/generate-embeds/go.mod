@@ -2,7 +2,7 @@ module github.com/rshade/pulumicost-plugin-aws-public/tools/generate-embeds
 
 go 1.25.5
 
-require github.com/rshade/pulumicost-plugin-aws-public v0.0.12
+require github.com/rshade/pulumicost-plugin-aws-public v0.0.14
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
