@@ -4,5 +4,26 @@ package pricing
 
 import _ "embed"
 
-//go:embed data/aws_pricing_ap-south-1.json
-var rawPricingJSON []byte
+// Per-service pricing data for ap-south-1.
+// Each file contains raw AWS Price List API response with preserved metadata.
+
+//go:embed data/ec2_ap-south-1.json
+var rawEC2JSON []byte
+
+//go:embed data/s3_ap-south-1.json
+var rawS3JSON []byte
+
+//go:embed data/rds_ap-south-1.json
+var rawRDSJSON []byte
+
+//go:embed data/eks_ap-south-1.json
+var rawEKSJSON []byte
+
+//go:embed data/lambda_ap-south-1.json
+var rawLambdaJSON []byte
+
+//go:embed data/dynamodb_ap-south-1.json
+var rawDynamoDBJSON []byte
+
+//go:embed data/elb_ap-south-1.json
+var rawELBJSON []byte

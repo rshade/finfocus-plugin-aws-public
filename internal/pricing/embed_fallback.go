@@ -2,10 +2,12 @@
 
 package pricing
 
-// rawPricingJSON contains fallback dummy pricing data for development/testing.
-// This is used when no region-specific build tag is provided.
+// Per-service fallback pricing data for development/testing.
+// Used when no region-specific build tag is provided.
 // The format matches the AWS Price List API structure to ensure the client can parse it.
-var rawPricingJSON = []byte(`{
+
+// rawEC2JSON contains minimal EC2 pricing data for development/testing.
+var rawEC2JSON = []byte(`{
   "formatVersion": "v1.0",
   "disclaimer": "Fallback data for development/testing only",
   "offerCode": "AmazonEC2",
@@ -50,46 +52,6 @@ var rawPricingJSON = []byte(`{
       "attributes": {
         "volumeApiName": "gp2",
         "regionCode": "unknown"
-      }
-    },
-    "SKU_EKS_CLUSTER": {
-      "sku": "SKU_EKS_CLUSTER",
-      "productFamily": "Compute",
-      "attributes": {
-        "servicecode": "AmazonEKS",
-        "regionCode": "unknown"
-      }
-    },
-    "SKU_ALB_HOURLY": {
-      "sku": "SKU_ALB_HOURLY",
-      "productFamily": "Load Balancer-Application",
-      "attributes": {
-        "regionCode": "unknown",
-        "usagetype": "LoadBalancerUsage"
-      }
-    },
-    "SKU_ALB_LCU": {
-      "sku": "SKU_ALB_LCU",
-      "productFamily": "Load Balancer-Application",
-      "attributes": {
-        "regionCode": "unknown",
-        "usagetype": "LCUUsage"
-      }
-    },
-    "SKU_NLB_HOURLY": {
-      "sku": "SKU_NLB_HOURLY",
-      "productFamily": "Load Balancer-Network",
-      "attributes": {
-        "regionCode": "unknown",
-        "usagetype": "LoadBalancerUsage"
-      }
-    },
-    "SKU_NLB_NLCU": {
-      "sku": "SKU_NLB_NLCU",
-      "productFamily": "Load Balancer-Network",
-      "attributes": {
-        "regionCode": "unknown",
-        "usagetype": "NLCUUsage"
       }
     }
   },
@@ -154,7 +116,52 @@ var rawPricingJSON = []byte(`{
             }
           }
         }
-      },
+      }
+    }
+  }
+}`)
+
+// rawS3JSON contains minimal S3 pricing data for development/testing.
+var rawS3JSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonS3",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {},
+  "terms": {"OnDemand": {}}
+}`)
+
+// rawRDSJSON contains minimal RDS pricing data for development/testing.
+var rawRDSJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonRDS",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {},
+  "terms": {"OnDemand": {}}
+}`)
+
+// rawEKSJSON contains minimal EKS pricing data for development/testing.
+var rawEKSJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonEKS",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_EKS_CLUSTER": {
+      "sku": "SKU_EKS_CLUSTER",
+      "productFamily": "Compute",
+      "attributes": {
+        "servicecode": "AmazonEKS",
+        "regionCode": "unknown"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
       "SKU_EKS_CLUSTER": {
         "SKU_EKS_CLUSTER.JRTCKXETXF": {
           "offerTermCode": "JRTCKXETXF",
@@ -169,7 +176,76 @@ var rawPricingJSON = []byte(`{
             }
           }
         }
-      },
+      }
+    }
+  }
+}`)
+
+// rawLambdaJSON contains minimal Lambda pricing data for development/testing.
+var rawLambdaJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AWSLambda",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {},
+  "terms": {"OnDemand": {}}
+}`)
+
+// rawDynamoDBJSON contains minimal DynamoDB pricing data for development/testing.
+var rawDynamoDBJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonDynamoDB",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {},
+  "terms": {"OnDemand": {}}
+}`)
+
+// rawELBJSON contains minimal ELB pricing data for development/testing.
+var rawELBJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AWSELB",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_ALB_HOURLY": {
+      "sku": "SKU_ALB_HOURLY",
+      "productFamily": "Load Balancer-Application",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LoadBalancerUsage"
+      }
+    },
+    "SKU_ALB_LCU": {
+      "sku": "SKU_ALB_LCU",
+      "productFamily": "Load Balancer-Application",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LCUUsage"
+      }
+    },
+    "SKU_NLB_HOURLY": {
+      "sku": "SKU_NLB_HOURLY",
+      "productFamily": "Load Balancer-Network",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "LoadBalancerUsage"
+      }
+    },
+    "SKU_NLB_NLCU": {
+      "sku": "SKU_NLB_NLCU",
+      "productFamily": "Load Balancer-Network",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "NLCUUsage"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
       "SKU_ALB_HOURLY": {
         "SKU_ALB_HOURLY.JRTCKXETXF": {
           "offerTermCode": "JRTCKXETXF",

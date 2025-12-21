@@ -73,11 +73,60 @@ message GetProjectedCostResponse {
   - `ap-south-1` → `region_aps1` (Mumbai)
 
 ### Embedded Pricing Data
-- At build time: `tools/generate-pricing` fetches AWS public pricing
-- Output: `internal/pricing/data/aws_pricing_<region>.json` files (~150MB each)
-- These files are embedded into binaries using `//go:embed` in region-specific files under `internal/pricing/`
-- The pricing client parses embedded JSON once using `sync.Once` and builds lookup indexes
-- Must be thread-safe for concurrent gRPC calls
+
+**Per-Service Architecture (v0.0.12+):**
+
+Pricing data is embedded as separate per-service JSON files for maintainability:
+
+| Service | File Pattern | Typical Size |
+|---------|--------------|--------------|
+| EC2 | `ec2_{region}.json` | ~154MB |
+| RDS | `rds_{region}.json` | ~7MB |
+| EKS | `eks_{region}.json` | ~772KB |
+| Lambda | `lambda_{region}.json` | ~445KB |
+| S3 | `s3_{region}.json` | ~306KB |
+| DynamoDB | `dynamodb_{region}.json` | ~22KB |
+| ELB | `elb_{region}.json` | ~13KB |
+
+**Build Process:**
+
+1. `tools/generate-pricing` fetches AWS public pricing per service
+2. Filters out Reserved Instance and Savings Plans terms (reduces EC2 from ~400MB to ~154MB)
+3. Output: `internal/pricing/data/{service}_{region}.json` files
+4. Files embedded via `//go:embed` in region-specific files (`embed_use1.go`, etc.)
+
+**Parallel Initialization:**
+
+The pricing client uses parallel goroutines for fast initialization:
+
+```go
+// In client.go init()
+var wg sync.WaitGroup
+wg.Add(7)  // One goroutine per service
+
+go func() { defer wg.Done(); c.parseEC2Pricing(rawEC2JSON) }()
+go func() { defer wg.Done(); c.parseS3Pricing(rawS3JSON) }()
+// ... other services ...
+
+wg.Wait()  // Wait for all parsing to complete
+```
+
+Each parser writes to its own dedicated index, so no locking is needed. Region is
+captured from EC2 data (largest/most reliable) after all parsing completes.
+
+**Performance Tracking:**
+
+Run benchmarks to detect parsing regressions:
+
+```bash
+go test -tags=region_use1 -bench=BenchmarkNewClient -benchmem ./internal/pricing/...
+```
+
+**Thread Safety:**
+
+- `sync.Once` ensures parsing happens exactly once
+- Lookup methods are read-only after initialization
+- Safe for concurrent gRPC calls
 
 ### ⚠️ CRITICAL: No Pricing Data Filtering
 
@@ -789,6 +838,8 @@ the commit message follows conventional commits format.
 - N/A (embedded pricing data via go:embed) (013-sdk-migration)
 - Go 1.25+ + pulumicost-spec v0.4.10+ (MetricKind, ImpactMetric), zerolog, gRPC (015-carbon-estimation)
 - Embedded data via `//go:embed` (CSV for instance specs, constants for grid factors) (015-carbon-estimation)
+- Go 1.25+ + encoding/json, sync.Once, go:embed, zerolog, gRPC (pulumicost-spec) (018-raw-pricing-embed)
+- Embedded JSON files via `//go:embed` (no external storage) (018-raw-pricing-embed)
 
 - **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
 - **pulumicost-spec** protos for CostSourceService API

@@ -7,56 +7,177 @@ import (
 	"testing"
 )
 
-// TestEmbeddedPricingDataSize verifies that FULL AWS pricing data is embedded without filtering.
+// Per-Service Size Thresholds (T035-T041)
 //
-// CRITICAL: This test prevents the v0.0.10/v0.0.11 regression where aggressive filtering
-// in tools/generate-pricing stripped 85% of pricing data, causing:
-//   - EC2 products reduced from ~90,000 to ~12,000
-//   - EBS volume pricing missing
-//   - Many instance types returning $0
+// These thresholds prevent the v0.0.10/v0.0.11 regression where filtering
+// stripped pricing data, causing $0 estimates. Each service has a minimum
+// size based on actual AWS pricing data (December 2024, OnDemand terms only).
 //
-// The minimum size threshold (100MB) ensures the FULL AWS pricing JSON is embedded,
-// not a filtered subset. DO NOT reduce this threshold without explicit approval.
+// Actual sizes from us-east-1 (December 2024):
+//   EC2: 153.7 MB, RDS: 6.8 MB, EKS: 772 KB, Lambda: 445 KB
+//   S3: 306 KB, DynamoDB: 22 KB, ELB: 13 KB
 //
-// If this test fails:
-//  1. Check tools/generate-pricing/main.go for any filtering logic
-//  2. Ensure generateCombinedPricingData() merges ALL products without filtering
-//  3. Verify the pricing JSON file size before embedding (~150MB for us-east-1)
-//
-// Run with: go test -tags=region_use1 -run TestEmbeddedPricingDataSize ./internal/pricing/...
-func TestEmbeddedPricingDataSize(t *testing.T) {
-	// IMMUTABLE THRESHOLD: 100MB minimum for full unfiltered pricing data
-	// Real us-east-1 pricing is ~155MB. DO NOT reduce this threshold.
-	// v0.0.10/v0.0.11 had filtered data at ~5MB which passed the old 1MB threshold.
-	const minPricingSize = 100_000_000 // 100MB minimum for FULL pricing data
+// DO NOT reduce these thresholds without explicit approval.
+const (
+	// EC2: Largest service, contains compute instances + EBS storage
+	// Full us-east-1 with OnDemand only: ~154MB
+	minEC2Size = 100_000_000 // 100MB minimum (T035)
 
-	if len(rawPricingJSON) < minPricingSize {
-		t.Fatalf("❌ CRITICAL: Pricing data too small (%d bytes, %.1f MB)\n"+
-			"Expected: > %d bytes (100MB) for FULL unfiltered pricing data\n"+
-			"This indicates pricing data is being FILTERED in tools/generate-pricing.\n"+
-			"The v0.0.10/v0.0.11 bug stripped 85%% of pricing data.\n\n"+
-			"FIX: Check tools/generate-pricing/main.go - it must merge ALL products\n"+
-			"without filtering by ProductFamily, attributes, or any other criteria.\n"+
-			"See: https://github.com/rshade/pulumicost-plugin-aws-public/issues/XXX",
-			len(rawPricingJSON), float64(len(rawPricingJSON))/1_000_000, minPricingSize)
+	// RDS: Database instances and storage
+	// Full us-east-1 with OnDemand only: ~7MB
+	minRDSSize = 5_000_000 // 5MB minimum (T036)
+
+	// EKS: Cluster management fees
+	// Full us-east-1: ~772KB
+	minEKSSize = 500_000 // 500KB minimum (T037)
+
+	// Lambda: Serverless compute pricing
+	// Full us-east-1: ~445KB
+	minLambdaSize = 300_000 // 300KB minimum (T038)
+
+	// S3: Storage classes and tiers
+	// Full us-east-1: ~306KB
+	minS3Size = 200_000 // 200KB minimum (T039)
+
+	// DynamoDB: NoSQL throughput and storage
+	// Full us-east-1: ~22KB (small but valid)
+	minDynamoDBSize = 10_000 // 10KB minimum (T040)
+
+	// ELB: Load balancer hourly and capacity rates
+	// Full us-east-1: ~13KB (small but valid)
+	minELBSize = 8_000 // 8KB minimum (T041)
+)
+
+// TestEmbeddedData_EC2Size verifies EC2 pricing data is not filtered (T035).
+//
+// CRITICAL: This test prevents the v0.0.10/v0.0.11 regression.
+// EC2 is the largest service and most commonly estimated.
+func TestEmbeddedData_EC2Size(t *testing.T) {
+	size := len(rawEC2JSON)
+	if size < minEC2Size {
+		t.Fatalf("❌ CRITICAL: EC2 pricing data too small (%d bytes, %.1f MB)\n"+
+			"Expected: > %d bytes (100MB) for OnDemand pricing data\n"+
+			"This indicates EC2 data is being filtered incorrectly.\n"+
+			"FIX: Check tools/generate-pricing/main.go",
+			size, float64(size)/1_000_000, minEC2Size)
 	}
-
-	t.Logf("✓ Embedded pricing data size: %d bytes (%.1f MB) - FULL data embedded",
-		len(rawPricingJSON), float64(len(rawPricingJSON))/1_000_000)
+	t.Logf("✓ EC2 pricing data size: %d bytes (%.1f MB)", size, float64(size)/1_000_000)
 }
 
-// TestEmbeddedPricingProductCount verifies the FULL product count is embedded.
+// TestEmbeddedData_RDSSize verifies RDS pricing data is not filtered (T036).
+func TestEmbeddedData_RDSSize(t *testing.T) {
+	size := len(rawRDSJSON)
+	if size < minRDSSize {
+		t.Fatalf("❌ RDS pricing data too small (%d bytes, %.1f MB)\n"+
+			"Expected: > %d bytes (5MB)",
+			size, float64(size)/1_000_000, minRDSSize)
+	}
+	t.Logf("✓ RDS pricing data size: %d bytes (%.1f MB)", size, float64(size)/1_000_000)
+}
+
+// TestEmbeddedData_EKSSize verifies EKS pricing data is not filtered (T037).
+func TestEmbeddedData_EKSSize(t *testing.T) {
+	size := len(rawEKSJSON)
+	if size < minEKSSize {
+		t.Fatalf("❌ EKS pricing data too small (%d bytes, %.1f KB)\n"+
+			"Expected: > %d bytes (500KB)",
+			size, float64(size)/1_000, minEKSSize)
+	}
+	t.Logf("✓ EKS pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
+}
+
+// TestEmbeddedData_LambdaSize verifies Lambda pricing data is not filtered (T038).
+func TestEmbeddedData_LambdaSize(t *testing.T) {
+	size := len(rawLambdaJSON)
+	if size < minLambdaSize {
+		t.Fatalf("❌ Lambda pricing data too small (%d bytes, %.1f KB)\n"+
+			"Expected: > %d bytes (300KB)",
+			size, float64(size)/1_000, minLambdaSize)
+	}
+	t.Logf("✓ Lambda pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
+}
+
+// TestEmbeddedData_S3Size verifies S3 pricing data is not filtered (T039).
+func TestEmbeddedData_S3Size(t *testing.T) {
+	size := len(rawS3JSON)
+	if size < minS3Size {
+		t.Fatalf("❌ S3 pricing data too small (%d bytes, %.1f KB)\n"+
+			"Expected: > %d bytes (200KB)",
+			size, float64(size)/1_000, minS3Size)
+	}
+	t.Logf("✓ S3 pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
+}
+
+// TestEmbeddedData_DynamoDBSize verifies DynamoDB pricing data is not filtered (T040).
+func TestEmbeddedData_DynamoDBSize(t *testing.T) {
+	size := len(rawDynamoDBJSON)
+	if size < minDynamoDBSize {
+		t.Fatalf("❌ DynamoDB pricing data too small (%d bytes, %.1f KB)\n"+
+			"Expected: > %d bytes (10KB)",
+			size, float64(size)/1_000, minDynamoDBSize)
+	}
+	t.Logf("✓ DynamoDB pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
+}
+
+// TestEmbeddedData_ELBSize verifies ELB pricing data is not filtered (T041).
+func TestEmbeddedData_ELBSize(t *testing.T) {
+	size := len(rawELBJSON)
+	if size < minELBSize {
+		t.Fatalf("❌ ELB pricing data too small (%d bytes, %.1f KB)\n"+
+			"Expected: > %d bytes (8KB)",
+			size, float64(size)/1_000, minELBSize)
+	}
+	t.Logf("✓ ELB pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
+}
+
+// TestEmbeddedData_AllServicesValid verifies all per-service pricing files are valid JSON.
 //
-// CRITICAL: This test prevents filtering regression. The minimum thresholds are based on
-// actual AWS pricing data as of December 2024:
-//   - us-east-1: ~98,000 products total across all services
-//   - Other regions: ~50,000-80,000 products
+// This catches build errors or corrupted embedded data at test time,
+// rather than runtime when customers are using the plugin.
+func TestEmbeddedData_AllServicesValid(t *testing.T) {
+	services := []struct {
+		name string
+		data []byte
+	}{
+		{"EC2", rawEC2JSON},
+		{"S3", rawS3JSON},
+		{"RDS", rawRDSJSON},
+		{"EKS", rawEKSJSON},
+		{"Lambda", rawLambdaJSON},
+		{"DynamoDB", rawDynamoDBJSON},
+		{"ELB", rawELBJSON},
+	}
+
+	for _, svc := range services {
+		t.Run(svc.name, func(t *testing.T) {
+			var data struct {
+				Products  map[string]interface{} `json:"products"`
+				Terms     map[string]interface{} `json:"terms"`
+				OfferCode string                 `json:"offerCode"`
+			}
+
+			if err := json.Unmarshal(svc.data, &data); err != nil {
+				t.Fatalf("Failed to parse %s pricing JSON: %v", svc.name, err)
+			}
+
+			if len(data.Products) == 0 {
+				t.Errorf("%s: No products found - corrupted or fallback data?", svc.name)
+			}
+
+			if data.OfferCode == "" {
+				t.Errorf("%s: Missing offerCode in pricing data", svc.name)
+			}
+
+			t.Logf("✓ %s: %d products, offerCode=%s", svc.name, len(data.Products), data.OfferCode)
+		})
+	}
+}
+
+// TestEmbeddedData_EC2ProductCount verifies EC2 has sufficient products (T035 detail).
 //
-// DO NOT reduce these thresholds. If the test fails, the generate-pricing tool
-// is likely filtering products which breaks cost estimation.
-//
-// Run with: go test -tags=region_use1 -run TestEmbeddedPricingProductCount ./internal/pricing/...
-func TestEmbeddedPricingProductCount(t *testing.T) {
+// This complements the size check by verifying product count.
+// EC2 us-east-1 should have ~90k+ products including compute instances and EBS.
+func TestEmbeddedData_EC2ProductCount(t *testing.T) {
 	var data struct {
 		Products map[string]interface{} `json:"products"`
 		Terms    struct {
@@ -64,59 +185,20 @@ func TestEmbeddedPricingProductCount(t *testing.T) {
 		} `json:"terms"`
 	}
 
-	if err := json.Unmarshal(rawPricingJSON, &data); err != nil {
-		t.Fatalf("Failed to parse embedded pricing JSON: %v", err)
+	if err := json.Unmarshal(rawEC2JSON, &data); err != nil {
+		t.Fatalf("Failed to parse EC2 JSON: %v", err)
 	}
 
-	// IMMUTABLE THRESHOLDS: Based on actual AWS pricing data (December 2024)
-	// DO NOT reduce these thresholds without explicit approval.
-	const minProducts = 50_000  // Minimum products for any region (smallest regions have ~50k)
-	const minTerms = 30_000    // Minimum OnDemand terms (not all products have OnDemand)
+	const minProducts = 50_000 // Minimum EC2 products
+	const minTerms = 30_000   // Minimum OnDemand terms
 
-	productCount := len(data.Products)
-	termCount := len(data.Terms.OnDemand)
-
-	if productCount < minProducts {
-		t.Fatalf("❌ CRITICAL: Product count too low (%d products)\n"+
-			"Expected: > %d products for FULL unfiltered pricing\n"+
-			"v0.0.10/v0.0.11 had only ~16,000 products due to filtering.\n"+
-			"Real us-east-1 has ~98,000 products.\n\n"+
-			"FIX: Check tools/generate-pricing/main.go for filtering logic",
-			productCount, minProducts)
+	if len(data.Products) < minProducts {
+		t.Fatalf("❌ EC2 product count too low: %d (expected >%d)", len(data.Products), minProducts)
 	}
 
-	if termCount < minTerms {
-		t.Fatalf("❌ CRITICAL: OnDemand term count too low (%d terms)\n"+
-			"Expected: > %d OnDemand terms\n"+
-			"This indicates the generate-pricing tool is filtering terms.\n\n"+
-			"FIX: Ensure all OnDemand terms are merged without filtering",
-			termCount, minTerms)
+	if len(data.Terms.OnDemand) < minTerms {
+		t.Fatalf("❌ EC2 OnDemand term count too low: %d (expected >%d)", len(data.Terms.OnDemand), minTerms)
 	}
 
-	t.Logf("✓ Embedded pricing: %d products, %d OnDemand terms - FULL data verified",
-		productCount, termCount)
-}
-
-// TestEmbeddedPricingDataIsValid verifies pricing data is valid AWS Price List JSON.
-//
-// Parses the embedded JSON and checks for expected AWS pricing structure.
-// This catches build errors or corrupted embedded data.
-//
-// Run with: go test -tags=region_use1 -run TestEmbeddedPricingDataIsValid ./internal/pricing/...
-func TestEmbeddedPricingDataIsValid(t *testing.T) {
-	var data struct {
-		Products map[string]interface{} `json:"products"`
-		Terms    map[string]interface{} `json:"terms"`
-	}
-
-	err := json.Unmarshal(rawPricingJSON, &data)
-	if err != nil {
-		t.Fatalf("Failed to parse embedded pricing JSON: %v", err)
-	}
-
-	if len(data.Products) == 0 {
-		t.Fatal("Embedded pricing has no products - corrupted or fallback data?")
-	}
-
-	t.Logf("✓ Embedded pricing: %d products, valid JSON structure (OK)", len(data.Products))
+	t.Logf("✓ EC2: %d products, %d OnDemand terms", len(data.Products), len(data.Terms.OnDemand))
 }

@@ -4,5 +4,26 @@ package pricing
 
 import _ "embed"
 
-//go:embed data/aws_pricing_{{.Name}}.json
-var rawPricingJSON []byte
+// Per-service pricing data for {{.Name}}.
+// Each file contains raw AWS Price List API response with preserved metadata.
+
+//go:embed data/ec2_{{.Name}}.json
+var rawEC2JSON []byte
+
+//go:embed data/s3_{{.Name}}.json
+var rawS3JSON []byte
+
+//go:embed data/rds_{{.Name}}.json
+var rawRDSJSON []byte
+
+//go:embed data/eks_{{.Name}}.json
+var rawEKSJSON []byte
+
+//go:embed data/lambda_{{.Name}}.json
+var rawLambdaJSON []byte
+
+//go:embed data/dynamodb_{{.Name}}.json
+var rawDynamoDBJSON []byte
+
+//go:embed data/elb_{{.Name}}.json
+var rawELBJSON []byte

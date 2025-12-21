@@ -140,441 +140,682 @@ func NewClient(logger zerolog.Logger) (*Client, error) {
 	return c, nil
 }
 
-// init parses embedded pricing data exactly once
+// init parses embedded pricing data exactly once.
+// Parsing is parallelized across services for faster initialization.
 func (c *Client) init() error {
 	c.once.Do(func() {
-		// 1. Parse the raw AWS Price List JSON
-		var data awsPricing
-		if err := json.Unmarshal(rawPricingJSON, &data); err != nil {
-			c.err = fmt.Errorf("failed to parse pricing data: %w", err)
-			return
-		}
-
-		// 2. Extract metadata (infer region/currency from content if possible, or default)
-		// The raw JSON doesn't strictly have a top-level "region" field in the same way simple JSON did.
-		// It has "products" where each product has "attributes.location" and "attributes.regionCode".
-		// We'll scan the first product to find the region, or assume it matches the build tag.
-		c.currency = "USD" // Default for AWS public pricing API
+		// Initialize indexes
+		c.currency = "USD"
 		c.region = "unknown"
-
-		// 3. Build Lookup Indexes
 		c.ec2Index = make(map[string]ec2Price)
 		c.ebsIndex = make(map[string]ebsPrice)
 		c.s3Index = make(map[string]s3Price)
 		c.rdsInstanceIndex = make(map[string]rdsInstancePrice)
 		c.rdsStorageIndex = make(map[string]rdsStoragePrice)
 
-		// Helper to find OnDemand price for a SKU
-		getOnDemandPrice := func(sku string) (float64, string, bool) {
-			termMap, ok := data.Terms["OnDemand"][sku]
-			if !ok {
-				return 0, "", false
+		// Parse each service file in parallel for faster initialization.
+		// Each parser writes to its own dedicated index(es), so no locking needed.
+		// Region is captured from EC2 (largest/most reliable) after all parsing completes.
+		//
+		// Thread safety: zerolog.Logger is safe for concurrent use per
+		// https://github.com/rs/zerolog#thread-safety ("zerolog's Logger is thread-safe")
+		// so Error() and Warn() calls from multiple goroutines are safe.
+		var wg sync.WaitGroup
+		var ec2Region string
+		var ec2Metadata *pricingMetadata
+		start := time.Now()
+
+		// Error collection for critical services.
+		//
+		// CRITICAL services (fail initialization on error):
+		//   - EC2/EBS: Primary cost drivers, most commonly estimated. EBS is parsed
+		//     inside parseEC2Pricing() since both are in the AmazonEC2 offer file.
+		//
+		// NON-CRITICAL services (log error, continue initialization):
+		//   - S3, RDS, EKS, Lambda, DynamoDB, ELB: Currently stub or partial implementations.
+		//     Failures are logged but don't block plugin startup, allowing EC2/EBS
+		//     estimation to work even if other services have parsing issues.
+		var parseErrMu sync.Mutex
+		var parseErrs []error
+
+		// 1. Parse EC2 pricing (includes EBS volumes) - largest file, start first
+		// EC2 is CRITICAL - failure to parse means $0 for all compute estimates
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if region, meta, err := c.parseEC2Pricing(rawEC2JSON); err != nil {
+				parseErrMu.Lock()
+				parseErrs = append(parseErrs, fmt.Errorf("EC2: %w", err))
+				parseErrMu.Unlock()
+				c.logger.Error().Err(err).Msg("failed to parse EC2 pricing")
+			} else {
+				ec2Region = region
+				ec2Metadata = meta
 			}
-			// There might be multiple offerTermCodes; usually just one for OnDemand generic.
-			// We pick the first valid one.
-			for _, term := range termMap {
-				for _, dim := range term.PriceDimensions {
-					// We want the price per unit.
-					// AWS Price List API returns map["USD"] = "0.123"
-					if amountStr, ok := dim.PricePerUnit["USD"]; ok {
-						amount, err := strconv.ParseFloat(amountStr, 64)
-						if err == nil {
-							return amount, dim.Unit, true
-						}
-					}
-				}
+		}()
+
+		// 2. Parse S3 pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseS3Pricing(rawS3JSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse S3 pricing")
 			}
-			return 0, "", false
+		}()
+
+		// 3. Parse RDS pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseRDSPricing(rawRDSJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse RDS pricing")
+			}
+		}()
+
+		// 4. Parse EKS pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseEKSPricing(rawEKSJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse EKS pricing")
+			}
+		}()
+
+		// 5. Parse Lambda pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseLambdaPricing(rawLambdaJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse Lambda pricing")
+			}
+		}()
+
+		// 6. Parse DynamoDB pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseDynamoDBPricing(rawDynamoDBJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse DynamoDB pricing")
+			}
+		}()
+
+		// 7. Parse ELB pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseELBPricing(rawELBJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse ELB pricing")
+			}
+		}()
+
+		// Wait for all parsing to complete
+		wg.Wait()
+
+		// Log initialization duration for performance monitoring
+		c.logger.Debug().
+			Dur("init_duration_ms", time.Since(start)).
+			Int("ec2_products", len(c.ec2Index)).
+			Int("ebs_products", len(c.ebsIndex)).
+			Msg("Pricing data parsed")
+
+		// Fail initialization if critical service parsing failed
+		if len(parseErrs) > 0 {
+			c.err = fmt.Errorf("pricing initialization failed: %v", parseErrs)
+			return
 		}
 
-		for sku, prod := range data.Products {
-			attrs := prod.Attributes
+		// Set region from EC2 data (all services have the same region in a regional binary)
+		if ec2Region != "" {
+			c.region = ec2Region
+		}
 
-			// Set region from first product if not set
-			if c.region == "unknown" && attrs["regionCode"] != "" {
-				c.region = attrs["regionCode"]
+		// Validate critical EC2/EBS indexes are populated (prevents v0.0.10 regression)
+		// For non-fallback builds (real regional binaries), empty indexes are fatal errors.
+		// For fallback builds (region == "unknown"), empty indexes are expected for some services.
+		isFallbackBuild := c.region == "unknown"
+
+		if len(c.ec2Index) == 0 {
+			if isFallbackBuild {
+				c.logger.Debug().Msg("EC2 pricing index empty (expected for fallback build)")
+			} else {
+				c.err = fmt.Errorf("EC2 pricing index is empty - data corruption or filtering issue")
+				c.logger.Error().Msg("EC2 pricing index is empty - failing initialization")
+				return
 			}
+		}
+		if len(c.ebsIndex) == 0 {
+			if isFallbackBuild {
+				c.logger.Debug().Msg("EBS pricing index empty (expected for fallback build)")
+			} else {
+				c.err = fmt.Errorf("EBS pricing index is empty - data corruption or filtering issue")
+				c.logger.Error().Msg("EBS pricing index is empty - failing initialization")
+				return
+			}
+		}
 
-			// --- EC2 Instances ---
-			if prod.ProductFamily == "Compute Instance" {
-				// We need instanceType, operatingSystem, tenancy
-				instType := attrs["instanceType"]
-				os := attrs["operatingSystem"]
-				tenancy := attrs["tenancy"]
-				capacityStatus := attrs["capacitystatus"] // "Used", "AllocatedCapacityReservation", etc.
-				preInstalledSw := attrs["preInstalledSw"] // "NA", "SQL Std", etc.
+		// Log embedded pricing metadata for debugging and traceability (T034)
+		// This helps identify which AWS pricing version is embedded in the binary.
+		if ec2Metadata != nil {
+			c.logger.Debug().
+				Str("region", c.region).
+				Str("version", ec2Metadata.Version).
+				Str("publicationDate", ec2Metadata.PublicationDate).
+				Str("offerCode", ec2Metadata.OfferCode).
+				Msg("Embedded pricing metadata loaded")
+		}
 
-				// Filter for base On-Demand instances:
-				// 1. Must have valid basic attributes
-				// 2. capacitystatus should be "Used" (standard on-demand usage)
-				// 3. preInstalledSw should be "NA" (no extra software license fees)
-				if instType != "" && os != "" && tenancy != "" &&
-					capacityStatus == "Used" &&
-					(preInstalledSw == "NA" || preInstalledSw == "") {
+		// Validate non-critical service pricing was loaded.
+		// Missing pricing is logged as a warning but doesn't fail initialization.
+		// Uses helper to reduce boilerplate while maintaining detailed logging.
+		warnMissing := func(service, field string, value float64) {
+			if value == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Str("service", service).
+					Str("field", field).
+					Msg("pricing field not found in embedded data")
+			}
+		}
 
-					// Composite key: "t3.micro/Linux/Shared"
-					key := fmt.Sprintf("%s/%s/%s", instType, os, tenancy)
+		// EKS pricing validation
+		if c.eksPricing != nil {
+			warnMissing("EKS", "StandardHourlyRate", c.eksPricing.StandardHourlyRate)
+			warnMissing("EKS", "ExtendedHourlyRate", c.eksPricing.ExtendedHourlyRate)
+		} else {
+			c.logger.Warn().Str("region", c.region).Msg("EKS pricing not loaded")
+		}
 
-					// Only index if we don't have it (or overwrite? duplicates shouldn't exist for same keys)
-					rate, unit, found := getOnDemandPrice(sku)
-					if found {
-						c.ec2Index[key] = ec2Price{
-							Unit:       unit,
-							HourlyRate: rate,
-							Currency:   "USD",
-						}
-					}
+		// Lambda pricing validation
+		if c.lambdaPricing != nil {
+			warnMissing("Lambda", "RequestPrice", c.lambdaPricing.RequestPrice)
+			warnMissing("Lambda", "X86GBSecondPrice", c.lambdaPricing.X86GBSecondPrice)
+			warnMissing("Lambda", "ARMGBSecondPrice", c.lambdaPricing.ARMGBSecondPrice)
+		} else {
+			c.logger.Warn().Str("region", c.region).Msg("Lambda pricing not loaded")
+		}
+
+		// DynamoDB pricing validation
+		if c.dynamoDBPricing != nil {
+			warnMissing("DynamoDB", "OnDemandReadPrice", c.dynamoDBPricing.OnDemandReadPrice)
+			warnMissing("DynamoDB", "OnDemandWritePrice", c.dynamoDBPricing.OnDemandWritePrice)
+			warnMissing("DynamoDB", "StoragePrice", c.dynamoDBPricing.StoragePrice)
+			warnMissing("DynamoDB", "ProvisionedRCUPrice", c.dynamoDBPricing.ProvisionedRCUPrice)
+			warnMissing("DynamoDB", "ProvisionedWCUPrice", c.dynamoDBPricing.ProvisionedWCUPrice)
+		} else {
+			c.logger.Warn().Str("region", c.region).Msg("DynamoDB pricing not loaded")
+		}
+
+		// ELB pricing validation
+		if c.elbPricing != nil {
+			warnMissing("ELB", "ALBHourlyRate", c.elbPricing.ALBHourlyRate)
+			warnMissing("ELB", "ALBLCURate", c.elbPricing.ALBLCURate)
+			warnMissing("ELB", "NLBHourlyRate", c.elbPricing.NLBHourlyRate)
+			warnMissing("ELB", "NLBNLCURate", c.elbPricing.NLBNLCURate)
+		} else {
+			c.logger.Warn().Str("region", c.region).Msg("ELB pricing not loaded")
+		}
+	})
+	return c.err
+}
+
+// getOnDemandPrice extracts the OnDemand price for a SKU from parsed AWS pricing data.
+//
+// AWS Price List API returns a nested structure for pricing:
+//
+//	Terms["OnDemand"][SKU][OfferTermCode] -> term
+//	  └── term.PriceDimensions[RateCode] -> priceDimension
+//	        └── priceDimension.PricePerUnit["USD"] -> price string
+//
+// This function navigates this structure to find the USD price. The iteration
+// through multiple terms and dimensions handles cases where a SKU has multiple
+// offer term codes (e.g., different effective dates) or multiple price dimensions
+// (e.g., hourly rate + data transfer). We return the first valid USD price found.
+//
+// Parameters:
+//   - data: Parsed AWS pricing JSON containing Products and Terms
+//   - sku: The product SKU to look up (unique identifier in AWS pricing)
+//
+// Returns:
+//   - price: The USD price as a float64 (0 if not found or parse error)
+//   - unit: The billing unit (e.g., "Hrs", "GB-Mo", "LCU-Hrs")
+//   - found: True if a valid USD price was found and parsed successfully
+//
+// Used by all service parsers (EC2, S3, RDS, EKS, Lambda, DynamoDB, ELB) to extract
+// prices from the raw AWS pricing data during initialization.
+func getOnDemandPrice(data *awsPricing, sku string) (float64, string, bool) {
+	termMap, ok := data.Terms["OnDemand"][sku]
+	if !ok {
+		return 0, "", false
+	}
+	for _, term := range termMap {
+		for _, dim := range term.PriceDimensions {
+			if amountStr, ok := dim.PricePerUnit["USD"]; ok {
+				amount, err := strconv.ParseFloat(amountStr, 64)
+				if err == nil {
+					return amount, dim.Unit, true
 				}
 			}
+		}
+	}
+	return 0, "", false
+}
 
-			// --- EBS Volumes ---
-			// EBS often has productFamily="Storage" or "System Operation" (IOPS)
-			// We look for volumeApiName (e.g. "gp3")
-			if prod.ProductFamily == "Storage" {
-				volType := attrs["volumeApiName"] // e.g., "gp3", "io1"
-				if volType == "" {
-					// Fallback for older/mapped names if necessary, but volumeApiName is standard for modern API
-					continue
-				}
+// parseEC2Pricing parses EC2 pricing data including EBS volumes.
+// Returns the detected region, pricing metadata, and any parsing error.
+func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", nil, fmt.Errorf("failed to parse EC2 JSON: %w", err)
+	}
 
-				// We want "Storage" usage type, not IOPS fees or throughput fees
-				// usageType often contains "EBS:VolumeUsage.gp3"
-				// attributes["usagetype"] might be useful if strict filtering needed.
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AmazonEC2" {
+		c.logger.Warn().
+			Str("expected", "AmazonEC2").
+			Str("actual", pricing.OfferCode).
+			Msg("EC2 pricing data has unexpected offerCode")
+	}
 
-				rate, unit, found := getOnDemandPrice(sku)
+	// Capture metadata for debugging (T034)
+	meta := &pricingMetadata{
+		Version:         pricing.Version,
+		PublicationDate: pricing.PublicationDate,
+		OfferCode:       pricing.OfferCode,
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		// Capture region from first product that has it
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		// EC2 Instances
+		if prod.ProductFamily == "Compute Instance" {
+			instType := attrs["instanceType"]
+			os := attrs["operatingSystem"]
+			tenancy := attrs["tenancy"]
+			capacityStatus := attrs["capacitystatus"]
+			preInstalledSw := attrs["preInstalledSw"]
+
+			if instType != "" && os != "" && tenancy != "" &&
+				capacityStatus == "Used" &&
+				(preInstalledSw == "NA" || preInstalledSw == "") {
+
+				key := fmt.Sprintf("%s/%s/%s", instType, os, tenancy)
+				rate, unit, found := getOnDemandPrice(&pricing, sku)
 				if found {
-					// We only want the "per GB-Mo" price, not IOPS charges.
-					// Check unit.
-					if unit == "GB-Mo" {
-						c.ebsIndex[volType] = ebsPrice{
-							Unit:           unit,
-							RatePerGBMonth: rate,
-							Currency:       "USD",
-						}
+					c.ec2Index[key] = ec2Price{
+						Unit:       unit,
+						HourlyRate: rate,
+						Currency:   "USD",
 					}
 				}
 			}
+		}
 
-			// --- S3 Storage ---
-			// S3 uses productFamily="Storage" and servicecode="AmazonS3"
-			// Index by storageClass (e.g., "Standard", "Standard - Infrequent Access")
-			if prod.ProductFamily == "Storage" && attrs["servicecode"] == "AmazonS3" {
-				storageClass := attrs["storageClass"]
-				if storageClass == "" {
-					continue
+		// EBS Volumes (included in EC2 pricing file)
+		if prod.ProductFamily == "Storage" {
+			volType := attrs["volumeApiName"]
+			if volType == "" {
+				continue
+			}
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found && unit == "GB-Mo" {
+				c.ebsIndex[volType] = ebsPrice{
+					Unit:           unit,
+					RatePerGBMonth: rate,
+					Currency:       "USD",
 				}
+			}
+		}
+	}
+	return region, meta, nil
+}
 
-				rate, unit, found := getOnDemandPrice(sku)
-				if found && unit == "GB-Mo" {
-					c.s3Index[storageClass] = s3Price{
+// parseS3Pricing parses S3 pricing data.
+// Returns the detected region and any parsing error.
+func (c *Client) parseS3Pricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse S3 JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AmazonS3" {
+		c.logger.Warn().
+			Str("expected", "AmazonS3").
+			Str("actual", pricing.OfferCode).
+			Msg("S3 pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		if prod.ProductFamily == "Storage" {
+			storageClass := attrs["storageClass"]
+			if storageClass == "" {
+				continue
+			}
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found && unit == "GB-Mo" {
+				c.s3Index[storageClass] = s3Price{
+					Unit:           unit,
+					RatePerGBMonth: rate,
+					Currency:       "USD",
+				}
+			}
+		}
+	}
+	return region, nil
+}
+
+// parseRDSPricing parses RDS pricing data.
+// Returns the detected region and any parsing error.
+func (c *Client) parseRDSPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse RDS JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AmazonRDS" {
+		c.logger.Warn().
+			Str("expected", "AmazonRDS").
+			Str("actual", pricing.OfferCode).
+			Msg("RDS pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		// RDS Database Instances
+		if prod.ProductFamily == "Database Instance" {
+			instClass := attrs["instanceType"]
+			engine := attrs["databaseEngine"]
+			deployOption := attrs["deploymentOption"]
+
+			if instClass != "" && engine != "" && deployOption == "Single-AZ" {
+				key := fmt.Sprintf("%s/%s", instClass, engine)
+				rate, unit, found := getOnDemandPrice(&pricing, sku)
+				if found && unit == "Hrs" {
+					c.rdsInstanceIndex[key] = rdsInstancePrice{
+						Unit:       unit,
+						HourlyRate: rate,
+						Currency:   "USD",
+					}
+				}
+			}
+		}
+
+		// RDS Database Storage
+		if prod.ProductFamily == "Database Storage" {
+			volType := attrs["volumeType"]
+			usageType := attrs["usagetype"]
+
+			var apiVolType string
+			switch volType {
+			case "General Purpose":
+				if usageType != "" && strings.Contains(usageType, "gp3") {
+					apiVolType = "gp3"
+				} else {
+					apiVolType = "gp2"
+				}
+			case "General Purpose (SSD)":
+				apiVolType = "gp2"
+			case "Provisioned IOPS", "Provisioned IOPS (SSD)":
+				if usageType != "" && strings.Contains(usageType, "io2") {
+					apiVolType = "io2"
+				} else {
+					apiVolType = "io1"
+				}
+			case "Magnetic":
+				apiVolType = "standard"
+			default:
+				continue
+			}
+
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found && unit == "GB-Mo" {
+				if _, exists := c.rdsStorageIndex[apiVolType]; !exists {
+					c.rdsStorageIndex[apiVolType] = rdsStoragePrice{
 						Unit:           unit,
 						RatePerGBMonth: rate,
 						Currency:       "USD",
 					}
 				}
 			}
+		}
+	}
+	return region, nil
+}
 
-			// --- RDS Database Instances ---
-			// RDS uses productFamily="Database Instance" for compute pricing
-			if prod.ProductFamily == "Database Instance" {
-				instClass := attrs["instanceType"] // e.g., "db.t3.medium"
-				engine := attrs["databaseEngine"]  // e.g., "MySQL", "PostgreSQL"
-				deployOption := attrs["deploymentOption"]
+// parseEKSPricing parses EKS pricing data.
+// Returns the detected region and any parsing error.
+func (c *Client) parseEKSPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse EKS JSON: %w", err)
+	}
 
-				// Filter for Single-AZ On-Demand instances only
-				// - Must have valid instance class and engine
-				// - deploymentOption must be "Single-AZ" (excludes Multi-AZ pricing)
-				if instClass != "" && engine != "" && deployOption == "Single-AZ" {
-					// Composite key: "db.t3.medium/MySQL"
-					key := fmt.Sprintf("%s/%s", instClass, engine)
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AmazonEKS" {
+		c.logger.Warn().
+			Str("expected", "AmazonEKS").
+			Str("actual", pricing.OfferCode).
+			Msg("EKS pricing data has unexpected offerCode")
+	}
 
-					rate, unit, found := getOnDemandPrice(sku)
-					if found && unit == "Hrs" {
-						c.rdsInstanceIndex[key] = rdsInstancePrice{
-							Unit:       unit,
-							HourlyRate: rate,
-							Currency:   "USD",
-						}
-					}
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		if attrs["servicecode"] == "AmazonEKS" {
+			operation := attrs["operation"]
+			usageType := attrs["usagetype"]
+
+			if c.eksPricing == nil {
+				c.eksPricing = &eksPrice{
+					Unit:     "Hrs",
+					Currency: "USD",
 				}
 			}
 
-			// --- RDS Database Storage ---
-			// RDS storage uses productFamily="Database Storage"
-			if prod.ProductFamily == "Database Storage" {
-				volType := attrs["volumeType"] // e.g., "General Purpose", "Provisioned IOPS"
-				usageType := attrs["usagetype"]
-
-				// Map volume type names to API names
-				var apiVolType string
-				switch volType {
-				case "General Purpose":
-					// Check usagetype to distinguish gp2 vs gp3
-					if usageType != "" {
-						if strings.Contains(usageType, "gp3") {
-							apiVolType = "gp3"
-						} else {
-							apiVolType = "gp2" // Default GP to gp2
-						}
-					} else {
-						apiVolType = "gp2"
-					}
-				case "General Purpose (SSD)":
-					apiVolType = "gp2"
-				case "Provisioned IOPS", "Provisioned IOPS (SSD)":
-					// Check usagetype to distinguish io1 vs io2
-					if usageType != "" && strings.Contains(usageType, "io2") {
-						apiVolType = "io2"
-					} else {
-						apiVolType = "io1"
-					}
-				case "Magnetic":
-					apiVolType = "standard"
-				default:
-					continue // Unknown storage type
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			// AWS returns unit as "Hours", "Hrs", or "hours" depending on the product
+			unitLower := strings.ToLower(unit)
+			if found && (unitLower == "hrs" || unitLower == "hours") && rate > 0 {
+				if operation == "ExtendedSupport" || strings.Contains(usageType, "extendedSupport") {
+					c.eksPricing.ExtendedHourlyRate = rate
+				} else if operation == "CreateOperation" || strings.Contains(usageType, "perCluster") {
+					// Standard cluster pricing: operation=CreateOperation, usageType contains "perCluster"
+					c.eksPricing.StandardHourlyRate = rate
 				}
+			}
+		}
+	}
+	return region, nil
+}
 
-				rate, unit, found := getOnDemandPrice(sku)
-				if found && unit == "GB-Mo" {
-					// Only store if we don't have it yet or this is a better match
-					if _, exists := c.rdsStorageIndex[apiVolType]; !exists {
-						c.rdsStorageIndex[apiVolType] = rdsStoragePrice{
-							Unit:           unit,
-							RatePerGBMonth: rate,
-							Currency:       "USD",
-						}
-					}
+// parseLambdaPricing parses Lambda pricing data.
+// Returns the detected region and any parsing error.
+func (c *Client) parseLambdaPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse Lambda JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AWSLambda" {
+		c.logger.Warn().
+			Str("expected", "AWSLambda").
+			Str("actual", pricing.OfferCode).
+			Msg("Lambda pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		if prod.ProductFamily == "AWS Lambda" || prod.ProductFamily == "Serverless" {
+			group := attrs["group"]
+
+			if c.lambdaPricing == nil {
+				c.lambdaPricing = &lambdaPrice{
+					Currency: "USD",
 				}
 			}
 
-			// --- EKS Cluster Control Plane ---
-			// EKS uses servicecode="AmazonEKS" with two support tiers:
-			// - Standard support: operation="CreateOperation", usagetype contains "perCluster"
-			// - Extended support: operation="ExtendedSupport", usagetype contains "extendedSupport"
-			if attrs["servicecode"] == "AmazonEKS" {
-				operation := attrs["operation"]
-				usageType := attrs["usagetype"]
-
-				// Initialize eksPrice struct if nil
-				if c.eksPricing == nil {
-					c.eksPricing = &eksPrice{
-						Unit:     "Hrs",
-						Currency: "USD",
-					}
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found {
+				if group == "AWS-Lambda-Requests" && unit == "Requests" {
+					c.lambdaPricing.RequestPrice = rate
+				} else if group == "AWS-Lambda-Duration" && (unit == "Second" || unit == "Lambda-GB-Second") {
+					c.lambdaPricing.X86GBSecondPrice = rate
+				} else if group == "AWS-Lambda-Duration-ARM" && (unit == "Second" || unit == "Lambda-GB-Second") {
+					c.lambdaPricing.ARMGBSecondPrice = rate
 				}
+			}
+		}
+	}
+	return region, nil
+}
 
-				rate, unit, found := getOnDemandPrice(sku)
-				if found && unit == "Hrs" && rate > 0 {
-					// Extended support: ExtendedSupport operation or extendedSupport in usagetype
-					// Always update with valid non-zero rates. This handles cases where AWS pricing
-					// data may contain multiple entries or change order in future API responses.
-					if operation == "ExtendedSupport" || strings.Contains(usageType, "extendedSupport") {
-						c.eksPricing.ExtendedHourlyRate = rate
-					} else {
-						// Standard support: CreateOperation with perCluster, or any non-extended EKS pricing
-						// This includes legacy data that doesn't have specific operation/usagetype
-						c.eksPricing.StandardHourlyRate = rate
-					}
+// parseDynamoDBPricing parses DynamoDB pricing data.
+// Returns the detected region and any parsing error.
+func (c *Client) parseDynamoDBPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse DynamoDB JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AmazonDynamoDB" {
+		c.logger.Warn().
+			Str("expected", "AmazonDynamoDB").
+			Str("actual", pricing.OfferCode).
+			Msg("DynamoDB pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		if attrs["servicecode"] == "AmazonDynamoDB" {
+			if c.dynamoDBPricing == nil {
+				c.dynamoDBPricing = &dynamoDBPrice{
+					Currency: "USD",
 				}
 			}
 
-			// --- Lambda Functions ---
-			// Lambda uses two product families:
-			// 1. "AWS Lambda" (Requests): group="AWS-Lambda-Requests"
-			// 2. "Serverless" (Duration): group="AWS-Lambda-Duration" (x86) or
-			//    "AWS-Lambda-Duration-ARM" (arm64/Graviton2)
-			if prod.ProductFamily == "AWS Lambda" || prod.ProductFamily == "Serverless" {
-				group := attrs["group"]
-
-				// Initialize lambdaPricing struct if nil
-				if c.lambdaPricing == nil {
-					c.lambdaPricing = &lambdaPrice{
-						Currency: "USD",
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found {
+				if prod.ProductFamily == "Amazon DynamoDB PayPerRequest Throughput" {
+					group := attrs["group"]
+					switch group {
+					case "DDB-ReadUnits":
+						c.dynamoDBPricing.OnDemandReadPrice = rate
+					case "DDB-WriteUnits":
+						c.dynamoDBPricing.OnDemandWritePrice = rate
 					}
-				}
-
-				rate, unit, found := getOnDemandPrice(sku)
-				if found {
-					if group == "AWS-Lambda-Requests" && unit == "Requests" {
-						c.lambdaPricing.RequestPrice = rate
-					} else if group == "AWS-Lambda-Duration" && (unit == "Second" || unit == "Lambda-GB-Second") {
-						// x86_64 duration pricing (per GB-second)
-						c.lambdaPricing.X86GBSecondPrice = rate
-					} else if group == "AWS-Lambda-Duration-ARM" && (unit == "Second" || unit == "Lambda-GB-Second") {
-						// arm64/Graviton2 duration pricing (per GB-second)
-						c.lambdaPricing.ARMGBSecondPrice = rate
+				} else if prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput") {
+					usageType := attrs["usagetype"]
+					if strings.Contains(usageType, "ReadCapacityUnit") && unit == "Hrs" {
+						c.dynamoDBPricing.ProvisionedRCUPrice = rate
+					} else if strings.Contains(usageType, "WriteCapacityUnit") && unit == "Hrs" {
+						c.dynamoDBPricing.ProvisionedWCUPrice = rate
 					}
-				}
-			}
-
-			// --- DynamoDB Tables ---
-			// DynamoDB uses several product families:
-			// 1. "Amazon DynamoDB PayPerRequest Throughput" (On-Demand): group="DDB-ReadUnits" / "DDB-WriteUnits"
-			// 2. "Provisioned IOPS" (Provisioned): usagetype containing "ReadCapacityUnit" / "WriteCapacityUnit"
-			// 3. "Database Storage": usagetype containing "TimedStorage-ByteHrs"
-			if attrs["servicecode"] == "AmazonDynamoDB" {
-				// Initialize dynamoDBPricing struct if nil
-				if c.dynamoDBPricing == nil {
-					c.dynamoDBPricing = &dynamoDBPrice{
-						Currency: "USD",
-					}
-				}
-
-				rate, unit, found := getOnDemandPrice(sku)
-				if found {
-					if prod.ProductFamily == "Amazon DynamoDB PayPerRequest Throughput" {
-						group := attrs["group"]
-						switch group {
-						case "DDB-ReadUnits":
-							c.dynamoDBPricing.OnDemandReadPrice = rate
-						case "DDB-WriteUnits":
-							c.dynamoDBPricing.OnDemandWritePrice = rate
-						}
-					} else if prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput") {
-						usageType := attrs["usagetype"]
-						if strings.Contains(usageType, "ReadCapacityUnit") && unit == "Hrs" {
-							c.dynamoDBPricing.ProvisionedRCUPrice = rate
-						} else if strings.Contains(usageType, "WriteCapacityUnit") && unit == "Hrs" {
-							c.dynamoDBPricing.ProvisionedWCUPrice = rate
-						}
-					} else if prod.ProductFamily == "Database Storage" {
-						usageType := attrs["usagetype"]
-						// TimedStorage-ByteHrs is the standard storage usage type
-						if strings.Contains(usageType, "TimedStorage-ByteHrs") && unit == "GB-Mo" {
-							c.dynamoDBPricing.StoragePrice = rate
-						}
-					}
-				}
-			}
-
-			// --- Elastic Load Balancing (ALB/NLB) ---
-			// AWSELB service uses:
-			// - pf="Load Balancer-Application" for ALB
-			// - pf="Load Balancer-Network" for NLB
-			// Rates:
-			// - usagetype="LoadBalancerUsage" (Fixed Hourly)
-			// - usagetype="LCUUsage" (ALB) or "NLCUUsage" (NLB) for Capacity Units
-			if prod.ProductFamily == "Load Balancer-Application" || prod.ProductFamily == "Load Balancer-Network" {
-				usageType := attrs["usagetype"]
-
-				// Initialize elbPricing struct if nil
-				if c.elbPricing == nil {
-					c.elbPricing = &elbPrice{
-						Currency: "USD",
-					}
-				}
-
-				rate, unit, found := getOnDemandPrice(sku)
-				if found {
-					switch prod.ProductFamily {
-					case "Load Balancer-Application":
-						if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
-							c.elbPricing.ALBHourlyRate = rate
-						} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
-							c.elbPricing.ALBLCURate = rate
-						}
-					case "Load Balancer-Network":
-						if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
-							c.elbPricing.NLBHourlyRate = rate
-						} else if strings.HasSuffix(usageType, "NLCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "NLCU-Hrs" {
-							c.elbPricing.NLBNLCURate = rate
-						}
+				} else if prod.ProductFamily == "Database Storage" {
+					usageType := attrs["usagetype"]
+					if strings.Contains(usageType, "TimedStorage-ByteHrs") && unit == "GB-Mo" {
+						c.dynamoDBPricing.StoragePrice = rate
 					}
 				}
 			}
 		}
+	}
+	return region, nil
+}
 
-		// Validate EKS pricing data was loaded successfully
-		if c.eksPricing == nil || c.eksPricing.StandardHourlyRate == 0 {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("EKS standard pricing not found in embedded data")
-		}
-		if c.eksPricing != nil && c.eksPricing.ExtendedHourlyRate == 0 {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("EKS extended support pricing not found in embedded data")
-		}
+// parseELBPricing parses ELB pricing data.
+// Returns the detected region and any parsing error.
+func (c *Client) parseELBPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse ELB JSON: %w", err)
+	}
 
-		// Validate Lambda pricing data was loaded successfully
-		if c.lambdaPricing == nil || c.lambdaPricing.RequestPrice == 0 {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("Lambda request pricing not found in embedded data")
-		}
-		if c.lambdaPricing != nil && c.lambdaPricing.X86GBSecondPrice == 0 {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("Lambda x86 GB-second pricing not found in embedded data")
-		}
-		if c.lambdaPricing != nil && c.lambdaPricing.ARMGBSecondPrice == 0 {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("Lambda ARM GB-second pricing not found in embedded data")
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AWSELB" {
+		c.logger.Warn().
+			Str("expected", "AWSELB").
+			Str("actual", pricing.OfferCode).
+			Msg("ELB pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
 		}
 
-		// Validate DynamoDB pricing data was loaded successfully
-		if c.dynamoDBPricing == nil {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("DynamoDB pricing not found in embedded data")
-		} else {
-			if c.dynamoDBPricing.OnDemandReadPrice == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("DynamoDB on-demand read pricing not found in embedded data")
-			}
-			if c.dynamoDBPricing.OnDemandWritePrice == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("DynamoDB on-demand write pricing not found in embedded data")
-			}
-			if c.dynamoDBPricing.StoragePrice == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("DynamoDB storage pricing not found in embedded data")
-			}
-			if c.dynamoDBPricing.ProvisionedRCUPrice == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("DynamoDB provisioned RCU pricing not found in embedded data")
-			}
-			if c.dynamoDBPricing.ProvisionedWCUPrice == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("DynamoDB provisioned WCU pricing not found in embedded data")
-			}
-		}
+		if prod.ProductFamily == "Load Balancer-Application" || prod.ProductFamily == "Load Balancer-Network" {
+			usageType := attrs["usagetype"]
 
-		// Validate ELB pricing data was loaded successfully
-		if c.elbPricing == nil {
-			c.logger.Warn().
-				Str("region", c.region).
-				Msg("ELB pricing not found in embedded data")
-		} else {
-			if c.elbPricing.ALBHourlyRate == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("ALB hourly pricing not found in embedded data")
+			if c.elbPricing == nil {
+				c.elbPricing = &elbPrice{
+					Currency: "USD",
+				}
 			}
-			if c.elbPricing.ALBLCURate == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("ALB LCU pricing not found in embedded data")
-			}
-			if c.elbPricing.NLBHourlyRate == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("NLB hourly pricing not found in embedded data")
-			}
-			if c.elbPricing.NLBNLCURate == 0 {
-				c.logger.Warn().
-					Str("region", c.region).
-					Msg("NLB NLCU pricing not found in embedded data")
+
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found {
+				switch prod.ProductFamily {
+				case "Load Balancer-Application":
+					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
+						c.elbPricing.ALBHourlyRate = rate
+					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+						c.elbPricing.ALBLCURate = rate
+					}
+				case "Load Balancer-Network":
+					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
+						c.elbPricing.NLBHourlyRate = rate
+					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+						// AWS uses "LCUUsage" with "LCU-Hrs" for NLB capacity units too
+						// The description differentiates: "Network load balancer capacity unit-hour"
+						c.elbPricing.NLBNLCURate = rate
+					}
+				}
 			}
 		}
-	})
-	return c.err
+	}
+	return region, nil
 }
 
 // Region returns the AWS region for this pricing data

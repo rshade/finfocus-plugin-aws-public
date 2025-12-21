@@ -1,26 +1,23 @@
 <!--
-Sync Impact Report - Constitution v2.1.1
+Sync Impact Report - Constitution v2.2.0
 ========================================
-Version Change: 2.1.0 → 2.1.1
-Rationale: PATCH - Clarify logging requirements to explicitly specify zerolog
-           for structured JSON logging. Aligns constitution with CLAUDE.md and
-           actual implementation (main.go, testmode.go use zerolog).
+Version Change: 2.1.1 → 2.2.0
+Rationale: MINOR - Update binary size constraints to realistic limits with
+           embedded AWS pricing data. Previous constraint (<10MB) was causing
+           aggressive filtering that broke pricing (v0.0.10/v0.0.11 returned $0).
+
+           Key changes:
+           - Binary size: <10MB → <250MB (with 200MB warning, 240MB critical)
+           - Memory footprint: <50MB → <400MB (for memory-mapped pricing data)
+           - Added CRITICAL warning against filtering pricing data to meet size
+           - Added binary size monitoring requirements for CI/release
 
 Modified Principles:
-  - III. Protocol & Interface Consistency: Clarified zerolog usage
-  - IV. Performance & Reliability: Clarified zerolog for performance monitoring
-
-Previous Sync Impact Report (v2.1.0):
-  - MINOR update to document GetActualCost fallback implementation
-  - Feature 004-actual-cost-fallback implements pro-rated cost estimation
-    using projected monthly cost × (runtime_hours / 730)
-
-Previous Sync Impact Report (v2.0.0):
-  - MAJOR update to align with gRPC protocol instead of stdin/stdout JSON
-  - Complete rewrite for gRPC in Protocol section
-  - Updated RPC latency targets in Performance section
-  - Added Thread Safety requirements
-  - Added gRPC Error Code enum compliance
+  - IV. Performance & Reliability:
+    - Updated binary size from <10MB to <250MB
+    - Updated memory footprint from <50MB to <400MB
+    - Added CRITICAL note: NEVER filter pricing data to meet size constraints
+    - Added new "Binary size monitoring" subsection with alert thresholds
 
 Templates Requiring Updates:
   ✅ .specify/templates/plan-template.md - No changes required
@@ -28,7 +25,16 @@ Templates Requiring Updates:
   ✅ .specify/templates/tasks-template.md - No changes required
 
 Follow-up TODOs:
-  - None
+  - Consider adding binary size check to CI workflow (GitHub Actions)
+
+Previous Sync Impact Report (v2.1.1):
+  - PATCH - Clarify logging requirements to explicitly specify zerolog
+
+Previous Sync Impact Report (v2.1.0):
+  - MINOR update to document GetActualCost fallback implementation
+
+Previous Sync Impact Report (v2.0.0):
+  - MAJOR update to align with gRPC protocol instead of stdin/stdout JSON
 -->
 
 # PulumiCost Plugin AWS Public Constitution
@@ -123,9 +129,17 @@ Follow-up TODOs:
   - GetProjectedCost() RPC: < 100ms per call
   - Supports() RPC: < 10ms per call
 - **Resource limits:**
-  - Memory footprint: < 50MB per region binary (including embedded pricing data)
-  - Binary size: < 10MB per region binary (before compression)
+  - Memory footprint: < 400MB per region binary runtime (embedded pricing data is memory-mapped)
+  - Binary size: < 250MB per region binary (before compression)
+    - Note: Binary size is dominated by embedded AWS pricing JSON (~150MB per region)
+    - Pricing data includes 7 services: EC2, S3, RDS, EKS, Lambda, DynamoDB, ELB
+    - **CRITICAL**: NEVER filter/trim pricing data to meet size constraints - this caused
+      v0.0.10/v0.0.11 bugs where prices returned $0. Full AWS data is required.
   - Concurrent RPC calls: Support at least 100 concurrent GetProjectedCost() calls
+- **Binary size monitoring:**
+  - CI/release pipeline MUST alert when binary size exceeds 200MB (warning) or 240MB (critical)
+  - When adding new AWS services, document expected size increase in PR description
+  - If binary approaches 250MB limit, evaluate constitution amendment BEFORE filtering data
 
 **Performance monitoring:**
 
@@ -222,4 +236,4 @@ Follow-up TODOs:
 - Constitution defines non-negotiable rules; CLAUDE.md provides practical implementation details
 - When CLAUDE.md conflicts with constitution, constitution wins
 
-**Version**: 2.1.1 | **Ratified**: 2025-11-16 | **Last Amended**: 2025-12-05
+**Version**: 2.2.0 | **Ratified**: 2025-11-16 | **Last Amended**: 2025-12-20

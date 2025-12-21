@@ -156,15 +156,22 @@ for i in "${!region_array[@]}"; do
     fi
 done
 
-# Check pricing data files exist
+# Check per-service pricing data files exist (v0.0.12+ format)
+# Services: ec2, s3, rds, eks, lambda, dynamodb, elb
+SERVICES=("ec2" "s3" "rds" "eks" "lambda" "dynamodb" "elb")
 for region in "${region_array[@]}"; do
-    pricing_file="$PRICING_DIR/data/aws_pricing_$region.json"
-    if [[ ! -f "$pricing_file" ]]; then
-        echo "ERROR: Pricing data missing: $pricing_file" >&2
-        exit 1
-    fi
+    for service in "${SERVICES[@]}"; do
+        pricing_file="$PRICING_DIR/data/${service}_$region.json"
+        if [[ ! -f "$pricing_file" ]]; then
+            echo "ERROR: Pricing data missing: $pricing_file" >&2
+            exit 1
+        fi
+        if $VERBOSE; then
+            echo "✓ Pricing data exists: $pricing_file"
+        fi
+    done
     if ! $QUIET; then
-        echo "✓ Pricing data exists: $pricing_file"
+        echo "✓ All service pricing data exists for region: $region"
     fi
 done
 

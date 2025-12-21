@@ -155,3 +155,14 @@ type elbPrice struct {
 	// Currency is the pricing currency (e.g., "USD").
 	Currency string
 }
+
+// pricingMetadata holds AWS pricing data metadata for debugging and traceability (T034).
+// Captured from the embedded pricing JSON during initialization.
+type pricingMetadata struct {
+	// Version is the AWS pricing data version (timestamp-based, e.g., "20251218235654").
+	Version string
+	// PublicationDate is the ISO timestamp when AWS published this pricing data.
+	PublicationDate string
+	// OfferCode identifies the AWS service (e.g., "AmazonEC2", "AWSELB").
+	OfferCode string
+}

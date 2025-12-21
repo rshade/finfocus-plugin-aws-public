@@ -8,21 +8,35 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
-// main is the program entry point that fetches and writes combined AWS pricing data for one or more regions.
+// serviceConfig maps AWS service codes to lowercase file prefixes.
+// Used for generating per-service pricing files.
+var serviceConfig = map[string]string{
+	"AmazonEC2":      "ec2",
+	"AmazonS3":       "s3",
+	"AWSLambda":      "lambda",
+	"AmazonRDS":      "rds",
+	"AmazonEKS":      "eks",
+	"AmazonDynamoDB": "dynamodb",
+	"AWSELB":         "elb",
+}
+
+// main is the program entry point that fetches AWS pricing data per service.
 //
-// It parses command-line flags to determine regions (`--regions`), output directory (`--out-dir`), and
-// services (`--service`). The deprecated `--dummy` flag is accepted but ignored. For each region, it calls
-// generateCombinedPricingData to fetch pricing for the requested services and write a combined JSON file;
-// on any per-region error the program prints the error to stderr and exits with status 1. On success it prints
-// per-region and final completion messages.
+// It parses command-line flags to determine regions (`--regions`), output directory (`--out-dir`),
+// and services (`--service`). For each region and service, it fetches pricing data from AWS Price
+// List API and writes it to a separate file named {service}_{region}.json.
+//
+// Fail-fast behavior: If ANY service fetch fails for a region, the program exits with status 1.
+// This prevents partial data that could cause $0 pricing issues like v0.0.10/v0.0.11.
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB", "AWS Service Codes (comma-separated, e.g. AmazonEC2,AmazonRDS,AmazonS3,AWSLambda,AmazonEKS,AmazonDynamoDB,AWSELB)")
+	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB", "AWS Service Codes (comma-separated)")
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()
@@ -35,7 +49,12 @@ func main() {
 	serviceList := strings.Split(*service, ",")
 
 	for _, region := range regionList {
-		if err := generateCombinedPricingData(region, serviceList, *outDir); err != nil {
+		region = strings.TrimSpace(region)
+		if region == "" {
+			continue
+		}
+
+		if err := generatePerServicePricingData(region, serviceList, *outDir); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to generate pricing for %s: %v\n", region, err)
 			os.Exit(1)
 		}
@@ -45,40 +64,27 @@ func main() {
 	fmt.Println("Pricing data generated successfully")
 }
 
-// awsPricing represents the structure of AWS Price List API JSON
-type awsPricing struct {
-	FormatVersion   string                                `json:"formatVersion"`
-	Disclaimer      string                                `json:"disclaimer"`
-	OfferCode       string                                `json:"offerCode"`
-	Version         string                                `json:"version"`
-	PublicationDate string                                `json:"publicationDate"`
-	Products        map[string]json.RawMessage            `json:"products"`
-	Terms           map[string]map[string]json.RawMessage `json:"terms"`
-}
-
-// generateCombinedPricingData fetches pricing data for each service in services,
-// combines their Products and OnDemand Terms into a single awsPricing value, and
-// writes the combined pricing JSON to a file named aws_pricing_<region>.json in outDir.
+// generatePerServicePricingData fetches pricing data for each service and writes to separate files.
 //
-// The function skips empty service entries. The combined data will use "Combined"
-// as the OfferCode and inherits Version and PublicationDate from the first
-// successfully fetched service.
+// For each service in the services list, it:
+// 1. Fetches the raw AWS Price List API response
+// 2. Writes the response verbatim to {servicePrefix}_{region}.json
+//
+// The function fails fast if any service fetch fails - no partial data is written.
+// This prevents the v0.0.10/v0.0.11 bug where partial data caused $0 pricing.
 //
 // Parameters:
-//   - region: AWS region used to fetch service pricing.
-//   - services: slice of AWS service codes to fetch and combine.
-//   - outDir: directory where the resulting JSON file will be written.
+//   - region: AWS region code (e.g., "us-east-1")
+//   - services: slice of AWS service codes (e.g., ["AmazonEC2", "AWSELB"])
+//   - outDir: directory where output files will be written
 //
-// Returns an error if any service fetch fails, if the output directory or file
-// cannot be created, or if encoding the combined pricing to JSON fails.
-func generateCombinedPricingData(region string, services []string, outDir string) error {
-	// Combined pricing structure
-	combined := awsPricing{
-		FormatVersion: "v1.0",
-		Products:      make(map[string]json.RawMessage),
-		Terms:         make(map[string]map[string]json.RawMessage),
+// Returns an error if any service fetch fails, the output directory cannot be created,
+// or any file write fails.
+func generatePerServicePricingData(region string, services []string, outDir string) error {
+	// Ensure output directory exists
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-	combined.Terms["OnDemand"] = make(map[string]json.RawMessage)
 
 	for _, service := range services {
 		service = strings.TrimSpace(service)
@@ -86,53 +92,26 @@ func generateCombinedPricingData(region string, services []string, outDir string
 			continue
 		}
 
+		// Get the lowercase file prefix for this service
+		prefix, ok := serviceConfig[service]
+		if !ok {
+			return fmt.Errorf("unknown service code: %s (add to serviceConfig map)", service)
+		}
+
 		fmt.Printf("Fetching %s for %s...\n", service, region)
-		data, err := fetchServicePricing(region, service)
+		data, err := fetchServicePricingRaw(region, service)
 		if err != nil {
+			// Fail fast - do not continue with partial data
 			return fmt.Errorf("failed to fetch %s: %w", service, err)
 		}
 
-		// Merge all products - no filtering, keep full data for accurate cost estimation
-		for sku, product := range data.Products {
-			combined.Products[sku] = product
+		// Write per-service file: {prefix}_{region}.json (e.g., ec2_us-east-1.json)
+		outFile := fmt.Sprintf("%s/%s_%s.json", outDir, prefix, region)
+		if err := writeRawPricingFile(data, outFile); err != nil {
+			return fmt.Errorf("failed to write %s: %w", outFile, err)
 		}
 
-		// Merge OnDemand terms
-		if onDemand, ok := data.Terms["OnDemand"]; ok {
-			for sku, term := range onDemand {
-				combined.Terms["OnDemand"][sku] = term
-			}
-		}
-		fmt.Printf("Merged %d products for %s\n", len(data.Products), service)
-
-		// Keep metadata from first service
-		if combined.OfferCode == "" {
-			combined.OfferCode = "Combined"
-			combined.Version = data.Version
-			combined.PublicationDate = data.PublicationDate
-		}
-	}
-
-	// Ensure output directory exists
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	outFile := fmt.Sprintf("%s/aws_pricing_%s.json", outDir, region)
-	f, err := os.Create(outFile)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer func() {
-		if closeErr := f.Close(); closeErr != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to close file %s: %v\n", outFile, closeErr)
-		}
-	}()
-
-	// Write combined JSON
-	encoder := json.NewEncoder(f)
-	if err := encoder.Encode(combined); err != nil {
-		return fmt.Errorf("failed to encode combined pricing: %w", err)
+		fmt.Printf("Wrote %s (%d bytes)\n", outFile, len(data))
 	}
 
 	return nil
@@ -141,12 +120,28 @@ func generateCombinedPricingData(region string, services []string, outDir string
 // httpRequestTimeout is the timeout for HTTP requests to AWS pricing API
 const httpRequestTimeout = 5 * time.Minute
 
-// fetchServicePricing retrieves AWS pricing data for the specified service and region.
-// It requests the Pricing API index JSON for the given service and region and parses it into an awsPricing value.
+// awsPricingResponse represents the structure of AWS Price List API response.
+// We use this to filter terms while preserving the raw structure.
+type awsPricingResponse struct {
+	FormatVersion   string                            `json:"formatVersion"`
+	Disclaimer      string                            `json:"disclaimer"`
+	OfferCode       string                            `json:"offerCode"`
+	Version         string                            `json:"version"`
+	PublicationDate string                            `json:"publicationDate"`
+	Products        map[string]json.RawMessage        `json:"products"`
+	Terms           map[string]map[string]interface{} `json:"terms"`
+}
+
+// fetchServicePricingRaw retrieves AWS pricing data for the specified service and region.
+// It filters out Reserved Instance and Savings Plans terms to reduce file size,
+// while preserving all products (including all OS values) and OnDemand terms.
+//
 // region is the AWS region code (for example, "us-east-1").
-// service is the AWS service code (for example, "AmazonEC2").
-// It returns the parsed awsPricing on success. An error is returned if the HTTP request fails, the response status is not 200 OK, reading the response body fails, or JSON unmarshaling fails.
-func fetchServicePricing(region, service string) (*awsPricing, error) {
+// service is the AWS service code (for example, "AmazonEC2", "AWSELB").
+//
+// Returns the filtered JSON bytes on success. An error is returned if the HTTP request fails,
+// the response status is not 200 OK, or reading the response body fails.
+func fetchServicePricingRaw(region, service string) ([]byte, error) {
 	url := fmt.Sprintf("https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/%s/current/%s/index.json", service, region)
 
 	// Create request with context for timeout support
@@ -177,10 +172,87 @@ func fetchServicePricing(region, service string) (*awsPricing, error) {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	var data awsPricing
-	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	// Parse the response to filter terms
+	var pricing awsPricingResponse
+	if err := json.Unmarshal(body, &pricing); err != nil {
+		return nil, fmt.Errorf("invalid JSON response: %w", err)
 	}
 
-	return &data, nil
+	if pricing.OfferCode == "" {
+		return nil, fmt.Errorf("missing offerCode in response")
+	}
+	if len(pricing.Products) == 0 {
+		return nil, fmt.Errorf("no products in response for %s/%s", service, region)
+	}
+
+	// Filter terms: keep only OnDemand, remove Reserved and Savings Plans.
+	// AWS Price List API returns multiple term types:
+	//
+	// KEPT:
+	//   - "OnDemand" - Pay-as-you-go pricing with no commitment (what we use)
+	//
+	// FILTERED OUT:
+	//   - "Reserved" - Reserved Instance pricing (1yr, 3yr upfront commitments)
+	//                  Typically 30-75% discount vs OnDemand, but requires commitment.
+	//                  For EC2, this includes ~14,000 SKUs (us-east-1).
+	//   - "savingsPlan" - Savings Plans pricing (if present, though uncommon)
+	//                     Flexible discount program that applies across services.
+	//
+	// Why filter? Reduces file size from ~400MB to ~154MB for EC2 alone.
+	// The plugin only supports on-demand pricing for v1.
+	filteredTerms := make(map[string]map[string]interface{})
+	for termType, skuTerms := range pricing.Terms {
+		if termType == "OnDemand" {
+			filteredTerms[termType] = skuTerms
+		} else {
+			fmt.Printf("  Filtering out term type: %s (%d SKUs)\n", termType, len(skuTerms))
+		}
+	}
+	pricing.Terms = filteredTerms
+
+	// Re-serialize with filtered terms
+	filteredBody, err := json.Marshal(pricing)
+	if err != nil {
+		return nil, fmt.Errorf("failed to re-serialize filtered pricing: %w", err)
+	}
+
+	return filteredBody, nil
+}
+
+// writeRawPricingFile writes raw pricing data to a file atomically.
+// The data is written verbatim without any processing or modification.
+// Uses write-to-temp-then-rename pattern to prevent partial writes on failure.
+func writeRawPricingFile(data []byte, outFile string) error {
+	// Create temp file in the same directory to ensure rename works (same filesystem)
+	dir := filepath.Dir(outFile)
+	tmpFile, err := os.CreateTemp(dir, ".pricing-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Clean up temp file on any error
+	success := false
+	defer func() {
+		if !success {
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		return fmt.Errorf("failed to write data: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Atomic rename (works on same filesystem)
+	if err := os.Rename(tmpPath, outFile); err != nil {
+		return fmt.Errorf("failed to rename temp file to %s: %w", outFile, err)
+	}
+
+	success = true
+	return nil
 }

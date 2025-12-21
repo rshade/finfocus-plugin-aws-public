@@ -32,7 +32,8 @@ go.work.sum
 # .idea/
 # .vscode/
 
-# Generated pricing data files
+# Generated pricing data files (per-service format: {service}_{region}.json)
+# Examples: ec2_us-east-1.json, elb_us-west-2.json, rds_eu-west-1.json
 data/*.json
 data/*.csv
 internal/pricing/data/*.json
