@@ -34,7 +34,7 @@ When commits are pushed to `main`, the release-please workflow automatically:
 
 **Example Release PR**:
 
-```
+```yaml
 Title: chore: release v1.2.0
 
 Changes:
@@ -266,6 +266,7 @@ ls -la dist/
 ## Pricing Data
 
 The `tools/generate-pricing` tool fetches real pricing data from the AWS Price List API:
+
 - No AWS credentials required - uses public pricing endpoint
 - Data is fetched during build via GoReleaser before hook
 - Each region binary embeds its own pricing data

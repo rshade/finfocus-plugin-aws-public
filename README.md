@@ -4,6 +4,41 @@ A gRPC-based cost estimation plugin for
 [PulumiCost](https://github.com/rshade/pulumicost-core) that estimates AWS
 infrastructure costs using publicly available AWS on-demand pricing data.
 
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
+cd pulumicost-plugin-aws-public
+
+# Build for your region (example: us-east-1)
+make build-region REGION=us-east-1
+
+# Start the plugin
+./pulumicost-plugin-aws-public-us-east-1
+```
+
+### Basic Usage
+
+```bash
+# The plugin starts and announces its port
+PORT=50051
+
+# Use grpcurl to test (example EC2 instance)
+grpcurl -plaintext localhost:$PORT \
+  pulumicost.v1.CostSourceService/GetProjectedCost \
+  -d '{
+    "resource": {
+      "provider": "aws",
+      "resource_type": "ec2",
+      "sku": "t3.micro",
+      "region": "us-east-1"
+    }
+  }'
+```
+
 ## Overview
 
 This plugin provides monthly cost estimates for AWS resources without requiring
@@ -17,10 +52,13 @@ public pricing data at build time and serves cost estimates via gRPC.
 - **EC2 Instances**: On-demand Linux instances with shared tenancy
 - **EBS Volumes**: All volume types (gp2, gp3, io1, io2, etc.)
 - **Lambda Functions**: Request-based and compute-duration pricing
+- **S3 Storage**: Storage cost estimation by storage class and size
+- **DynamoDB**: On-demand and provisioned capacity modes with storage
+- **ELB Load Balancers**: ALB and NLB pricing with LCU/NLCU billing
 
 **Stub Support (returns $0 with explanation):**
 
-- S3, RDS, DynamoDB
+- RDS
 
 ## Features
 
@@ -85,6 +123,27 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 - Tag requirements: `requests_per_month`, `avg_duration_ms`
 - Defaults: 128MB memory, 0 requests, 100ms duration if tags missing
 
+**S3 Storage:**
+
+- Pricing lookup: `storage_class`
+- Monthly cost: `rate_per_gb_month × storage_size_gb`
+- Size extraction: From `tags["size"]`
+- Default size: 1 GB if not specified
+
+**DynamoDB:**
+
+- **On-Demand Mode**: `(read_requests × price_per_read) + (write_requests × price_per_write) + (storage_gb × price_per_gb_month)`
+- **Provisioned Mode**: `(rcu × 730 × price_per_rcu_hour) + (wcu × 730 × price_per_wcu_hour) + (storage_gb × price_per_gb_month)`
+- Tag requirements: `read_capacity_units`/`read_requests_per_month`, `write_capacity_units`/`write_requests_per_month`, `storage_gb`
+- SKU specifies capacity mode: "provisioned" or defaults to "on-demand"
+
+**ELB Load Balancers:**
+
+- **ALB Pricing**: `(730 × hourly_rate) + (730 × lcu_per_hour × price_per_lcu)`
+- **NLB Pricing**: `(730 × hourly_rate) + (730 × nlcu_per_hour × price_per_nlcu)`
+- Load balancer type auto-detected from SKU (contains "alb"/"nlb") or defaults to ALB
+- Tag requirements: `lcu_per_hour` (ALB) or `nlcu_per_hour` (NLB), or generic `capacity_units`
+
 ### Carbon Estimation (EC2 Only)
 
 EC2 instances include carbon footprint estimation using the
@@ -119,7 +178,7 @@ carbonGrams = energyWithPUE × gridIntensity × 1,000,000
 
 Priority: `resource.utilization_percentage` > `request.utilization_percentage` > 0.5
 
-## Installation
+## Installation & Setup
 
 ### ⚠️ IMPORTANT: Build Tags Required
 
@@ -376,6 +435,110 @@ message ResourceDescriptor {
 }
 ```
 
+### Example: S3 Storage
+
+```json
+{
+  "provider": "aws",
+  "resource_type": "s3",
+  "sku": "STANDARD",
+  "region": "us-east-1",
+  "tags": {
+    "size": "100"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "cost_per_month": 2.3,
+  "unit_price": 0.023,
+  "currency": "USD",
+  "billing_detail": "S3 STANDARD storage, 100 GB, $0.0230/GB-month"
+}
+```
+
+### Example: DynamoDB On-Demand
+
+```json
+{
+  "provider": "aws",
+  "resource_type": "dynamodb",
+  "sku": "on-demand",
+  "region": "us-east-1",
+  "tags": {
+    "read_requests_per_month": "1000000",
+    "write_requests_per_month": "500000",
+    "storage_gb": "50"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "cost_per_month": 137.5,
+  "unit_price": 0.023,
+  "currency": "USD",
+  "billing_detail": "DynamoDB on-demand, 1000000 reads, 500000 writes, 50GB storage"
+}
+```
+
+### Example: DynamoDB Provisioned
+
+```json
+{
+  "provider": "aws",
+  "resource_type": "dynamodb",
+  "sku": "provisioned",
+  "region": "us-east-1",
+  "tags": {
+    "read_capacity_units": "100",
+    "write_capacity_units": "50",
+    "storage_gb": "50"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "cost_per_month": 178.45,
+  "unit_price": 0.00013,
+  "currency": "USD",
+  "billing_detail": "DynamoDB provisioned, 100 RCUs, 50 WCUs, 730 hrs/month, 50GB storage"
+}
+```
+
+### Example: ALB Load Balancer
+
+```json
+{
+  "provider": "aws",
+  "resource_type": "elb",
+  "sku": "alb",
+  "region": "us-east-1",
+  "tags": {
+    "lcu_per_hour": "10"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "cost_per_month": 219.0,
+  "unit_price": 0.0225,
+  "currency": "USD",
+  "billing_detail": "ALB, 730 hrs/month, 10.0 LCU avg/hr"
+}
+```
+
 ## gRPC Service API
 
 ### Name()
@@ -604,6 +767,31 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 - **Currency**: USD only
 - **Pricing**: Public on-demand rates (no Reserved Instances, Spot, or Savings Plans)
 
+## Troubleshooting
+
+### Common Issues
+
+#### "Region not supported by this binary"
+
+- Ensure you're using the correct regional binary (e.g., `pulumicost-plugin-aws-public-us-east-1` for `us-east-1` resources)
+
+#### "EC2 instance type not found in pricing data"
+
+- Verify the instance type is valid AWS instance type
+- Check if the instance type is available in your region
+- Regenerate pricing data if it's a new instance type: `make generate-pricing`
+
+#### "failed to initialize pricing client"
+
+- Ensure the binary was built with proper region tags
+- Run `make generate-pricing` before building if pricing data is missing
+
+#### Plugin not starting"
+
+- Check that the binary has execute permissions: `chmod +x ./pulumicost-plugin-aws-public-*`
+- Verify you're in the correct directory
+- Check stderr for detailed error messages
+
 ## Contributing
 
 1. Fork the repository
@@ -683,3 +871,5 @@ emission estimation.
 - [PulumiCost Core](https://github.com/rshade/pulumicost-core)
 - [PulumiCost Spec](https://github.com/rshade/pulumicost-spec)
 - [AWS Pricing Documentation](https://aws.amazon.com/pricing/)
+- [API Documentation](docs/api.md)
+- [Code Documentation](https://pkg.go.dev/github.com/rshade/pulumicost-plugin-aws-public)
