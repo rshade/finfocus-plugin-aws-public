@@ -27,3 +27,6 @@ var rawDynamoDBJSON []byte
 
 //go:embed data/elb_us-west-2.json
 var rawELBJSON []byte
+
+//go:embed data/vpc_us-west-2.json
+var rawVPCJSON []byte

@@ -531,7 +531,8 @@ and excluded helps users accurately estimate total infrastructure costs.
 | EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e |
 | EBS | Storage GB-month | IOPS, throughput, snapshots | ❌ [#135](https://github.com/rshade/pulumicost-plugin-aws-public/issues/135) |
 | EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) |
-| ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | ❌ Future |
+| ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
+| NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
 | RDS | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | S3 | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | Lambda | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
@@ -574,6 +575,25 @@ To estimate total EKS cluster cost, sum:
   - Provisioned throughput (gp3)
   - Snapshot storage costs
   - Data transfer costs
+
+### NAT Gateway
+
+- `resource_type`: "natgw", "nat_gateway", "nat-gateway", or "aws:ec2/natGateway:NatGateway"
+- `sku`: Not used
+- Data processing: Read from `tags["data_processed_gb"]`, defaults to 0 if missing
+- Pricing: Fixed hourly rate + data processing per GB
+  - Hourly: ~$0.045/hour (varies by region)
+  - Data processing: ~$0.045/GB (varies by region)
+- Assumptions (hardcoded for v1):
+  - `hoursPerMonth = 730` (24×7 on-demand)
+- `unit_price`: Hourly rate from pricing data
+- `cost_per_month`: (hourly_rate × 730) + (data_gb × data_rate)
+- `billing_detail`: "NAT Gateway, 730 hrs/month ($X.XXX/hr) + Y.YY GB data processed ($X.XXX/GB)"
+
+**Excluded:**
+- Data transfer OUT to the internet (charged separately by AWS)
+- Data transfer via VPC peering or Transit Gateway (charged separately)
+- Cross-AZ data transfer costs
 
 ### DynamoDB Tables
 

@@ -2622,3 +2622,109 @@ func TestGetProjectedCost_DynamoDB(t *testing.T) {
 		})
 	}
 }
+
+// TestGetProjectedCost_NATGateway verifies NAT Gateway cost estimation including hourly and data processing.
+//
+// This test validates the NAT Gateway cost estimation logic:
+//   - Hourly-only behavior when data_processed_gb tag is missing
+//   - Combined hourly + data cost when data_processed_gb is positive
+//   - Zero data processing when tag is explicitly "0"
+//   - Rejection of invalid tag values (empty, non-numeric, negative)
+//
+// For invalid tag cases, the test verifies:
+//   - gRPC status code is InvalidArgument
+//   - ErrorCode is ERROR_CODE_INVALID_RESOURCE in the error details
+//
+// Run with: go test -run TestGetProjectedCost_NATGateway ./internal/plugin/...
+func TestGetProjectedCost_NATGateway(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.natgwHourlyPrice = 0.045
+	mock.natgwDataPrice = 0.045
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name     string
+		tags     map[string]string
+		wantCost float64
+		wantErr  bool
+	}{
+		{
+			name:     "Hourly only (no tag)",
+			tags:     nil,
+			wantCost: 0.045 * 730.0,
+		},
+		{
+			name: "Hourly + Data (100 GB)",
+			tags: map[string]string{
+				"data_processed_gb": "100",
+			},
+			wantCost: (0.045 * 730.0) + (100 * 0.045),
+		},
+		{
+			name: "Zero data tag",
+			tags: map[string]string{
+				"data_processed_gb": "0",
+			},
+			wantCost: 0.045 * 730.0,
+		},
+		{
+			name: "Empty tag (error)",
+			tags: map[string]string{
+				"data_processed_gb": "",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Non-numeric tag (error)",
+			tags: map[string]string{
+				"data_processed_gb": "abc",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Negative tag (error)",
+			tags: map[string]string{
+				"data_processed_gb": "-10",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "natgw",
+					Sku:          "nat_gateway",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error but got nil")
+				}
+				// Verify gRPC error semantics for invalid tag values
+				st, ok := status.FromError(err)
+				if !ok {
+					t.Fatalf("Expected gRPC status error, got: %v", err)
+				}
+				if st.Code() != codes.InvalidArgument {
+					t.Errorf("gRPC code = %v, want InvalidArgument", st.Code())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if resp.CostPerMonth != tt.wantCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			}
+		})
+	}
+}

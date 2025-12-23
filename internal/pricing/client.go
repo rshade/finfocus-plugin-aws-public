@@ -91,6 +91,10 @@ type PricingClient interface {
 	// NLBPricePerNLCU returns the cost per NLCU-hour for a Network Load Balancer.
 	// Returns (price, true) if found, (0, false) if not found.
 	NLBPricePerNLCU() (float64, bool)
+
+	// NATGatewayPrice returns the pricing for a NAT Gateway (hourly and data processing).
+	// Returns (price, true) if found, (nil, false) if not found.
+	NATGatewayPrice() (*NATGatewayPrice, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -123,6 +127,9 @@ type Client struct {
 
 	// ELB pricing (single rate per region)
 	elbPricing *elbPrice
+
+	// NAT Gateway pricing (single rate per region)
+	natGatewayPricing *NATGatewayPrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -248,6 +255,15 @@ func (c *Client) init() error {
 			}
 		}()
 
+		// 8. Parse NAT Gateway pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseNATGatewayPricing(rawVPCJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse NAT Gateway pricing")
+			}
+		}()
+
 		// Wait for all parsing to complete
 		wg.Wait()
 
@@ -256,6 +272,7 @@ func (c *Client) init() error {
 			Dur("init_duration_ms", time.Since(start)).
 			Int("ec2_products", len(c.ec2Index)).
 			Int("ebs_products", len(c.ebsIndex)).
+			Bool("natgw_found", c.natGatewayPricing != nil).
 			Msg("Pricing data parsed")
 
 		// Fail initialization if critical service parsing failed
@@ -818,6 +835,55 @@ func (c *Client) parseELBPricing(data []byte) (string, error) {
 	return region, nil
 }
 
+// parseNATGatewayPricing parses VPC pricing data for NAT Gateways.
+// Returns the detected region and any parsing error.
+func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse VPC JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service (T031)
+	if pricing.OfferCode != "AmazonVPC" {
+		c.logger.Warn().
+			Str("expected", "AmazonVPC").
+			Str("actual", pricing.OfferCode).
+			Msg("VPC pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		if prod.ProductFamily == "NAT Gateway" {
+			usageType := attrs["usagetype"]
+
+			if c.natGatewayPricing == nil {
+				c.natGatewayPricing = &NATGatewayPrice{
+					Currency: "USD",
+				}
+			}
+
+			rate, unit, found := getOnDemandPrice(&pricing, sku)
+			if found {
+				if strings.Contains(usageType, "NatGateway-Hours") && unit == "Hrs" {
+					c.natGatewayPricing.HourlyRate = rate
+				} else if strings.Contains(usageType, "NatGateway-Bytes") && (unit == "Quantity" || unit == "GB") {
+					// AWS Pricing API returns "Quantity" as the unit for NatGateway-Bytes,
+					// but the rate is actually per-GB (not per-byte). No conversion needed.
+					// See: specs/001-nat-gateway-cost/research.md for verification.
+					c.natGatewayPricing.DataProcessingRate = rate
+				}
+			}
+		}
+	}
+	return region, nil
+}
+
 // Region returns the AWS region for this pricing data
 func (c *Client) Region() string {
 	_ = c.init() // Ensure initialization
@@ -1294,6 +1360,28 @@ func (c *Client) NLBPricePerNLCU() (float64, bool) {
 		return 0, false
 	}
 	return c.elbPricing.NLBNLCURate, true
+}
+
+// NATGatewayPrice returns the pricing for a NAT Gateway.
+func (c *Client) NATGatewayPrice() (*NATGatewayPrice, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "NATGateway").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return nil, false
+	}
+	if c.natGatewayPricing == nil || c.natGatewayPricing.HourlyRate == 0 {
+		return nil, false
+	}
+	return c.natGatewayPricing, true
 }
 
 

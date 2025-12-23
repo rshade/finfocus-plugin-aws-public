@@ -59,6 +59,13 @@ security overhead of cloud credentials.
 - **[Planned] Additional Regions:** Expansion to GovCloud (US-West/East) and
   specialized regions (e.g., Beijing/Ningxia) as public pricing data parity
   allows.
+- **[Planned] Forecasting Intelligence:**
+  - **Growth Hints:** Implement logic to return `GrowthType` (Linear) for
+    accumulation-based resources (S3, ECR, Backup) to support Core forecasting.
+- **[Planned] Topology Awareness:**
+  - **Lineage Metadata:** Populate `ParentResourceID` for dependent resources
+    (e.g., EBS Volumes attached to Instances, NAT Gateways attached to VPCs) to
+    support "Blast Radius" visualization.
 
 ---
 

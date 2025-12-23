@@ -10,6 +10,7 @@ import (
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -39,6 +40,8 @@ const (
 	resTypeALB                  = "aws:alb/loadbalancer:LoadBalancer"
 	resTypeNLB                  = "aws:nlb/loadbalancer:LoadBalancer"
 	resTypeELBLegacy            = "elb/loadbalancer"
+	resTypeNATGateway           = "aws:ec2/natgateway:NatGateway"
+	resTypeNATGatewayLegacy     = "ec2/natgateway"
 )
 
 // extractAWSSKU extracts AWS SKU from tags with priority: instanceType > instance_class > type > volumeType > volume_type
@@ -174,6 +177,8 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateDynamoDB(traceID, resource)
 	case "elb":
 		resp, err = p.estimateELB(traceID, resource)
+	case "natgw":
+		resp, err = p.estimateNATGateway(traceID, resource)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
@@ -828,6 +833,8 @@ func detectService(resourceType string) string {
 		return "eks"
 	case "elb", "alb", "nlb", resTypeELB, resTypeALB, resTypeNLB, resTypeELBLegacy:
 		return "elb"
+	case "natgw", "nat_gateway", "nat-gateway", resTypeNATGateway, resTypeNATGatewayLegacy:
+		return "natgw"
 	}
 
 	// Fallback: simple containment check for common patterns
@@ -854,6 +861,9 @@ func detectService(resourceType string) string {
 	}
 	if strings.Contains(resourceTypeLower, "lb/loadbalancer") || strings.Contains(resourceTypeLower, "alb/loadbalancer") || strings.Contains(resourceTypeLower, "nlb/loadbalancer") {
 		return "elb"
+	}
+	if strings.Contains(resourceTypeLower, "ec2/natgateway") || strings.Contains(resourceTypeLower, "aws:ec2:natgateway") {
+		return "natgw"
 	}
 
 	return resourceType
@@ -1037,6 +1047,78 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 	return &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     gbSecPrice, // Using GB-second price as unit price
+		Currency:      "USD",
+		BillingDetail: detail,
+	}, nil
+}
+
+// estimateNATGateway calculates projected monthly cost for VPC NAT Gateways.
+// Combines fixed hourly cost and variable data processing cost.
+func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// 1. Lookup Pricing
+	pricing, found := p.pricing.NATGatewayPrice()
+	if !found {
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("aws_region", p.region).
+			Msg("NAT Gateway pricing data not found")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: "NAT Gateway pricing data not available for this region",
+		}, nil
+	}
+
+	// 2. Extract and Validate Data Processed Tag
+	dataProcessedGB := 0.0
+	tagPresent := false
+	if resource.Tags != nil {
+		if val, ok := resource.Tags["data_processed_gb"]; ok {
+			tagPresent = true
+			if val == "" {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "tag 'data_processed_gb' is present but empty", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			parsed, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid value for 'data_processed_gb': %q is not a valid number", val), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			if parsed < 0 {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid value for 'data_processed_gb': %.2f cannot be negative", parsed), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			dataProcessedGB = parsed
+		}
+	}
+
+	// 3. Calculate Costs
+	hourlyCost := pricing.HourlyRate * hoursPerMonth
+	processingCost := dataProcessedGB * pricing.DataProcessingRate
+	totalCost := hourlyCost + processingCost
+
+	// 4. Build Billing Detail
+	detail := fmt.Sprintf("NAT Gateway, %d hrs/month ($%.3f/hr)", int(hoursPerMonth), pricing.HourlyRate)
+	if tagPresent && dataProcessedGB > 0 {
+		detail += fmt.Sprintf(" + %.2f GB data processed ($%.3f/GB)", dataProcessedGB, pricing.DataProcessingRate)
+	} else if tagPresent && dataProcessedGB == 0 {
+		detail += " (0 GB data processed)"
+	} else {
+		detail += " (data processing cost not included; use 'data_processed_gb' tag to estimate)"
+	}
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Float64("hourly_rate", pricing.HourlyRate).
+		Float64("data_rate", pricing.DataProcessingRate).
+		Float64("data_gb", dataProcessedGB).
+		Float64("total_cost", totalCost).
+		Msg("NAT Gateway cost estimated")
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  totalCost,
+		UnitPrice:     pricing.HourlyRate, // Using hourly rate as primary unit price
 		Currency:      "USD",
 		BillingDetail: detail,
 	}, nil

@@ -96,7 +96,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 			SupportedMetrics: supportedMetrics,
 		}, nil
 
-	case "ebs", "rds", "eks", "s3", "lambda", "dynamodb", "elb":
+	case "ebs", "rds", "eks", "s3", "lambda", "dynamodb", "elb", "natgw":
 		// Supported but no carbon estimation yet
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).

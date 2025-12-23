@@ -40,7 +40,7 @@ develop: ensure generate-pricing generate-carbon-data ## Setup development envir
 generate-pricing: ## Generate per-service pricing data for all regions
 	@echo "Generating per-service pricing data for all regions..."
 	@echo "Output: internal/pricing/data/{service}_{region}.json"
-	@echo "Services: ec2, s3, rds, eks, lambda, dynamodb, elb"
+	@echo "Services: ec2, s3, rds, eks, lambda, dynamodb, elb, vpc"
 	@go run ./tools/generate-pricing --regions $(REGIONS_CSV) --out-dir ./internal/pricing/data
 
 .PHONY: generate-carbon-data

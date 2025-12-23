@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,6 +24,8 @@ type mockPricingClientActual struct {
 	rdsInstancePrices map[string]float64
 	rdsStoragePrices  map[string]float64
 	lambdaPrices      map[string]float64
+	natgwHourlyPrice  float64
+	natgwDataPrice    float64
 }
 
 func (m *mockPricingClientActual) Region() string {
@@ -130,6 +133,17 @@ func (m *mockPricingClientActual) NLBPricePerHour() (float64, bool) {
 
 func (m *mockPricingClientActual) NLBPricePerNLCU() (float64, bool) {
 	return 0.006, true
+}
+
+func (m *mockPricingClientActual) NATGatewayPrice() (*pricing.NATGatewayPrice, bool) {
+	if m.natgwHourlyPrice > 0 {
+		return &pricing.NATGatewayPrice{
+			HourlyRate:         m.natgwHourlyPrice,
+			DataProcessingRate: m.natgwDataPrice,
+			Currency:           "USD",
+		}, true
+	}
+	return nil, false
 }
 
 func newTestPluginForActual() *AWSPublicPlugin {

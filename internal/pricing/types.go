@@ -156,6 +156,21 @@ type elbPrice struct {
 	Currency string
 }
 
+// NATGatewayPrice represents the regional pricing for VPC NAT Gateways.
+// Derived from AWS Pricing API for service AmazonVPC.
+type NATGatewayPrice struct {
+	// HourlyRate is the fixed hourly cost for a NAT Gateway.
+	// Source: Product Family "NAT Gateway", usageType containing "NatGateway-Hours"
+	HourlyRate float64
+
+	// DataProcessingRate is the cost per GB of data processed.
+	// Source: Product Family "NAT Gateway", usageType containing "NatGateway-Bytes"
+	DataProcessingRate float64
+
+	// Currency code (e.g., "USD")
+	Currency string
+}
+
 // pricingMetadata holds AWS pricing data metadata for debugging and traceability (T034).
 // Captured from the embedded pricing JSON during initialization.
 type pricingMetadata struct {

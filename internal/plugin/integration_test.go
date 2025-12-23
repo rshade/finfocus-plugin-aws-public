@@ -222,6 +222,41 @@ func TestIntegration_APSoutheast1_Binary(t *testing.T) {
 		}
 	})
 
+	// Test 7: GetProjectedCost() - NAT Gateway in ap-southeast-1
+	t.Run("GetProjectedCost_NATGateway_Singapore", func(t *testing.T) {
+		resp, err := client.GetProjectedCost(ctx, &pbc.GetProjectedCostRequest{
+			Resource: &pbc.ResourceDescriptor{
+				Provider:     "aws",
+				ResourceType: "nat_gateway",
+				Sku:          "nat_gateway",
+				Region:       "ap-southeast-1",
+				Tags: map[string]string{
+					"data_processed_gb": "100",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("GetProjectedCost() failed: %v", err)
+		}
+		t.Logf("NAT Gateway 100GB in ap-southeast-1: $%.2f/month (hourly: $%.4f)",
+			resp.CostPerMonth, resp.UnitPrice)
+		t.Logf("Billing detail: %s", resp.BillingDetail)
+
+		if resp.Currency != "USD" {
+			t.Errorf("Expected currency USD, got %s", resp.Currency)
+		}
+		if resp.UnitPrice <= 0 {
+			t.Errorf("Expected positive hourly price, got %.4f", resp.UnitPrice)
+		}
+		// Since we don't have the exact price here without generating data,
+		// we just verify it's greater than hourly cost.
+		minExpected := resp.UnitPrice * 730.0
+		if resp.CostPerMonth <= minExpected {
+			t.Errorf("Monthly cost %.2f should be > hourly cost %.2f (due to 100GB processing)",
+				resp.CostPerMonth, minExpected)
+		}
+	})
+
 	t.Log("Integration test completed successfully!")
 }
 

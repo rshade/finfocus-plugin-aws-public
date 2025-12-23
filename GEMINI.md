@@ -148,6 +148,8 @@ The v0.0.10/v0.0.11 releases were broken because filtering stripped 85% of data:
 - `CLAUDE.md`: Detailed reference for architecture and protocol.
 
 ## Active Technologies
+- Go 1.25+ + gRPC, rs/zerolog, pulumicost-spec sdk (001-nat-gateway-cost)
+- N/A (Embedded JSON pricing data) (001-nat-gateway-cost)
 
 - Go 1.25+ + gRPC (pulumicost.v1), rs/zerolog, pluginsdk; embedded JSON pricing via `//go:embed` parsed into indexed maps
 

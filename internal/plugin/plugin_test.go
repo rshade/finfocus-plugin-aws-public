@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/metadata"
@@ -34,6 +35,8 @@ type mockPricingClient struct {
 	albLCUPrice           float64            // ALB cost per LCU-hour
 	nlbHourlyPrice        float64            // NLB fixed hourly rate
 	nlbNLCUPrice          float64            // NLB cost per NLCU-hour
+	natgwHourlyPrice      float64            // NAT Gateway hourly rate
+	natgwDataPrice        float64            // NAT Gateway data processing rate
 	ec2OnDemandCalled     int
 	ebsPriceCalled        int
 	s3PriceCalled         int
@@ -44,6 +47,7 @@ type mockPricingClient struct {
 	lambdaGBSecondCalled  int
 	dynamoDBCalled        int
 	elbCalled             int
+	natgwCalled           int
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.
@@ -195,6 +199,18 @@ func (m *mockPricingClient) NLBPricePerNLCU() (float64, bool) {
 		return m.nlbNLCUPrice, true
 	}
 	return 0, false
+}
+
+func (m *mockPricingClient) NATGatewayPrice() (*pricing.NATGatewayPrice, bool) {
+	m.natgwCalled++
+	if m.natgwHourlyPrice > 0 {
+		return &pricing.NATGatewayPrice{
+			HourlyRate:         m.natgwHourlyPrice,
+			DataProcessingRate: m.natgwDataPrice,
+			Currency:           m.currency,
+		}, true
+	}
+	return nil, false
 }
 
 func TestNewAWSPublicPlugin(t *testing.T) {

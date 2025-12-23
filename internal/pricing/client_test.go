@@ -637,3 +637,50 @@ func BenchmarkNewClient_Parallel(b *testing.B) {
 		}
 	})
 }
+
+// TestClient_NATGatewayPrice verifies NAT Gateway pricing lookup returns valid rates.
+//
+// This test validates that the pricing client correctly retrieves NAT Gateway pricing
+// including hourly rate, data processing rate, and currency. It verifies the fallback
+// pricing values when running without region-specific build tags.
+//
+// Run with: go test -run TestClient_NATGatewayPrice ./internal/pricing/...
+func TestClient_NATGatewayPrice(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	price, found := client.NATGatewayPrice()
+
+	// In fallback mode, it should be found
+	if !found {
+		t.Fatal("NATGatewayPrice() not found")
+	}
+
+	if price == nil {
+		t.Fatal("NATGatewayPrice() returned nil price")
+	}
+
+	if price.HourlyRate <= 0 {
+		t.Errorf("HourlyRate = %v, want > 0", price.HourlyRate)
+	}
+
+	if price.DataProcessingRate <= 0 {
+		t.Errorf("DataProcessingRate = %v, want > 0", price.DataProcessingRate)
+	}
+
+	if price.Currency != "USD" {
+		t.Errorf("Currency = %q, want %q", price.Currency, "USD")
+	}
+
+	// Verify exact values for fallback
+	if client.Region() == "unknown" {
+		if price.HourlyRate != 0.045 {
+			t.Errorf("Fallback HourlyRate = %v, want 0.045", price.HourlyRate)
+		}
+		if price.DataProcessingRate != 0.045 {
+			t.Errorf("Fallback DataProcessingRate = %v, want 0.045", price.DataProcessingRate)
+		}
+	}
+}

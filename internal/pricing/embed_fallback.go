@@ -309,3 +309,64 @@ var rawELBJSON = []byte(`{
     }
   }
 }`)
+
+// rawVPCJSON contains minimal VPC pricing data for development/testing.
+var rawVPCJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonVPC",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_NATGW_HOURLY": {
+      "sku": "SKU_NATGW_HOURLY",
+      "productFamily": "NAT Gateway",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "NatGateway-Hours"
+      }
+    },
+    "SKU_NATGW_BYTES": {
+      "sku": "SKU_NATGW_BYTES",
+      "productFamily": "NAT Gateway",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "NatGateway-Bytes"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "SKU_NATGW_HOURLY": {
+        "SKU_NATGW_HOURLY.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_NATGW_HOURLY",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_NATGW_HOURLY.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_NATGW_HOURLY.JRTCKXETXF.6YS6EN2CT7",
+              "description": "NAT Gateway hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.045" }
+            }
+          }
+        }
+      },
+      "SKU_NATGW_BYTES": {
+        "SKU_NATGW_BYTES.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_NATGW_BYTES",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_NATGW_BYTES.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_NATGW_BYTES.JRTCKXETXF.6YS6EN2CT7",
+              "description": "NAT Gateway data processing rate",
+              "unit": "Quantity",
+              "pricePerUnit": { "USD": "0.045" }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)
