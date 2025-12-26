@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.15](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.14...v0.0.15) (2025-12-26)
+
+
+### Features
+
+* **recommendations:** pass through ResourceDescriptor.Id to recommendations ([#199](https://github.com/rshade/pulumicost-plugin-aws-public/issues/199)) ([2b9f3fd](https://github.com/rshade/pulumicost-plugin-aws-public/commit/2b9f3fde72a621b40d04f0ba10eae78ea8482d69)), closes [#198](https://github.com/rshade/pulumicost-plugin-aws-public/issues/198)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-plugin-aws-public to v0.0.14 ([#189](https://github.com/rshade/pulumicost-plugin-aws-public/issues/189)) ([adf84ee](https://github.com/rshade/pulumicost-plugin-aws-public/commit/adf84ee7caf247abab69e08c4154280d5e0cd38a))
+* **deps:** update module google.golang.org/grpc to v1.78.0 ([#194](https://github.com/rshade/pulumicost-plugin-aws-public/issues/194)) ([df698dc](https://github.com/rshade/pulumicost-plugin-aws-public/commit/df698dc396abc6697a754e532c3ae7f4d2f20a69))
+
+
+### Documentation
+
+* comprehensive documentation improvements and fixes ([#193](https://github.com/rshade/pulumicost-plugin-aws-public/issues/193)) ([ca93f63](https://github.com/rshade/pulumicost-plugin-aws-public/commit/ca93f633c3a2f8a9a4b1e5b63c0e90679fb182e8))
+
 ## [0.0.14](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.13...v0.0.14) (2025-12-21)
 
 ### Bug Fixes
