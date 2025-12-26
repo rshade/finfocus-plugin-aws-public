@@ -1184,3 +1184,265 @@ func TestGetRecommendations_BatchSizeLimit(t *testing.T) {
 		t.Errorf("Message should mention exceeds maximum, got: %s", st.Message())
 	}
 }
+
+// TestGetRecommendations_NativeIDPassthrough verifies the native ResourceDescriptor.Id
+// field is passed through to Recommendation.Resource.Id.
+//
+// This test validates the ID passthrough feature (001-resourceid-passthrough):
+//   - FR-001: Native Id field populated → use as Resource.Id
+//   - FR-002: Multiple recommendations from same resource → identical Resource.Id
+//   - FR-003: Empty native Id → fall back to tags["resource_id"]
+//   - FR-004: tags["name"] correlation unchanged
+//
+// Test cases cover:
+//   - Native ID populated (uses native ID)
+//   - Empty native ID with tag fallback (uses tag)
+//   - Whitespace-only native ID (treats as empty, uses tag)
+//   - Native ID takes priority when both present
+//   - Neither present (Resource.Id remains empty)
+//   - Name tag correlation preserved (unchanged behavior)
+func TestGetRecommendations_NativeIDPassthrough(t *testing.T) {
+	tests := []struct {
+		name           string
+		nativeID       string
+		tagResourceID  string
+		tagName        string
+		expectedID     string
+		expectedName   string
+	}{
+		{
+			name:          "native ID populated",
+			nativeID:      "urn:pulumi:dev::myproject::aws:ec2/instance:Instance::web-server",
+			tagResourceID: "",
+			tagName:       "",
+			expectedID:    "urn:pulumi:dev::myproject::aws:ec2/instance:Instance::web-server",
+			expectedName:  "",
+		},
+		{
+			name:          "empty native ID falls back to tag",
+			nativeID:      "",
+			tagResourceID: "legacy-resource-123",
+			tagName:       "",
+			expectedID:    "legacy-resource-123",
+			expectedName:  "",
+		},
+		{
+			name:          "whitespace native ID treated as empty",
+			nativeID:      "   ",
+			tagResourceID: "fallback-id",
+			tagName:       "",
+			expectedID:    "fallback-id",
+			expectedName:  "",
+		},
+		{
+			name:          "native ID takes priority over tag",
+			nativeID:      "native-id",
+			tagResourceID: "tag-id",
+			tagName:       "",
+			expectedID:    "native-id",
+			expectedName:  "",
+		},
+		{
+			name:          "neither present leaves ID empty",
+			nativeID:      "",
+			tagResourceID: "",
+			tagName:       "",
+			expectedID:    "",
+			expectedName:  "",
+		},
+		{
+			name:          "name tag correlation preserved",
+			nativeID:      "resource-123",
+			tagResourceID: "",
+			tagName:       "MyWebServer",
+			expectedID:    "resource-123",
+			expectedName:  "MyWebServer",
+		},
+		{
+			name:          "all fields populated",
+			nativeID:      "native-urn",
+			tagResourceID: "tag-resource-id",
+			tagName:       "ServerName",
+			expectedID:    "native-urn",
+			expectedName:  "ServerName",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			// Setup pricing so recommendations are generated
+			mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+			mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			// Build tags map
+			tags := make(map[string]string)
+			if tt.tagResourceID != "" {
+				tags["resource_id"] = tt.tagResourceID
+			}
+			if tt.tagName != "" {
+				tags["name"] = tt.tagName
+			}
+
+			req := &pbc.GetRecommendationsRequest{
+				TargetResources: []*pbc.ResourceDescriptor{
+					{
+						Id:           tt.nativeID,
+						ResourceType: "aws:ec2:Instance",
+						Sku:          "t2.medium",
+						Region:       "us-east-1",
+						Provider:     "aws",
+						Tags:         tags,
+					},
+				},
+			}
+
+			resp, err := plugin.GetRecommendations(context.Background(), req)
+			if err != nil {
+				t.Fatalf("GetRecommendations() error: %v", err)
+			}
+
+			if len(resp.Recommendations) == 0 {
+				t.Fatal("Expected at least one recommendation")
+			}
+
+			// Verify all recommendations have the expected Resource.Id and Resource.Name
+			for i, rec := range resp.Recommendations {
+				if rec.Resource == nil {
+					t.Errorf("Recommendation[%d]: Resource is nil", i)
+					continue
+				}
+				if rec.Resource.Id != tt.expectedID {
+					t.Errorf("Recommendation[%d]: Resource.Id = %q, want %q",
+						i, rec.Resource.Id, tt.expectedID)
+				}
+				if rec.Resource.Name != tt.expectedName {
+					t.Errorf("Recommendation[%d]: Resource.Name = %q, want %q",
+						i, rec.Resource.Name, tt.expectedName)
+				}
+			}
+		})
+	}
+}
+
+// TestGetRecommendations_MultipleRecsFromSameResource verifies FR-002:
+// Multiple recommendations from the same resource have identical Resource.Id.
+// This tests the invariant that all recommendations generated from a single
+// resource descriptor share the same correlation ID.
+func TestGetRecommendations_MultipleRecsFromSameResource(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	// m5.large generates both generation upgrade AND Graviton recommendation
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096 // Generation upgrade
+	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077 // Graviton
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	expectedID := "urn:pulumi:stack::project::aws:ec2/instance:Instance::production-api"
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{
+				Id:           expectedID,
+				ResourceType: "aws:ec2:Instance",
+				Sku:          "m5.large",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			},
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Should have exactly 2 recommendations (gen upgrade + Graviton)
+	if len(resp.Recommendations) != 2 {
+		t.Fatalf("Expected 2 recommendations (gen upgrade + Graviton), got %d", len(resp.Recommendations))
+	}
+
+	// Verify both recommendations have the same Resource.Id
+	for i, rec := range resp.Recommendations {
+		if rec.Resource == nil {
+			t.Errorf("Recommendation[%d]: Resource is nil", i)
+			continue
+		}
+		if rec.Resource.Id != expectedID {
+			t.Errorf("Recommendation[%d]: Resource.Id = %q, want %q",
+				i, rec.Resource.Id, expectedID)
+		}
+	}
+}
+
+// TestGetRecommendations_BatchIDCorrelation verifies that in a batch request,
+// each resource's native ID is correctly passed through to its recommendations.
+// This tests the end-to-end batch correlation workflow.
+func TestGetRecommendations_BatchIDCorrelation(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+	mock.ebsPrices["gp2"] = 0.10
+	mock.ebsPrices["gp3"] = 0.08
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	// Define resources with unique IDs
+	resource1ID := "urn:pulumi:prod::app::aws:ec2/instance:Instance::web-1"
+	resource2ID := "urn:pulumi:prod::app::aws:ebs/volume:Volume::data-vol"
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{
+				Id:           resource1ID,
+				ResourceType: "aws:ec2:Instance",
+				Sku:          "t2.medium",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			},
+			{
+				Id:           resource2ID,
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp2",
+				Region:       "us-east-1",
+				Provider:     "aws",
+				Tags:         map[string]string{"size": "100"},
+			},
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	// Should have 2 recommendations (1 EC2 gen upgrade + 1 EBS gp2->gp3)
+	if len(resp.Recommendations) != 2 {
+		t.Fatalf("Expected 2 recommendations, got %d", len(resp.Recommendations))
+	}
+
+	// Build a map of expected IDs by resource type
+	expectedIDs := map[string]string{
+		"ec2": resource1ID,
+		"ebs": resource2ID,
+	}
+
+	// Verify each recommendation has the correct Resource.Id
+	for _, rec := range resp.Recommendations {
+		if rec.Resource == nil {
+			t.Error("Recommendation has nil Resource")
+			continue
+		}
+		expectedID, ok := expectedIDs[rec.Resource.ResourceType]
+		if !ok {
+			t.Errorf("Unexpected resource type: %s", rec.Resource.ResourceType)
+			continue
+		}
+		if rec.Resource.Id != expectedID {
+			t.Errorf("Resource type %s: Resource.Id = %q, want %q",
+				rec.Resource.ResourceType, rec.Resource.Id, expectedID)
+		}
+	}
+}

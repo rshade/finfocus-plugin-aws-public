@@ -883,6 +883,8 @@ the commit message follows conventional commits format.
 - Embedded data via `//go:embed` (CSV for instance specs, constants for grid factors) (015-carbon-estimation)
 - Go 1.25+ + encoding/json, sync.Once, go:embed, zerolog, gRPC (pulumicost-spec) (018-raw-pricing-embed)
 - Embedded JSON files via `//go:embed` (no external storage) (018-raw-pricing-embed)
+- Go 1.25+ + pulumicost-spec v0.4.11+ (provides `Id` field on `ResourceDescriptor`), gRPC, zerolog (001-resourceid-passthrough)
+- N/A (stateless gRPC service) (001-resourceid-passthrough)
 
 - **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
 - **pulumicost-spec** protos for CostSourceService API

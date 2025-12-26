@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -109,14 +110,17 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 			recs = p.getEBSRecommendations(resource.Sku, region, resource.Tags)
 		}
 
-		// Populate correlation info (T008): Use tags for correlation
+		// Populate correlation info: Native Id takes priority over tag (FR-001, FR-002, FR-003)
 		for _, rec := range recs {
 			if rec.Resource != nil {
-				// Use resource_id tag if available for correlation
-				if resourceID := resource.Tags["resource_id"]; resourceID != "" {
+				// Priority 1: Use native Id field from ResourceDescriptor (FR-001, FR-002)
+				if id := strings.TrimSpace(resource.Id); id != "" {
+					rec.Resource.Id = id
+				} else if resourceID := resource.Tags["resource_id"]; resourceID != "" {
+					// Priority 2: Fall back to resource_id tag for backward compat (FR-003)
 					rec.Resource.Id = resourceID
 				}
-				// Use name tag if available
+				// Use name tag if available (FR-004 - unchanged)
 				if name := resource.Tags["name"]; name != "" {
 					rec.Resource.Name = name
 				}
