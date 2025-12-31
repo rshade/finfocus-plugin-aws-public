@@ -8,6 +8,7 @@ import (
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // validateProvider checks that the provider is "aws".
@@ -68,27 +69,59 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req 
 }
 
 // ValidateActualCostRequest validates the request using SDK helpers and custom region checks.
-// Returns the extracted resource descriptor if valid.
+// Returns the extracted resource descriptor and timestamp resolution if valid.
+//
+// Timestamp Resolution (Feature 016):
+// This function first resolves timestamps from explicit request fields OR pulumi:created tag,
+// then populates req.Start/End before validation. This enables automatic runtime detection
+// from Pulumi state metadata while maintaining backward compatibility.
 //
 // Side Effect: For global services (S3, IAM) with empty region, this function sets the
 // returned resource's Region field to the plugin's region. This allows downstream cost
 // estimation to work correctly without requiring explicit region specification.
 //
+// Side Effect: req.Start and req.End may be populated from resolution if originally nil.
+//
 // Fallback chain (FR-018, FR-019):
 //  1. req.Arn - Parse AWS ARN and extract region/service (SKU must come from tags)
 //  2. req.ResourceId as JSON - JSON-encoded ResourceDescriptor
 //  3. req.Tags - Extract provider, resource_type, sku, region from tags
-func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.ResourceDescriptor, error) {
+func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.ResourceDescriptor, *TimestampResolution, error) {
 	traceID := p.getTraceID(ctx)
 
 	// Basic nil check
 	if req == nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
-	// Validate timestamps (required regardless of resource identification method)
+	// Resolve timestamps BEFORE validation (Feature 016)
+	// This populates req.Start/End from tags if not explicitly provided
+	resolution, err := resolveTimestamps(req)
+	if err != nil {
+		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+
+	// Populate request timestamps from resolution for downstream validation
+	// Note: This mutates the request but is safe since we're within validation
+	if req.Start == nil {
+		req.Start = timestamppb.New(resolution.Start)
+	}
+	if req.End == nil {
+		req.End = timestamppb.New(resolution.End)
+	}
+
+	// Log timestamp resolution source for debugging
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str("resolution_source", resolution.Source).
+		Bool("is_imported", resolution.IsImported).
+		Time("resolved_start", resolution.Start).
+		Time("resolved_end", resolution.End).
+		Msg("timestamps resolved")
+
+	// Validate timestamps (now guaranteed non-nil after resolution)
 	if err := validateTimestamps(req); err != nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
 	// FR-018: Check ARN first (highest priority)
@@ -96,7 +129,7 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 		resource, err := p.parseResourceFromARN(req)
 		if err != nil {
 			msg := fmt.Sprintf("failed to parse ARN %q: %v", req.Arn, err)
-			return nil, p.newErrorWithID(traceID, codes.InvalidArgument, msg, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, msg, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		}
 
 		// Custom region check (ARN region vs plugin binary region)
@@ -115,21 +148,21 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 		}
 
 		if effectiveRegion != "" && effectiveRegion != p.region {
-			return nil, p.RegionMismatchError(traceID, effectiveRegion)
+			return nil, nil, p.RegionMismatchError(traceID, effectiveRegion)
 		}
 
-		return resource, nil
+		return resource, resolution, nil
 	}
 
 	// For non-ARN requests, use SDK validation (requires ResourceId)
 	if err := pluginsdk.ValidateActualCostRequest(req); err != nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
 	// FR-019: Fallback to JSON ResourceId or Tags extraction
 	resource, err := p.parseResourceFromRequest(req)
 	if err != nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 
 	// Custom region check (consistent with ValidateProjectedCostRequest)
@@ -149,10 +182,10 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 	}
 
 	if effectiveRegion != p.region {
-		return nil, p.RegionMismatchError(traceID, effectiveRegion)
+		return nil, nil, p.RegionMismatchError(traceID, effectiveRegion)
 	}
 
-	return resource, nil
+	return resource, resolution, nil
 }
 
 // validateTimestamps checks that start/end timestamps are present and valid.

@@ -1,0 +1,8 @@
+name: fixture-cloudwatch
+runtime: yaml
+description: A basic CloudWatch Log Group for cost estimation testing
+resources:
+  my-log-group:
+    type: aws:cloudwatch/logGroup:LogGroup
+    properties:
+      retentionInDays: 30

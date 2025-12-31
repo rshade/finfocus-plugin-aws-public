@@ -1,0 +1,21 @@
+{
+  "description": "Resource with both explicit timestamps and pulumi:created - tests priority",
+  "resource_id": {
+    "provider": "aws",
+    "resource_type": "ec2",
+    "sku": "t3.micro",
+    "region": "us-east-1",
+    "tags": {
+      "pulumi:created": "2025-01-01T00:00:00Z",
+      "Name": "test-instance"
+    }
+  },
+  "explicit_start": "2025-01-10T00:00:00Z",
+  "explicit_end": "2025-01-15T00:00:00Z",
+  "expected": {
+    "confidence": "HIGH",
+    "source_contains": "[confidence:HIGH]",
+    "runtime_hours": 120,
+    "notes": "Explicit timestamps should override pulumi:created (7 days, not 14 days)"
+  }
+}

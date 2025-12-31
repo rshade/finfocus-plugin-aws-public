@@ -1,0 +1,20 @@
+{
+  "description": "Imported resource with pulumi:external=true - tests MEDIUM confidence",
+  "resource_id": {
+    "provider": "aws",
+    "resource_type": "ec2",
+    "sku": "t3.micro",
+    "region": "us-east-1",
+    "tags": {
+      "pulumi:created": "2025-01-01T00:00:00Z",
+      "pulumi:external": "true",
+      "Name": "imported-instance"
+    }
+  },
+  "expected": {
+    "confidence": "MEDIUM",
+    "source_contains": "[confidence:MEDIUM]",
+    "note_contains": "imported resource",
+    "notes": "Imported resource should return MEDIUM confidence with explanatory note"
+  }
+}

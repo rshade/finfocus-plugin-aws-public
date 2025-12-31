@@ -160,7 +160,7 @@ func TestValidateActualCostRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := p.ValidateActualCostRequest(ctx, tt.req)
+			res, _, err := p.ValidateActualCostRequest(ctx, tt.req)
 			if tt.wantError {
 				require.Error(t, err)
 				st, ok := status.FromError(err)
@@ -338,7 +338,7 @@ func TestValidateActualCostRequest_ARN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := p.ValidateActualCostRequest(ctx, tt.req)
+			res, _, err := p.ValidateActualCostRequest(ctx, tt.req)
 			if tt.wantError {
 				require.Error(t, err)
 				st, ok := status.FromError(err)
@@ -407,7 +407,7 @@ func TestRegionFallbackGlobalServices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := p.ValidateActualCostRequest(ctx, tt.req)
+			res, _, err := p.ValidateActualCostRequest(ctx, tt.req)
 			if tt.wantError {
 				require.Error(t, err, "expected validation error")
 			} else {

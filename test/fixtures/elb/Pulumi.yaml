@@ -1,0 +1,9 @@
+name: fixture-elb
+runtime: yaml
+description: A basic ALB for cost estimation testing
+resources:
+  my-alb:
+    type: aws:lb/loadbalancer:LoadBalancer
+    properties:
+      loadBalancerType: application
+      subnets: ["subnet-12345678", "subnet-87654321"]

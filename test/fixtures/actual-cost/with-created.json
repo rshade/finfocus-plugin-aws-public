@@ -1,0 +1,18 @@
+{
+  "description": "Resource with valid pulumi:created timestamp - tests automatic runtime detection",
+  "resource_id": {
+    "provider": "aws",
+    "resource_type": "ec2",
+    "sku": "t3.micro",
+    "region": "us-east-1",
+    "tags": {
+      "pulumi:created": "2025-01-15T10:30:00Z",
+      "Name": "test-instance"
+    }
+  },
+  "expected": {
+    "confidence": "HIGH",
+    "source_contains": "[confidence:HIGH]",
+    "notes": "Native resource with pulumi:created should return HIGH confidence"
+  }
+}

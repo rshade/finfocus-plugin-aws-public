@@ -190,13 +190,17 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
-	// Validate request and extract resource (includes SDK validation, parsing, region check)
-	resource, err := p.ValidateActualCostRequest(ctx, req)
+	// Validate request, resolve timestamps, and extract resource
+	// Note: ValidateActualCostRequest now returns TimestampResolution for confidence tracking (Feature 016)
+	resource, resolution, err := p.ValidateActualCostRequest(ctx, req)
 	if err != nil {
 		// Error already formatted with trace_id and code in ValidateActualCostRequest
 		p.logErrorWithID(traceID, "GetActualCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
+
+	// Determine confidence level from resolution (Feature 016)
+	confidence := determineConfidence(resolution)
 
 	// Parse timestamps and calculate runtime hours
 	// Note: req.Start and req.End are guaranteed non-nil by ValidateActualCostRequest
@@ -223,12 +227,20 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 
 	// Handle zero duration - return $0 with single result
 	if runtimeHours == 0 {
+		// Build source with confidence (Feature 016)
+		note := ""
+		if resolution != nil && resolution.IsImported {
+			note = "imported resource"
+		}
+		source := formatSourceWithConfidence(confidence, note)
+
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
 			Str(pluginsdk.FieldOperation, "GetActualCost").
 			Float64("cost_monthly", 0).
 			Float64("usage_amount", runtimeHours).
 			Str("usage_unit", "hours").
+			Str("confidence", string(confidence)).
 			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 			Msg("cost calculated")
 
@@ -236,7 +248,7 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 			Results: []*pbc.ActualCostResult{{
 				Timestamp: req.Start,
 				Cost:      0,
-				Source:    "aws-public-fallback",
+				Source:    source,
 			}},
 		}, nil
 	}
@@ -264,6 +276,16 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 			Msg("Test mode: GetActualCost calculation result")
 	}
 
+	// Build source with confidence and billing detail (Feature 016)
+	note := ""
+	if resolution != nil && resolution.IsImported {
+		note = "imported resource"
+	}
+	sourceWithConfidence := formatSourceWithConfidence(confidence, note)
+	billingDetail := formatActualBillingDetail(projectedResp.BillingDetail, runtimeHours, actualCost)
+	// Combine: confidence prefix + billing detail
+	fullSource := sourceWithConfidence + " | " + billingDetail
+
 	p.logger.Info().
 		Str(pluginsdk.FieldTraceID, traceID).
 		Str(pluginsdk.FieldOperation, "GetActualCost").
@@ -274,6 +296,8 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 		Float64("cost_monthly", actualCost).
 		Float64("usage_amount", runtimeHours).
 		Str("usage_unit", "hours").
+		Str("confidence", string(confidence)).
+		Str("resolution_source", resolution.Source).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 		Msg("cost calculated")
 
@@ -283,7 +307,7 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 			Cost:        actualCost,
 			UsageAmount: runtimeHours,
 			UsageUnit:   "hours",
-			Source:      formatActualBillingDetail(projectedResp.BillingDetail, runtimeHours, actualCost),
+			Source:      fullSource,
 		}},
 	}, nil
 }
