@@ -1198,6 +1198,7 @@ func TestGetRecommendations_BatchSizeLimit(t *testing.T) {
 //   - Native ID populated (uses native ID)
 //   - Empty native ID with tag fallback (uses tag)
 //   - Whitespace-only native ID (treats as empty, uses tag)
+//   - Mixed whitespace native ID (tabs, newlines) (treats as empty, uses tag)
 //   - Native ID takes priority when both present
 //   - Neither present (Resource.Id remains empty)
 //   - Name tag correlation preserved (unchanged behavior)
@@ -1229,6 +1230,14 @@ func TestGetRecommendations_NativeIDPassthrough(t *testing.T) {
 		{
 			name:          "whitespace native ID treated as empty",
 			nativeID:      "   ",
+			tagResourceID: "fallback-id",
+			tagName:       "",
+			expectedID:    "fallback-id",
+			expectedName:  "",
+		},
+		{
+			name:          "mixed whitespace native ID treated as empty",
+			nativeID:      " \t\n ",
 			tagResourceID: "fallback-id",
 			tagName:       "",
 			expectedID:    "fallback-id",

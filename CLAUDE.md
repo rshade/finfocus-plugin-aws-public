@@ -10,6 +10,11 @@ This is `pulumicost-plugin-aws-public`, a fallback PulumiCost plugin that estima
 
 Go 1.25+: Follow standard conventions
 - **No Dummy Data:** Do not create dummy, fake, or hardcoded placeholder data for core functionality (especially pricing). Always implement fetchers for real authoritative data sources (e.g., AWS Price List API).
+- **Validation Pattern:** For parsing numeric tags with bounds checking, use validation helper methods that return validated values and log warnings for invalid inputs. Example: `validateNonNegativeFloat64(traceID, "tag_name", value)` returns 0 and logs warning if value is negative or unparseable. This ensures consistent error handling across all tag parsing.
+
+## Roadmap
+**Important** Keep Roadmap up to date with every PR
+- Roadmap: @ROADMAP.md
 
 ## Architecture
 
@@ -1004,6 +1009,8 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 ## Active Technologies
 - Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb) (016-runtime-actual-cost)
 - N/A (embedded pricing data, stateless service) (016-runtime-actual-cost)
+- Go 1.25+ + zerolog (logging), pluginsdk (gRPC), pulumicost-spec proto (020-dynamodb-hardening)
+- N/A (embedded pricing data) (020-dynamodb-hardening)
 
 ## Recent Changes
 - 016-runtime-actual-cost: Added Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)

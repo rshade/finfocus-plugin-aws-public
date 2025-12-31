@@ -2626,6 +2626,393 @@ func TestGetProjectedCost_DynamoDB(t *testing.T) {
 	}
 }
 
+// TestEstimateDynamoDB_MissingStoragePricing tests warning emission when storage pricing is unavailable.
+func TestEstimateDynamoDB_MissingStoragePricing(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	// Set all prices except storage
+	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
+	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"read_capacity_units":  "100",
+				"write_capacity_units": "50",
+				"storage_gb":           "50",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify warning log for missing storage pricing
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "DynamoDB storage pricing unavailable") {
+		t.Errorf("Expected warning log for missing storage pricing, got: %s", logOutput)
+	}
+
+	// Verify billing_detail includes pricing unavailable note
+	expectedDetail := "DynamoDB provisioned, 100 RCUs, 50 WCUs, 730 hrs/month, 50GB storage (pricing unavailable: Storage)"
+	if resp.BillingDetail != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	}
+
+	// Verify cost calculation includes RCU/WCU but not storage
+	expectedCost := (100 * 730 * 0.00013) + (50 * 730 * 0.00065) // RCU + WCU, no storage
+	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestEstimateDynamoDB_MissingProvisionedPricing tests warning emission when provisioned RCU/WCU pricing is unavailable.
+func TestEstimateDynamoDB_MissingProvisionedPricing(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	// Set storage but not provisioned prices
+	mock.dynamoDBPrices["storage"] = 0.25
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"read_capacity_units":  "100",
+				"write_capacity_units": "50",
+				"storage_gb":           "50",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify warning logs for missing RCU and WCU pricing
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "DynamoDB provisioned RCU pricing unavailable") {
+		t.Errorf("Expected warning log for missing RCU pricing, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "DynamoDB provisioned WCU pricing unavailable") {
+		t.Errorf("Expected warning log for missing WCU pricing, got: %s", logOutput)
+	}
+
+	// Verify billing_detail includes pricing unavailable note
+	expectedDetail := "DynamoDB provisioned, 100 RCUs, 50 WCUs, 730 hrs/month, 50GB storage (pricing unavailable: RCU, WCU)"
+	if resp.BillingDetail != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	}
+
+	// Verify cost calculation includes only storage
+	expectedCost := 50 * 0.25 // Only storage
+	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestEstimateDynamoDB_MissingOnDemandPricing tests warning emission when on-demand read/write pricing is unavailable.
+func TestEstimateDynamoDB_MissingOnDemandPricing(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	// Set storage but not on-demand prices
+	mock.dynamoDBPrices["storage"] = 0.25
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "on-demand",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"read_requests_per_month":  "10000000",
+				"write_requests_per_month": "1000000",
+				"storage_gb":               "50",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify warning logs for missing on-demand read and write pricing
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "DynamoDB on-demand read pricing unavailable") {
+		t.Errorf("Expected warning log for missing on-demand read pricing, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, "DynamoDB on-demand write pricing unavailable") {
+		t.Errorf("Expected warning log for missing on-demand write pricing, got: %s", logOutput)
+	}
+
+	// Verify billing_detail includes pricing unavailable note
+	expectedDetail := "DynamoDB on-demand, 10000000 reads, 1000000 writes, 50GB storage (pricing unavailable: Read, Write)"
+	if resp.BillingDetail != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	}
+
+	// Verify cost calculation includes only storage
+	expectedCost := 50 * 0.25 // Only storage
+	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestValidateNonNegativeInt64 tests the validation helper for int64 values.
+func TestValidateNonNegativeInt64(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	traceID := "test-trace-123"
+
+	tests := []struct {
+		name     string
+		tagName  string
+		value    string
+		expected int64
+		hasWarn  bool
+		warnMsg  string
+	}{
+		{
+			name:     "valid positive",
+			tagName:  "test_tag",
+			value:    "100",
+			expected: 100,
+			hasWarn:  false,
+		},
+		{
+			name:     "zero",
+			tagName:  "test_tag",
+			value:    "0",
+			expected: 0,
+			hasWarn:  false,
+		},
+		{
+			name:     "negative value",
+			tagName:  "test_tag",
+			value:    "-5",
+			expected: 0,
+			hasWarn:  true,
+			warnMsg:  "negative value, defaulting to 0",
+		},
+		{
+			name:     "invalid string",
+			tagName:  "test_tag",
+			value:    "invalid",
+			expected: 0,
+			hasWarn:  true,
+			warnMsg:  "invalid integer value, defaulting to 0",
+		},
+		{
+			name:     "empty string",
+			tagName:  "test_tag",
+			value:    "",
+			expected: 0,
+			hasWarn:  true,
+			warnMsg:  "invalid integer value, defaulting to 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logBuf.Reset()
+			result := plugin.validateNonNegativeInt64(traceID, tt.tagName, tt.value)
+
+			if result != tt.expected {
+				t.Errorf("validateNonNegativeInt64() = %v, want %v", result, tt.expected)
+			}
+
+			logOutput := logBuf.String()
+			if tt.hasWarn {
+				if !strings.Contains(logOutput, tt.warnMsg) {
+					t.Errorf("Expected warning containing %q, got: %s", tt.warnMsg, logOutput)
+				}
+			} else {
+				if logOutput != "" {
+					t.Errorf("Expected no warnings, got: %s", logOutput)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateNonNegativeFloat64 tests the validation helper for float64 values.
+func TestValidateNonNegativeFloat64(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	traceID := "test-trace-123"
+
+	tests := []struct {
+		name     string
+		tagName  string
+		value    string
+		expected float64
+		hasWarn  bool
+		warnMsg  string
+	}{
+		{
+			name:     "valid positive",
+			tagName:  "test_tag",
+			value:    "100.5",
+			expected: 100.5,
+			hasWarn:  false,
+		},
+		{
+			name:     "zero",
+			tagName:  "test_tag",
+			value:    "0.0",
+			expected: 0.0,
+			hasWarn:  false,
+		},
+		{
+			name:     "negative value",
+			tagName:  "test_tag",
+			value:    "-5.5",
+			expected: 0.0,
+			hasWarn:  true,
+			warnMsg:  "negative value, defaulting to 0",
+		},
+		{
+			name:     "invalid string",
+			tagName:  "test_tag",
+			value:    "invalid",
+			expected: 0.0,
+			hasWarn:  true,
+			warnMsg:  "invalid float value, defaulting to 0",
+		},
+		{
+			name:     "empty string",
+			tagName:  "test_tag",
+			value:    "",
+			expected: 0.0,
+			hasWarn:  true,
+			warnMsg:  "invalid float value, defaulting to 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logBuf.Reset()
+			result := plugin.validateNonNegativeFloat64(traceID, tt.tagName, tt.value)
+
+			if result != tt.expected {
+				t.Errorf("validateNonNegativeFloat64() = %v, want %v", result, tt.expected)
+			}
+
+			logOutput := logBuf.String()
+			if tt.hasWarn {
+				if !strings.Contains(logOutput, tt.warnMsg) {
+					t.Errorf("Expected warning containing %q, got: %s", tt.warnMsg, logOutput)
+				}
+			} else {
+				if logOutput != "" {
+					t.Errorf("Expected no warnings, got: %s", logOutput)
+				}
+			}
+		})
+	}
+}
+
+// TestEstimateDynamoDB_NegativeCapacityUnits tests validation warnings for negative capacity units.
+func TestEstimateDynamoDB_NegativeCapacityUnits(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.dynamoDBPrices["storage"] = 0.25
+	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
+	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"read_capacity_units":  "-10", // negative
+				"write_capacity_units": "-5",  // negative
+				"storage_gb":           "50",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify warnings for negative values
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "read_capacity_units") || !strings.Contains(logOutput, "negative value") {
+		t.Errorf("Expected warnings for negative capacity units, got: %s", logOutput)
+	}
+
+	// Verify cost calculation treats negative as 0
+	expectedCost := 50 * 0.25 // Only storage
+	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestEstimateDynamoDB_InvalidTagValues tests validation warnings for invalid tag values.
+func TestEstimateDynamoDB_InvalidTagValues(t *testing.T) {
+	var logBuf bytes.Buffer
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.dynamoDBPrices["storage"] = 0.25
+	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
+	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
+	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"read_capacity_units":  "invalid",      // invalid
+				"write_capacity_units": "not-a-number", // invalid
+				"storage_gb":           "50",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify warnings for invalid values
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "read_capacity_units") || !strings.Contains(logOutput, "invalid integer value") {
+		t.Errorf("Expected warnings for invalid capacity units, got: %s", logOutput)
+	}
+
+	// Verify cost calculation treats invalid as 0
+	expectedCost := 50 * 0.25 // Only storage
+	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
 // TestGetProjectedCost_NATGateway verifies NAT Gateway cost estimation including hourly and data processing.
 //
 // This test validates the NAT Gateway cost estimation logic:
@@ -2742,9 +3129,9 @@ func TestGetProjectedCost_CloudWatch_LogsIngestion(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	// Set up tiered pricing: first 10TB at $0.50, next 20TB at $0.25, rest at $0.10
 	mock.cwLogsIngestionTiers = []pricing.TierRate{
-		{UpTo: 10 * 1024, Rate: 0.50},  // First 10 TB
-		{UpTo: 30 * 1024, Rate: 0.25},  // Next 20 TB
-		{UpTo: 1e18, Rate: 0.10},       // Beyond 30 TB
+		{UpTo: 10 * 1024, Rate: 0.50}, // First 10 TB
+		{UpTo: 30 * 1024, Rate: 0.25}, // Next 20 TB
+		{UpTo: 1e18, Rate: 0.10},      // Beyond 30 TB
 	}
 	mock.cwLogsStorageRate = 0.03 // $0.03/GB-month storage
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)

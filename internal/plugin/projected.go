@@ -470,6 +470,51 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 	}, nil
 }
 
+// validateNonNegativeInt64 validates and parses an int64 tag value.
+// Returns the parsed value (defaulting to 0 if negative) and logs a warning if invalid.
+func (p *AWSPublicPlugin) validateNonNegativeInt64(traceID, tagName, value string) int64 {
+	v, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("tag", tagName).
+			Str("value", value).
+			Msg("invalid integer value, defaulting to 0")
+		return 0
+	}
+	if v < 0 {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("tag", tagName).
+			Int64("value", v).
+			Msg("negative value, defaulting to 0")
+		return 0
+	}
+	return v
+}
+
+// validateNonNegativeFloat64 validates and parses a float64 tag value.
+func (p *AWSPublicPlugin) validateNonNegativeFloat64(traceID, tagName, value string) float64 {
+	v, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("tag", tagName).
+			Str("value", value).
+			Msg("invalid float value, defaulting to 0")
+		return 0
+	}
+	if v < 0 {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("tag", tagName).
+			Float64("value", v).
+			Msg("negative value, defaulting to 0")
+		return 0
+	}
+	return v
+}
+
 // estimateDynamoDB calculates projected monthly cost for DynamoDB tables.
 func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	capacityMode := strings.ToLower(resource.Sku)
@@ -485,43 +530,50 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	// Extract common storage
 	if resource.Tags != nil {
 		if s, ok := resource.Tags["storage_gb"]; ok {
-			if v, err := strconv.ParseFloat(s, 64); err == nil && v > 0 {
-				storageGB = v
-			}
+			storageGB = p.validateNonNegativeFloat64(traceID, "storage_gb", s)
 		}
 	}
 
 	storagePrice, storageFound := p.pricing.DynamoDBStoragePricePerGBMonth()
-	if !storageFound {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
-			Str("aws_region", p.region).
-			Msg("DynamoDB pricing data not found")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
-			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "DynamoDB", p.region),
-		}, nil
-	}
 	storageCost := storageGB * storagePrice
+	var unavailable []string
+	if !storageFound {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("component", "Storage").
+			Msg("DynamoDB storage pricing unavailable")
+		unavailable = append(unavailable, "Storage")
+	}
 
 	if capacityMode == "provisioned" {
 		// Provisioned Mode
 		if resource.Tags != nil {
 			if s, ok := resource.Tags["read_capacity_units"]; ok {
-				readUnits, _ = strconv.ParseInt(s, 10, 64)
+				readUnits = p.validateNonNegativeInt64(traceID, "read_capacity_units", s)
 			}
 			if s, ok := resource.Tags["write_capacity_units"]; ok {
-				writeUnits, _ = strconv.ParseInt(s, 10, 64)
+				writeUnits = p.validateNonNegativeInt64(traceID, "write_capacity_units", s)
 			}
 		}
 
-		rcuPrice, _ := p.pricing.DynamoDBProvisionedRCUPrice()
-		wcuPrice, _ := p.pricing.DynamoDBProvisionedWCUPrice()
+		rcuPrice, rcuFound := p.pricing.DynamoDBProvisionedRCUPrice()
+		wcuPrice, wcuFound := p.pricing.DynamoDBProvisionedWCUPrice()
 		unitPrice = rcuPrice // Use RCU as primary unit price
+
+		if !rcuFound {
+			p.logger.Warn().
+				Str(pluginsdk.FieldTraceID, traceID).
+				Str("component", "RCU").
+				Msg("DynamoDB provisioned RCU pricing unavailable")
+			unavailable = append(unavailable, "RCU")
+		}
+		if !wcuFound {
+			p.logger.Warn().
+				Str(pluginsdk.FieldTraceID, traceID).
+				Str("component", "WCU").
+				Msg("DynamoDB provisioned WCU pricing unavailable")
+			unavailable = append(unavailable, "WCU")
+		}
 
 		// Monthly cost = (RCU * 730 * price) + (WCU * 730 * price) + (Storage * price)
 		rcuCost := float64(readUnits) * 730 * rcuPrice
@@ -530,6 +582,10 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 
 		billingDetail = fmt.Sprintf("DynamoDB provisioned, %d RCUs, %d WCUs, 730 hrs/month, %.0fGB storage",
 			readUnits, writeUnits, storageGB)
+
+		if len(unavailable) > 0 {
+			billingDetail += fmt.Sprintf(" (pricing unavailable: %s)", strings.Join(unavailable, ", "))
+		}
 
 		// FR-007 & US3: Explicitly mention zero/missing inputs if total cost is 0
 		if totalCost == 0 {
@@ -557,16 +613,31 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	// Default to On-Demand Mode
 	if resource.Tags != nil {
 		if s, ok := resource.Tags["read_requests_per_month"]; ok {
-			readUnits, _ = strconv.ParseInt(s, 10, 64)
+			readUnits = p.validateNonNegativeInt64(traceID, "read_requests_per_month", s)
 		}
 		if s, ok := resource.Tags["write_requests_per_month"]; ok {
-			writeUnits, _ = strconv.ParseInt(s, 10, 64)
+			writeUnits = p.validateNonNegativeInt64(traceID, "write_requests_per_month", s)
 		}
 	}
 
-	readPrice, _ := p.pricing.DynamoDBOnDemandReadPrice()
-	writePrice, _ := p.pricing.DynamoDBOnDemandWritePrice()
+	readPrice, readFound := p.pricing.DynamoDBOnDemandReadPrice()
+	writePrice, writeFound := p.pricing.DynamoDBOnDemandWritePrice()
 	unitPrice = storagePrice // Use storage as primary unit price for on-demand
+
+	if !readFound {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("component", "Read").
+			Msg("DynamoDB on-demand read pricing unavailable")
+		unavailable = append(unavailable, "Read")
+	}
+	if !writeFound {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str("component", "Write").
+			Msg("DynamoDB on-demand write pricing unavailable")
+		unavailable = append(unavailable, "Write")
+	}
 
 	// Monthly cost = (Reads * readPrice) + (Writes * writePrice) + (Storage * storagePrice)
 	// Prices are per request unit
@@ -576,6 +647,10 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 
 	billingDetail = fmt.Sprintf("DynamoDB on-demand, %d reads, %d writes, %.0fGB storage",
 		readUnits, writeUnits, storageGB)
+
+	if len(unavailable) > 0 {
+		billingDetail += fmt.Sprintf(" (pricing unavailable: %s)", strings.Join(unavailable, ", "))
+	}
 
 	// FR-007 & US3: Explicitly mention zero/missing inputs if total cost is 0
 	if totalCost == 0 {

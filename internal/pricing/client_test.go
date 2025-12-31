@@ -1,3 +1,5 @@
+//go:build region_use1
+
 package pricing
 
 import (
@@ -384,6 +386,81 @@ func TestClient_DynamoDBPricing(t *testing.T) {
 		if wcuFound && (wcuPrice < 0.0001 || wcuPrice > 0.005) {
 			t.Errorf("us-east-1: Provisioned WCU price out of expected range: %v", wcuPrice)
 		}
+	}
+}
+
+func TestDynamoDBPricingExtraction_Storage(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	price, found := client.DynamoDBStoragePricePerGBMonth()
+	if !found {
+		t.Fatal("Expected DynamoDB storage pricing to be found for us-east-1")
+	}
+	if price <= 0 {
+		t.Errorf("Expected positive storage price, got: %v", price)
+	}
+}
+
+func TestDynamoDBPricingExtraction_ProvisionedRCU(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	price, found := client.DynamoDBProvisionedRCUPrice()
+	if !found {
+		t.Fatal("Expected DynamoDB provisioned RCU pricing to be found for us-east-1")
+	}
+	if price <= 0 {
+		t.Errorf("Expected positive RCU price, got: %v", price)
+	}
+}
+
+func TestDynamoDBPricingExtraction_ProvisionedWCU(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	price, found := client.DynamoDBProvisionedWCUPrice()
+	if !found {
+		t.Fatal("Expected DynamoDB provisioned WCU pricing to be found for us-east-1")
+	}
+	if price <= 0 {
+		t.Errorf("Expected positive WCU price, got: %v", price)
+	}
+}
+
+func TestDynamoDBPricingExtraction_OnDemandRead(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	price, found := client.DynamoDBOnDemandReadPrice()
+	if !found {
+		t.Fatal("Expected DynamoDB on-demand read pricing to be found for us-east-1")
+	}
+	if price <= 0 {
+		t.Errorf("Expected positive on-demand read price, got: %v", price)
+	}
+}
+
+func TestDynamoDBPricingExtraction_OnDemandWrite(t *testing.T) {
+	client, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient() failed: %v", err)
+	}
+
+	price, found := client.DynamoDBOnDemandWritePrice()
+	if !found {
+		t.Fatal("Expected DynamoDB on-demand write pricing to be found for us-east-1")
+	}
+	if price <= 0 {
+		t.Errorf("Expected positive on-demand write price, got: %v", price)
 	}
 }
 
