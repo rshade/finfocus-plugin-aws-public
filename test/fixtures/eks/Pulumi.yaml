@@ -1,0 +1,10 @@
+name: fixture-eks
+runtime: yaml
+description: A basic EKS cluster for cost estimation testing
+resources:
+  my-cluster:
+    type: aws:eks/cluster:Cluster
+    properties:
+      roleArn: arn:aws:iam::123456789012:role/eks-role
+      vpcConfig:
+        subnetIds: ["subnet-12345678"]

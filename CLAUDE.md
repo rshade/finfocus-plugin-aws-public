@@ -221,6 +221,9 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - Elastic Load Balancing (ALB/NLB) - Application Load Balancers and Network Load Balancers
 - NAT Gateway
 - CloudWatch (Logs ingestion/storage, custom metrics)
+- S3 (Storage per GB-month by storage class)
+- Lambda (Requests + compute GB-seconds, x86_64/arm64 architecture support)
+- RDS (Instance hours + storage, Multi-engine support)
 
 ## Directory Structure
 
@@ -541,9 +544,9 @@ and excluded helps users accurately estimate total infrastructure costs.
 | ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
 | NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
 | CloudWatch | Logs ingestion (tiered), storage, custom metrics (tiered) | Dashboards, alarms, contributor insights, cross-account | N/A |
-| RDS | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
-| S3 | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
-| Lambda | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
+| RDS | Instance hours + storage (gp2/gp3/io1), Multi-engine | Multi-AZ, read replicas, backups, IOPS | N/A |
+| S3 | Storage per GB-month by storage class | Requests, data transfer, lifecycle | N/A |
+| Lambda | Requests + compute (GB-seconds), x86_64/arm64 | Provisioned concurrency, Lambda@Edge | N/A |
 | DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 
 ### EKS Clusters
@@ -997,3 +1000,10 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 - **pulumicost-spec** protos for CostSourceService API
 - **zerolog** for structured JSON logging (stderr only)
 - **Embedded JSON** pricing data via `//go:embed` (no external storage)
+
+## Active Technologies
+- Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb) (016-runtime-actual-cost)
+- N/A (embedded pricing data, stateless service) (016-runtime-actual-cost)
+
+## Recent Changes
+- 016-runtime-actual-cost: Added Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)

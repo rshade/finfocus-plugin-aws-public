@@ -1,0 +1,10 @@
+name: fixture-rds
+runtime: yaml
+description: A basic RDS instance for cost estimation testing (stub)
+resources:
+  my-db:
+    type: aws:rds/instance:Instance
+    properties:
+      instanceClass: db.t3.micro
+      engine: postgres
+      allocatedStorage: 20

@@ -1,0 +1,13 @@
+name: fixture-lambda
+runtime: yaml
+description: A basic Lambda function for cost estimation testing
+resources:
+  my-function:
+    type: aws:lambda/function:Function
+    properties:
+      handler: index.handler
+      role: arn:aws:iam::123456789012:role/lambda-role
+      runtime: nodejs18.x
+      code: 
+        s3Bucket: my-bucket
+        s3Key: my-code.zip

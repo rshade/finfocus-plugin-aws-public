@@ -1,0 +1,9 @@
+name: fixture-natgw
+runtime: yaml
+description: A basic NAT Gateway for cost estimation testing
+resources:
+  my-natgw:
+    type: aws:ec2/natGateway:NatGateway
+    properties:
+      allocationId: eipalloc-12345678
+      subnetId: subnet-12345678

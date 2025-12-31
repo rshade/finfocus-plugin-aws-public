@@ -1,0 +1,12 @@
+name: fixture-dynamodb
+runtime: yaml
+description: A basic DynamoDB table for cost estimation testing
+resources:
+  my-table:
+    type: aws:dynamodb/table:Table
+    properties:
+      attributes:
+        - name: id
+          type: S
+      hashKey: id
+      billingMode: PAY_PER_REQUEST

@@ -11,13 +11,14 @@ security overhead of cloud credentials.
 ## Past Milestones [Done]
 
 - **Core Infrastructure:** gRPC `CostSourceService` implementation, regional
-  build matrix (9+ regions), and `zerolog` trace propagation.
-- **Compute:** EC2 On-Demand cost estimation and CCF-based Carbon Footprint
-  (gCO2e) metrics.
-- **Storage:** EBS (Basic Storage), S3 (Standard Storage), and basic Lambda
-  estimation.
-- **Managed Services:** EKS Control Plane, DynamoDB (On-Demand/Provisioned), and
-  ELB (ALB/NLB with LCU/NLCU support).
+  build matrix (12 regions), and `zerolog` trace propagation.
+- **Compute:** EC2 On-Demand cost estimation, Lambda (requests + GB-seconds,
+  x86_64/arm64), and CCF-based Carbon Footprint (gCO2e) metrics.
+- **Storage:** EBS (Basic Storage GB-month pricing), S3 (Storage by storage class).
+- **Managed Services:** EKS Control Plane, DynamoDB (On-Demand/Provisioned),
+  ELB (ALB/NLB with LCU/NLCU support), and RDS (instance + storage, multi-engine).
+- **Networking:** NAT Gateway (hourly + data processing per GB), CloudWatch
+  (Logs ingestion/storage with tiered pricing, custom metrics).
 - **Optimization:** `GetRecommendations` batch processing for
   `target_resources` (up to 100 items).
 - **Architecture:** Transition to per-service raw JSON embedding to manage
@@ -27,11 +28,6 @@ security overhead of cloud credentials.
 
 ## Immediate Focus [In Progress / Planned]
 
-- **[In Progress] RDS Implementation:** Move RDS from stub to full support
-  (Instance types, Multi-AZ flags, and Storage).
-- **[Planned] Documentation Alignment:** Update `README.md` and `CLAUDE.md` to
-  reflect that S3, EKS, DynamoDB, and ELB are fully implemented and no longer
-  stubs.
 - **[Planned] Refined "Actual Cost" Logic:** Enhance `GetActualCost` to
   intelligently prioritize usage hours from request metadata, defaulting to
   730-hour monthly projections only when usage is absent.
@@ -56,9 +52,9 @@ security overhead of cloud credentials.
 - **[Researching] Cross-Service Recommendations:** Static lookup logic to
   suggest move-to-managed alternatives (e.g., self-managed DB on EC2 -> RDS)
   based on Resource Tags.
-- **[Planned] Additional Regions:** Expansion to GovCloud (US-West/East) and
-  specialized regions (e.g., Beijing/Ningxia) as public pricing data parity
-  allows.
+- **[Planned] Additional Regions:** Expansion to specialized regions (e.g.,
+  Beijing/Ningxia, EU-North-1) as public pricing data parity allows. GovCloud
+  (US-West/East) already supported.
 - **[Planned] Forecasting Intelligence:**
   - **Growth Hints:** Implement logic to return `GrowthType` (Linear) for
     accumulation-based resources (S3, ECR, Backup) to support Core forecasting.

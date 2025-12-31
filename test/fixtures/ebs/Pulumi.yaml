@@ -1,0 +1,10 @@
+name: fixture-ebs
+runtime: yaml
+description: A basic EBS volume for cost estimation testing
+resources:
+  data-volume:
+    type: aws:ebs/volume:Volume
+    properties:
+      availabilityZone: us-east-1a
+      size: 100
+      type: gp3

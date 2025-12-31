@@ -1,0 +1,9 @@
+name: fixture-ec2
+runtime: yaml
+description: A basic EC2 instance for cost estimation testing
+resources:
+  web-server:
+    type: aws:ec2/instance:Instance
+    properties:
+      instanceType: t3.micro
+      ami: ami-0c55b159cbfafe1f0 # Example AMI
