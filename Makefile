@@ -1,6 +1,7 @@
 # All supported AWS regions (sourced from internal/pricing/regions.yaml)
 # Uses Go-based YAML parser for robust parsing (replaces fragile awk/sed)
 REGIONS_FILE := internal/pricing/regions.yaml
+# Use a subshell for the directory change to keep it isolated (Issue #67)
 PARSE_REGIONS := cd tools/parse-regions && go mod download -x 2>/dev/null && go run . -config ../../$(REGIONS_FILE) -format lines
 REGIONS := $(shell $(PARSE_REGIONS) -field name)
 REGIONS_CSV := $(shell $(PARSE_REGIONS) -field name | tr '\n' ',' | sed 's/,$$//')
@@ -12,7 +13,8 @@ LATEST_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0
 LATEST_VERSION := $(shell echo $(LATEST_TAG) | sed 's/^v//')
 MAJOR := $(shell echo $(LATEST_VERSION) | cut -d. -f1)
 MINOR := $(shell echo $(LATEST_VERSION) | cut -d. -f2)
-PATCH := $(shell echo $(LATEST_VERSION) | cut -d. -f3)
+# Issue #178: Sanitize PATCH to default to 0 if non-numeric
+PATCH := $(shell echo $(LATEST_VERSION) | cut -d. -f3 | grep -E '^[0-9]+$$' || echo "0")
 NEXT_PATCH := $(shell echo $$(($(PATCH) + 1)))
 DEV_VERSION := $(MAJOR).$(MINOR).$(NEXT_PATCH)-dev
 LDFLAGS := -X main.version=$(DEV_VERSION)
@@ -51,12 +53,17 @@ generate-carbon-data: ## Fetch CCF instance specs for carbon estimation
 .PHONY: generate-embeds
 generate-embeds: ## Generate embed files from regions.yaml
 	@echo "Generating embed files..."
-	@cd tools/generate-embeds && go run . --config ../../internal/pricing/regions.yaml --template embed_template.go.tmpl --output ../../internal/pricing
+	@$(MAKE) -C tools/generate-embeds run-generator \
+		CONFIG=../../internal/pricing/regions.yaml \
+		TEMPLATE=embed_template.go.tmpl \
+		OUTPUT=../../internal/pricing
 
 .PHONY: generate-goreleaser
 generate-goreleaser: ## Generate .goreleaser.yaml from regions.yaml
 	@echo "Generating GoReleaser config..."
-	@cd tools/generate-goreleaser && go run . --config ../../internal/pricing/regions.yaml --output ../../.goreleaser.yaml
+	@$(MAKE) -C tools/generate-goreleaser run-generator \
+		CONFIG=../../internal/pricing/regions.yaml \
+		OUTPUT=../../.goreleaser.yaml
 
 .PHONY: verify-regions
 verify-regions: ## Verify region configuration and generated files

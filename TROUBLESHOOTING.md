@@ -66,6 +66,6 @@ Use `grpcurl` to test the plugin manually:
 
 ```bash
 # Capture the PORT from stdout
-PORT=50051 # replace with actual port
+PORT=12345 # replace with actual port from plugin startup output (e.g., PORT=12345)
 grpcurl -plaintext localhost:$PORT pulumicost.v1.CostSourceService/Name
 ```

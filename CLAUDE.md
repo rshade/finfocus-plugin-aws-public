@@ -59,6 +59,21 @@ message GetProjectedCostResponse {
   - `pluginRegion`: The region this binary supports
   - `requiredRegion`: The region the resource needs
 
+### Critical vs Non-Critical Service Policy (v0.0.12+)
+
+The plugin initialization (`internal/pricing/client.go`) handles pricing data loading errors differently based on service criticality:
+
+**Critical Services (EC2, EBS):**
+- **Definition:** Primary cost drivers, most commonly estimated services.
+- **Failure Policy:** Initialization **FAILS** if pricing data cannot be loaded. The plugin will exit with a fatal error.
+- **Reasoning:** Without EC2/EBS pricing, the plugin is functionally useless for most users.
+
+**Non-Critical Services (S3, RDS, EKS, Lambda, DynamoDB, ELB, CloudWatch):**
+- **Definition:** specialized services, stubbed implementations, or secondary cost drivers.
+- **Failure Policy:** Initialization **CONTINUES** with a warning log. The service will return $0 estimates or error on specific requests, but the plugin remains operational.
+- **Reasoning:** A failure in a niche service should not prevent the plugin from estimating core resources.
+- **Promotion:** Services can be promoted to "Critical" once they are fully stable and deemed essential for all users.
+
 ### Region-Specific Binaries
 - **One binary per AWS region** using GoReleaser with build tags
 - Binary naming: `pulumicost-plugin-aws-public-<region>` (e.g., `pulumicost-plugin-aws-public-us-east-1`)
@@ -160,15 +175,6 @@ The AWS Price List API returns multiple term types in the `terms` object:
 - Reserved Instance and Savings Plans discounts are NOT reflected
 - For RI/SP pricing, users need different data sources (CUR, Cost Explorer, Vantage)
 
-**Adding RI/SP support (future consideration):**
-
-If Reserved/Savings Plans cost estimation is needed, consider:
-
-1. **Separate binary**: RI/SP data is too large to embed with OnDemand (would exceed reasonable binary size)
-2. **External data source**: API call rather than embedded data
-3. **User-provided pricing**: Import from their AWS account (CUR export)
-4. **Hybrid approach**: On-demand embedded + optional RI/SP overlay from external source
-
 **Code location:** `tools/generate-pricing/main.go` in `fetchServicePricingRaw()` function, lines 188-211.
 
 ### ⚠️ CRITICAL: No Pricing Data Filtering
@@ -216,20 +222,9 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - NAT Gateway
 - CloudWatch (Logs ingestion/storage, custom metrics)
 
-**Stubbed/Partial:**
-
-- S3
-- Lambda
-- RDS
-
-Stubbed services behavior:
-
-- Supports() returns `supported=true` with reason "Limited support - returns $0 estimate"
-- GetProjectedCost() returns `cost_per_month=0` with billing_detail explaining not implemented
-
 ## Directory Structure
 
-```
+```text
 cmd/
   pulumicost-plugin-aws-public/     # gRPC service entrypoint
     main.go                          # Calls pluginsdk.Serve()
@@ -508,15 +503,25 @@ From `pulumicost.v1.ErrorCode`:
 - `cost_per_month`: (fixed_rate × 730) + (capacity_units × cu_rate × 730)
 - `billing_detail`: "<ALB|NLB>, 730 hrs/month, <capacity_units> <LCU|NLCU> avg/hr"
 
-### Stub Services (S3, Lambda, RDS)
+#### Capacity Unit Estimation Resources
 
-- `resource_type`: "s3", "lambda", "rds", "dynamodb"
-- Supports() returns `supported=true` with `reason="Limited support - returns $0 estimate"`
-- GetProjectedCost() returns:
-  - `unit_price=0`
-  - `cost_per_month=0`
-  - `currency="USD"`
-  - `billing_detail="<Service> cost estimation not implemented - returning $0"`
+**ALB (LCU - Load Balancer Capacity Units):**
+- [AWS ALB Pricing Page](https://aws.amazon.com/elasticloadbalancing/pricing/)
+- [Understanding LCU Dimensions](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-capacity-units.html)
+- LCU = max of (new connections/sec, active connections, processed bytes, rule evaluations)
+
+**NLB (NLCU - Network Load Balancer Capacity Units):**
+- [AWS NLB Pricing Page](https://aws.amazon.com/elasticloadbalancing/pricing/)
+- [Understanding NLCU Dimensions](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancer-capacity-units.html)
+- NLCU = max of (new connections/sec, active connections, processed bytes)
+
+**Quick Reference:**
+| Workload Type | Typical ALB LCU | Typical NLB NLCU |
+|---------------|-----------------|------------------|
+| Low traffic API | 0.5-2 | 0.5-1 |
+| Medium web app | 5-20 | 3-10 |
+| High traffic | 50-200 | 25-100 |
+| Very high | 200+ | 100+ |
 
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
@@ -632,6 +637,35 @@ CloudWatch cost estimation supports logs ingestion, logs storage, and custom met
   - Beyond 250,000 at ~$0.05/metric
   - (Rates vary by region)
 
+**Examples:**
+
+*Logs Estimation:*
+```json
+{
+  "resource_type": "cloudwatch",
+  "sku": "logs",
+  "tags": { "log_ingestion_gb": "100", "log_storage_gb": "500" }
+}
+```
+
+*Metrics Estimation:*
+```json
+{
+  "resource_type": "cloudwatch",
+  "sku": "metrics",
+  "tags": { "custom_metrics": "5000" }
+}
+```
+
+*Combined:*
+```json
+{
+  "resource_type": "cloudwatch",
+  "sku": "combined",
+  "tags": { "log_ingestion_gb": "100", "custom_metrics": "5000" }
+}
+```
+
 **Excluded:**
 
 - CloudWatch Dashboards
@@ -673,6 +707,12 @@ DynamoDB cost estimation supports both capacity modes:
 - `sku: "provisioned"` - Use provisioned capacity pricing (case-insensitive)
 - SKU is required by the SDK validation
 
+**Unit Price Semantics:**
+DynamoDB is a multi-component service (RCU/WCU/Storage or Read/Write/Storage). The `unit_price` field in the response is selected for informational purposes only:
+- **Provisioned:** `unit_price` = RCU hourly rate (primary capacity driver)
+- **On-Demand:** `unit_price` = Storage GB-month rate (primary scaling factor)
+- **Actual Cost:** Always calculated as sum of *all* components. Users should rely on `cost_per_month` and `billing_detail` for accuracy.
+
 ### Carbon Estimation (EC2 Only)
 
 Carbon footprint estimation uses the Cloud Carbon Footprint (CCF) methodology.
@@ -702,14 +742,6 @@ carbonGrams = energyWithPUE × gridIntensity × 1,000,000
 - GPU power consumption not included
 - Only EC2 instances (not EBS, EKS, etc.)
 - Embodied carbon not calculated
-
-**Future Enhancements:**
-- [#135](https://github.com/rshade/pulumicost-plugin-aws-public/issues/135) - EBS storage carbon estimation
-- [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) - EKS cluster carbon estimation
-- [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) - S3, Lambda, RDS, DynamoDB carbon
-- [#138](https://github.com/rshade/pulumicost-plugin-aws-public/issues/138) - GPU power consumption coefficients
-- [#139](https://github.com/rshade/pulumicost-plugin-aws-public/issues/139) - Embodied carbon calculation
-- [#140](https://github.com/rshade/pulumicost-plugin-aws-public/issues/140) - Annual grid factor update process
 
 **Files:**
 - `internal/carbon/` - Carbon estimation module
@@ -786,6 +818,38 @@ logOutput := stderrBuf.String()
 // Parse JSON log lines and verify fields
 ```
 
+### Resource Type Normalization Consistency
+
+**IMPORTANT**: When refactoring functions that process resource types (like `detectService()`), ensure
+ALL code paths use the same normalization pattern. The plugin has multiple entry points that process
+resource types:
+
+- `GetProjectedCost()` - main cost estimation
+- `GetActualCost()` - fallback actual cost calculation
+- `GetPricingSpec()` - pricing specification lookup
+- `Supports()` - resource support checking
+- `GetRecommendations()` - optimization recommendations
+- `ValidateARN()` / `ValidateTags()` - input validation
+
+**Two-Step Normalization Pattern (v0.0.17+):**
+
+```go
+// CORRECT: Always normalize before detecting service
+normalizedType := normalizeResourceType(resource.ResourceType)
+serviceType := detectService(normalizedType)
+
+// WRONG: Direct detection without normalization
+serviceType := detectService(resource.ResourceType)  // May fail for Pulumi formats!
+```
+
+**Testing Pattern to Prevent Regression:**
+Consider adding tests that verify all service detection paths handle Pulumi-format resource types
+identically. For example, test that `GetActualCost()` and `GetProjectedCost()` return identical
+costs for the same Pulumi-format resource types like `aws:eks/cluster:Cluster`.
+
+This pattern was added after a code review found that `actual.go` was missing the `normalizeResourceType()`
+call while all other code paths had been updated.
+
 ## Development Notes
 
 ### Implementing the Plugin Interface
@@ -859,7 +923,7 @@ func main() {
 - Data includes all instance types and volume types available in each region
 
 ### Logging
-- **Never** log to stdout except for the PORT announcement
+- **Never** log to stdout except for the PORT announcement, always use zerolog
 - Stdout is used **only** for `PORT=<port>` announcement
 - Use stderr with prefix `[pulumicost-plugin-aws-public]` for debug/diagnostic messages
 - Keep logging minimal by default
@@ -928,54 +992,8 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 - Handle context cancellation for graceful shutdown
 - Make pricing lookups thread-safe for concurrent RPCs
 
-## PR and Commit Workflow
-
-**IMPORTANT**: When completing a feature implementation, always:
-
-1. **Generate PR_MESSAGE.md** instead of running `git commit` directly
-2. **Validate PR_MESSAGE.md** passes both linters:
-   - `npx markdownlint-cli PR_MESSAGE.md`
-   - Extract commit message and test with `echo "..." | npx commitlint`
-3. **Include in PR_MESSAGE.md**:
-   - Summary of changes
-   - Implementation details (new/modified files)
-   - Test plan with checkboxes
-   - Known limitations
-   - Breaking changes section
-   - Commit message in a code block (conventional commits format)
-   - Closes #issue-number
-
-This allows the user to review and make the commit themselves, and ensures
-the commit message follows conventional commits format.
-
-## Active Technologies
-- Go 1.25+ + pulumicost-spec v0.4.8 (pluginsdk, mapping packages), (013-sdk-migration)
-- N/A (embedded pricing data via go:embed) (013-sdk-migration)
-- Go 1.25+ + pulumicost-spec v0.4.10+ (MetricKind, ImpactMetric), zerolog, gRPC (015-carbon-estimation)
-- Embedded data via `//go:embed` (CSV for instance specs, constants for grid factors) (015-carbon-estimation)
-- Go 1.25+ + encoding/json, sync.Once, go:embed, zerolog, gRPC (pulumicost-spec) (018-raw-pricing-embed)
-- Embedded JSON files via `//go:embed` (no external storage) (018-raw-pricing-embed)
-- Go 1.25+ + pulumicost-spec v0.4.11+ (provides `Id` field on `ResourceDescriptor`), gRPC, zerolog (001-resourceid-passthrough)
-- N/A (stateless gRPC service) (001-resourceid-passthrough)
-- Go 1.25+ (same as existing codebase) + gRPC via pulumicost-spec/sdk/go/pluginsdk, zerolog for logging (019-cloudwatch-cost)
-- Embedded JSON via `//go:embed` (no external storage) (019-cloudwatch-cost)
 
 - **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
 - **pulumicost-spec** protos for CostSourceService API
 - **zerolog** for structured JSON logging (stderr only)
 - **Embedded JSON** pricing data via `//go:embed` (no external storage)
-
-## Recent Changes
-
-| Issue | Summary |
-|-------|---------|
-| #91 | EKS cost estimation scope documentation |
-| #76 | EKS cluster cost estimation (control plane only) |
-| 008 | E2E test mode, expected cost validation (t3.micro, gp2) |
-| 005 | zerolog logging, trace_id propagation, LOG_LEVEL |
-| 004 | GetActualCost fallback: `projected × (hours/730)` |
-| 003 | Added ca-central-1, sa-east-1 (9 regions total) |
-| 002 | Added 4 AP regions (Singapore, Sydney, Tokyo, Mumbai) |
-| 001 | Initial plugin: EC2/EBS, us-east-1/us-west-2/eu-west-1 |
-
-**Performance:** ~16MB binary, <0.1ms region mismatch, <15μs logging

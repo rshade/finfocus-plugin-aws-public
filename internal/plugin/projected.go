@@ -22,34 +22,42 @@ const (
 	defaultRDSSizeGB  = 20
 )
 
-const (
-	resTypeEC2Instance          = "aws:ec2/instance:Instance"
-	resTypeEC2InstanceLegacy    = "ec2/instance" // Legacy format without aws: prefix
-	resTypeEBSVolume            = "aws:ebs/volume:Volume"
-	resTypeEBSVolumeLegacy      = "ec2/volume" // Legacy format
-	resTypeRDSInstance          = "aws:rds/instance:Instance"
-	resTypeRDSInstanceLegacy    = "rds/instance" // Legacy format
-	resTypeS3Bucket             = "aws:s3/bucket:Bucket"
-	resTypeS3BucketLegacy       = "s3/bucket" // Legacy format
-	resTypeLambdaFunction       = "aws:lambda/function:Function"
-	resTypeLambdaFunctionLegacy = "lambda/function" // Legacy format
-	resTypeDynamoDBTable        = "aws:dynamodb/table:Table"
-	resTypeDynamoDBTableLegacy  = "dynamodb/table" // Legacy format
-	resTypeEKSCluster           = "aws:eks/cluster:Cluster"
-	resTypeEKSClusterLegacy     = "eks/cluster" // Legacy format
-	resTypeELB                  = "aws:lb/loadbalancer:LoadBalancer"
-	resTypeALB                  = "aws:alb/loadbalancer:LoadBalancer"
-	resTypeNLB                  = "aws:nlb/loadbalancer:LoadBalancer"
-	resTypeELBLegacy            = "elb/loadbalancer"
-	resTypeNATGateway           = "aws:ec2/natgateway:NatGateway"
-	resTypeNATGatewayLegacy     = "ec2/natgateway"
-	resTypeCloudWatchLogGroup        = "aws:cloudwatch/loggroup:LogGroup"
-	resTypeCloudWatchLogStream       = "aws:cloudwatch/logstream:LogStream"
-	resTypeCloudWatchMetricAlarm     = "aws:cloudwatch/metricalarm:MetricAlarm"
-	resTypeCloudWatchLogGroupLegacy  = "cloudwatch/loggroup"
-	resTypeCloudWatchLogStreamLegacy = "cloudwatch/logstream"
-	resTypeCloudWatchMetricAlarmLegacy = "cloudwatch/metricalarm"
-)
+// normalizeResourceType converts various resource type formats to a canonical form.
+// Examples:
+//   - "aws:ec2/instance:Instance" -> "ec2"
+//   - "aws:ebs:Volume" -> "ebs"
+//   - "ec2" -> "ec2"
+func normalizeResourceType(resourceType string) string {
+	rt := strings.ToLower(resourceType)
+
+	// Pattern: aws:<service>/...:... or aws:<service>:...
+	if strings.HasPrefix(rt, "aws:") {
+		// Special case: aws:ec2/volume is EBS
+		if strings.Contains(rt, "ec2/volume") {
+			return "ebs"
+		}
+
+		parts := strings.Split(rt[4:], "/")
+		if len(parts) > 0 {
+			// Extract service from aws:<service>/...
+			svcParts := strings.Split(parts[0], ":")
+			svc := svcParts[0]
+			switch svc {
+			case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "natgw", "cloudwatch":
+				return svc
+			case "lb", "alb", "nlb":
+				return "elb"
+			case "natgateway":
+				return "natgw"
+			}
+		}
+		// If it's an AWS resource but we don't recognize the service canonical form,
+		// return the original string to preserve information for detectService fallback.
+		return resourceType
+	}
+
+	return rt
+}
 
 // extractAWSSKU extracts AWS SKU from tags with priority: instanceType > instance_class > type > volumeType > volume_type
 // This implements the same logic as SDK mapping.ExtractAWSSKU() until it's available
@@ -166,7 +174,9 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	var resp *pbc.GetProjectedCostResponse
 	var err error
 
-	serviceType := detectService(resource.ResourceType)
+	// Normalize resource type first (T006, Issue #124)
+	normalizedType := normalizeResourceType(resource.ResourceType)
+	serviceType := detectService(normalizedType)
 	switch serviceType {
 	case "ec2":
 		resp, err = p.estimateEC2(traceID, resource, req)
@@ -632,6 +642,16 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 		}
 	}
 
+	// Warn if capacity units are unusually high (#165)
+	const warnCapacityUnitThreshold = 1000.0
+	if capacityUnits > warnCapacityUnitThreshold {
+		p.logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Float64("capacity_units", capacityUnits).
+			Float64("threshold", warnCapacityUnitThreshold).
+			Msg("Capacity units unusually high - verify this is intentional")
+	}
+
 	// 3. Lookup Pricing
 	var fixedRate, cuRate float64
 	var fixedFound, cuFound bool
@@ -834,40 +854,23 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 }
 
 // detectService maps a provider resource type string to a normalized service identifier.
-// It returns one of "ec2", "ebs", "rds", "s3", "lambda", or "dynamodb" when a known mapping or pattern is found;
-// otherwise it returns the original resourceType unchanged.
+// The input resourceType is expected to be normalized by normalizeResourceType().
 func detectService(resourceType string) string {
+	// Fast path for canonical forms
+	switch resourceType {
+	case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "elb", "natgw", "cloudwatch":
+		return resourceType
+	case "alb", "nlb":
+		return "elb"
+	}
+
+	// Fallback for legacy patterns if normalization didn't catch them
 	resourceTypeLower := strings.ToLower(resourceType)
 
-	switch resourceTypeLower {
-	case "ec2", resTypeEC2Instance, resTypeEC2InstanceLegacy:
-		return "ec2"
-	case "ebs", resTypeEBSVolume, resTypeEBSVolumeLegacy:
-		return "ebs"
-	case "rds", resTypeRDSInstance, resTypeRDSInstanceLegacy:
-		return "rds"
-	case "s3", resTypeS3Bucket, resTypeS3BucketLegacy:
-		return "s3"
-	case "lambda", resTypeLambdaFunction, resTypeLambdaFunctionLegacy:
-		return "lambda"
-	case "dynamodb", resTypeDynamoDBTable, resTypeDynamoDBTableLegacy:
-		return "dynamodb"
-	case "eks", resTypeEKSCluster, resTypeEKSClusterLegacy:
-		return "eks"
-	case "elb", "alb", "nlb", resTypeELB, resTypeALB, resTypeNLB, resTypeELBLegacy:
-		return "elb"
-	case "natgw", "nat_gateway", "nat-gateway", resTypeNATGateway, resTypeNATGatewayLegacy:
-		return "natgw"
-	case "cloudwatch", "logs", "metrics", resTypeCloudWatchLogGroup, resTypeCloudWatchLogStream, resTypeCloudWatchMetricAlarm,
-		resTypeCloudWatchLogGroupLegacy, resTypeCloudWatchLogStreamLegacy, resTypeCloudWatchMetricAlarmLegacy:
-		return "cloudwatch"
-	}
-
-	// Fallback: simple containment check for common patterns
-	if strings.Contains(resourceTypeLower, "ec2/instance") || strings.Contains(resourceTypeLower, "aws:ec2:instance") {
+	if strings.Contains(resourceTypeLower, "ec2/instance") {
 		return "ec2"
 	}
-	if strings.Contains(resourceTypeLower, "ebs/volume") || strings.Contains(resourceTypeLower, "ec2/volume") || strings.Contains(resourceTypeLower, "aws:ebs:volume") {
+	if strings.Contains(resourceTypeLower, "ebs/volume") || strings.Contains(resourceTypeLower, "ec2/volume") {
 		return "ebs"
 	}
 	if strings.Contains(resourceTypeLower, "rds/instance") {
@@ -876,23 +879,23 @@ func detectService(resourceType string) string {
 	if strings.Contains(resourceTypeLower, "eks/cluster") {
 		return "eks"
 	}
-	if strings.Contains(resourceTypeLower, "s3/bucket") || strings.Contains(resourceTypeLower, "aws:s3:bucket") {
+	if strings.Contains(resourceTypeLower, "s3/bucket") {
 		return "s3"
 	}
-	if strings.Contains(resourceTypeLower, "lambda/function") || strings.Contains(resourceTypeLower, "aws:lambda:function") {
+	if strings.Contains(resourceTypeLower, "lambda/function") {
 		return "lambda"
 	}
-	if strings.Contains(resourceTypeLower, "dynamodb/table") || strings.Contains(resourceTypeLower, "aws:dynamodb:table") {
+	if strings.Contains(resourceTypeLower, "dynamodb/table") {
 		return "dynamodb"
 	}
 	if strings.Contains(resourceTypeLower, "lb/loadbalancer") || strings.Contains(resourceTypeLower, "alb/loadbalancer") || strings.Contains(resourceTypeLower, "nlb/loadbalancer") {
 		return "elb"
 	}
-	if strings.Contains(resourceTypeLower, "ec2/natgateway") || strings.Contains(resourceTypeLower, "aws:ec2:natgateway") {
+	if strings.Contains(resourceTypeLower, "ec2/natgateway") {
 		return "natgw"
 	}
 	if strings.Contains(resourceTypeLower, "cloudwatch/loggroup") || strings.Contains(resourceTypeLower, "cloudwatch/logstream") ||
-		strings.Contains(resourceTypeLower, "cloudwatch/metricalarm") || strings.Contains(resourceTypeLower, "aws:cloudwatch:") {
+		strings.Contains(resourceTypeLower, "cloudwatch/metricalarm") {
 		return "cloudwatch"
 	}
 
@@ -1171,6 +1174,12 @@ func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
 	previousUpperBound := 0.0
 
 	for _, tier := range tiers {
+		// This check handles the case where we've already processed all the quantity
+		// in earlier tiers. This can occur when:
+		// 1. The quantity falls entirely within the first tier (quantity < tier1.UpTo)
+		// 2. We've iterated past the tier containing the quantity
+		// Without this guard, we'd incorrectly add $0 for subsequent tiers (since
+		// tierQuantity would be 0 or negative after clamping).
 		if quantity <= previousUpperBound {
 			// Already processed all quantity
 			break

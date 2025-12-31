@@ -1305,9 +1305,10 @@ func TestDetectService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := detectService(tt.input)
+			normalized := normalizeResourceType(tt.input)
+			got := detectService(normalized)
 			if got != tt.expected {
-				t.Errorf("detectService(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("detectService(normalizeResourceType(%q)) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}

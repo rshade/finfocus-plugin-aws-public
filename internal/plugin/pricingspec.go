@@ -33,7 +33,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 	resource := req.Resource
 
 	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
-	serviceType := detectService(resource.ResourceType)
+	normalizedResourceType := normalizeResourceType(resource.ResourceType)
+	serviceType := detectService(normalizedResourceType)
 
 	var spec *pbc.PricingSpec
 
@@ -88,7 +89,7 @@ func (p *AWSPublicPlugin) ec2PricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			RatePerUnit:  0,
 			Currency:     "USD",
 			Unit:         "hour",
-			Description:  fmt.Sprintf("EC2 instance type %q not found in pricing data", instanceType),
+			Description:  fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", instanceType),
 			Source:       "aws-public",
 			Assumptions:  []string{"Instance type not found in embedded pricing data"},
 		}
@@ -129,7 +130,7 @@ func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			RatePerUnit:  0,
 			Currency:     "USD",
 			Unit:         "GB-month",
-			Description:  fmt.Sprintf("EBS volume type %q not found in pricing data", volumeType),
+			Description:  fmt.Sprintf(PricingNotFoundTemplate, "EBS volume type", volumeType),
 			Source:       "aws-public",
 			Assumptions:  []string{"Volume type not found in embedded pricing data"},
 		}

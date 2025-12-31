@@ -59,6 +59,8 @@ func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logg
 	}
 
 	// Inject logger into carbon package for CSV parsing error logging (T004)
+	// Issue #159: carbon.SetLogger() is called here, ensure it happens before NewEstimator()
+	// and any carbon functionality is used.
 	carbon.SetLogger(logger)
 
 	return &AWSPublicPlugin{
@@ -114,9 +116,10 @@ func sanitizeTagsForLogging(tags map[string]string) map[string]string {
 		capacity = maxTagsToLog
 	}
 	sanitized := make(map[string]string, capacity)
+	count := 0
 	for k, v := range tags {
-		// Check limit first to avoid unnecessary processing
-		if len(sanitized) >= maxTagsToLog {
+		// Issue #115: Use explicit count tracking
+		if count >= maxTagsToLog {
 			break
 		}
 		kLower := strings.ToLower(k)
@@ -127,6 +130,7 @@ func sanitizeTagsForLogging(tags map[string]string) map[string]string {
 			continue
 		}
 		sanitized[k] = v
+		count++
 	}
 	return sanitized
 }

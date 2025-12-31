@@ -11,6 +11,7 @@ import (
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -82,7 +83,7 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 	var recommendations []*pbc.Recommendation
 	for _, resource := range pctx.Scope {
 		// Provider check: only process AWS resources (T011)
-		if resource.Provider != "" && resource.Provider != "aws" {
+		if resource.Provider != "" && resource.Provider != providerAWS {
 			continue
 		}
 
@@ -116,15 +117,30 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 				// Priority 1: Use native Id field from ResourceDescriptor (FR-001, FR-002)
 				if id := strings.TrimSpace(resource.Id); id != "" {
 					rec.Resource.Id = id
+					p.logger.Trace().
+						Str(pluginsdk.FieldTraceID, traceID).
+						Str("id_source", "native").
+						Str("id", id).
+						Msg("using native ID for recommendation correlation")
 				} else if resourceID := resource.Tags["resource_id"]; resourceID != "" {
 					// Priority 2: Fall back to resource_id tag for backward compat (FR-003)
 					rec.Resource.Id = resourceID
+					p.logger.Trace().
+						Str(pluginsdk.FieldTraceID, traceID).
+						Str("id_source", "tag").
+						Str("id", resourceID).
+						Msg("using tag ID for recommendation correlation")
 				}
 				// Use name tag if available (FR-004 - unchanged)
 				if name := resource.Tags["name"]; name != "" {
 					rec.Resource.Name = name
 				}
+			} else { // Handle missing resource impact logging (rec.Resource is nil here)
+				p.logger.Warn().
+					Str("recommendation_id", rec.Id).
+					Msg("recommendation missing resource data")
 			}
+			
 			if rec.Impact != nil {
 				pctx.BatchStats.TotalSavings += rec.Impact.GetEstimatedSavings()
 			} else {
@@ -238,7 +254,7 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 		Category:   pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST,
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
-			Provider:     "aws",
+			Provider:     providerAWS,
 			ResourceType: "ec2",
 			Region:       region,
 			Sku:          instanceType,
@@ -312,7 +328,7 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 		Category:   pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST,
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
-			Provider:     "aws",
+			Provider:     providerAWS,
 			ResourceType: "ec2",
 			Region:       region,
 			Sku:          instanceType,
@@ -399,7 +415,7 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 		Category:   pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST,
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
-			Provider:     "aws",
+			Provider:     providerAWS,
 			ResourceType: "ebs",
 			Region:       region,
 			Sku:          volumeType,
@@ -473,22 +489,41 @@ func (p *AWSPublicPlugin) matchesFilter(resource *pbc.ResourceDescriptor, filter
 // normalizeInput converts a GetRecommendationsRequest into a ProcessingContext.
 // If TargetResources is populated, uses it as the scope.
 // Otherwise, constructs a single-item scope from Filter fields (legacy mode).
+//
+// IMPORTANT: This function creates defensive copies of Filter and TargetResources
+// before normalizing resource types. This prevents mutation of caller-owned objects
+// and ensures thread-safety for concurrent gRPC calls.
 func (p *AWSPublicPlugin) normalizeInput(req *pbc.GetRecommendationsRequest) *ProcessingContext {
-	pctx := &ProcessingContext{
-		Filter: req.Filter,
+	pctx := &ProcessingContext{}
+
+	// Deep copy Filter to avoid mutating caller's object (thread-safety for concurrent gRPC calls)
+	if req.Filter != nil {
+		pctx.Filter = proto.Clone(req.Filter).(*pbc.RecommendationFilter)
+	}
+
+	// Issue #124: Normalize filter resource type if present
+	if pctx.Filter != nil && pctx.Filter.ResourceType != "" {
+		pctx.Filter.ResourceType = normalizeResourceType(pctx.Filter.ResourceType)
 	}
 
 	if len(req.TargetResources) > 0 {
-		// Batch mode: use TargetResources as scope
-		pctx.Scope = req.TargetResources
+		// Batch mode: deep copy each ResourceDescriptor to avoid mutating caller's objects
+		pctx.Scope = make([]*pbc.ResourceDescriptor, len(req.TargetResources))
+		for i, res := range req.TargetResources {
+			pctx.Scope[i] = proto.Clone(res).(*pbc.ResourceDescriptor)
+		}
+		// Normalize resource types (Issue #124) - now safe to mutate our copies
+		for _, res := range pctx.Scope {
+			res.ResourceType = normalizeResourceType(res.ResourceType)
+		}
 	} else if req.Filter != nil && req.Filter.Sku != "" {
-		// Legacy mode: construct single-item scope from Filter
+		// Legacy mode: construct single-item scope from Filter (already cloned above)
 		pctx.Scope = []*pbc.ResourceDescriptor{{
-			ResourceType: req.Filter.ResourceType,
-			Sku:          req.Filter.Sku,
-			Region:       req.Filter.Region,
-			Tags:         req.Filter.Tags,
-			Provider:     "aws", // Implicit for this plugin
+			ResourceType: pctx.Filter.ResourceType, // Use normalized copy
+			Sku:          pctx.Filter.Sku,
+			Region:       pctx.Filter.Region,
+			Tags:         copyTags(pctx.Filter.Tags), // Deep copy to avoid sharing map
+			Provider:     providerAWS,                // Implicit for this plugin
 		}}
 	}
 
@@ -496,3 +531,15 @@ func (p *AWSPublicPlugin) normalizeInput(req *pbc.GetRecommendationsRequest) *Pr
 	return pctx
 }
 
+// copyTags creates a shallow copy of a tags map.
+// Returns nil if input is nil, preserving the distinction between nil and empty maps.
+func copyTags(tags map[string]string) map[string]string {
+	if tags == nil {
+		return nil
+	}
+	result := make(map[string]string, len(tags))
+	for k, v := range tags {
+		result[k] = v
+	}
+	return result
+}

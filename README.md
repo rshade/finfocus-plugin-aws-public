@@ -60,6 +60,12 @@ public pricing data at build time and serves cost estimates via gRPC.
 
 - RDS
 
+## Actual Cost Estimation
+
+This plugin provides basic actual cost estimation based on resource runtime and public pricing. However, it has significant limitations compared to billing-integrated solutions.
+
+👉 **[Read the Actual Cost Estimation Guide](docs/actual-cost-estimation.md)** for details on accuracy, limitations with imported resources, and when to use a dedicated FinOps plugin.
+
 ## Features
 
 - **gRPC Protocol**: Implements `CostSourceService` from `pulumicost.v1` proto

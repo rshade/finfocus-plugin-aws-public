@@ -1,6 +1,9 @@
 // Package plugin provides the CostSourceService gRPC implementation for AWS public pricing.
 package plugin
 
+// providerAWS is the constant identifier for the AWS provider.
+const providerAWS = "aws"
+
 // PricingNotFoundTemplate is the standard message template for missing pricing data.
 // Use with fmt.Sprintf to format specific resource details.
 //

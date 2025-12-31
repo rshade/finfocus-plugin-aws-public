@@ -70,7 +70,9 @@ func run() error {
 			logger.Warn().
 				Str("env_var", "PORT").
 				Str("replacement", "PULUMICOST_PLUGIN_PORT").
-				Msg("PORT environment variable is deprecated and will be removed in v0.1.0. Please use PULUMICOST_PLUGIN_PORT instead.")
+				Str("deprecated_since", "v0.0.8").
+				Str("removal_version", "v0.1.0").
+				Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use PULUMICOST_PLUGIN_PORT instead.")
 			if parsed, err := strconv.Atoi(portStr); err == nil {
 				port = parsed
 			}

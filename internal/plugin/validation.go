@@ -21,8 +21,8 @@ func (p *AWSPublicPlugin) validateProvider(traceID string, provider string) erro
 	if provider == "" {
 		return p.newErrorWithID(traceID, codes.InvalidArgument, "provider is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
-	if provider != "aws" {
-		return p.newErrorWithID(traceID, codes.InvalidArgument, "only 'aws' provider is supported", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if provider != providerAWS {
+		return p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("only %q provider is supported", providerAWS), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
 	return nil
 }
@@ -50,7 +50,8 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req 
 
 	// Custom region check
 	effectiveRegion := resource.Region
-	service := detectService(resource.ResourceType)
+	normalizedResourceType := normalizeResourceType(resource.ResourceType)
+	service := detectService(normalizedResourceType)
 
 	// For global services with empty region, use the plugin's region (T012)
 	if effectiveRegion == "" && (service == "s3" || service == "iam") {
@@ -94,13 +95,15 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 	if req.Arn != "" {
 		resource, err := p.parseResourceFromARN(req)
 		if err != nil {
-			return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			msg := fmt.Sprintf("failed to parse ARN %q: %v", req.Arn, err)
+			return nil, p.newErrorWithID(traceID, codes.InvalidArgument, msg, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		}
 
 		// Custom region check (ARN region vs plugin binary region)
 		// Note: Global services (like S3) may have empty region in ARN
 		effectiveRegion := resource.Region
-		service := detectService(resource.ResourceType)
+		normalizedResourceType := normalizeResourceType(resource.ResourceType)
+		service := detectService(normalizedResourceType)
 		if effectiveRegion == "" && (service == "s3" || service == "iam") {
 			effectiveRegion = p.region
 			// Set resource region so caller knows the effective region
@@ -131,7 +134,8 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 
 	// Custom region check (consistent with ValidateProjectedCostRequest)
 	effectiveRegion := resource.Region
-	service := detectService(resource.ResourceType)
+	normalizedResourceType := normalizeResourceType(resource.ResourceType)
+	service := detectService(normalizedResourceType)
 
 	// For global services with empty region, use the plugin's region
 	if effectiveRegion == "" && (service == "s3" || service == "iam") {
@@ -190,7 +194,7 @@ func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*
 	}
 	if sku == "" {
 		// Return simple error - caller wraps with newErrorWithID for trace correlation
-		return nil, fmt.Errorf("ARN provided but tags missing 'sku' (instance type, volume type, etc.)")
+		return nil, fmt.Errorf("ARN provided (%s) but tags missing 'sku' (instance type, volume type, etc.)", req.Arn)
 	}
 
 	// Map ARN service to Pulumi resource type
@@ -208,7 +212,7 @@ func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*
 	}
 
 	return &pbc.ResourceDescriptor{
-		Provider:     "aws",
+		Provider:     providerAWS,
 		ResourceType: resourceType,
 		Sku:          sku,
 		Region:       arn.Region,

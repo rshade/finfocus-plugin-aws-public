@@ -1446,3 +1446,56 @@ func TestGetRecommendations_BatchIDCorrelation(t *testing.T) {
 		}
 	}
 }
+
+// TestGetRecommendations_Batch_EBSDefaultSize verifies that EBS volumes with empty or nil tags
+// in batch mode correctly fall back to the default 100GB size and cost calculation (Issue #127).
+func TestGetRecommendations_Batch_EBSDefaultSize(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ebsPrices["gp2"] = 0.10
+	mock.ebsPrices["gp3"] = 0.08
+
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp2",
+				Region:       "us-east-1",
+				Provider:     "aws",
+				Tags:         map[string]string{}, // Empty - should use default 100GB
+			},
+			{
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp2",
+				Region:       "us-east-1",
+				Provider:     "aws",
+				Tags:         nil, // Nil - should also use default 100GB
+			},
+		},
+	}
+
+	resp, err := plugin.GetRecommendations(context.Background(), req)
+	if err != nil {
+		t.Fatalf("GetRecommendations() error: %v", err)
+	}
+
+	if len(resp.Recommendations) != 2 {
+		t.Fatalf("Expected 2 recommendations, got %d", len(resp.Recommendations))
+	}
+
+	for i, rec := range resp.Recommendations {
+		// Verify default size was used (100GB)
+		modify := rec.GetModify()
+		if modify.CurrentConfig["size_gb"] != "100" {
+			t.Errorf("Recommendation[%d]: Expected size_gb=100 (default), got %s", i, modify.CurrentConfig["size_gb"])
+		}
+
+		// Verify cost calculation uses default size: $0.10 * 100GB = $10/month
+		expectedCurrentCost := 0.10 * 100
+		if rec.Impact.CurrentCost != expectedCurrentCost {
+			t.Errorf("Recommendation[%d]: CurrentCost = %v, want %v", i, rec.Impact.CurrentCost, expectedCurrentCost)
+		}
+	}
+}

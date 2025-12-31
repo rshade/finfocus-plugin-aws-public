@@ -34,10 +34,11 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	// Note: detectService() is called multiple times across validation and support checks.
 	// For optimization opportunity: consider caching normalized service types per resource_type
 	// to avoid repeated string parsing if high-frequency batches of identical resource types occur.
-	normalizedType := detectService(resource.ResourceType)
+	normalizedResourceType := normalizeResourceType(resource.ResourceType)
+	normalizedType := detectService(normalizedResourceType)
 
 	// Check provider
-	if resource.Provider != "aws" {
+	if resource.Provider != providerAWS {
 		p.logger.Info().
 			Str(pluginsdk.FieldTraceID, traceID).
 			Str(pluginsdk.FieldOperation, "Supports").
@@ -49,7 +50,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 		return &pbc.SupportsResponse{
 			Supported: false,
-			Reason:    fmt.Sprintf("Provider %q not supported (only 'aws' is supported)", resource.Provider),
+			Reason:    fmt.Sprintf("Provider %q not supported (only %q is supported)", resource.Provider, providerAWS),
 		}, nil
 	}
 

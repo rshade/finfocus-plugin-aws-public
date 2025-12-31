@@ -32,7 +32,9 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 	}
 
 	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
-	serviceType := detectService(resource.ResourceType)
+	// Issue #124: Use two-step normalization consistent with GetProjectedCost()
+	normalizedType := normalizeResourceType(resource.ResourceType)
+	serviceType := detectService(normalizedType)
 
 	// Route to appropriate estimator based on normalized resource type.
 	// For GetActualCost, we construct a minimal request with just the resource.
@@ -42,6 +44,14 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 		return p.estimateEC2(traceID, resource, &pbc.GetProjectedCostRequest{Resource: resource})
 	case "ebs":
 		return p.estimateEBS(traceID, resource)
+	case "eks":
+		return p.estimateEKS(traceID, resource)
+	case "elb":
+		return p.estimateELB(traceID, resource)
+	case "natgw":
+		return p.estimateNATGateway(traceID, resource)
+	case "cloudwatch":
+		return p.estimateCloudWatch(traceID, resource)
 	case "s3", "lambda", "rds", "dynamodb":
 		return p.estimateStub(resource)
 	default:

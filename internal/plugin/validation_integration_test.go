@@ -9,9 +9,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -66,21 +66,18 @@ func waitForPort(stdout io.Reader, timeout time.Duration) (string, error) {
 // for all required parameters in GetProjectedCost (T007).
 func TestIntegration_Validation(t *testing.T) {
 	// Build the binary with default (fallback) pricing
-	// Use a unique binary path per test to avoid collisions when tests run in parallel
+	// Issue #158: Use t.TempDir() for truly isolated test artifacts.
+	// This ensures cleanup even if the test panics during build.
 	t.Log("Building plugin binary...")
-	// Sanitize test name (remove slashes from subtest names like "TestIntegration_Validation/subtest")
-	sanitizedTestName := strings.ReplaceAll(t.Name(), "/", "_")
-	binPath := fmt.Sprintf("../../dist/test-pulumicost-plugin-validation-%s", sanitizedTestName)
+	tmpDir := t.TempDir()
+	binPath := filepath.Join(tmpDir, "pulumicost-plugin-aws-public")
+
 	buildCmd := exec.Command("go", "build",
 		"-o", binPath,
 		"../../cmd/pulumicost-plugin-aws-public")
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
-	// Clean up binary after test completes (including subtests in parallel)
-	t.Cleanup(func() {
-		os.Remove(binPath)
-	})
 
 	// Start the binary
 	cmd := exec.Command(binPath)

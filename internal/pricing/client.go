@@ -185,20 +185,26 @@ func (c *Client) init() error {
 		// https://github.com/rs/zerolog#thread-safety ("zerolog's Logger is thread-safe")
 		// so Error() and Warn() calls from multiple goroutines are safe.
 		var wg sync.WaitGroup
+		var regionMu sync.Mutex
 		var ec2Region string
 		var ec2Metadata *pricingMetadata
 		start := time.Now()
 
 		// Error collection for critical services.
 		//
-		// CRITICAL services (fail initialization on error):
-		//   - EC2/EBS: Primary cost drivers, most commonly estimated. EBS is parsed
-		//     inside parseEC2Pricing() since both are in the AmazonEC2 offer file.
+		// CRITICAL vs NON-CRITICAL Service failure policy (Issue #180):
 		//
-		// NON-CRITICAL services (log error, continue initialization):
-		//   - S3, RDS, EKS, Lambda, DynamoDB, ELB: Currently stub or partial implementations.
-		//     Failures are logged but don't block plugin startup, allowing EC2/EBS
-		//     estimation to work even if other services have parsing issues.
+		// CRITICAL services (EC2, EBS):
+		//   - Definition: Primary cost drivers, most commonly estimated services.
+		//   - Failure Policy: Initialization FAILS if pricing data cannot be loaded.
+		//   - Reasoning: Without EC2/EBS pricing, the plugin is functionally useless for most users.
+		//
+		// NON-CRITICAL services (S3, RDS, EKS, Lambda, DynamoDB, ELB, CloudWatch):
+		//   - Definition: Specialized services, stubbed implementations, or secondary cost drivers.
+		//   - Failure Policy: Initialization CONTINUES with a warning log.
+		//   - Reasoning: A failure in a niche service should not prevent the plugin from estimating core resources.
+		//
+		// Promotion: Services can be promoted to "Critical" once they are fully stable and essential.
 		var parseErrMu sync.Mutex
 		var parseErrs []error
 
@@ -213,8 +219,11 @@ func (c *Client) init() error {
 				parseErrMu.Unlock()
 				c.logger.Error().Err(err).Msg("failed to parse EC2 pricing")
 			} else {
+				// Issue #179: Use proper synchronization for shared variables
+				regionMu.Lock()
 				ec2Region = region
 				ec2Metadata = meta
+				regionMu.Unlock()
 			}
 		}()
 
