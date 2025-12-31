@@ -30,3 +30,6 @@ var rawELBJSON []byte
 
 //go:embed data/vpc_ap-south-1.json
 var rawVPCJSON []byte
+
+//go:embed data/cloudwatch_ap-south-1.json
+var rawCloudWatchJSON []byte

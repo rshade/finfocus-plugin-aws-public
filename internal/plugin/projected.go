@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
@@ -42,6 +43,12 @@ const (
 	resTypeELBLegacy            = "elb/loadbalancer"
 	resTypeNATGateway           = "aws:ec2/natgateway:NatGateway"
 	resTypeNATGatewayLegacy     = "ec2/natgateway"
+	resTypeCloudWatchLogGroup        = "aws:cloudwatch/loggroup:LogGroup"
+	resTypeCloudWatchLogStream       = "aws:cloudwatch/logstream:LogStream"
+	resTypeCloudWatchMetricAlarm     = "aws:cloudwatch/metricalarm:MetricAlarm"
+	resTypeCloudWatchLogGroupLegacy  = "cloudwatch/loggroup"
+	resTypeCloudWatchLogStreamLegacy = "cloudwatch/logstream"
+	resTypeCloudWatchMetricAlarmLegacy = "cloudwatch/metricalarm"
 )
 
 // extractAWSSKU extracts AWS SKU from tags with priority: instanceType > instance_class > type > volumeType > volume_type
@@ -179,6 +186,8 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateELB(traceID, resource)
 	case "natgw":
 		resp, err = p.estimateNATGateway(traceID, resource)
+	case "cloudwatch":
+		resp, err = p.estimateCloudWatch(traceID, resource)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
@@ -248,7 +257,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("EC2 instance type %q not found in pricing data for %s/%s", instanceType, ec2Attrs.OS, ec2Attrs.Tenancy),
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", instanceType),
 		}, nil
 	}
 
@@ -351,7 +360,7 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("EBS volume type %q not found in pricing data", volumeType),
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "EBS volume type", volumeType),
 		}, nil
 	}
 
@@ -418,7 +427,7 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("S3 storage class %q not found in pricing data", storageClass),
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "S3 storage class", storageClass),
 		}, nil
 	}
 
@@ -472,7 +481,21 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 		}
 	}
 
-	storagePrice, _ := p.pricing.DynamoDBStoragePricePerGBMonth()
+	storagePrice, storageFound := p.pricing.DynamoDBStoragePricePerGBMonth()
+	if !storageFound {
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("aws_region", p.region).
+			Msg("DynamoDB pricing data not found")
+
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "DynamoDB", p.region),
+		}, nil
+	}
 	storageCost := storageGB * storagePrice
 
 	if capacityMode == "provisioned" {
@@ -636,7 +659,7 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("%s pricing data not available for this region", strings.ToUpper(lbType)),
+			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, strings.ToUpper(lbType), p.region),
 		}, nil
 	}
 
@@ -751,7 +774,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("RDS instance type %q not found in pricing data for %s", instanceType, normalizedEngine),
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "RDS instance type", instanceType),
 		}, nil
 	}
 
@@ -835,6 +858,9 @@ func detectService(resourceType string) string {
 		return "elb"
 	case "natgw", "nat_gateway", "nat-gateway", resTypeNATGateway, resTypeNATGatewayLegacy:
 		return "natgw"
+	case "cloudwatch", "logs", "metrics", resTypeCloudWatchLogGroup, resTypeCloudWatchLogStream, resTypeCloudWatchMetricAlarm,
+		resTypeCloudWatchLogGroupLegacy, resTypeCloudWatchLogStreamLegacy, resTypeCloudWatchMetricAlarmLegacy:
+		return "cloudwatch"
 	}
 
 	// Fallback: simple containment check for common patterns
@@ -865,6 +891,10 @@ func detectService(resourceType string) string {
 	if strings.Contains(resourceTypeLower, "ec2/natgateway") || strings.Contains(resourceTypeLower, "aws:ec2:natgateway") {
 		return "natgw"
 	}
+	if strings.Contains(resourceTypeLower, "cloudwatch/loggroup") || strings.Contains(resourceTypeLower, "cloudwatch/logstream") ||
+		strings.Contains(resourceTypeLower, "cloudwatch/metricalarm") || strings.Contains(resourceTypeLower, "aws:cloudwatch:") {
+		return "cloudwatch"
+	}
 
 	return resourceType
 }
@@ -892,7 +922,7 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: "EKS cluster pricing data not available for this region",
+			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "EKS", p.region),
 		}, nil
 	}
 
@@ -986,7 +1016,7 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: "Lambda pricing data not available for this region",
+			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "Lambda", p.region),
 		}, nil
 	}
 
@@ -1068,7 +1098,7 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: "NAT Gateway pricing data not available for this region",
+			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "NAT Gateway", p.region),
 		}, nil
 	}
 
@@ -1124,3 +1154,193 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 	}, nil
 }
 
+// calculateTieredCost calculates the total cost for a quantity using tiered pricing.
+// Tiers are processed in order of their upper bounds (already sorted by parsing).
+// For each tier, we calculate the portion that falls within that tier's range.
+//
+// Example for CloudWatch metrics with 50,000 metrics:
+//   - Tier 1: First 10,000 @ $0.30 = $3,000
+//   - Tier 2: Next 40,000 @ $0.10 = $4,000
+//   - Total: $7,000
+func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
+	if len(tiers) == 0 || quantity <= 0 {
+		return 0
+	}
+
+	totalCost := 0.0
+	previousUpperBound := 0.0
+
+	for _, tier := range tiers {
+		if quantity <= previousUpperBound {
+			// Already processed all quantity
+			break
+		}
+
+		// Calculate quantity in this tier
+		tierLowerBound := previousUpperBound
+		tierUpperBound := tier.UpTo
+		if tierUpperBound > quantity {
+			tierUpperBound = quantity
+		}
+
+		tierQuantity := tierUpperBound - tierLowerBound
+		if tierQuantity > 0 {
+			totalCost += tierQuantity * tier.Rate
+		}
+
+		previousUpperBound = tier.UpTo
+	}
+
+	return totalCost
+}
+
+// estimateCloudWatch calculates projected monthly cost for CloudWatch resources.
+// Supports log ingestion, log storage, and custom metrics.
+//
+// SKU values:
+//   - "logs" or empty: Logs only (ingestion + storage)
+//   - "metrics": Custom metrics only
+//   - "combined": Both logs and metrics
+//
+// Tags:
+//   - log_ingestion_gb: GB of logs ingested per month
+//   - log_storage_gb: GB of logs stored
+//   - custom_metrics: Number of custom metrics
+func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	sku := strings.ToLower(resource.Sku)
+	if sku == "" {
+		sku = "logs" // Default to logs estimation
+	}
+
+	// Extract tag values with safe defaults
+	logIngestionGB := 0.0
+	logStorageGB := 0.0
+	customMetrics := 0.0
+
+	if resource.Tags != nil {
+		// Parse log_ingestion_gb
+		if val, ok := resource.Tags["log_ingestion_gb"]; ok && val != "" {
+			parsed, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'log_ingestion_gb': %q is not a valid number", val),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			if parsed < 0 {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'log_ingestion_gb': %.2f cannot be negative", parsed),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			logIngestionGB = parsed
+		}
+
+		// Parse log_storage_gb
+		if val, ok := resource.Tags["log_storage_gb"]; ok && val != "" {
+			parsed, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'log_storage_gb': %q is not a valid number", val),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			if parsed < 0 {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'log_storage_gb': %.2f cannot be negative", parsed),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			logStorageGB = parsed
+		}
+
+		// Parse custom_metrics
+		if val, ok := resource.Tags["custom_metrics"]; ok && val != "" {
+			parsed, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'custom_metrics': %q is not a valid number", val),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			if parsed < 0 {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'custom_metrics': %.2f cannot be negative", parsed),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			customMetrics = parsed
+		}
+	}
+
+	// Calculate costs based on SKU
+	var totalCost float64
+	var details []string
+
+	// Logs cost calculation
+	if sku == "logs" || sku == "combined" {
+		ingestionCost := 0.0
+		storageCost := 0.0
+
+		// Log ingestion (tiered pricing)
+		if logIngestionGB > 0 {
+			tiers, found := p.pricing.CloudWatchLogsIngestionTiers()
+			if found {
+				ingestionCost = calculateTieredCost(logIngestionGB, tiers)
+				details = append(details, fmt.Sprintf("%.2f GB logs ingested ($%.2f)", logIngestionGB, ingestionCost))
+			} else {
+				details = append(details, fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch Logs ingestion", p.region))
+			}
+		}
+
+		// Log storage (flat rate)
+		if logStorageGB > 0 {
+			storageRate, found := p.pricing.CloudWatchLogsStoragePrice()
+			if found {
+				storageCost = logStorageGB * storageRate
+				details = append(details, fmt.Sprintf("%.2f GB logs stored @ $%.4f/GB-mo ($%.2f)", logStorageGB, storageRate, storageCost))
+			} else {
+				details = append(details, fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch Logs storage", p.region))
+			}
+		}
+
+		totalCost += ingestionCost + storageCost
+	}
+
+	// Metrics cost calculation
+	if sku == "metrics" || sku == "combined" {
+		metricsCost := 0.0
+
+		if customMetrics > 0 {
+			tiers, found := p.pricing.CloudWatchMetricsTiers()
+			if found {
+				metricsCost = calculateTieredCost(customMetrics, tiers)
+				details = append(details, fmt.Sprintf("%.0f custom metrics ($%.2f)", customMetrics, metricsCost))
+			} else {
+				details = append(details, fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch Metrics", p.region))
+			}
+		}
+
+		totalCost += metricsCost
+	}
+
+	// Build billing detail
+	billingDetail := ""
+	if len(details) > 0 {
+		billingDetail = "CloudWatch: " + strings.Join(details, ", ")
+	} else {
+		// No usage provided
+		billingDetail = "CloudWatch: No usage specified (use tags: log_ingestion_gb, log_storage_gb, custom_metrics)"
+	}
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("sku", sku).
+		Float64("log_ingestion_gb", logIngestionGB).
+		Float64("log_storage_gb", logStorageGB).
+		Float64("custom_metrics", customMetrics).
+		Float64("total_cost", totalCost).
+		Msg("CloudWatch cost estimated")
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  totalCost,
+		UnitPrice:     0, // No single unit price for CloudWatch (multi-component)
+		Currency:      "USD",
+		BillingDetail: billingDetail,
+	}, nil
+}

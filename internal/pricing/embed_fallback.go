@@ -370,3 +370,14 @@ var rawVPCJSON = []byte(`{
     }
   }
 }`)
+
+// rawCloudWatchJSON contains minimal CloudWatch pricing data for development/testing.
+var rawCloudWatchJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonCloudWatch",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {},
+  "terms": {"OnDemand": {}}
+}`)

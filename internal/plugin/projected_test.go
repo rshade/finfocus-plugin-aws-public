@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -2727,4 +2729,551 @@ func TestGetProjectedCost_NATGateway(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetProjectedCost_CloudWatch_LogsIngestion tests CloudWatch logs ingestion cost estimation
+// with tiered pricing. AWS CloudWatch uses volume-based tiers for log ingestion:
+// - First 10 TB at a higher rate (e.g., $0.50/GB)
+// - Next 20 TB at a lower rate (e.g., $0.25/GB)
+// - Beyond 30 TB at an even lower rate
+func TestGetProjectedCost_CloudWatch_LogsIngestion(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// Set up tiered pricing: first 10TB at $0.50, next 20TB at $0.25, rest at $0.10
+	mock.cwLogsIngestionTiers = []pricing.TierRate{
+		{UpTo: 10 * 1024, Rate: 0.50},  // First 10 TB
+		{UpTo: 30 * 1024, Rate: 0.25},  // Next 20 TB
+		{UpTo: 1e18, Rate: 0.10},       // Beyond 30 TB
+	}
+	mock.cwLogsStorageRate = 0.03 // $0.03/GB-month storage
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name         string
+		tags         map[string]string
+		wantCost     float64
+		wantContains string
+		wantErr      bool
+	}{
+		{
+			name: "Simple 100GB ingestion (first tier only)",
+			tags: map[string]string{
+				"log_ingestion_gb": "100",
+			},
+			wantCost:     100 * 0.50, // 100 GB at $0.50/GB
+			wantContains: "logs ingested",
+		},
+		{
+			name: "Cross-tier ingestion (15 TB)",
+			tags: map[string]string{
+				"log_ingestion_gb": "15360", // 15 TB = 15 * 1024 GB
+			},
+			// First 10TB (10240 GB) at $0.50 = $5120
+			// Next 5TB (5120 GB) at $0.25 = $1280
+			// Total = $6400
+			wantCost:     (10 * 1024 * 0.50) + (5 * 1024 * 0.25),
+			wantContains: "logs ingested",
+		},
+		{
+			name: "Ingestion with storage",
+			tags: map[string]string{
+				"log_ingestion_gb": "100",
+				"log_storage_gb":   "500",
+			},
+			// Ingestion: 100 GB at $0.50 = $50
+			// Storage: 500 GB at $0.03 = $15
+			// Total = $65
+			wantCost:     (100 * 0.50) + (500 * 0.03),
+			wantContains: "logs ingested",
+		},
+		{
+			name: "Zero ingestion (no cost)",
+			tags: map[string]string{
+				"log_ingestion_gb": "0",
+			},
+			wantCost:     0,
+			wantContains: "CloudWatch",
+		},
+		{
+			name:         "Missing ingestion tag uses default 0",
+			tags:         map[string]string{},
+			wantCost:     0,
+			wantContains: "CloudWatch",
+		},
+		{
+			name: "Invalid ingestion tag (non-numeric)",
+			tags: map[string]string{
+				"log_ingestion_gb": "abc",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Negative ingestion tag",
+			tags: map[string]string{
+				"log_ingestion_gb": "-10",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "cloudwatch",
+					Sku:          "logs",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error but got nil")
+				}
+				st, ok := status.FromError(err)
+				if !ok {
+					t.Fatalf("Expected gRPC status error, got: %v", err)
+				}
+				if st.Code() != codes.InvalidArgument {
+					t.Errorf("gRPC code = %v, want InvalidArgument", st.Code())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Allow small floating point tolerance
+			if abs(resp.CostPerMonth-tt.wantCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			}
+
+			if !strings.Contains(resp.BillingDetail, tt.wantContains) {
+				t.Errorf("BillingDetail = %q, want to contain %q", resp.BillingDetail, tt.wantContains)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_CloudWatch_LogsStorage tests CloudWatch logs storage cost estimation.
+func TestGetProjectedCost_CloudWatch_LogsStorage(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.cwLogsIngestionTiers = []pricing.TierRate{
+		{UpTo: 1e18, Rate: 0.50},
+	}
+	mock.cwLogsStorageRate = 0.03 // $0.03/GB-month
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name     string
+		tags     map[string]string
+		wantCost float64
+		wantErr  bool
+	}{
+		{
+			name: "100 GB storage",
+			tags: map[string]string{
+				"log_storage_gb": "100",
+			},
+			wantCost: 100 * 0.03,
+		},
+		{
+			name: "1 TB storage",
+			tags: map[string]string{
+				"log_storage_gb": "1024",
+			},
+			wantCost: 1024 * 0.03,
+		},
+		{
+			name: "Zero storage",
+			tags: map[string]string{
+				"log_storage_gb": "0",
+			},
+			wantCost: 0,
+		},
+		{
+			name: "Invalid storage tag",
+			tags: map[string]string{
+				"log_storage_gb": "xyz",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "cloudwatch",
+					Sku:          "logs",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if abs(resp.CostPerMonth-tt.wantCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_CloudWatch_Metrics tests CloudWatch custom metrics cost estimation.
+func TestGetProjectedCost_CloudWatch_Metrics(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// Set up tiered pricing: first 10k at $0.30, next 240k at $0.10, rest at $0.05
+	mock.cwMetricsTiers = []pricing.TierRate{
+		{UpTo: 10000, Rate: 0.30},
+		{UpTo: 250000, Rate: 0.10},
+		{UpTo: 1e18, Rate: 0.05},
+	}
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	tests := []struct {
+		name         string
+		tags         map[string]string
+		wantCost     float64
+		wantContains string
+		wantErr      bool
+	}{
+		{
+			name: "5000 metrics (first tier)",
+			tags: map[string]string{
+				"custom_metrics": "5000",
+			},
+			wantCost:     5000 * 0.30,
+			wantContains: "custom metrics",
+		},
+		{
+			name: "20000 metrics (cross-tier)",
+			tags: map[string]string{
+				"custom_metrics": "20000",
+			},
+			// First 10000 at $0.30 = $3000
+			// Next 10000 at $0.10 = $1000
+			// Total = $4000
+			wantCost:     (10000 * 0.30) + (10000 * 0.10),
+			wantContains: "custom metrics",
+		},
+		{
+			name: "Zero metrics",
+			tags: map[string]string{
+				"custom_metrics": "0",
+			},
+			wantCost: 0,
+		},
+		{
+			name: "Invalid metrics tag",
+			tags: map[string]string{
+				"custom_metrics": "not-a-number",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "cloudwatch",
+					Sku:          "metrics",
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if abs(resp.CostPerMonth-tt.wantCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			}
+
+			if tt.wantContains != "" && !strings.Contains(resp.BillingDetail, tt.wantContains) {
+				t.Errorf("BillingDetail = %q, want to contain %q", resp.BillingDetail, tt.wantContains)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_CloudWatch_Combined tests combined logs + metrics estimation.
+func TestGetProjectedCost_CloudWatch_Combined(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.cwLogsIngestionTiers = []pricing.TierRate{
+		{UpTo: 1e18, Rate: 0.50},
+	}
+	mock.cwLogsStorageRate = 0.03
+	mock.cwMetricsTiers = []pricing.TierRate{
+		{UpTo: 1e18, Rate: 0.30},
+	}
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "cloudwatch",
+			Sku:          "combined",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"log_ingestion_gb": "100",  // 100 * $0.50 = $50
+				"log_storage_gb":   "500",  // 500 * $0.03 = $15
+				"custom_metrics":   "1000", // 1000 * $0.30 = $300
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedCost := (100 * 0.50) + (500 * 0.03) + (1000 * 0.30)
+	if abs(resp.CostPerMonth-expectedCost) > 0.01 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	// Should contain indicators for both logs and metrics
+	if !strings.Contains(resp.BillingDetail, "log") {
+		t.Errorf("BillingDetail should contain 'log', got: %s", resp.BillingDetail)
+	}
+	if !strings.Contains(resp.BillingDetail, "metric") {
+		t.Errorf("BillingDetail should contain 'metric', got: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_CloudWatch_MissingPricing tests soft failure when pricing data unavailable.
+func TestGetProjectedCost_CloudWatch_MissingPricing(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// No CloudWatch pricing configured - should return $0 with explanation
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "cloudwatch",
+			Sku:          "logs",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"log_ingestion_gb": "100",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Expected soft failure (no error), got: %v", err)
+	}
+
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 (soft failure)", resp.CostPerMonth)
+	}
+
+	// Billing detail should explain why cost is $0
+	if !strings.Contains(strings.ToLower(resp.BillingDetail), "unavailable") &&
+		!strings.Contains(strings.ToLower(resp.BillingDetail), "not available") {
+		t.Errorf("BillingDetail should indicate pricing unavailable, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_CloudWatch_PulumiResourceType tests Pulumi resource type format.
+func TestGetProjectedCost_CloudWatch_PulumiResourceType(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.cwLogsIngestionTiers = []pricing.TierRate{
+		{UpTo: 1e18, Rate: 0.50},
+	}
+	mock.cwLogsStorageRate = 0.03
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resourceTypes := []string{
+		"aws:cloudwatch/logGroup:LogGroup",
+		"aws:cloudwatch/logStream:LogStream",
+		"cloudwatch",
+	}
+
+	for _, rt := range resourceTypes {
+		t.Run(rt, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: rt,
+					Sku:          "logs",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"log_ingestion_gb": "100",
+					},
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Unexpected error for resource type %s: %v", rt, err)
+			}
+
+			expectedCost := 100 * 0.50
+			if abs(resp.CostPerMonth-expectedCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			}
+		})
+	}
+}
+
+// TestCalculateTieredCost provides direct unit tests for the calculateTieredCost function.
+// This function handles tier boundary calculations for CloudWatch pricing and must handle:
+// - Empty tiers, zero/negative quantities
+// - Single tier (flat pricing)
+// - Multi-tier with quantity within first tier
+// - Multi-tier with quantity spanning multiple tiers
+// - Multi-tier with quantity exceeding all tiers
+// - Exact tier boundary values
+func TestCalculateTieredCost(t *testing.T) {
+	tests := []struct {
+		name     string
+		quantity float64
+		tiers    []pricing.TierRate
+		want     float64
+	}{
+		{
+			name:     "empty tiers returns zero",
+			quantity: 100,
+			tiers:    []pricing.TierRate{},
+			want:     0,
+		},
+		{
+			name:     "zero quantity returns zero",
+			quantity: 0,
+			tiers:    []pricing.TierRate{{UpTo: 1000, Rate: 0.50}},
+			want:     0,
+		},
+		{
+			name:     "negative quantity returns zero",
+			quantity: -100,
+			tiers:    []pricing.TierRate{{UpTo: 1000, Rate: 0.50}},
+			want:     0,
+		},
+		{
+			name:     "single tier - quantity within tier",
+			quantity: 500,
+			tiers:    []pricing.TierRate{{UpTo: 1000, Rate: 0.50}},
+			want:     250, // 500 * 0.50
+		},
+		{
+			name:     "single tier - quantity equals tier boundary",
+			quantity: 1000,
+			tiers:    []pricing.TierRate{{UpTo: 1000, Rate: 0.50}},
+			want:     500, // 1000 * 0.50
+		},
+		{
+			name:     "single unlimited tier - flat pricing",
+			quantity: 100,
+			tiers:    []pricing.TierRate{{UpTo: math.MaxFloat64, Rate: 0.50}},
+			want:     50, // 100 * 0.50
+		},
+		{
+			name:     "multi-tier - quantity within first tier",
+			quantity: 5000,
+			tiers: []pricing.TierRate{
+				{UpTo: 10000, Rate: 0.30},
+				{UpTo: 250000, Rate: 0.10},
+				{UpTo: math.MaxFloat64, Rate: 0.05},
+			},
+			want: 1500, // 5000 * 0.30
+		},
+		{
+			name:     "multi-tier - quantity exactly on first boundary",
+			quantity: 10000,
+			tiers: []pricing.TierRate{
+				{UpTo: 10000, Rate: 0.30},
+				{UpTo: 250000, Rate: 0.10},
+			},
+			want: 3000, // 10000 * 0.30
+		},
+		{
+			name:     "multi-tier - quantity spans two tiers",
+			quantity: 20000,
+			tiers: []pricing.TierRate{
+				{UpTo: 10000, Rate: 0.30},
+				{UpTo: 250000, Rate: 0.10},
+			},
+			// First 10,000 @ $0.30 = $3,000
+			// Next 10,000 @ $0.10 = $1,000
+			// Total: $4,000
+			want: 4000,
+		},
+		{
+			name:     "multi-tier - quantity spans three tiers",
+			quantity: 300000,
+			tiers: []pricing.TierRate{
+				{UpTo: 10000, Rate: 0.30},
+				{UpTo: 250000, Rate: 0.10},
+				{UpTo: math.MaxFloat64, Rate: 0.05},
+			},
+			// First 10,000 @ $0.30 = $3,000
+			// Next 240,000 @ $0.10 = $24,000
+			// Next 50,000 @ $0.05 = $2,500
+			// Total: $29,500
+			want: 29500,
+		},
+		{
+			name:     "CloudWatch metrics example - 50,000 metrics",
+			quantity: 50000,
+			tiers: []pricing.TierRate{
+				{UpTo: 10000, Rate: 0.30},
+				{UpTo: 250000, Rate: 0.10},
+				{UpTo: math.MaxFloat64, Rate: 0.05},
+			},
+			// First 10,000 @ $0.30 = $3,000
+			// Next 40,000 @ $0.10 = $4,000
+			// Total: $7,000
+			want: 7000,
+		},
+		{
+			name:     "small fractional quantity",
+			quantity: 0.5,
+			tiers:    []pricing.TierRate{{UpTo: 1000, Rate: 0.50}},
+			want:     0.25, // 0.5 * 0.50
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := calculateTieredCost(tt.quantity, tt.tiers)
+			if abs(got-tt.want) > 0.01 {
+				t.Errorf("calculateTieredCost(%v, ...) = %v, want %v", tt.quantity, got, tt.want)
+			}
+		})
+	}
+}
+
+// abs returns the absolute value of x.
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

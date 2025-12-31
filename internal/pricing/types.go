@@ -181,3 +181,34 @@ type pricingMetadata struct {
 	// OfferCode identifies the AWS service (e.g., "AmazonEC2", "AWSELB").
 	OfferCode string
 }
+
+// TierRate represents a single tier in AWS's tiered pricing structure.
+// Used for services with volume-based pricing like CloudWatch logs and metrics.
+type TierRate struct {
+	// UpTo is the upper bound of this tier in GB (for logs) or count (for metrics).
+	// Use math.MaxFloat64 for the final tier with no upper bound.
+	UpTo float64
+	// Rate is the price per unit ($/GB for logs, $/metric for metrics).
+	Rate float64
+}
+
+// cloudWatchPrice holds the regional pricing configuration for Amazon CloudWatch.
+// Derived from AWS Pricing API for service AmazonCloudWatch.
+type cloudWatchPrice struct {
+	// LogsIngestionTiers contains tiered pricing for log ingestion.
+	// AWS uses volume-based tiers: first 10TB @ $0.50, next 20TB @ $0.25, etc.
+	// Source: Product Family "Data Payload", usageType containing "DataProcessing-Bytes"
+	LogsIngestionTiers []TierRate
+
+	// LogsStorageRate is the flat rate per GB-month for stored logs.
+	// Source: Product Family "Storage Snapshot", usageType containing "TimedStorage-ByteHrs"
+	LogsStorageRate float64
+
+	// MetricsTiers contains tiered pricing for custom metrics.
+	// AWS uses volume-based tiers: first 10k @ $0.30, next 240k @ $0.10, etc.
+	// Source: Product Family "Metric", usageType containing "MetricMonitorUsage"
+	MetricsTiers []TierRate
+
+	// Currency code (e.g., "USD")
+	Currency string
+}

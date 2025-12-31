@@ -16,14 +16,15 @@ import (
 // serviceConfig maps AWS service codes to lowercase file prefixes.
 // Used for generating per-service pricing files.
 var serviceConfig = map[string]string{
-	"AmazonEC2":      "ec2",
-	"AmazonS3":       "s3",
-	"AWSLambda":      "lambda",
-	"AmazonRDS":      "rds",
-	"AmazonEKS":      "eks",
-	"AmazonDynamoDB": "dynamodb",
-	"AWSELB":         "elb",
-	"AmazonVPC":      "vpc",
+	"AmazonEC2":        "ec2",
+	"AmazonS3":         "s3",
+	"AWSLambda":        "lambda",
+	"AmazonRDS":        "rds",
+	"AmazonEKS":        "eks",
+	"AmazonDynamoDB":   "dynamodb",
+	"AWSELB":           "elb",
+	"AmazonVPC":        "vpc",
+	"AmazonCloudWatch": "cloudwatch",
 }
 
 // main is the program entry point that fetches AWS pricing data per service.
@@ -37,7 +38,7 @@ var serviceConfig = map[string]string{
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB,AmazonVPC", "AWS Service Codes (comma-separated)")
+	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB,AmazonVPC,AmazonCloudWatch", "AWS Service Codes (comma-separated)")
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()

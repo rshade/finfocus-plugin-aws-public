@@ -146,6 +146,18 @@ func (m *mockPricingClientActual) NATGatewayPrice() (*pricing.NATGatewayPrice, b
 	return nil, false
 }
 
+func (m *mockPricingClientActual) CloudWatchLogsIngestionTiers() ([]pricing.TierRate, bool) {
+	return nil, false
+}
+
+func (m *mockPricingClientActual) CloudWatchLogsStoragePrice() (float64, bool) {
+	return 0, false
+}
+
+func (m *mockPricingClientActual) CloudWatchMetricsTiers() ([]pricing.TierRate, bool) {
+	return nil, false
+}
+
 func newTestPluginForActual() *AWSPublicPlugin {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	return NewAWSPublicPlugin("us-east-1", &mockPricingClientActual{

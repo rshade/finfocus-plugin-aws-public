@@ -3,6 +3,8 @@ package pricing
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,6 +97,18 @@ type PricingClient interface {
 	// NATGatewayPrice returns the pricing for a NAT Gateway (hourly and data processing).
 	// Returns (price, true) if found, (nil, false) if not found.
 	NATGatewayPrice() (*NATGatewayPrice, bool)
+
+	// CloudWatchLogsIngestionTiers returns the tiered pricing for CloudWatch log ingestion.
+	// Returns (tiers, true) if found, (nil, false) if not found.
+	CloudWatchLogsIngestionTiers() ([]TierRate, bool)
+
+	// CloudWatchLogsStoragePrice returns the per-GB-month rate for CloudWatch log storage.
+	// Returns (price, true) if found, (0, false) if not found.
+	CloudWatchLogsStoragePrice() (float64, bool)
+
+	// CloudWatchMetricsTiers returns the tiered pricing for CloudWatch custom metrics.
+	// Returns (tiers, true) if found, (nil, false) if not found.
+	CloudWatchMetricsTiers() ([]TierRate, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -130,6 +144,9 @@ type Client struct {
 
 	// NAT Gateway pricing (single rate per region)
 	natGatewayPricing *NATGatewayPrice
+
+	// CloudWatch pricing (tiered logs and metrics)
+	cloudWatchPricing *cloudWatchPrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -264,6 +281,15 @@ func (c *Client) init() error {
 			}
 		}()
 
+		// 9. Parse CloudWatch pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseCloudWatchPricing(rawCloudWatchJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse CloudWatch pricing")
+			}
+		}()
+
 		// Wait for all parsing to complete
 		wg.Wait()
 
@@ -370,6 +396,27 @@ func (c *Client) init() error {
 			warnMissing("ELB", "NLBNLCURate", c.elbPricing.NLBNLCURate)
 		} else {
 			c.logger.Warn().Str("region", c.region).Msg("ELB pricing not loaded")
+		}
+
+		// CloudWatch pricing validation
+		if c.cloudWatchPricing != nil {
+			warnMissing("CloudWatch", "LogsStorageRate", c.cloudWatchPricing.LogsStorageRate)
+			if len(c.cloudWatchPricing.LogsIngestionTiers) == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Str("service", "CloudWatch").
+					Str("field", "LogsIngestionTiers").
+					Msg("pricing field not found in embedded data")
+			}
+			if len(c.cloudWatchPricing.MetricsTiers) == 0 {
+				c.logger.Warn().
+					Str("region", c.region).
+					Str("service", "CloudWatch").
+					Str("field", "MetricsTiers").
+					Msg("pricing field not found in embedded data")
+			}
+		} else {
+			c.logger.Warn().Str("region", c.region).Msg("CloudWatch pricing not loaded")
 		}
 	})
 	return c.err
@@ -884,6 +931,136 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 	return region, nil
 }
 
+// parseCloudWatchPricing parses CloudWatch pricing data for logs and metrics.
+// Returns the detected region and any parsing error.
+//
+// CloudWatch pricing structure:
+//   - Log Ingestion: productFamily="Data Payload", group="Ingested Logs", usagetype contains "DataProcessing-Bytes"
+//   - Log Storage: productFamily="Storage Snapshot", usagetype contains "TimedStorage-ByteHrs"
+//   - Metrics: productFamily="Metric", group="Metric", usagetype="CW:MetricMonitorUsage"
+//     - Metrics use tiered pricing with beginRange/endRange in priceDimensions
+func (c *Client) parseCloudWatchPricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse CloudWatch JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service
+	if pricing.OfferCode != "AmazonCloudWatch" {
+		c.logger.Warn().
+			Str("expected", "AmazonCloudWatch").
+			Str("actual", pricing.OfferCode).
+			Msg("CloudWatch pricing data has unexpected offerCode")
+	}
+
+	c.cloudWatchPricing = &cloudWatchPrice{
+		Currency: "USD",
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		// Log Ingestion pricing
+		// Look for: productFamily="Data Payload", group="Ingested Logs", usagetype contains "DataProcessing-Bytes"
+		if prod.ProductFamily == "Data Payload" {
+			group := attrs["group"]
+			usageType := attrs["usagetype"]
+
+			// Standard log ingestion (not vended logs)
+			if group == "Ingested Logs" && strings.Contains(usageType, "DataProcessing-Bytes") &&
+				!strings.Contains(usageType, "VendedLog") {
+				// Use extractTieredPricing for consistency with metrics and future-proofing.
+				// Currently AWS log ingestion uses flat $0.50/GB (single tier), but this
+				// approach will automatically adapt if AWS ever introduces volume-based tiers.
+				tiers := c.extractTieredPricing(&pricing, sku)
+				if len(tiers) > 0 {
+					c.cloudWatchPricing.LogsIngestionTiers = tiers
+				}
+			}
+		}
+
+		// Log Storage pricing
+		// Look for: productFamily="Storage Snapshot", usagetype contains "TimedStorage-ByteHrs"
+		if prod.ProductFamily == "Storage Snapshot" {
+			usageType := attrs["usagetype"]
+			if strings.Contains(usageType, "TimedStorage-ByteHrs") {
+				rate, unit, found := getOnDemandPrice(&pricing, sku)
+				if found && unit == "GB-Mo" && rate > 0 {
+					c.cloudWatchPricing.LogsStorageRate = rate
+				}
+			}
+		}
+
+		// Metrics pricing (tiered)
+		// Look for: productFamily="Metric", group="Metric", usagetype="CW:MetricMonitorUsage"
+		if prod.ProductFamily == "Metric" {
+			group := attrs["group"]
+			usageType := attrs["usagetype"]
+
+			// Standard custom metrics (not Container Insights or other specialized metrics)
+			if group == "Metric" && usageType == "CW:MetricMonitorUsage" {
+				tiers := c.extractTieredPricing(&pricing, sku)
+				if len(tiers) > 0 {
+					c.cloudWatchPricing.MetricsTiers = tiers
+				}
+			}
+		}
+	}
+	return region, nil
+}
+
+// extractTieredPricing extracts tiered pricing from a SKU's price dimensions.
+// AWS CloudWatch uses beginRange/endRange to define pricing tiers.
+// Returns sorted tiers from lowest to highest upper bound.
+func (c *Client) extractTieredPricing(data *awsPricing, sku string) []TierRate {
+	termMap, ok := data.Terms["OnDemand"][sku]
+	if !ok {
+		return nil
+	}
+
+	var tiers []TierRate
+	for _, term := range termMap {
+		for _, dim := range term.PriceDimensions {
+			amountStr, ok := dim.PricePerUnit["USD"]
+			if !ok {
+				continue
+			}
+			rate, err := strconv.ParseFloat(amountStr, 64)
+			if err != nil || rate == 0 {
+				continue
+			}
+
+			// Parse endRange - "Inf" means unlimited
+			var upperBound float64
+			if dim.EndRange == "Inf" || dim.EndRange == "" {
+				upperBound = math.MaxFloat64
+			} else {
+				upperBound, err = strconv.ParseFloat(dim.EndRange, 64)
+				if err != nil {
+					continue
+				}
+			}
+
+			tiers = append(tiers, TierRate{
+				UpTo: upperBound,
+				Rate: rate,
+			})
+		}
+	}
+
+	// Sort by upper bound (ascending)
+	sort.Slice(tiers, func(i, j int) bool {
+		return tiers[i].UpTo < tiers[j].UpTo
+	})
+
+	return tiers
+}
+
 // Region returns the AWS region for this pricing data
 func (c *Client) Region() string {
 	_ = c.init() // Ensure initialization
@@ -1384,4 +1561,80 @@ func (c *Client) NATGatewayPrice() (*NATGatewayPrice, bool) {
 	return c.natGatewayPricing, true
 }
 
+// CloudWatchLogsIngestionTiers returns the tiered pricing for CloudWatch log ingestion.
+// Returns (tiers, true) if found, (nil, false) if not found.
+func (c *Client) CloudWatchLogsIngestionTiers() ([]TierRate, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "CloudWatch").
+				Str("metric", "LogsIngestionTiers").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
 
+	if err := c.init(); err != nil {
+		return nil, false
+	}
+	if c.cloudWatchPricing == nil || len(c.cloudWatchPricing.LogsIngestionTiers) == 0 {
+		return nil, false
+	}
+	// Return a copy to prevent callers from modifying shared pricing data
+	result := make([]TierRate, len(c.cloudWatchPricing.LogsIngestionTiers))
+	copy(result, c.cloudWatchPricing.LogsIngestionTiers)
+	return result, true
+}
+
+// CloudWatchLogsStoragePrice returns the per-GB-month rate for CloudWatch log storage.
+// Returns (price, true) if found, (0, false) if not found.
+func (c *Client) CloudWatchLogsStoragePrice() (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "CloudWatch").
+				Str("metric", "LogsStorage").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	if c.cloudWatchPricing == nil || c.cloudWatchPricing.LogsStorageRate == 0 {
+		return 0, false
+	}
+	return c.cloudWatchPricing.LogsStorageRate, true
+}
+
+// CloudWatchMetricsTiers returns the tiered pricing for CloudWatch custom metrics.
+// Returns (tiers, true) if found, (nil, false) if not found.
+func (c *Client) CloudWatchMetricsTiers() ([]TierRate, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "CloudWatch").
+				Str("metric", "MetricsTiers").
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return nil, false
+	}
+	if c.cloudWatchPricing == nil || len(c.cloudWatchPricing.MetricsTiers) == 0 {
+		return nil, false
+	}
+	// Return a copy to prevent callers from modifying shared pricing data
+	result := make([]TierRate, len(c.cloudWatchPricing.MetricsTiers))
+	copy(result, c.cloudWatchPricing.MetricsTiers)
+	return result, true
+}

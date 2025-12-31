@@ -37,6 +37,9 @@ type mockPricingClient struct {
 	nlbNLCUPrice          float64            // NLB cost per NLCU-hour
 	natgwHourlyPrice      float64            // NAT Gateway hourly rate
 	natgwDataPrice        float64            // NAT Gateway data processing rate
+	cwLogsIngestionTiers  []pricing.TierRate // CloudWatch logs ingestion tiers
+	cwLogsStorageRate     float64            // CloudWatch logs storage rate per GB-month
+	cwMetricsTiers        []pricing.TierRate // CloudWatch custom metrics tiers
 	ec2OnDemandCalled     int
 	ebsPriceCalled        int
 	s3PriceCalled         int
@@ -209,6 +212,33 @@ func (m *mockPricingClient) NATGatewayPrice() (*pricing.NATGatewayPrice, bool) {
 			DataProcessingRate: m.natgwDataPrice,
 			Currency:           m.currency,
 		}, true
+	}
+	return nil, false
+}
+
+func (m *mockPricingClient) CloudWatchLogsIngestionTiers() ([]pricing.TierRate, bool) {
+	if len(m.cwLogsIngestionTiers) > 0 {
+		// Return a copy to match production copy-on-read behavior
+		result := make([]pricing.TierRate, len(m.cwLogsIngestionTiers))
+		copy(result, m.cwLogsIngestionTiers)
+		return result, true
+	}
+	return nil, false
+}
+
+func (m *mockPricingClient) CloudWatchLogsStoragePrice() (float64, bool) {
+	if m.cwLogsStorageRate > 0 {
+		return m.cwLogsStorageRate, true
+	}
+	return 0, false
+}
+
+func (m *mockPricingClient) CloudWatchMetricsTiers() ([]pricing.TierRate, bool) {
+	if len(m.cwMetricsTiers) > 0 {
+		// Return a copy to match production copy-on-read behavior
+		result := make([]pricing.TierRate, len(m.cwMetricsTiers))
+		copy(result, m.cwMetricsTiers)
+		return result, true
 	}
 	return nil, false
 }

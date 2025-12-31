@@ -213,6 +213,8 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - EKS clusters
 - DynamoDB (On-Demand and Provisioned modes)
 - Elastic Load Balancing (ALB/NLB) - Application Load Balancers and Network Load Balancers
+- NAT Gateway
+- CloudWatch (Logs ingestion/storage, custom metrics)
 
 **Stubbed/Partial:**
 
@@ -533,6 +535,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) |
 | ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
 | NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
+| CloudWatch | Logs ingestion (tiered), storage, custom metrics (tiered) | Dashboards, alarms, contributor insights, cross-account | N/A |
 | RDS | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | S3 | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
 | Lambda | Not implemented | - | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
@@ -594,6 +597,50 @@ To estimate total EKS cluster cost, sum:
 - Data transfer OUT to the internet (charged separately by AWS)
 - Data transfer via VPC peering or Transit Gateway (charged separately)
 - Cross-AZ data transfer costs
+
+### CloudWatch
+
+CloudWatch cost estimation supports logs ingestion, logs storage, and custom metrics.
+
+- `resource_type`: "cloudwatch", "aws:cloudwatch/logGroup:LogGroup", "aws:cloudwatch/logStream:LogStream"
+- `sku`: "logs", "metrics", or "combined"
+  - `logs`: Estimates log ingestion + storage costs
+  - `metrics`: Estimates custom metrics costs
+  - `combined`: Estimates both logs and metrics together
+
+**Logs Estimation (sku: "logs" or "combined"):**
+- **Included:**
+  - Log ingestion (tiered pricing per GB)
+  - Log storage per GB-month
+- **Tags:**
+  - `log_ingestion_gb`: GB of logs ingested per month
+  - `log_storage_gb`: GB of logs stored
+- **Tiered pricing:** AWS uses volume-based tiers for ingestion:
+  - First 10 TB at ~$0.50/GB
+  - Next 20 TB at ~$0.25/GB
+  - Beyond 30 TB at ~$0.10/GB
+  - (Rates vary by region)
+
+**Metrics Estimation (sku: "metrics" or "combined"):**
+- **Included:**
+  - Custom metrics (tiered pricing per metric)
+- **Tags:**
+  - `custom_metrics`: Number of custom metrics
+- **Tiered pricing:** AWS uses volume-based tiers:
+  - First 10,000 metrics at ~$0.30/metric
+  - Next 240,000 metrics at ~$0.10/metric
+  - Beyond 250,000 at ~$0.05/metric
+  - (Rates vary by region)
+
+**Excluded:**
+
+- CloudWatch Dashboards
+- CloudWatch Alarms
+- CloudWatch Contributor Insights
+- CloudWatch Logs Insights queries
+- Cross-account log data sharing
+- Metric Streams
+- CloudWatch Synthetics
 
 ### DynamoDB Tables
 
@@ -786,10 +833,15 @@ func main() {
 ### Adding New AWS Services
 1. Update `internal/plugin/supports.go` to include the new resource_type
 2. Add estimation logic in `internal/plugin/projected.go` with a helper function
-3. Extend `tools/generate-pricing` to fetch pricing for the new service
+3. Extend `tools/generate-pricing` to fetch pricing for the new service (add to `serviceConfig` map)
 4. Update `internal/pricing/client.go` with thread-safe lookup methods for the new service
-5. Add tests for the new resource type
-6. **Research carbon estimation data** for the new service:
+5. **CRITICAL: Update embed files for the new service:**
+   - Add `//go:embed data/{service}_{region}.json` and `var raw{Service}JSON []byte` to `tools/generate-embeds/embed_template.go.tmpl`
+   - Update all existing `internal/pricing/embed_{region}.go` files with the new embed directive
+   - Update `internal/pricing/embed_fallback.go` with minimal test data for the new service
+   - **This step is commonly forgotten and causes build failures in CI/CD!**
+6. Add tests for the new resource type
+7. **Research carbon estimation data** for the new service:
    - Check [Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/docs/methodology) for applicable coefficients
    - If data exists, add carbon estimation to `internal/carbon/` and return `ImpactMetrics`
    - If no data, document in the service's billing_detail that carbon is not available
@@ -905,6 +957,8 @@ the commit message follows conventional commits format.
 - Embedded JSON files via `//go:embed` (no external storage) (018-raw-pricing-embed)
 - Go 1.25+ + pulumicost-spec v0.4.11+ (provides `Id` field on `ResourceDescriptor`), gRPC, zerolog (001-resourceid-passthrough)
 - N/A (stateless gRPC service) (001-resourceid-passthrough)
+- Go 1.25+ (same as existing codebase) + gRPC via pulumicost-spec/sdk/go/pluginsdk, zerolog for logging (019-cloudwatch-cost)
+- Embedded JSON via `//go:embed` (no external storage) (019-cloudwatch-cost)
 
 - **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
 - **pulumicost-spec** protos for CostSourceService API

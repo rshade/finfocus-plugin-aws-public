@@ -116,6 +116,22 @@ The v0.0.10/v0.0.11 releases were broken because filtering stripped 85% of data:
 - **Region Tags:** Use Go build tags (e.g., `//go:build region_use1`).
 - **Error Handling:** Use proto-defined `ErrorCode` enum.
 
+### Adding New AWS Services Checklist
+
+When adding support for a new AWS service, follow these steps:
+
+1. Update `internal/plugin/supports.go` with the new resource_type
+2. Add estimation logic in `internal/plugin/projected.go`
+3. Extend `tools/generate-pricing/main.go` (add to `serviceConfig` map)
+4. Update `internal/pricing/client.go` with lookup methods
+5. **⚠️ CRITICAL: Update embed files:**
+   - `tools/generate-embeds/embed_template.go.tmpl` - Add `//go:embed` directive
+   - All `internal/pricing/embed_{region}.go` files - Add the embed directive
+   - `internal/pricing/embed_fallback.go` - Add minimal test data
+   - **This step is commonly forgotten and causes build failures in CI!**
+6. Add tests for the new resource type
+7. Research carbon estimation data (see [CCF](https://www.cloudcarbonfootprint.org/docs/methodology))
+
 ### Logging
 
 - **Library:** `rs/zerolog` with structured logging.
