@@ -184,3 +184,126 @@ func TestGetGridFactor(t *testing.T) {
 		})
 	}
 }
+
+// TestEstimator_GPU_IncludesGPUPower verifies that GPU instances have higher carbon
+// due to GPU power consumption.
+func TestEstimator_GPU_IncludesGPUPower(t *testing.T) {
+	e := NewEstimator()
+	e.IncludeGPU = true
+
+	// p4d.24xlarge has 8x A100 GPUs (400W each = 3200W total)
+	// This should significantly increase carbon compared to CPU alone
+	carbon, ok := e.EstimateCarbonGrams("p4d.24xlarge", "us-east-1", 0.5, 730)
+
+	require.True(t, ok, "p4d.24xlarge should be found")
+
+	// GPU power alone: 8 × 400W × 0.5 = 1600W
+	// Over 730 hours: 1600 × 730 / 1000 = 1168 kWh × 1.135 PUE = 1325.68 kWh
+	// Carbon: 1325.68 × 0.000379 × 1,000,000 = ~502,394 gCO2e from GPU alone
+	// Total should be CPU + GPU, expect > 500,000 gCO2e
+	assert.Greater(t, carbon, 100000.0, "GPU instance should have high carbon due to GPU power")
+}
+
+// TestEstimator_GPU_CanBeDisabled verifies that GPU power can be excluded.
+func TestEstimator_GPU_CanBeDisabled(t *testing.T) {
+	eWithGPU := NewEstimator()
+	eWithGPU.IncludeGPU = true
+
+	eWithoutGPU := NewEstimator()
+	eWithoutGPU.IncludeGPU = false
+
+	carbonWithGPU, ok1 := eWithGPU.EstimateCarbonGrams("p4d.24xlarge", "us-east-1", 0.5, 730)
+	carbonWithoutGPU, ok2 := eWithoutGPU.EstimateCarbonGrams("p4d.24xlarge", "us-east-1", 0.5, 730)
+
+	require.True(t, ok1)
+	require.True(t, ok2)
+
+	// With GPU should be higher than without (GPU adds power consumption)
+	// For p4d.24xlarge: 96 vCPUs have high CPU power (~10.3M gCO2e)
+	// 8x A100 @ 400W adds 3200W, which at 50% util = 1600W × 730h = ~502k gCO2e (about 5% of total)
+	assert.Greater(t, carbonWithGPU, carbonWithoutGPU,
+		"Carbon with GPU should be higher than without")
+
+	// Verify the difference is meaningful (GPU adds at least 3% more carbon)
+	gpuContribution := carbonWithGPU - carbonWithoutGPU
+	assert.Greater(t, gpuContribution, carbonWithoutGPU*0.03,
+		"GPU should contribute at least 3%% of total carbon for GPU instance")
+}
+
+// TestEstimator_GPU_NonGPUInstanceUnaffected verifies that non-GPU instances
+// are unaffected by the IncludeGPU setting.
+func TestEstimator_GPU_NonGPUInstanceUnaffected(t *testing.T) {
+	eWithGPU := NewEstimator()
+	eWithGPU.IncludeGPU = true
+
+	eWithoutGPU := NewEstimator()
+	eWithoutGPU.IncludeGPU = false
+
+	carbonWithGPU, ok1 := eWithGPU.EstimateCarbonGrams("t3.micro", "us-east-1", 0.5, 730)
+	carbonWithoutGPU, ok2 := eWithoutGPU.EstimateCarbonGrams("t3.micro", "us-east-1", 0.5, 730)
+
+	require.True(t, ok1)
+	require.True(t, ok2)
+
+	// Non-GPU instance should have same carbon regardless of IncludeGPU setting
+	assert.Equal(t, carbonWithGPU, carbonWithoutGPU,
+		"Non-GPU instance should have same carbon regardless of IncludeGPU")
+}
+
+// TestEstimator_EstimateCarbonGramsWithBreakdown verifies the breakdown method.
+func TestEstimator_EstimateCarbonGramsWithBreakdown(t *testing.T) {
+	tests := []struct {
+		name            string
+		instanceType    string
+		wantGPUCarbon   bool
+		minTotalCarbon  float64
+		maxTotalCarbon  float64
+	}{
+		{
+			name:            "GPU instance has both CPU and GPU carbon",
+			instanceType:    "p4d.24xlarge",
+			wantGPUCarbon:   true,
+			minTotalCarbon:  1000000.0,  // p4d.24xlarge has 96 vCPUs + 8x A100 GPUs
+			maxTotalCarbon:  20000000.0, // High due to 96 vCPUs + 3200W GPU power
+		},
+		{
+			name:            "non-GPU instance has only CPU carbon",
+			instanceType:    "t3.micro",
+			wantGPUCarbon:   false,
+			minTotalCarbon:  100.0,
+			maxTotalCarbon:  5000.0,
+		},
+		{
+			name:            "g4dn.xlarge has moderate GPU carbon (1x T4)",
+			instanceType:    "g4dn.xlarge",
+			wantGPUCarbon:   true,
+			minTotalCarbon:  10000.0,
+			maxTotalCarbon:  500000.0, // g4dn.xlarge has 4 vCPUs + 1 T4 GPU (70W)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewEstimator()
+			cpuCarbon, gpuCarbon, ok := e.EstimateCarbonGramsWithBreakdown(
+				tt.instanceType, "us-east-1", 0.5, 730)
+
+			require.True(t, ok, "instance should be found")
+
+			// Verify CPU carbon is always positive
+			assert.Greater(t, cpuCarbon, 0.0, "CPU carbon should be positive")
+
+			// Verify GPU carbon expectation
+			if tt.wantGPUCarbon {
+				assert.Greater(t, gpuCarbon, 0.0, "GPU carbon should be positive")
+			} else {
+				assert.Equal(t, 0.0, gpuCarbon, "non-GPU instance should have zero GPU carbon")
+			}
+
+			// Verify total range
+			totalCarbon := cpuCarbon + gpuCarbon
+			assert.GreaterOrEqual(t, totalCarbon, tt.minTotalCarbon)
+			assert.LessOrEqual(t, totalCarbon, tt.maxTotalCarbon)
+		})
+	}
+}

@@ -20,6 +20,7 @@ const (
 	defaultRDSEngine  = "mysql"
 	defaultRDSStorage = "gp2"
 	defaultRDSSizeGB  = 20
+	hoursPerMonth     = 730
 )
 
 // normalizeResourceType converts various resource type formats to a canonical form.
@@ -68,8 +69,8 @@ func extractAWSSKU(tags map[string]string) string {
 	// Use SDK's generic ExtractSKU with extended key list for backwards compatibility.
 	// This includes both SDK canonical keys (camelCase) and legacy snake_case variants.
 	return mapping.ExtractSKU(tags,
-		mapping.AWSKeyInstanceType, // "instanceType" - EC2
-		"instance_class",           // legacy snake_case for RDS
+		mapping.AWSKeyInstanceType,  // "instanceType" - EC2
+		"instance_class",            // legacy snake_case for RDS
 		mapping.AWSKeyInstanceClass, // "instanceClass" - RDS (SDK canonical)
 		mapping.AWSKeyType,          // "type" - generic fallback
 		mapping.AWSKeyVolumeType,    // "volumeType" - EBS (SDK canonical)
@@ -359,13 +360,43 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 		billingDetail = fmt.Sprintf("%s volume, %d GB, $%.4f/GB-month", volumeType, sizeGB, ratePerGBMonth)
 	}
 
-	// FR-022, FR-023, FR-024: Return response
-	return &pbc.GetProjectedCostResponse{
+	// FR-022, FR-023, FR-024: Build response
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Carbon estimation for EBS volume
+	ebsEstimator := carbon.NewEBSEstimator()
+	carbonGrams, carbonOK := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
+		VolumeType: volumeType,
+		SizeGB:     float64(sizeGB),
+		Region:     resource.Region,
+		Hours:      hoursPerMonth,
+	})
+
+	if carbonOK {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("volume_type", volumeType).
+			Int("size_gb", sizeGB).
+			Str("aws_region", resource.Region).
+			Float64("carbon_grams", carbonGrams).
+			Msg("EBS carbon estimation successful")
+	}
+
+	return resp, nil
 }
 
 // estimateS3 calculates projected monthly cost for S3 storage.
@@ -426,12 +457,42 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB, $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
 	}
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Carbon estimation for S3 storage
+	s3Estimator := carbon.NewS3Estimator()
+	carbonGrams, carbonOK := s3Estimator.EstimateCarbonGrams(carbon.S3StorageConfig{
+		StorageClass: storageClass,
+		SizeGB:       sizeGB,
+		Region:       resource.Region,
+		Hours:        hoursPerMonth,
+	})
+
+	if carbonOK {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("storage_class", storageClass).
+			Float64("size_gb", sizeGB).
+			Str("aws_region", resource.Region).
+			Float64("carbon_grams", carbonGrams).
+			Msg("S3 carbon estimation successful")
+	}
+
+	return resp, nil
 }
 
 // validateNonNegativeInt64 validates and parses an int64 tag value.
@@ -565,12 +626,40 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 			Float64("storage_gb", storageGB).
 			Msg("DynamoDB provisioned lookup successful")
 
-		return &pbc.GetProjectedCostResponse{
+		resp := &pbc.GetProjectedCostResponse{
 			CostPerMonth:  totalCost,
 			UnitPrice:     unitPrice,
 			Currency:      "USD",
 			BillingDetail: billingDetail,
-		}, nil
+		}
+
+		// Carbon estimation for DynamoDB (storage-based)
+		dynamoEstimator := carbon.NewDynamoDBEstimator()
+		carbonGrams, carbonOK := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
+			SizeGB: storageGB,
+			Region: resource.Region,
+			Hours:  hoursPerMonth,
+		})
+
+		if carbonOK && storageGB > 0 {
+			resp.ImpactMetrics = []*pbc.ImpactMetric{
+				{
+					Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+					Value: carbonGrams,
+					Unit:  "gCO2e",
+				},
+			}
+
+			p.logger.Debug().
+				Str(pluginsdk.FieldTraceID, traceID).
+				Str(pluginsdk.FieldOperation, "GetProjectedCost").
+				Float64("storage_gb", storageGB).
+				Str("aws_region", resource.Region).
+				Float64("carbon_grams", carbonGrams).
+				Msg("DynamoDB carbon estimation successful")
+		}
+
+		return resp, nil
 
 	}
 
@@ -630,12 +719,40 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 		Float64("storage_gb", storageGB).
 		Msg("DynamoDB on-demand lookup successful")
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     unitPrice,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Carbon estimation for DynamoDB (storage-based)
+	dynamoEstimator := carbon.NewDynamoDBEstimator()
+	carbonGrams, carbonOK := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
+		SizeGB: storageGB,
+		Region: resource.Region,
+		Hours:  hoursPerMonth,
+	})
+
+	if carbonOK && storageGB > 0 {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Float64("storage_gb", storageGB).
+			Str("aws_region", resource.Region).
+			Float64("carbon_grams", carbonGrams).
+			Msg("DynamoDB carbon estimation successful")
+	}
+
+	return resp, nil
 }
 
 // estimateELB calculates projected monthly cost for load balancers.
@@ -816,6 +933,14 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 		}
 	}
 
+	// Extract Multi-AZ from tags (for carbon estimation)
+	multiAZ := false
+	if resource.Tags != nil {
+		if multiAZStr, ok := resource.Tags["multi_az"]; ok {
+			multiAZ = strings.EqualFold(multiAZStr, "true")
+		}
+	}
+
 	// Lookup instance hourly rate
 	hourlyRate, found := p.pricing.RDSOnDemandPricePerHour(instanceType, normalizedEngine)
 	if !found {
@@ -884,12 +1009,46 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 			instanceType, normalizedEngine, storageSizeGB, storageType)
 	}
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCostPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Carbon estimation for RDS instance (compute + storage)
+	rdsEstimator := carbon.NewRDSEstimator()
+	carbonGrams, carbonOK := rdsEstimator.EstimateCarbonGrams(carbon.RDSInstanceConfig{
+		InstanceType:  instanceType,
+		Region:        resource.Region,
+		MultiAZ:       multiAZ,
+		StorageType:   storageType,
+		StorageSizeGB: float64(storageSizeGB),
+		Utilization:   carbon.DefaultUtilization, // Use CCF default (50%)
+		Hours:         hoursPerMonth,
+	})
+
+	if carbonOK {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("instance_type", instanceType).
+			Int("storage_size_gb", storageSizeGB).
+			Bool("multi_az", multiAZ).
+			Str("aws_region", resource.Region).
+			Float64("carbon_grams", carbonGrams).
+			Msg("RDS carbon estimation successful")
+	}
+
+	return resp, nil
 }
 
 // detectService maps a provider resource type string to a normalized service identifier.
@@ -989,13 +1148,38 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 		supportType = "extended support"
 	}
 
-	// Return response with billing details
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: fmt.Sprintf("EKS cluster (%s), 730 hrs/month (control plane only, excludes worker nodes)", supportType),
-	}, nil
+	}
+
+	// Carbon estimation for EKS (control plane is shared, returns 0)
+	eksEstimator := carbon.NewEKSEstimator()
+	carbonGrams, _ := eksEstimator.EstimateCarbonGrams(carbon.EKSClusterConfig{
+		Region: resource.Region,
+	})
+
+	// EKS control plane carbon is shared infrastructure, so we always include
+	// the metric with value 0 and explain in billing detail that worker nodes
+	// should be estimated as EC2 instances.
+	resp.ImpactMetrics = []*pbc.ImpactMetric{
+		{
+			Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+			Value: carbonGrams, // 0 for control plane
+			Unit:  "gCO2e",
+		},
+	}
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("aws_region", resource.Region).
+		Float64("carbon_grams", carbonGrams).
+		Msg("EKS carbon estimation: control plane is shared infrastructure (0 gCO2e)")
+
+	return resp, nil
 }
 
 // estimateLambda calculates projected monthly cost for Lambda functions.
@@ -1119,12 +1303,44 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 		Float64("total_cost", totalCost).
 		Msg("Lambda cost estimated")
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     gbSecPrice, // Using GB-second price as unit price
 		Currency:      "USD",
 		BillingDetail: detail,
-	}, nil
+	}
+
+	// Carbon estimation for Lambda function
+	lambdaEstimator := carbon.NewLambdaEstimator()
+	carbonGrams, carbonOK := lambdaEstimator.EstimateCarbonGrams(carbon.LambdaFunctionConfig{
+		MemoryMB:     memoryMB,
+		DurationMs:   avgDurationMs,
+		Invocations:  requestsPerMonth,
+		Architecture: archDisplay,
+		Region:       resource.Region,
+	})
+
+	if carbonOK {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Int("memory_mb", memoryMB).
+			Str("architecture", archDisplay).
+			Int64("invocations", requestsPerMonth).
+			Str("aws_region", resource.Region).
+			Float64("carbon_grams", carbonGrams).
+			Msg("Lambda carbon estimation successful")
+	}
+
+	return resp, nil
 }
 
 // estimateNATGateway calculates projected monthly cost for VPC NAT Gateways.

@@ -23,6 +23,17 @@ security overhead of cloud credentials.
   `target_resources` (up to 100 items).
 - **Architecture:** Transition to per-service raw JSON embedding to manage
   binary size and initialization speed.
+- **Carbon Estimation (Comprehensive):** Full carbon footprint estimation suite:
+  - EC2 instances with CPU/GPU power consumption (CCF methodology)
+  - EBS volumes (SSD/HDD coefficients with replication factors)
+  - RDS instances (compute + storage carbon, Multi-AZ 2× multiplier)
+  - S3 storage (by storage class with replication factors)
+  - Lambda functions (vCPU-equivalent + ARM64 efficiency adjustment)
+  - DynamoDB tables (storage-based with 3× SSD replication)
+  - EKS clusters (control plane guidance, worker nodes as EC2)
+  - Embodied carbon (server manufacturing amortization per CCF)
+  - GPU-specific power specs for P/G series instances
+  - Storage specs embedded from CCF cloud-carbon-coefficients
 
 ---
 
@@ -47,8 +58,6 @@ security overhead of cloud credentials.
 - **[Planned] Service Depth (Phase 2):**
   - **EBS Depth:** Adding IOPS and Throughput pricing for `gp3`, `io1`, and
     `io2`.
-  - **EC2 Depth:** Integrating GPU-specific carbon coefficients as data becomes
-    available in CCF.
 - **[Researching] Cross-Service Recommendations:** Static lookup logic to
   suggest move-to-managed alternatives (e.g., self-managed DB on EC2 -> RDS)
   based on Resource Tags.

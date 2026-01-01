@@ -89,6 +89,12 @@ func main() {
 	}
 
 	fmt.Printf("Successfully wrote %s (%d bytes)\n", outPath, len(data))
+
+	// Write static GPU and storage specs
+	if err := writeStaticSpecs(*outDir); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing static specs: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // fetchCCFData downloads the CCF AWS instances CSV from GitHub.
@@ -193,4 +199,75 @@ func parseEuropeanFloat(s string) float64 {
 		return -1 // Return negative to indicate parse error
 	}
 	return val
+}
+
+// gpuSpecsCSV is the static GPU specifications data.
+// Source: AWS documentation for GPU instance types.
+// TDP values from NVIDIA/AWS specifications.
+const gpuSpecsCSV = `instance_type,gpu_model,gpu_count,tdp_per_gpu_watts
+p4d.24xlarge,A100,8,400
+p4de.24xlarge,A100,8,400
+p5.48xlarge,H100,8,700
+g4dn.xlarge,T4,1,70
+g4dn.2xlarge,T4,1,70
+g4dn.4xlarge,T4,1,70
+g4dn.8xlarge,T4,1,70
+g4dn.12xlarge,T4,4,70
+g4dn.16xlarge,T4,1,70
+g4dn.metal,T4,8,70
+g5.xlarge,A10G,1,150
+g5.2xlarge,A10G,1,150
+g5.4xlarge,A10G,1,150
+g5.8xlarge,A10G,1,150
+g5.12xlarge,A10G,4,150
+g5.16xlarge,A10G,1,150
+g5.24xlarge,A10G,4,150
+g5.48xlarge,A10G,8,150
+inf1.xlarge,Inferentia,1,75
+inf1.2xlarge,Inferentia,1,75
+inf1.6xlarge,Inferentia,4,75
+inf1.24xlarge,Inferentia,16,75
+inf2.xlarge,Inferentia2,1,175
+inf2.8xlarge,Inferentia2,2,175
+inf2.24xlarge,Inferentia2,6,175
+inf2.48xlarge,Inferentia2,12,175
+trn1.2xlarge,Trainium,1,175
+trn1.32xlarge,Trainium,16,175
+trn1n.32xlarge,Trainium,16,175
+`
+
+// storageSpecsCSV is the static storage specifications data.
+// Source: Cloud Carbon Footprint methodology.
+// Power coefficients in Wh/TB-hour, replication factors for durability.
+// Format: service_type,storage_class,technology,replication_factor,power_coefficient
+const storageSpecsCSV = `service_type,storage_class,technology,replication_factor,power_coefficient
+ebs,gp2,SSD,2,1.2
+ebs,gp3,SSD,2,1.2
+ebs,io1,SSD,2,1.2
+ebs,io2,SSD,2,1.2
+ebs,st1,HDD,2,0.65
+ebs,sc1,HDD,2,0.65
+s3,STANDARD,SSD,3,1.2
+s3,ONEZONE_IA,SSD,1,1.2
+s3,GLACIER,HDD,3,0.65
+dynamodb,DYNAMODB,SSD,3,1.2
+`
+
+// writeStaticSpecs writes the GPU and storage specification CSV files.
+func writeStaticSpecs(outDir string) error {
+	// Write GPU specs
+	gpuPath := filepath.Join(outDir, "gpu_specs.csv")
+	if err := os.WriteFile(gpuPath, []byte(gpuSpecsCSV), 0644); err != nil {
+		return fmt.Errorf("failed to write GPU specs: %w", err)
+	}
+	fmt.Printf("Successfully wrote %s (%d bytes)\n", gpuPath, len(gpuSpecsCSV))
+
+	// Write storage specs
+	storagePath := filepath.Join(outDir, "storage_specs.csv")
+	if err := os.WriteFile(storagePath, []byte(storageSpecsCSV), 0644); err != nil {
+		return fmt.Errorf("failed to write storage specs: %w", err)
+	}
+	fmt.Printf("Successfully wrote %s (%d bytes)\n", storagePath, len(storageSpecsCSV))
+
+	return nil
 }

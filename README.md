@@ -150,12 +150,27 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 - Load balancer type auto-detected from SKU (contains "alb"/"nlb") or defaults to ALB
 - Tag requirements: `lcu_per_hour` (ALB) or `nlcu_per_hour` (NLB), or generic `capacity_units`
 
-### Carbon Estimation (EC2 Only)
+### Carbon Estimation
 
-EC2 instances include carbon footprint estimation using the
-[Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/) methodology.
+AWS resources include carbon footprint estimation using the
+[Cloud Carbon Footprint (CCF)](https://www.cloudcarbonfootprint.org/) methodology.
 
-**Formula:**
+**Supported Services:**
+
+| Service | Carbon Method |
+|---------|---------------|
+| EC2 | CPU/GPU power × utilization × grid factor |
+| EBS | Storage energy × replication × grid factor |
+| S3 | Storage energy × replication × grid factor |
+| Lambda | vCPU equivalent × duration × grid factor |
+| RDS | Compute + storage carbon |
+| DynamoDB | Storage-based (SSD × 3× replication) |
+| EKS | Control plane included (shared); worker nodes as EC2 |
+
+👉 **[Read the Carbon Estimation Guide](docs/carbon-estimation.md)** for detailed
+methodology, formulas, and examples.
+
+**EC2 Formula:**
 
 ```text
 avgWatts = minWatts + (utilization × (maxWatts - minWatts))

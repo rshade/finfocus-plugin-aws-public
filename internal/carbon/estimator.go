@@ -9,31 +9,55 @@ type CarbonEstimator interface {
 }
 
 // Estimator implements CarbonEstimator using CCF methodology.
-type Estimator struct{}
+type Estimator struct {
+	// IncludeGPU controls whether GPU power consumption is included.
+	// Default is true.
+	IncludeGPU bool
+}
 
-// NewEstimator creates a new carbon estimator.
+// NewEstimator creates a new carbon estimator with GPU power included by default.
 func NewEstimator() *Estimator {
-	return &Estimator{}
+	return &Estimator{
+		IncludeGPU: true,
+	}
 }
 
 // EstimateCarbonGrams calculates carbon emissions for an EC2 instance.
 //
 // The calculation follows the Cloud Carbon Footprint methodology:
-//  1. Average watts = MinWatts + (utilization × (MaxWatts - MinWatts))
-//  2. Energy (kWh) = (Average watts × vCPU count × hours) / 1000
-//  3. Energy with PUE = Energy × AWS_PUE (1.135)
-//  4. Carbon (gCO2e) = Energy with PUE × grid intensity × 1,000,000
+//  1. Average CPU watts = MinWatts + (utilization × (MaxWatts - MinWatts))
+//  2. GPU watts = GPU TDP × GPU count × utilization (if GPU instance and IncludeGPU)
+//  3. Total watts = CPU watts × vCPU count + GPU watts
+//  4. Energy (kWh) = Total watts × hours / 1000
+//  5. Energy with PUE = Energy × AWS_PUE (1.135)
+//  6. Carbon (gCO2e) = Energy with PUE × grid intensity × 1,000,000
 //
 // Returns (0, false) if the instance type is not found in CCF data.
 func (e *Estimator) EstimateCarbonGrams(instanceType, region string, utilization, hours float64) (float64, bool) {
-	spec, ok := GetInstanceSpec(instanceType)
+	cpuCarbon, gpuCarbon, ok := e.EstimateCarbonGramsWithBreakdown(instanceType, region, utilization, hours)
 	if !ok {
 		return 0, false
+	}
+	return cpuCarbon + gpuCarbon, true
+}
+
+// EstimateCarbonGramsWithBreakdown calculates carbon emissions for an EC2 instance
+// and returns a breakdown of CPU and GPU contributions.
+//
+// Returns:
+//   - cpuCarbon: Carbon from CPU power consumption (gCO2e)
+//   - gpuCarbon: Carbon from GPU power consumption (gCO2e)
+//   - ok: Whether the calculation succeeded
+func (e *Estimator) EstimateCarbonGramsWithBreakdown(instanceType, region string, utilization, hours float64) (cpuCarbon, gpuCarbon float64, ok bool) {
+	spec, found := GetInstanceSpec(instanceType)
+	if !found {
+		return 0, 0, false
 	}
 
 	gridFactor := GetGridFactor(region)
 
-	carbonGrams := CalculateCarbonGrams(
+	// Calculate CPU carbon
+	cpuCarbon = CalculateCarbonGrams(
 		spec.MinWatts,
 		spec.MaxWatts,
 		spec.VCPUCount,
@@ -42,7 +66,17 @@ func (e *Estimator) EstimateCarbonGrams(instanceType, region string, utilization
 		hours,
 	)
 
-	return carbonGrams, true
+	// Calculate GPU carbon if enabled and instance has GPUs
+	if e.IncludeGPU {
+		gpuPowerWatts := CalculateGPUPowerWatts(instanceType, utilization)
+		if gpuPowerWatts > 0 {
+			gpuEnergyKWh := (gpuPowerWatts * hours) / 1000.0
+			gpuEnergyWithPUE := gpuEnergyKWh * AWSPUE
+			gpuCarbon = gpuEnergyWithPUE * gridFactor * 1_000_000
+		}
+	}
+
+	return cpuCarbon, gpuCarbon, true
 }
 
 // CalculateCarbonGrams applies the CCF formula to calculate carbon emissions.

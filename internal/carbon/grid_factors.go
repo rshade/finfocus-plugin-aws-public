@@ -4,12 +4,9 @@ package carbon
 // Values are in metric tons CO2eq per kWh.
 //
 // Source: Cloud Carbon Footprint methodology
-// Data vintage: 2024 (update annually from CCF repository)
+// Data vintage: 2024 (update annually using: go run ./tools/update-grid-factors)
 // Reference: https://www.cloudcarbonfootprint.org/docs/methodology
-//
-// TODO(#140): Grid emission factors are currently hardcoded.
-// Future enhancement: Fetch grid factors from CCF repository during code generation.
-// See: https://github.com/cloud-carbon-footprint/cloud-carbon-coefficients/tree/main/data
+// CCF Data: https://github.com/cloud-carbon-footprint/cloud-carbon-coefficients/tree/main/data
 var GridEmissionFactors = map[string]float64{
 	"us-east-1":      0.000379,    // Virginia (SERC)
 	"us-east-2":      0.000411,    // Ohio (RFC)
