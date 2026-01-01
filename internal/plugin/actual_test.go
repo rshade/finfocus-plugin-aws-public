@@ -158,6 +158,11 @@ func (m *mockPricingClientActual) CloudWatchMetricsTiers() ([]pricing.TierRate, 
 	return nil, false
 }
 
+func (m *mockPricingClientActual) ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
+	// Return basic ElastiCache pricing for actual cost tests
+	return 0.156, true // Default cache.m5.large pricing
+}
+
 func newTestPluginForActual() *AWSPublicPlugin {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	return NewAWSPublicPlugin("us-east-1", &mockPricingClientActual{

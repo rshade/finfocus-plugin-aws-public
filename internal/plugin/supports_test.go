@@ -109,6 +109,45 @@ func TestSupports(t *testing.T) {
 			wantSupported:    true,
 			wantReasonSubstr: "",
 		},
+		// ElastiCache support (T050)
+		{
+			name: "ElastiCache supported",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "elasticache",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		// ElastiCache Pulumi Cluster format (T051)
+		{
+			name: "ElastiCache Pulumi Cluster format",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:elasticache/cluster:Cluster",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		// ElastiCache Pulumi ReplicationGroup format (T052)
+		{
+			name: "ElastiCache Pulumi ReplicationGroup format",
+			req: &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:elasticache/replicationGroup:ReplicationGroup",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
 
 		// Wrong region
 		{
@@ -650,6 +689,7 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 		{"s3", false},                       // S3 no carbon (v1)
 		{"lambda", false},                   // Lambda no carbon (v1)
 		{"dynamodb", false},                 // DynamoDB no carbon (stub)
+		{"elasticache", false},              // ElastiCache no carbon (v1)
 	}
 
 	for _, tt := range tests {

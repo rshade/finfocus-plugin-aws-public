@@ -259,6 +259,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 		return p.estimateNATGateway(traceID, resource)
 	case "cloudwatch":
 		return p.estimateCloudWatch(traceID, resource)
+	case "elasticache":
+		return p.estimateElastiCache(traceID, resource)
 	case "s3", "lambda", "rds", "dynamodb":
 		return p.estimateStub(resource)
 	default:

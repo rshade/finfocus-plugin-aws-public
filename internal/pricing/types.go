@@ -192,6 +192,19 @@ type TierRate struct {
 	Rate float64
 }
 
+// elasticacheInstancePrice represents the hourly cost for an ElastiCache cache node.
+// This is the primary pricing unit for ElastiCache - all cost calculations multiply
+// this rate by node count and hours (730 per month).
+// Derived from AWS Pricing API for service AmazonElastiCache, Product Family "Cache Instance".
+type elasticacheInstancePrice struct {
+	// Unit is the billing unit, expected to be "Hrs" for hourly pricing.
+	Unit string
+	// HourlyRate is the on-demand cost per hour in USD.
+	HourlyRate float64
+	// Currency is the pricing currency (e.g., "USD").
+	Currency string
+}
+
 // cloudWatchPrice holds the regional pricing configuration for Amazon CloudWatch.
 // Derived from AWS Pricing API for service AmazonCloudWatch.
 type cloudWatchPrice struct {

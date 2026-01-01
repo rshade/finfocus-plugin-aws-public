@@ -43,7 +43,7 @@ func normalizeResourceType(resourceType string) string {
 			svcParts := strings.Split(parts[0], ":")
 			svc := svcParts[0]
 			switch svc {
-			case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "natgw", "cloudwatch":
+			case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "natgw", "cloudwatch", "elasticache":
 				return svc
 			case "lb", "alb", "nlb":
 				return "elb"
@@ -198,6 +198,8 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateNATGateway(traceID, resource)
 	case "cloudwatch":
 		resp, err = p.estimateCloudWatch(traceID, resource)
+	case "elasticache":
+		resp, err = p.estimateElastiCache(traceID, resource)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
@@ -933,7 +935,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 func detectService(resourceType string) string {
 	// Fast path for canonical forms
 	switch resourceType {
-	case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "elb", "natgw", "cloudwatch":
+	case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "elb", "natgw", "cloudwatch", "elasticache":
 		return resourceType
 	case "alb", "nlb":
 		return "elb"
@@ -972,6 +974,9 @@ func detectService(resourceType string) string {
 	if strings.Contains(resourceTypeLower, "cloudwatch/loggroup") || strings.Contains(resourceTypeLower, "cloudwatch/logstream") ||
 		strings.Contains(resourceTypeLower, "cloudwatch/metricalarm") {
 		return "cloudwatch"
+	}
+	if strings.Contains(resourceTypeLower, "elasticache/") {
+		return "elasticache"
 	}
 
 	return resourceType
@@ -1424,6 +1429,109 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 	return &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     0, // No single unit price for CloudWatch (multi-component)
+		Currency:      "USD",
+		BillingDetail: billingDetail,
+	}, nil
+}
+
+// estimateElastiCache calculates projected monthly cost for ElastiCache clusters.
+//
+// ElastiCache pricing is based on:
+//   - Node type (e.g., cache.m5.large, cache.t3.micro)
+//   - Cache engine (Redis, Memcached, Valkey)
+//   - Number of nodes (default: 1)
+//
+// Cost formula: hourly_rate × num_nodes × 730 hours/month
+//
+// Required fields:
+//   - resource.Sku: The cache node type (e.g., "cache.m5.large")
+//
+// Optional tags:
+//   - "engine": Cache engine - "redis" (default), "memcached", or "valkey" (open-source Redis fork)
+//   - "num_nodes" or "num_cache_nodes": Number of cache nodes (default: 1)
+func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+	// Extract node type from SKU
+	nodeType := resource.Sku
+	if nodeType == "" {
+		// Try extracting from tags using extractAWSSKU pattern
+		nodeType = extractAWSSKU(resource.Tags)
+	}
+	if nodeType == "" {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+			"ElastiCache node type not specified: use 'sku' field or 'instanceType' tag",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+
+	// Extract engine (default: redis)
+	engine := "redis"
+	if resource.Tags != nil {
+		if val, ok := resource.Tags["engine"]; ok && val != "" {
+			engine = strings.ToLower(val)
+		}
+	}
+
+	// Extract number of nodes (default: 1)
+	numNodes := 1
+	if resource.Tags != nil {
+		// Try num_nodes first, then num_cache_nodes
+		nodeCountStr := ""
+		if val, ok := resource.Tags["num_nodes"]; ok && val != "" {
+			nodeCountStr = val
+		} else if val, ok := resource.Tags["num_cache_nodes"]; ok && val != "" {
+			nodeCountStr = val
+		}
+		if nodeCountStr != "" {
+			parsed, err := strconv.Atoi(nodeCountStr)
+			if err != nil {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for node count: %q is not a valid integer", nodeCountStr),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			if parsed < 1 {
+				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("invalid value for node count: %d must be at least 1", parsed),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+			}
+			numNodes = parsed
+		}
+	}
+
+	// Look up hourly rate from pricing client
+	hourlyRate, found := p.pricing.ElastiCacheOnDemandPricePerHour(nodeType, engine)
+	if !found {
+		// Unknown node type or engine - return $0 with explanation
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      "USD",
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, fmt.Sprintf("ElastiCache %s node", engine), nodeType),
+		}, nil
+	}
+
+	// Calculate monthly cost: hourly_rate × num_nodes × hours_per_month
+	monthlyCost := hourlyRate * float64(numNodes) * hoursPerMonth
+
+	// Build billing detail
+	var billingDetail string
+	if numNodes == 1 {
+		billingDetail = fmt.Sprintf("ElastiCache %s (%s), 1 node, 730 hrs/month", nodeType, engine)
+	} else {
+		billingDetail = fmt.Sprintf("ElastiCache %s (%s), %d nodes, 730 hrs/month", nodeType, engine, numNodes)
+	}
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		Str("node_type", nodeType).
+		Str("engine", engine).
+		Int("num_nodes", numNodes).
+		Float64("hourly_rate", hourlyRate).
+		Float64("monthly_cost", monthlyCost).
+		Msg("ElastiCache cost estimated")
+
+	return &pbc.GetProjectedCostResponse{
+		CostPerMonth:  monthlyCost,
+		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
 	}, nil

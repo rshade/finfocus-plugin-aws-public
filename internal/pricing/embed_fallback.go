@@ -381,3 +381,115 @@ var rawCloudWatchJSON = []byte(`{
   "products": {},
   "terms": {"OnDemand": {}}
 }`)
+
+// rawElastiCacheJSON contains minimal ElastiCache pricing data for development/testing.
+// Includes test data for Redis, Memcached, and Valkey engines with cache.t3.micro and cache.m5.large instance types.
+var rawElastiCacheJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonElastiCache",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_CACHE_T3MICRO_REDIS": {
+      "sku": "SKU_CACHE_T3MICRO_REDIS",
+      "productFamily": "Cache Instance",
+      "attributes": {
+        "instanceType": "cache.t3.micro",
+        "cacheEngine": "Redis",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_CACHE_T3MICRO_MEMCACHED": {
+      "sku": "SKU_CACHE_T3MICRO_MEMCACHED",
+      "productFamily": "Cache Instance",
+      "attributes": {
+        "instanceType": "cache.t3.micro",
+        "cacheEngine": "Memcached",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_CACHE_T3MICRO_VALKEY": {
+      "sku": "SKU_CACHE_T3MICRO_VALKEY",
+      "productFamily": "Cache Instance",
+      "attributes": {
+        "instanceType": "cache.t3.micro",
+        "cacheEngine": "Valkey",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_CACHE_M5LARGE_REDIS": {
+      "sku": "SKU_CACHE_M5LARGE_REDIS",
+      "productFamily": "Cache Instance",
+      "attributes": {
+        "instanceType": "cache.m5.large",
+        "cacheEngine": "Redis",
+        "regionCode": "unknown"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "SKU_CACHE_T3MICRO_REDIS": {
+        "SKU_CACHE_T3MICRO_REDIS.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_CACHE_T3MICRO_REDIS",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_CACHE_T3MICRO_REDIS.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_CACHE_T3MICRO_REDIS.JRTCKXETXF.6YS6EN2CT7",
+              "description": "cache.t3.micro Redis hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.017" }
+            }
+          }
+        }
+      },
+      "SKU_CACHE_T3MICRO_MEMCACHED": {
+        "SKU_CACHE_T3MICRO_MEMCACHED.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_CACHE_T3MICRO_MEMCACHED",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_CACHE_T3MICRO_MEMCACHED.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_CACHE_T3MICRO_MEMCACHED.JRTCKXETXF.6YS6EN2CT7",
+              "description": "cache.t3.micro Memcached hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.017" }
+            }
+          }
+        }
+      },
+      "SKU_CACHE_T3MICRO_VALKEY": {
+        "SKU_CACHE_T3MICRO_VALKEY.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_CACHE_T3MICRO_VALKEY",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_CACHE_T3MICRO_VALKEY.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_CACHE_T3MICRO_VALKEY.JRTCKXETXF.6YS6EN2CT7",
+              "description": "cache.t3.micro Valkey hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.017" }
+            }
+          }
+        }
+      },
+      "SKU_CACHE_M5LARGE_REDIS": {
+        "SKU_CACHE_M5LARGE_REDIS.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_CACHE_M5LARGE_REDIS",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_CACHE_M5LARGE_REDIS.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_CACHE_M5LARGE_REDIS.JRTCKXETXF.6YS6EN2CT7",
+              "description": "cache.m5.large Redis hourly rate",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.156" }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)

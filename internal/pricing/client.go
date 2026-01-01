@@ -13,6 +13,15 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// elasticacheEngineNormalization maps user-input engine names (lowercase)
+// to AWS canonical engine names used in pricing data.
+// ElastiCache supports three engines: Redis, Memcached, and Valkey.
+var elasticacheEngineNormalization = map[string]string{
+	"redis":     "Redis",
+	"memcached": "Memcached",
+	"valkey":    "Valkey",
+}
+
 // PricingClient provides pricing data lookups
 type PricingClient interface {
 	// Region returns the AWS region for this pricing data
@@ -109,6 +118,12 @@ type PricingClient interface {
 	// CloudWatchMetricsTiers returns the tiered pricing for CloudWatch custom metrics.
 	// Returns (tiers, true) if found, (nil, false) if not found.
 	CloudWatchMetricsTiers() ([]TierRate, bool)
+
+	// ElastiCacheOnDemandPricePerHour returns the hourly rate for an ElastiCache cache node.
+	// instanceType: e.g., "cache.m5.large", "cache.t3.micro"
+	// engine: "redis", "memcached", or "valkey" (case-insensitive)
+	// Returns (price, true) if found, (0, false) if not found.
+	ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool)
 }
 
 // Client implements PricingClient with embedded JSON data
@@ -147,6 +162,9 @@ type Client struct {
 
 	// CloudWatch pricing (tiered logs and metrics)
 	cloudWatchPricing *cloudWatchPrice
+
+	// ElastiCache pricing index (key: "instanceType:engine", e.g., "cache.m5.large:Redis")
+	elasticacheIndex map[string]elasticacheInstancePrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -176,6 +194,7 @@ func (c *Client) init() error {
 		c.s3Index = make(map[string]s3Price)
 		c.rdsInstanceIndex = make(map[string]rdsInstancePrice)
 		c.rdsStorageIndex = make(map[string]rdsStoragePrice)
+		c.elasticacheIndex = make(map[string]elasticacheInstancePrice)
 
 		// Parse each service file in parallel for faster initialization.
 		// Each parser writes to its own dedicated index(es), so no locking needed.
@@ -296,6 +315,15 @@ func (c *Client) init() error {
 			defer wg.Done()
 			if _, err := c.parseCloudWatchPricing(rawCloudWatchJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse CloudWatch pricing")
+			}
+		}()
+
+		// 10. Parse ElastiCache pricing
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.parseElastiCachePricing(rawElastiCacheJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse ElastiCache pricing")
 			}
 		}()
 
@@ -426,6 +454,11 @@ func (c *Client) init() error {
 			}
 		} else {
 			c.logger.Warn().Str("region", c.region).Msg("CloudWatch pricing not loaded")
+		}
+
+		// ElastiCache pricing validation
+		if len(c.elasticacheIndex) == 0 {
+			c.logger.Warn().Str("region", c.region).Msg("ElastiCache pricing not loaded")
 		}
 	})
 	return c.err
@@ -1016,6 +1049,60 @@ func (c *Client) parseCloudWatchPricing(data []byte) (string, error) {
 				tiers := c.extractTieredPricing(&pricing, sku)
 				if len(tiers) > 0 {
 					c.cloudWatchPricing.MetricsTiers = tiers
+				}
+			}
+		}
+	}
+	return region, nil
+}
+
+// parseElastiCachePricing parses ElastiCache pricing data.
+// Returns the detected region and any parsing error.
+//
+// ElastiCache pricing structure:
+//   - Cache Instances: productFamily="Cache Instance", cacheEngine="Redis"|"Memcached"|"Valkey"
+//   - Index key format: "{instanceType}:{engine}" (e.g., "cache.m5.large:Redis")
+//
+// This parser extracts on-demand hourly rates for cache nodes. The same node type
+// has different prices depending on the cache engine (Redis vs Memcached vs Valkey).
+func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse ElastiCache JSON: %w", err)
+	}
+
+	// Validate offerCode matches expected service
+	if pricing.OfferCode != "AmazonElastiCache" {
+		c.logger.Warn().
+			Str("expected", "AmazonElastiCache").
+			Str("actual", pricing.OfferCode).
+			Msg("ElastiCache pricing data has unexpected offerCode")
+	}
+
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+
+		// Cache Instances
+		if prod.ProductFamily == "Cache Instance" {
+			instanceType := attrs["instanceType"]
+			engine := attrs["cacheEngine"]
+
+			if instanceType != "" && engine != "" {
+				rate, unit, found := getOnDemandPrice(&pricing, sku)
+				// AWS returns unit as "Hrs" for hourly pricing
+				if found && strings.ToLower(unit) == "hrs" && rate > 0 {
+					// Index key: "instanceType:engine" (e.g., "cache.m5.large:Redis")
+					key := fmt.Sprintf("%s:%s", instanceType, engine)
+					c.elasticacheIndex[key] = elasticacheInstancePrice{
+						Unit:       unit,
+						HourlyRate: rate,
+						Currency:   "USD",
+					}
 				}
 			}
 		}
@@ -1646,4 +1733,50 @@ func (c *Client) CloudWatchMetricsTiers() ([]TierRate, bool) {
 	result := make([]TierRate, len(c.cloudWatchPricing.MetricsTiers))
 	copy(result, c.cloudWatchPricing.MetricsTiers)
 	return result, true
+}
+
+// ElastiCacheOnDemandPricePerHour returns the hourly rate for an ElastiCache cache node.
+//
+// Parameters:
+//   - instanceType: The cache node type (e.g., "cache.m5.large", "cache.t3.micro")
+//   - engine: The cache engine, case-insensitive ("redis", "memcached", "valkey")
+//
+// Engine names are normalized to AWS canonical format:
+//   - "redis", "Redis", "REDIS" -> "Redis"
+//   - "memcached", "Memcached" -> "Memcached"
+//   - "valkey", "Valkey" -> "Valkey"
+//
+// Returns (price, true) if found, (0, false) if not found or engine unknown.
+func (c *Client) ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
+	start := time.Now()
+	defer func() {
+		elapsed := time.Since(start)
+		if elapsed > 50*time.Millisecond {
+			c.logger.Warn().
+				Str("resource_type", "ElastiCache").
+				Str("instance_type", instanceType).
+				Str("engine", engine).
+				Dur("elapsed", elapsed).
+				Msg("pricing lookup took too long")
+		}
+	}()
+
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+
+	// Normalize engine name to AWS canonical format
+	normalizedEngine, ok := elasticacheEngineNormalization[strings.ToLower(engine)]
+	if !ok {
+		// Unknown engine - return not found
+		return 0, false
+	}
+
+	// Build index key: "instanceType:engine"
+	key := fmt.Sprintf("%s:%s", instanceType, normalizedEngine)
+	price, found := c.elasticacheIndex[key]
+	if !found {
+		return 0, false
+	}
+	return price.HourlyRate, true
 }

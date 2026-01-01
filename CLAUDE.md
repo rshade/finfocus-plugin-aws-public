@@ -223,6 +223,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - EBS volumes
 - EKS clusters
 - DynamoDB (On-Demand and Provisioned modes)
+- ElastiCache (Redis, Memcached, Valkey engines)
 - Elastic Load Balancing (ALB/NLB) - Application Load Balancers and Network Load Balancers
 - NAT Gateway
 - CloudWatch (Logs ingestion/storage, custom metrics)
@@ -442,10 +443,10 @@ PORT=9000 ./pulumicost-plugin-aws-public-us-east-1
 ### ResourceDescriptor
 From `pulumicost.v1.ResourceDescriptor`:
 - `provider`: "aws"
-- `resource_type`: "ec2", "ebs", "s3", "lambda", "rds", "dynamodb"
-- `sku`: Instance type for EC2 (e.g., "t3.micro"), volume type for EBS (e.g., "gp3")
+- `resource_type`: "ec2", "ebs", "s3", "lambda", "rds", "dynamodb", "elasticache"
+- `sku`: Instance type for EC2 (e.g., "t3.micro"), volume type for EBS (e.g., "gp3"), node type for ElastiCache (e.g., "cache.t3.micro")
 - `region`: AWS region (e.g., "us-east-1")
-- `tags`: Key-value pairs; for EBS, may contain "size" or "volume_size"
+- `tags`: Key-value pairs; for EBS, may contain "size" or "volume_size"; for ElastiCache, may contain "engine" and "num_nodes"
 
 ### Supported Resource Type Formats
 
@@ -546,6 +547,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e |
 | EBS | Storage GB-month | IOPS, throughput, snapshots | ❌ [#135](https://github.com/rshade/pulumicost-plugin-aws-public/issues/135) |
 | EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) |
+| ElastiCache | On-demand node hours (Redis/Memcached/Valkey) | Reserved nodes, data transfer, snapshots | N/A |
 | ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
 | NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
 | CloudWatch | Logs ingestion (tiered), storage, custom metrics (tiered) | Dashboards, alarms, contributor insights, cross-account | N/A |
@@ -683,6 +685,46 @@ CloudWatch cost estimation supports logs ingestion, logs storage, and custom met
 - Cross-account log data sharing
 - Metric Streams
 - CloudWatch Synthetics
+
+### ElastiCache Clusters
+
+ElastiCache cost estimation supports Redis, Memcached, and Valkey engines.
+
+- `resource_type`: "elasticache", "aws:elasticache/cluster:Cluster", or "aws:elasticache/replicationGroup:ReplicationGroup"
+- `sku`: Node type (e.g., "cache.t3.micro", "cache.m5.large")
+- Engine: Read from `tags["engine"]`, defaults to "redis" (case-insensitive)
+- Node count: Read from `tags["num_nodes"]` or `tags["num_cache_nodes"]`, defaults to 1
+- Pricing: On-demand hourly rate per node
+- Assumptions (hardcoded for v1):
+  - `hoursPerMonth = 730` (24×7 on-demand)
+- `unit_price`: Hourly rate from pricing data
+- `cost_per_month`: hourly_rate × num_nodes × 730
+- `billing_detail`: "ElastiCache <node_type> (<engine>), <num_nodes> node(s), 730 hrs/month"
+
+**Supported Engines:**
+- **Redis**: Primary use case for caching and session storage
+- **Memcached**: Simple, high-performance caching
+- **Valkey**: Open-source Redis-compatible alternative
+
+**Tag Examples:**
+
+```json
+{
+  "resource_type": "elasticache",
+  "sku": "cache.m5.large",
+  "region": "us-east-1",
+  "tags": {
+    "engine": "redis",
+    "num_nodes": "3"
+  }
+}
+```
+
+**Excluded:**
+- Reserved node pricing
+- Data transfer costs
+- Backup and snapshot storage
+- Global Datastore for Redis
 
 ### DynamoDB Tables
 
@@ -903,15 +945,27 @@ func main() {
 ```
 
 ### Adding New AWS Services
+
+> ⚠️ **EMBED FILE SYNC IS CRITICAL** ⚠️
+>
+> When adding a new service, you MUST update BOTH embed files in sync:
+> 1. `tools/generate-embeds/embed_template.go.tmpl` - Template for region builds
+> 2. `internal/pricing/embed_fallback.go` - Fallback for local development
+>
+> **Why this breaks:** Local tests use fallback (no region tag), but CI builds
+> with region tags use the generated template. If the template is missing the
+> new `rawXXXJSON` variable, CI fails with "undefined: rawXXXJSON".
+>
+> **Validation:** Run `make verify-embeds` or `make lint` to catch mismatches.
+
 1. Update `internal/plugin/supports.go` to include the new resource_type
 2. Add estimation logic in `internal/plugin/projected.go` with a helper function
 3. Extend `tools/generate-pricing` to fetch pricing for the new service (add to `serviceConfig` map)
 4. Update `internal/pricing/client.go` with thread-safe lookup methods for the new service
-5. **CRITICAL: Update embed files for the new service:**
-   - Add `//go:embed data/{service}_{region}.json` and `var raw{Service}JSON []byte` to `tools/generate-embeds/embed_template.go.tmpl`
-   - Update all existing `internal/pricing/embed_{region}.go` files with the new embed directive
-   - Update `internal/pricing/embed_fallback.go` with minimal test data for the new service
-   - **This step is commonly forgotten and causes build failures in CI/CD!**
+5. **CRITICAL: Update BOTH embed files for the new service:**
+   - `tools/generate-embeds/embed_template.go.tmpl`: Add `//go:embed data/{service}_{{.Name}}.json` and `var raw{Service}JSON []byte`
+   - `internal/pricing/embed_fallback.go`: Add `var raw{Service}JSON = []byte(...)` with minimal test data
+   - Run `make verify-embeds` to confirm they match
 6. Add tests for the new resource type
 7. **Research carbon estimation data** for the new service:
    - Check [Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/docs/methodology) for applicable coefficients
@@ -1011,6 +1065,8 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 - N/A (embedded pricing data, stateless service) (016-runtime-actual-cost)
 - Go 1.25+ + zerolog (logging), pluginsdk (gRPC), pulumicost-spec proto (020-dynamodb-hardening)
 - N/A (embedded pricing data) (020-dynamodb-hardening)
+- Go 1.25+ + gRPC (pulumicost-spec/sdk/go/pluginsdk), zerolog, sync.WaitGroup (001-elasticache)
+- Embedded JSON pricing data (via `//go:embed`) (001-elasticache)
 
 ## Recent Changes
 - 016-runtime-actual-cost: Added Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)

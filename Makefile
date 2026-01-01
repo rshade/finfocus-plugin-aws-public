@@ -70,8 +70,29 @@ verify-regions: ## Verify region configuration and generated files
 	@echo "Verifying region configuration..."
 	@./scripts/verify-regions.sh
 
+.PHONY: verify-embeds
+verify-embeds: ## Verify embed template and fallback have matching variables
+	@echo "Verifying embed template and fallback sync..."
+	@TEMPLATE_VARS=$$(grep -oE 'var raw[A-Za-z]+JSON' tools/generate-embeds/embed_template.go.tmpl | sort); \
+	FALLBACK_VARS=$$(grep -oE 'var raw[A-Za-z]+JSON' internal/pricing/embed_fallback.go | sort); \
+	if [ "$$TEMPLATE_VARS" != "$$FALLBACK_VARS" ]; then \
+		echo ""; \
+		echo "❌ ERROR: Embed template and fallback have mismatched variables!"; \
+		echo ""; \
+		echo "Template (tools/generate-embeds/embed_template.go.tmpl):"; \
+		echo "$$TEMPLATE_VARS" | sed 's/^/  /'; \
+		echo ""; \
+		echo "Fallback (internal/pricing/embed_fallback.go):"; \
+		echo "$$FALLBACK_VARS" | sed 's/^/  /'; \
+		echo ""; \
+		echo "Both files must declare the same raw*JSON variables."; \
+		echo "See CLAUDE.md 'Adding New AWS Services' for instructions."; \
+		exit 1; \
+	fi
+	@echo "✓ Embed template and fallback are in sync"
+
 .PHONY: lint
-lint: ## Run golangci-lint
+lint: verify-embeds ## Run golangci-lint (includes embed verification)
 	@echo "Running linter..."
 	@golangci-lint run --allow-parallel-runners ./...
 

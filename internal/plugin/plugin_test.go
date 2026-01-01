@@ -40,6 +40,7 @@ type mockPricingClient struct {
 	cwLogsIngestionTiers  []pricing.TierRate // CloudWatch logs ingestion tiers
 	cwLogsStorageRate     float64            // CloudWatch logs storage rate per GB-month
 	cwMetricsTiers        []pricing.TierRate // CloudWatch custom metrics tiers
+	elasticachePrices     map[string]float64 // key: "nodeType:engine" (e.g., "cache.m5.large:Redis")
 	ec2OnDemandCalled     int
 	ebsPriceCalled        int
 	s3PriceCalled         int
@@ -65,6 +66,7 @@ func newMockPricingClient(region, currency string) *mockPricingClient {
 		rdsStoragePrices:  make(map[string]float64),
 		lambdaPrices:      make(map[string]float64),
 		dynamoDBPrices:    make(map[string]float64),
+		elasticachePrices: make(map[string]float64),
 	}
 }
 
@@ -241,6 +243,22 @@ func (m *mockPricingClient) CloudWatchMetricsTiers() ([]pricing.TierRate, bool) 
 		return result, true
 	}
 	return nil, false
+}
+
+func (m *mockPricingClient) ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
+	// Normalize engine to match pricing client behavior
+	normalizedEngine := strings.ToLower(engine)
+	switch normalizedEngine {
+	case "redis":
+		normalizedEngine = "Redis"
+	case "memcached":
+		normalizedEngine = "Memcached"
+	case "valkey":
+		normalizedEngine = "Valkey"
+	}
+	key := instanceType + ":" + normalizedEngine
+	price, found := m.elasticachePrices[key]
+	return price, found
 }
 
 func TestNewAWSPublicPlugin(t *testing.T) {

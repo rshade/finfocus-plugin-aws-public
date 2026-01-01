@@ -3665,3 +3665,453 @@ func abs(x float64) float64 {
 	}
 	return x
 }
+
+// ============================================================================
+// ElastiCache Tests
+// ============================================================================
+
+// TestGetProjectedCost_ElastiCache_BasicRedis tests ElastiCache cost estimation
+// for a basic Redis cluster with single node (T029).
+func TestGetProjectedCost_ElastiCache_BasicRedis(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.m5.large:Redis"] = 0.156 // $0.156/hour
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.m5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "redis",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify cost calculation: 0.156 * 730 = 113.88
+	expectedCost := 0.156 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	if resp.UnitPrice != 0.156 {
+		t.Errorf("UnitPrice = %v, want 0.156", resp.UnitPrice)
+	}
+
+	if resp.Currency != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	}
+
+	expectedDetail := "ElastiCache cache.m5.large (redis), 1 node, 730 hrs/month"
+	if resp.BillingDetail != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_PulumiClusterFormat tests ElastiCache cost estimation
+// with Pulumi aws:elasticache/cluster:Cluster format (T030).
+func TestGetProjectedCost_ElastiCache_PulumiClusterFormat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017 // $0.017/hour
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:elasticache/cluster:Cluster", // Pulumi format
+			Sku:          "cache.t3.micro",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "redis",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() with Pulumi Cluster format failed: %v", err)
+	}
+
+	expectedCost := 0.017 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_PulumiReplicationGroupFormat tests ElastiCache cost
+// estimation with Pulumi aws:elasticache/replicationGroup:ReplicationGroup format (T031).
+func TestGetProjectedCost_ElastiCache_PulumiReplicationGroupFormat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.r5.large:Redis"] = 0.252 // $0.252/hour
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:elasticache/replicationGroup:ReplicationGroup", // Pulumi format
+			Sku:          "cache.r5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "redis",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() with ReplicationGroup format failed: %v", err)
+	}
+
+	expectedCost := 0.252 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_Memcached tests Memcached engine pricing (T034).
+func TestGetProjectedCost_ElastiCache_Memcached(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.m5.large:Memcached"] = 0.148 // $0.148/hour
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.m5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "memcached",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	expectedCost := 0.148 * 730.0
+	tolerance := 0.001
+	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "memcached") {
+		t.Errorf("BillingDetail should mention memcached: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_Valkey tests Valkey engine pricing (T035).
+func TestGetProjectedCost_ElastiCache_Valkey(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.m5.large:Valkey"] = 0.156 // $0.156/hour (similar to Redis)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.m5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "valkey",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	expectedCost := 0.156 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "valkey") {
+		t.Errorf("BillingDetail should mention valkey: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_EngineCaseInsensitive tests case-insensitive engine handling (T036).
+func TestGetProjectedCost_ElastiCache_EngineCaseInsensitive(t *testing.T) {
+	tests := []struct {
+		name   string
+		engine string
+	}{
+		{"uppercase REDIS", "REDIS"},
+		{"mixed case Redis", "Redis"},
+		{"lowercase redis", "redis"},
+		{"uppercase MEMCACHED", "MEMCACHED"},
+		{"mixed case Memcached", "Memcached"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017
+			mock.elasticachePrices["cache.t3.micro:Memcached"] = 0.017
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "elasticache",
+					Sku:          "cache.t3.micro",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"engine": tt.engine,
+					},
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			expectedCost := 0.017 * 730.0
+			if resp.CostPerMonth != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_MultiNode tests multi-node cluster pricing (T041).
+func TestGetProjectedCost_ElastiCache_MultiNode(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.m5.large:Redis"] = 0.156 // $0.156/hour
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.m5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine":    "redis",
+				"num_nodes": "3", // 3-node cluster
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify cost calculation: 0.156 * 3 * 730 = 341.64
+	expectedCost := 0.156 * 3 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "3 nodes") {
+		t.Errorf("BillingDetail should mention 3 nodes: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_NumCacheClusters tests num_cache_clusters tag parsing (T042).
+func TestGetProjectedCost_ElastiCache_NumCacheClusters(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.r5.large:Redis"] = 0.252 // $0.252/hour
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.r5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine":          "redis",
+				"num_cache_nodes": "5", // 5-node cluster
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify cost calculation: 0.252 * 5 * 730 = 919.8
+	expectedCost := 0.252 * 5 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_DefaultEngine tests default engine (Redis) when not specified (T047).
+func TestGetProjectedCost_ElastiCache_DefaultEngine(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017 // Redis is default
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.t3.micro",
+			Region:       "us-east-1",
+			// No engine tag - should default to Redis
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	expectedCost := 0.017 * 730.0
+	if resp.CostPerMonth != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	}
+
+	// BillingDetail should show redis (the default)
+	if !strings.Contains(resp.BillingDetail, "redis") {
+		t.Errorf("BillingDetail should show redis (default): %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_MissingPricing tests behavior when pricing data is unavailable.
+func TestGetProjectedCost_ElastiCache_MissingPricing(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// No pricing set for this node type
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.unknown.type",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine": "redis",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should return $0 with explanation
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for missing pricing", resp.CostPerMonth)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "not found") {
+		t.Errorf("BillingDetail should mention not found: %s", resp.BillingDetail)
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_MissingNodeType tests error handling for missing node type.
+func TestGetProjectedCost_ElastiCache_MissingNodeType(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			// No SKU or instanceType tag
+			Region: "us-east-1",
+		},
+	})
+
+	if err == nil {
+		t.Fatal("Expected error for missing node type")
+	}
+
+	// Verify it's an InvalidArgument error
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("Expected gRPC status error, got: %v", err)
+	}
+
+	if st.Code() != codes.InvalidArgument {
+		t.Errorf("Expected InvalidArgument, got: %v", st.Code())
+	}
+}
+
+// TestGetProjectedCost_ElastiCache_InvalidNodeCount tests error handling for invalid node count values.
+func TestGetProjectedCost_ElastiCache_InvalidNodeCount(t *testing.T) {
+	tests := []struct {
+		name           string
+		nodeCountValue string
+		expectError    bool
+	}{
+		{
+			name:           "non-integer",
+			nodeCountValue: "abc",
+			expectError:    true,
+		},
+		{
+			name:           "negative",
+			nodeCountValue: "-1",
+			expectError:    true,
+		},
+		{
+			name:           "zero",
+			nodeCountValue: "0",
+			expectError:    true,
+		},
+		{
+			name:           "valid_positive",
+			nodeCountValue: "3",
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			mock.elasticachePrices["cache.t3.micro:Redis"] = 0.018
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "elasticache",
+					Sku:          "cache.t3.micro",
+					Region:       "us-east-1",
+					Tags: map[string]string{
+						"engine":    "redis",
+						"num_nodes": tt.nodeCountValue,
+					},
+				},
+			})
+
+			if tt.expectError && err == nil {
+				t.Fatalf("Expected error for node count %q, got nil", tt.nodeCountValue)
+			}
+			if !tt.expectError && err != nil {
+				t.Fatalf("Unexpected error for node count %q: %v", tt.nodeCountValue, err)
+			}
+
+			if tt.expectError {
+				st, ok := status.FromError(err)
+				if !ok {
+					t.Fatalf("Expected gRPC status error, got: %v", err)
+				}
+				if st.Code() != codes.InvalidArgument {
+					t.Errorf("Expected InvalidArgument, got: %v", st.Code())
+				}
+			}
+		})
+	}
+}

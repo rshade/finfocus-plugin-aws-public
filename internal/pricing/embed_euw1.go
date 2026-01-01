@@ -33,3 +33,6 @@ var rawVPCJSON []byte
 
 //go:embed data/cloudwatch_eu-west-1.json
 var rawCloudWatchJSON []byte
+
+//go:embed data/elasticache_eu-west-1.json
+var rawElastiCacheJSON []byte
