@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,29 +22,18 @@ import (
 
 // AWSPublicPlugin implements the pluginsdk.Plugin interface for AWS public pricing.
 type AWSPublicPlugin struct {
-	region          string
-	pricing         pricing.PricingClient
-	carbonEstimator carbon.CarbonEstimator
-	logger          zerolog.Logger // logger is immutable (copy-on-write)
-	testMode        bool           // true when PULUMICOST_TEST_MODE=true
+	region           string
+	pricing          pricing.PricingClient
+	carbonEstimator  carbon.CarbonEstimator
+	logger           zerolog.Logger // logger is immutable (copy-on-write)
+	testMode         bool           // true when PULUMICOST_TEST_MODE=true
+	maxBatchSize     int            // configured max batch size for recommendations
+	strictValidation bool           // fail-fast on invalid resources in recommendations
 }
 
-// NewAWSPublicPlugin creates a new AWSPublicPlugin instance.
-// The region should match the region for which pricing data is embedded.
-// The logger should be created using pluginsdk.NewPluginLogger for consistency.
 // NewAWSPublicPlugin creates and returns a configured AWSPublicPlugin for the given AWS region.
 // It initializes the pricing client, a carbon estimator, and copies the provided logger.
 // Test mode is determined from the PULUMICOST_TEST_MODE environment variable and, if enabled, will be logged.
-//
-// Parameters:
-//   - region: AWS region used for pricing and region-specific lookups.
-//   - pricingClient: client used to fetch AWS pricing information.
-//   - logger: zerolog.Logger to use for plugin logging.
-//
-// Returns:
-// NewAWSPublicPlugin creates and returns an AWSPublicPlugin configured for the given AWS region.
-// The returned plugin is initialized with the provided pricing client and logger, a new carbon estimator,
-// and a test mode flag derived from the environment.
 //
 // Parameters:
 //   - region: AWS region used for pricing and lookups.
@@ -63,13 +54,46 @@ func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logg
 	// and any carbon functionality is used.
 	carbon.SetLogger(logger)
 
-	return &AWSPublicPlugin{
-		region:          region,
-		pricing:         pricingClient,
-		carbonEstimator: carbon.NewEstimator(),
-		logger:          logger,
-		testMode:        testMode,
+	// Initialize configuration
+	maxBatchSize := defaultMaxBatchSize
+	if val := os.Getenv(EnvMaxBatchSize); val != "" {
+		if n, err := strconv.Atoi(val); err == nil && n > 0 {
+			if n > maxMaxBatchSize {
+				logger.Warn().
+					Str("variable", EnvMaxBatchSize).
+					Int("requested", n).
+					Int("max_allowed", maxMaxBatchSize).
+					Msg("requested batch size exceeds maximum, capping")
+				maxBatchSize = maxMaxBatchSize
+			} else {
+				maxBatchSize = n
+			}
+		} else {
+			logger.Warn().
+				Str("variable", EnvMaxBatchSize).
+				Str("value", val).
+				Msg("invalid batch size value, using default")
+		}
 	}
+
+	strictValidation := parseBoolEnv(EnvStrictValidation)
+
+	return &AWSPublicPlugin{
+		region:           region,
+		pricing:          pricingClient,
+		carbonEstimator:  carbon.NewEstimator(),
+		logger:           logger,
+		testMode:         testMode,
+		maxBatchSize:     maxBatchSize,
+		strictValidation: strictValidation,
+	}
+}
+
+// parseBoolEnv returns true if the environment variable is set to a truthy value.
+// Accepted values: "true", "1", "yes" (case-insensitive).
+func parseBoolEnv(key string) bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	return val == "true" || val == "1" || val == "yes"
 }
 
 // getTraceID extracts the trace_id from context or generates a UUID if not present.
@@ -277,7 +301,7 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	}
 
 	// Apply formula: actual_cost = projected_monthly_cost × (runtime_hours / 730)
-	actualCost := projectedResp.CostPerMonth * (runtimeHours / hoursPerMonth)
+	actualCost := projectedResp.CostPerMonth * (runtimeHours / carbon.HoursPerMonth)
 
 	// Test mode: Enhanced logging for calculation result (US3)
 	if p.testMode {

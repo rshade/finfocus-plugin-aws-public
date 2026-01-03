@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
@@ -210,7 +211,7 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 		return 0
 	}
 
-	return hourlyRate * hoursPerMonth
+	return hourlyRate * carbon.HoursPerMonth
 }
 
 // estimateEBSFromAttrs calculates EBS cost from Pulumi attributes.

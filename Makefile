@@ -73,8 +73,8 @@ verify-regions: ## Verify region configuration and generated files
 .PHONY: verify-embeds
 verify-embeds: ## Verify embed template and fallback have matching variables
 	@echo "Verifying embed template and fallback sync..."
-	@TEMPLATE_VARS=$$(grep -oE 'var raw[A-Za-z]+JSON' tools/generate-embeds/embed_template.go.tmpl | sort); \
-	FALLBACK_VARS=$$(grep -oE 'var raw[A-Za-z]+JSON' internal/pricing/embed_fallback.go | sort); \
+	@TEMPLATE_VARS=$$(grep -oE 'var raw[A-Za-z0-9]+JSON' tools/generate-embeds/embed_template.go.tmpl | sort); \
+	FALLBACK_VARS=$$(grep -oE 'var raw[A-Za-z0-9]+JSON' internal/pricing/embed_fallback.go | sort); \
 	if [ "$$TEMPLATE_VARS" != "$$FALLBACK_VARS" ]; then \
 		echo ""; \
 		echo "❌ ERROR: Embed template and fallback have mismatched variables!"; \

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,7 @@ import (
 const (
 	// confidenceHigh is used for generation upgrades and EBS changes (FR-006).
 	confidenceHigh = 0.9
-	// confidenceMedium is used for Graviton recommendations (FR-007).
+	// confidenceMedium is used for Graviton migrations (FR-007).
 	confidenceMedium = 0.7
 	// sourceAWSPublic identifies recommendations from this plugin.
 	sourceAWSPublic = "aws-public"
@@ -29,8 +30,16 @@ const (
 	modTypeVolumeUpgrade = "volume_type_upgrade"
 	// defaultEBSVolumeGB is the default volume size when not specified in tags.
 	defaultEBSVolumeGB = 100
-	// maxBatchSize is the maximum number of resources allowed in a single batch request.
-	maxBatchSize = 100
+	// defaultMaxBatchSize is the default maximum batch size for GetRecommendations.
+	defaultMaxBatchSize = 100
+	// maxMaxBatchSize is the upper bound to prevent resource exhaustion.
+	maxMaxBatchSize = 1000
+	// EnvMaxBatchSize is the environment variable for configuring batch size.
+	EnvMaxBatchSize = "PULUMICOST_MAX_BATCH_SIZE"
+	// EnvStrictValidation is the environment variable for enabling strict validation.
+	// When set to "true", GetRecommendations will fail on any invalid resource
+	// instead of silently skipping it.
+	EnvStrictValidation = "PULUMICOST_STRICT_VALIDATION"
 )
 
 // Ensure AWSPublicPlugin implements RecommendationsProvider.
@@ -68,9 +77,9 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 	}
 
 	// Validate batch size (max 100 resources per request)
-	if len(req.TargetResources) > maxBatchSize {
+	if len(req.TargetResources) > p.maxBatchSize {
 		err := p.newErrorWithID(traceID, codes.InvalidArgument,
-			fmt.Sprintf("batch size %d exceeds maximum of %d", len(req.TargetResources), maxBatchSize),
+			fmt.Sprintf("batch size %d exceeds maximum of %d", len(req.TargetResources), p.maxBatchSize),
 			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		p.logErrorWithID(traceID, "GetRecommendations", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
@@ -81,14 +90,36 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 
 	// Generate recommendations by iterating over scope (T007)
 	var recommendations []*pbc.Recommendation
+	var skippedCount int
 	for _, resource := range pctx.Scope {
 		// Provider check: only process AWS resources (T011)
 		if resource.Provider != "" && resource.Provider != providerAWS {
+			skippedCount++
+			p.logger.Debug().
+				Str("trace_id", traceID).
+				Str("provider", resource.Provider).
+				Str("resource_type", resource.ResourceType).
+				Str("reason", "non-AWS provider").
+				Msg("skipping resource in recommendations batch")
+			if p.strictValidation {
+				err := p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("strict validation: unsupported provider %q (only %q supported)",
+						resource.Provider, providerAWS),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+				return nil, err
+			}
 			continue
 		}
 
 		// Apply filter criteria using AND logic (T010)
 		if !p.matchesFilter(resource, pctx.Filter) {
+			skippedCount++
+			p.logger.Debug().
+				Str("trace_id", traceID).
+				Str("resource_type", resource.ResourceType).
+				Str("sku", resource.Sku).
+				Str("reason", "filter mismatch").
+				Msg("skipping resource in recommendations batch")
 			continue
 		}
 
@@ -112,6 +143,21 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 		case "rds":
 			engine := extractRDSEngine(resource.Tags)
 			recs = p.generateRDSRecommendations(resource.Sku, engine, region)
+		default:
+			// Log unsupported service types at debug level
+			p.logger.Debug().
+				Str("trace_id", traceID).
+				Str("resource_type", resource.ResourceType).
+				Str("detected_service", service).
+				Str("reason", "unsupported service for recommendations").
+				Msg("no recommendations generated for resource")
+			if p.strictValidation {
+				err := p.newErrorWithID(traceID, codes.InvalidArgument,
+					fmt.Sprintf("strict validation: service %q does not support recommendations (resource_type: %s)",
+						service, resource.ResourceType),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+				return nil, err
+			}
 		}
 
 		// Populate correlation info: Native Id takes priority over tag (FR-001, FR-002, FR-003)
@@ -168,6 +214,7 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 		Int("total_resources", pctx.BatchStats.TotalResources).
 		Int("matched_resources", pctx.BatchStats.MatchedResources).
 		Int("recommendation_count", len(recommendations)).
+		Int("skipped_resources", skippedCount).
 		Float64("total_savings", pctx.BatchStats.TotalSavings).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 		Msg("batch recommendations generated")
@@ -228,8 +275,8 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 	}
 
 	// FR-005: Calculate monthly savings based on 730 hours/month
-	currentMonthly := currentPrice * hoursPerMonth
-	newMonthly := newPrice * hoursPerMonth
+	currentMonthly := currentPrice * carbon.HoursPerMonth
+	newMonthly := newPrice * carbon.HoursPerMonth
 	savings := currentMonthly - newMonthly
 	savingsPercent := 0.0
 	if currentMonthly > 0 {
@@ -316,8 +363,8 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 	}
 
 	// FR-005: Calculate monthly savings based on 730 hours/month
-	currentMonthly := currentPrice * hoursPerMonth
-	gravitonMonthly := gravitonPrice * hoursPerMonth
+	currentMonthly := currentPrice * carbon.HoursPerMonth
+	gravitonMonthly := gravitonPrice * carbon.HoursPerMonth
 	savings := currentMonthly - gravitonMonthly
 	savingsPercent := 0.0
 	if currentMonthly > 0 {
@@ -545,8 +592,8 @@ func (p *AWSPublicPlugin) getRDSGenerationUpgradeRecommendation(
 		return nil
 	}
 
-	currentMonthly := currentPrice * hoursPerMonth
-	newMonthly := newPrice * hoursPerMonth
+	currentMonthly := currentPrice * carbon.HoursPerMonth
+	newMonthly := newPrice * carbon.HoursPerMonth
 	savings := currentMonthly - newMonthly
 	savingsPercent := 0.0
 	if currentMonthly > 0 {
@@ -629,8 +676,8 @@ func (p *AWSPublicPlugin) getRDSGravitonRecommendation(
 		return nil
 	}
 
-	currentMonthly := currentPrice * hoursPerMonth
-	gravitonMonthly := gravitonPrice * hoursPerMonth
+	currentMonthly := currentPrice * carbon.HoursPerMonth
+	gravitonMonthly := gravitonPrice * carbon.HoursPerMonth
 	savings := currentMonthly - gravitonMonthly
 	savingsPercent := 0.0
 	if currentMonthly > 0 {

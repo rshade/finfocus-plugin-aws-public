@@ -10,12 +10,12 @@ import (
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
+	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk/mapping"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
 )
 
 const (
-	hoursPerMonth     = 730.0
 	defaultEBSGB      = 8
 	defaultRDSEngine  = "mysql"
 	defaultRDSStorage = "gp2"
@@ -59,66 +59,28 @@ func normalizeResourceType(resourceType string) string {
 	return rt
 }
 
-// extractAWSSKU extracts AWS SKU from tags with priority: instanceType > instance_class > type > volumeType > volume_type
-// This implements the same logic as SDK mapping.ExtractAWSSKU() until it's available
+// extractAWSSKU extracts AWS SKU from tags with priority matching SDK behavior.
+// Uses SDK mapping.ExtractSKU with extended key list for backwards compatibility
+// with both camelCase (SDK standard) and snake_case (legacy) property names.
+//
+// Priority order: instanceType > instance_class > instanceClass > type > volumeType > volume_type
 func extractAWSSKU(tags map[string]string) string {
-	if tags == nil {
-		return ""
-	}
-
-	// Priority order: instanceType > instance_class > type > volumeType > volume_type
-	keys := []string{"instanceType", "instance_class", "type", "volumeType", "volume_type"}
-	for _, key := range keys {
-		if value, ok := tags[key]; ok && value != "" {
-			return value
-		}
-	}
-
-	return ""
+	// Use SDK's generic ExtractSKU with extended key list for backwards compatibility.
+	// This includes both SDK canonical keys (camelCase) and legacy snake_case variants.
+	return mapping.ExtractSKU(tags,
+		mapping.AWSKeyInstanceType, // "instanceType" - EC2
+		"instance_class",           // legacy snake_case for RDS
+		mapping.AWSKeyInstanceClass, // "instanceClass" - RDS (SDK canonical)
+		mapping.AWSKeyType,          // "type" - generic fallback
+		mapping.AWSKeyVolumeType,    // "volumeType" - EBS (SDK canonical)
+		"volume_type",               // legacy snake_case for EBS
+	)
 }
 
-// extractAWSRegion extracts AWS region from tags with priority: region > availabilityZone (with AZ parsing)
-// This implements the same logic as SDK mapping.ExtractAWSRegion()
+// extractAWSRegion extracts AWS region from tags with priority: region > availabilityZone.
+// Delegates to SDK mapping.ExtractAWSRegion which handles AZ-to-region conversion.
 func extractAWSRegion(tags map[string]string) string {
-	if tags == nil {
-		return ""
-	}
-
-	// Check explicit region first (SDK priority)
-	if region, ok := tags["region"]; ok && region != "" {
-		return region
-	}
-
-	// Try to derive from availability zone
-	if az, ok := tags["availabilityZone"]; ok && az != "" {
-		return extractAWSRegionFromAZ(az)
-	}
-
-	return ""
-}
-
-// extractAWSRegionFromAZ derives the AWS region from an availability zone string.
-// Matches SDK behavior: removes trailing lowercase letter, returns input as-is if no trailing letter.
-func extractAWSRegionFromAZ(az string) string {
-	if az == "" {
-		return ""
-	}
-
-	length := len(az)
-	// Single character cannot be a valid AZ (e.g., just "a")
-	// Valid AZ format is at minimum "region" + "az-letter" (e.g., "us-east-1a")
-	if length == 1 {
-		return ""
-	}
-
-	// If the last character is a lowercase letter, remove it
-	lastChar := az[length-1]
-	if lastChar >= 'a' && lastChar <= 'z' {
-		return az[:length-1]
-	}
-
-	// Return as-is if no trailing letter (might already be a region)
-	return az
+	return mapping.ExtractAWSRegion(tags)
 }
 
 // engineNormalization maps user-friendly engine names to AWS pricing API identifiers.
@@ -284,7 +246,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 		Msg("EC2 pricing lookup successful")
 
 	// FR-021: Calculate monthly cost (730 hours/month)
-	costPerMonth := hourlyRate * hoursPerMonth
+	costPerMonth := hourlyRate * carbon.HoursPerMonth
 
 	// FR-022, FR-023, FR-024: Return response with all required fields
 	resp := &pbc.GetProjectedCostResponse{
@@ -297,7 +259,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 	// Carbon estimation: Calculate carbon footprint for EC2 instance
 	utilization := carbon.GetUtilization(req.UtilizationPercentage, resource.UtilizationPercentage)
 	carbonGrams, carbonOK := p.carbonEstimator.EstimateCarbonGrams(
-		instanceType, resource.Region, utilization, hoursPerMonth,
+		instanceType, resource.Region, utilization, carbon.HoursPerMonth,
 	)
 
 	if carbonOK {
@@ -761,8 +723,8 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 	}
 
 	// 4. Calculate Costs
-	fixedMonthly := hoursPerMonth * fixedRate
-	cuMonthly := hoursPerMonth * capacityUnits * cuRate
+	fixedMonthly := carbon.HoursPerMonth * fixedRate
+	cuMonthly := carbon.HoursPerMonth * capacityUnits * cuRate
 	totalMonthly := fixedMonthly + cuMonthly
 
 	// 5. Build Billing Detail
@@ -897,7 +859,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 		Msg("RDS pricing lookup successful")
 
 	// Calculate monthly costs
-	instanceCostPerMonth := hourlyRate * hoursPerMonth
+	instanceCostPerMonth := hourlyRate * carbon.HoursPerMonth
 	storageCostPerMonth := storageRate * float64(storageSizeGB)
 	totalCostPerMonth := instanceCostPerMonth + storageCostPerMonth
 
@@ -1019,7 +981,7 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 		Msg("EKS pricing lookup successful")
 
 	// Calculate monthly cost (730 hours/month)
-	costPerMonth := hourlyRate * hoursPerMonth
+	costPerMonth := hourlyRate * carbon.HoursPerMonth
 
 	// Determine support type description
 	supportType := "standard support"
@@ -1206,12 +1168,12 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 	}
 
 	// 3. Calculate Costs
-	hourlyCost := pricing.HourlyRate * hoursPerMonth
+	hourlyCost := pricing.HourlyRate * carbon.HoursPerMonth
 	processingCost := dataProcessedGB * pricing.DataProcessingRate
 	totalCost := hourlyCost + processingCost
 
 	// 4. Build Billing Detail
-	detail := fmt.Sprintf("NAT Gateway, %d hrs/month ($%.3f/hr)", int(hoursPerMonth), pricing.HourlyRate)
+	detail := fmt.Sprintf("NAT Gateway, %d hrs/month ($%.3f/hr)", int(carbon.HoursPerMonth), pricing.HourlyRate)
 	if tagPresent && dataProcessedGB > 0 {
 		detail += fmt.Sprintf(" + %.2f GB data processed ($%.3f/GB)", dataProcessedGB, pricing.DataProcessingRate)
 	} else if tagPresent && dataProcessedGB == 0 {
@@ -1509,7 +1471,7 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 	}
 
 	// Calculate monthly cost: hourly_rate × num_nodes × hours_per_month
-	monthlyCost := hourlyRate * float64(numNodes) * hoursPerMonth
+	monthlyCost := hourlyRate * float64(numNodes) * carbon.HoursPerMonth
 
 	// Build billing detail
 	var billingDetail string

@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
 	"google.golang.org/grpc/codes"
@@ -368,8 +371,8 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	if genUpgradeRec.Impact == nil {
 		t.Fatal("Expected Impact to be set")
 	}
-	expectedCurrentMonthly := 0.0464 * hoursPerMonth  // ~33.87
-	expectedNewMonthly := 0.0416 * hoursPerMonth      // ~30.37
+	expectedCurrentMonthly := 0.0464 * carbon.HoursPerMonth // ~33.87
+	expectedNewMonthly := 0.0416 * carbon.HoursPerMonth     // ~30.37
 	expectedSavings := expectedCurrentMonthly - expectedNewMonthly
 
 	if genUpgradeRec.Impact.CurrentCost != expectedCurrentMonthly {
@@ -506,7 +509,7 @@ func TestGenerateEC2Recommendations_BothUpgrades(t *testing.T) {
 	// m5.large can upgrade to m6i and also migrate to m6g
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
 	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096 // Same price
-	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077  // Cheaper (Graviton)
+	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077 // Cheaper (Graviton)
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
@@ -840,11 +843,11 @@ func TestGetRecommendations_Batch(t *testing.T) {
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
-			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"}, // Upgrade
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},                                 // Upgrade
 			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}}, // Upgrade
-			{ResourceType: "aws:ec2:Instance", Sku: "m5.large", Region: "us-east-1", Provider: "aws"}, // Upgrade + Graviton
-			{ResourceType: "aws:ec2:Instance", Sku: "t3.medium", Region: "us-east-1", Provider: "aws"}, // No upgrade (already new)
-			{ResourceType: "aws:ebs:Volume", Sku: "gp3", Region: "us-east-1", Provider: "aws"}, // No upgrade
+			{ResourceType: "aws:ec2:Instance", Sku: "m5.large", Region: "us-east-1", Provider: "aws"},                                  // Upgrade + Graviton
+			{ResourceType: "aws:ec2:Instance", Sku: "t3.medium", Region: "us-east-1", Provider: "aws"},                                 // No upgrade (already new)
+			{ResourceType: "aws:ebs:Volume", Sku: "gp3", Region: "us-east-1", Provider: "aws"},                                         // No upgrade
 		},
 	}
 
@@ -1128,7 +1131,7 @@ func TestGetRecommendations_ProviderFilter(t *testing.T) {
 		TargetResources: []*pbc.ResourceDescriptor{
 			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
 			{ResourceType: "gcp:compute:Instance", Sku: "n1-standard-1", Region: "us-central1", Provider: "gcp"}, // Should be skipped
-			{ResourceType: "azure:vm:Instance", Sku: "Standard_B1s", Region: "eastus", Provider: "azure"},       // Should be skipped
+			{ResourceType: "azure:vm:Instance", Sku: "Standard_B1s", Region: "eastus", Provider: "azure"},        // Should be skipped
 		},
 	}
 
@@ -1204,12 +1207,12 @@ func TestGetRecommendations_BatchSizeLimit(t *testing.T) {
 //   - Name tag correlation preserved (unchanged behavior)
 func TestGetRecommendations_NativeIDPassthrough(t *testing.T) {
 	tests := []struct {
-		name           string
-		nativeID       string
-		tagResourceID  string
-		tagName        string
-		expectedID     string
-		expectedName   string
+		name          string
+		nativeID      string
+		tagResourceID string
+		tagName       string
+		expectedID    string
+		expectedName  string
 	}{
 		{
 			name:          "native ID populated",
@@ -1620,8 +1623,8 @@ func TestGetRecommendations_RDS_NoGravitonForOracle(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	// Set up pricing so Graviton would be cheaper
 	mock.rdsInstancePrices["db.m5.large/oracle"] = 0.475
-	mock.rdsInstancePrices["db.m6i.large/oracle"] = 0.450  // Generation upgrade target
-	mock.rdsInstancePrices["db.m6g.large/oracle"] = 0.400  // Would be cheaper if Oracle supported Graviton
+	mock.rdsInstancePrices["db.m6i.large/oracle"] = 0.450 // Generation upgrade target
+	mock.rdsInstancePrices["db.m6g.large/oracle"] = 0.400 // Would be cheaper if Oracle supported Graviton
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
@@ -1695,5 +1698,140 @@ func TestGetRecommendations_RDS_GravitonForMySQL(t *testing.T) {
 
 	if !hasGraviton {
 		t.Errorf("Expected Graviton recommendation for MySQL, but none found")
+	}
+}
+
+// TestInit_MaxBatchSizeFromEnv verifies that the max batch size can be configured via environment variable.
+func TestInit_MaxBatchSizeFromEnv(t *testing.T) {
+	// Set custom batch size
+	t.Setenv(EnvMaxBatchSize, "50")
+
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	// Create 51 resources (exceeds limit of 50)
+	resources := make([]*pbc.ResourceDescriptor, 51)
+	for i := range resources {
+		resources[i] = &pbc.ResourceDescriptor{
+			ResourceType: "aws:ec2:Instance",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+			Provider:     "aws",
+		}
+	}
+
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: resources,
+	}
+
+	_, err := plugin.GetRecommendations(context.Background(), req)
+	if err == nil {
+		t.Fatal("Expected error for batch size exceeding configured limit")
+	}
+
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatal("Expected gRPC status error")
+	}
+
+	if st.Code() != codes.InvalidArgument {
+		t.Errorf("Code = %v, want %v", st.Code(), codes.InvalidArgument)
+	}
+
+	if !strings.Contains(st.Message(), "exceeds maximum of 50") {
+		t.Errorf("Message should mention exceeds maximum of 50, got: %s", st.Message())
+	}
+}
+
+// TestInit_StrictValidationFromEnv verifies that strict validation can be enabled via environment variable.
+// It tests "true", "1", and "yes" values.
+func TestInit_StrictValidationFromEnv(t *testing.T) {
+	tests := []struct {
+		envValue string
+		enabled  bool
+	}{
+		{"true", true},
+		{"1", true},
+		{"yes", true},
+		{"false", false},
+		{"0", false},
+		{"no", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("env=%q", tt.envValue), func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv(EnvStrictValidation, tt.envValue)
+			} else {
+				_ = os.Unsetenv(EnvStrictValidation)
+			}
+
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+			// Request with unsupported provider
+			req := &pbc.GetRecommendationsRequest{
+				TargetResources: []*pbc.ResourceDescriptor{
+					{
+						ResourceType: "gcp:compute:Instance",
+						Sku:          "n1-standard-1",
+						Region:       "us-central1",
+						Provider:     "gcp", // Unsupported
+					},
+				},
+			}
+
+			_, err := plugin.GetRecommendations(context.Background(), req)
+
+			if tt.enabled {
+				if err == nil {
+					t.Error("Expected error in strict mode for unsupported provider")
+				} else {
+					st, _ := status.FromError(err)
+					if !strings.Contains(st.Message(), "strict validation: unsupported provider") {
+						t.Errorf("Unexpected error message: %s", st.Message())
+					}
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error (silent skip) when strict mode disabled, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestInit_StrictValidation_UnsupportedService verifies that strict validation fails for supported provider but unsupported service.
+func TestInit_StrictValidation_UnsupportedService(t *testing.T) {
+	t.Setenv(EnvStrictValidation, "true")
+
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+
+	// Request with supported provider (AWS) but unsupported service (e.g. S3 bucket, assuming not implemented yet)
+	// Note: Currently EC2, EBS, RDS are implemented. S3 is not in the switch case in GetRecommendations.
+	req := &pbc.GetRecommendationsRequest{
+		TargetResources: []*pbc.ResourceDescriptor{
+			{
+				ResourceType: "aws:s3:Bucket",
+				Sku:          "Standard",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			},
+		},
+	}
+
+	_, err := plugin.GetRecommendations(context.Background(), req)
+	if err == nil {
+		t.Fatal("Expected error in strict mode for unsupported service")
+	}
+
+	st, _ := status.FromError(err)
+	if !strings.Contains(st.Message(), "strict validation: service") {
+		t.Errorf("Unexpected error message: %s", st.Message())
 	}
 }

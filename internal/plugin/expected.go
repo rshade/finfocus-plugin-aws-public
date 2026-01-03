@@ -3,6 +3,8 @@ package plugin
 import (
 	"fmt"
 	"math"
+
+	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
 )
 
 // ExpectedCostRange defines expected cost values with tolerance for E2E test validation.
@@ -80,5 +82,5 @@ func IsWithinTolerance(actual, expected, tolerancePercent float64) bool {
 // Formula: projected_monthly_cost × (runtime_hours / 730)
 // This is used for validating GetActualCost responses in E2E tests.
 func CalculateExpectedActualCost(projectedMonthlyCost, runtimeHours float64) float64 {
-	return projectedMonthlyCost * (runtimeHours / hoursPerMonth)
+	return projectedMonthlyCost * (runtimeHours / carbon.HoursPerMonth)
 }
