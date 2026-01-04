@@ -1,7 +1,6 @@
 package pricing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -10,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/goccy/go-json"
 	"github.com/rs/zerolog"
 )
 
@@ -189,12 +189,16 @@ func (c *Client) init() error {
 		// Initialize indexes
 		c.currency = "USD"
 		c.region = "unknown"
-		c.ec2Index = make(map[string]ec2Price)
-		c.ebsIndex = make(map[string]ebsPrice)
-		c.s3Index = make(map[string]s3Price)
-		c.rdsInstanceIndex = make(map[string]rdsInstancePrice)
-		c.rdsStorageIndex = make(map[string]rdsStoragePrice)
-		c.elasticacheIndex = make(map[string]elasticacheInstancePrice)
+
+		// Pre-allocate map capacities based on typical AWS pricing data volumes.
+		// Capacity estimates derived from us-east-1 (largest region) with ~20-30% buffer for growth.
+		// See GitHub issue #176 for sizing rationale.
+		c.ec2Index = make(map[string]ec2Price, 100000)                       // ~90k EC2 products
+		c.ebsIndex = make(map[string]ebsPrice, 50)                           // ~20-30 volume types
+		c.s3Index = make(map[string]s3Price, 100)                            // ~50-100 storage classes
+		c.rdsInstanceIndex = make(map[string]rdsInstancePrice, 5000)         // instance×engine combos
+		c.rdsStorageIndex = make(map[string]rdsStoragePrice, 100)            // storage types
+		c.elasticacheIndex = make(map[string]elasticacheInstancePrice, 1000) // node×engine combos
 
 		// Parse each service file in parallel for faster initialization.
 		// Each parser writes to its own dedicated index(es), so no locking needed.

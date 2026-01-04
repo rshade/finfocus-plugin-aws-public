@@ -1067,6 +1067,8 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 - N/A (embedded pricing data) (020-dynamodb-hardening)
 - Go 1.25+ + gRPC (pulumicost-spec/sdk/go/pluginsdk), zerolog, sync.WaitGroup (001-elasticache)
 - Embedded JSON pricing data (via `//go:embed`) (001-elasticache)
+- Go 1.25+ + zerolog (logging), sync (thread safety), pulumicost-spec SDK (gRPC) (021-map-prealloc)
+- N/A (embedded pricing data via `//go:embed`) (021-map-prealloc)
 
 ## Recent Changes
 - 016-runtime-actual-cost: Added Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)

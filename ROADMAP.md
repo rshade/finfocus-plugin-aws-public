@@ -15,14 +15,22 @@ security overhead of cloud credentials.
 - **Compute:** EC2 On-Demand cost estimation, Lambda (requests + GB-seconds,
   x86_64/arm64), and CCF-based Carbon Footprint (gCO2e) metrics.
 - **Storage:** EBS (Basic Storage GB-month pricing), S3 (Storage by storage class).
-- **Managed Services:** EKS Control Plane, DynamoDB (On-Demand/Provisioned),
-  ELB (ALB/NLB with LCU/NLCU support), and RDS (instance + storage, multi-engine).
+- **Managed Services:** EKS Control Plane, DynamoDB (On-Demand/Provisioned with
+  validation and hardening), ELB (ALB/NLB with LCU/NLCU support), RDS (instance +
+  storage, multi-engine), and ElastiCache (Redis/Memcached/Valkey node pricing).
 - **Networking:** NAT Gateway (hourly + data processing per GB), CloudWatch
   (Logs ingestion/storage with tiered pricing, custom metrics).
-- **Optimization:** `GetRecommendations` batch processing for
-  `target_resources` (up to 100 items).
+- **Optimization:** `GetRecommendations` batch processing for `target_resources`
+  (up to 100 items), SDK mapping package integration for configurable
+  recommendation rules.
 - **Architecture:** Transition to per-service raw JSON embedding to manage
   binary size and initialization speed.
+- **Performance:** `go-json` integration and map pre-allocation for faster
+  pricing data initialization.
+- **Cost Standards:** FOCUS 1.2 cost record format support with standardized
+  pricing specifications.
+- **Actual Cost:** Runtime-based `GetActualCost` using Pulumi state metadata,
+  with intelligent fallback to 730-hour monthly projections when usage is absent.
 - **Carbon Estimation (Comprehensive):** Full carbon footprint estimation suite:
   - EC2 instances with CPU/GPU power consumption (CCF methodology)
   - EBS volumes (SSD/HDD coefficients with replication factors)
@@ -39,14 +47,12 @@ security overhead of cloud credentials.
 
 ## Immediate Focus [In Progress / Planned]
 
-- **[Planned] Refined "Actual Cost" Logic:** Enhance `GetActualCost` to
-  intelligently prioritize usage hours from request metadata, defaulting to
-  730-hour monthly projections only when usage is absent.
 - **[Planned] Service Breadth Expansion:**
-  - **ElastiCache:** Node type and engine-based pricing.
   - **Route53:** Hosted zones and basic query volume estimation.
   - **CloudFront:** Basic data transfer and request pricing (based on regional
     estimates).
+- **[Planned] ElastiCache Carbon Estimation:** Extend CCF methodology to cache
+  node types for comprehensive carbon footprint coverage.
 
 ---
 
