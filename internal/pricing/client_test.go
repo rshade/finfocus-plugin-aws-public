@@ -3,9 +3,9 @@
 package pricing
 
 import (
-	"encoding/json"
 	"testing"
 
+	"github.com/goccy/go-json"
 	"github.com/rs/zerolog"
 )
 

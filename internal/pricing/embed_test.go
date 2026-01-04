@@ -3,8 +3,9 @@
 package pricing
 
 import (
-	"encoding/json"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 // Per-Service Size Thresholds (T035-T041)

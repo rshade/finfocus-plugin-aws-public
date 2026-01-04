@@ -3,6 +3,7 @@ module github.com/rshade/pulumicost-plugin-aws-public
 go 1.25.5
 
 require (
+	github.com/goccy/go-json v0.10.5
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
 	github.com/rshade/pulumicost-spec v0.4.12
