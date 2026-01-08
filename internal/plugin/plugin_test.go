@@ -264,7 +264,7 @@ func (m *mockPricingClient) ElastiCacheOnDemandPricePerHour(instanceType, engine
 func TestNewAWSPublicPlugin(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// NewAWSPublicPlugin never returns nil
 	if plugin.region != "us-east-1" {
@@ -279,7 +279,7 @@ func TestNewAWSPublicPlugin(t *testing.T) {
 func TestName(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	name := plugin.Name()
 	expected := "pulumicost-plugin-aws-public"
@@ -292,7 +292,7 @@ func TestName(t *testing.T) {
 func BenchmarkLoggingOverhead(b *testing.B) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -315,7 +315,7 @@ func TestTraceIDPropagationWithProvidedTraceID(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Create context with trace_id in gRPC metadata
 	expectedTraceID := "test-trace-id-12345"
@@ -371,7 +371,7 @@ func TestTraceIDGenerationWhenMissing(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Create context WITHOUT trace_id
 	ctx := context.Background()
@@ -413,7 +413,7 @@ func TestConcurrentRequestsWithDifferentTraceIDs(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	const numGoroutines = 100
 	var wg sync.WaitGroup
@@ -457,7 +457,7 @@ func TestErrorLogsContainErrorCode(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.ErrorLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Request with region mismatch to trigger error
 	req := &pbc.GetProjectedCostRequest{
@@ -511,7 +511,7 @@ func TestErrorResponseContainsTraceID(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.ErrorLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	expectedTraceID := "test-error-trace-12345"
 

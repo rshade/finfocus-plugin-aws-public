@@ -21,7 +21,7 @@ func TestGetPricingSpec_EC2(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -53,7 +53,7 @@ func TestGetPricingSpec_EC2_PulumiFormat(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -85,7 +85,7 @@ func TestGetPricingSpec_EC2_NotFound(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	// Don't add any prices
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -108,7 +108,7 @@ func TestGetPricingSpec_EBS(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -139,7 +139,7 @@ func TestGetPricingSpec_EBS_PulumiFormat(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -170,7 +170,7 @@ func TestGetPricingSpec_EBS_NotFound(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	// Don't add any prices
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -193,7 +193,7 @@ func TestGetPricingSpec_S3(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.s3Prices["STANDARD"] = 0.023
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -219,7 +219,7 @@ func TestGetPricingSpec_Lambda(t *testing.T) {
 	mock.lambdaPrices["request"] = 0.0000002
 	mock.lambdaPrices["gb-second"] = 0.0000166667 // Mock uses "gb-second" key
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -244,7 +244,7 @@ func TestGetPricingSpec_RDS(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.rdsInstancePrices["db.t3.medium/mysql"] = 0.068
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -272,7 +272,7 @@ func TestGetPricingSpec_DynamoDB_OnDemand(t *testing.T) {
 	mock.dynamoDBPrices["on-demand-write"] = 0.00000125
 	mock.dynamoDBPrices["storage"] = 0.25
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -298,7 +298,7 @@ func TestGetPricingSpec_DynamoDB_Provisioned(t *testing.T) {
 	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
 	mock.dynamoDBPrices["storage"] = 0.25
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -322,7 +322,7 @@ func TestGetPricingSpec_EKS(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.eksStandardPrice = 0.10
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -348,7 +348,7 @@ func TestGetPricingSpec_ALB(t *testing.T) {
 	mock.albHourlyPrice = 0.0225
 	mock.albLCUPrice = 0.008
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -374,7 +374,7 @@ func TestGetPricingSpec_NLB(t *testing.T) {
 	mock.nlbHourlyPrice = 0.0225
 	mock.nlbNLCUPrice = 0.006
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -400,7 +400,7 @@ func TestGetPricingSpec_NATGateway(t *testing.T) {
 	mock.natgwHourlyPrice = 0.045
 	mock.natgwDataPrice = 0.045
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -430,7 +430,7 @@ func TestGetPricingSpec_CloudWatch_Logs(t *testing.T) {
 	}
 	mock.cwLogsStorageRate = 0.03
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -459,7 +459,7 @@ func TestGetPricingSpec_CloudWatch_Metrics(t *testing.T) {
 		{UpTo: 1e15, Rate: 0.05},
 	}
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -483,7 +483,7 @@ func TestGetPricingSpec_CloudWatch_Metrics(t *testing.T) {
 func TestGetPricingSpec_UnknownResourceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -505,7 +505,7 @@ func TestGetPricingSpec_UnknownResourceType(t *testing.T) {
 func TestGetPricingSpec_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -526,7 +526,7 @@ func TestGetPricingSpec_RegionMismatch(t *testing.T) {
 func TestGetPricingSpec_NilRequest(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetPricingSpec(context.Background(), nil)
 
@@ -540,7 +540,7 @@ func TestGetPricingSpec_NilRequest(t *testing.T) {
 func TestGetPricingSpec_NilResource(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 		Resource: nil,
@@ -600,7 +600,7 @@ func TestGetPricingSpec_MissingFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := newMockPricingClient("us-east-1", "USD")
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			_, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 				Resource: tt.resource,
@@ -634,7 +634,7 @@ func TestGetPricingSpec_AllVolumeTypes(t *testing.T) {
 			mock := newMockPricingClient("us-east-1", "USD")
 			mock.ebsPrices[tt.volumeType] = tt.pricePerGB
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
 				Resource: &pbc.ResourceDescriptor{

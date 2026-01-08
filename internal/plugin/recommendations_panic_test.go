@@ -24,7 +24,7 @@ func TestGetRecommendations_NilImpact_NoPanic(t *testing.T) {
 	// Also verify end-to-end that normal recommendations work correctly
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.Nop()
-	p := NewAWSPublicPlugin("us-east-1", mock, logger)
+	p := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{

@@ -14,7 +14,7 @@ import (
 func TestSupports(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name             string
@@ -334,7 +334,7 @@ func TestSupportsLogsContainRequiredFields(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.SupportsRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -410,7 +410,7 @@ func TestSupportsLogsContainRequiredFields(t *testing.T) {
 func TestSupports_CACentral1(t *testing.T) {
 	mock := newMockPricingClient("ca-central-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("ca-central-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ca-central-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name             string
@@ -506,7 +506,7 @@ func TestSupports_CACentral1(t *testing.T) {
 func TestSupports_SAEast1(t *testing.T) {
 	mock := newMockPricingClient("sa-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("sa-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("sa-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name             string
@@ -606,7 +606,7 @@ func TestSupports_SAEast1(t *testing.T) {
 func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -646,7 +646,7 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 func TestSupports_DynamoDB_NoSupportedMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -675,7 +675,7 @@ func TestSupports_DynamoDB_NoSupportedMetrics(t *testing.T) {
 func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		resourceType string
@@ -725,7 +725,7 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 func TestSupports_APSoutheast1(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name             string

@@ -53,6 +53,8 @@ v0.0.10/v0.0.11 were broken by filtering that stripped 85% of data.
 - `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
 
 ## Active Technologies
+- Go 1.25.5+ + gRPC (pluginsdk), pulumicost-spec (version TBD with protocol extensions), zerolog (030-core-protocol-intelligence)
+- Embedded JSON pricing data (memory-mapped, no runtime storage) (030-core-protocol-intelligence)
 
 - Embedded JSON pricing data in Go binaries (no runtime storage) - used across 001-carbon-estimation, 006-region-build-matrix, 010-eks-cost-estimation, 011-s3-cost-estimation
 - Go 1.25.5 + gRPC, zerolog (010-eks-cost-estimation)

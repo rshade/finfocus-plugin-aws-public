@@ -16,7 +16,7 @@ import (
 
 func TestValidateProjectedCostRequest(t *testing.T) {
 	logger := zerolog.Nop()
-	p := NewAWSPublicPlugin("us-east-1", nil, logger)
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -96,7 +96,7 @@ func TestValidateProjectedCostRequest(t *testing.T) {
 
 func TestValidateActualCostRequest(t *testing.T) {
 	logger := zerolog.Nop()
-	p := NewAWSPublicPlugin("us-east-1", nil, logger)
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -183,7 +183,7 @@ func TestValidateActualCostRequest(t *testing.T) {
 
 func TestRegionMismatchError(t *testing.T) {
 	logger := zerolog.Nop()
-	p := NewAWSPublicPlugin("us-east-1", nil, logger)
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
 
 	err := p.RegionMismatchError("trace-123", "us-west-2")
 	require.Error(t, err)
@@ -206,7 +206,7 @@ func TestRegionMismatchError(t *testing.T) {
 // TestValidateActualCostRequest_ARN tests ARN-based resource identification (T072)
 func TestValidateActualCostRequest_ARN(t *testing.T) {
 	logger := zerolog.Nop()
-	p := NewAWSPublicPlugin("us-east-1", nil, logger)
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
 	ctx := context.Background()
 	now := time.Now()
 
@@ -367,7 +367,7 @@ func TestValidateActualCostRequest_ARN(t *testing.T) {
 // This test verifies the defensive checks in ValidateActualCostRequest for ARN parsing.
 func TestRegionFallbackGlobalServices(t *testing.T) {
 	logger := zerolog.Nop()
-	p := NewAWSPublicPlugin("us-east-1", nil, logger)
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
 	ctx := context.Background()
 	now := time.Now()
 

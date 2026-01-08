@@ -44,6 +44,7 @@ pulumicost-plugin-aws-public*
 !pulumicost-plugin-aws-public/
 
 # GoReleaser artifacts
+vendor/
 dist/
 COMMIT_MESSAGE.md
 PR_MESSAGE.md

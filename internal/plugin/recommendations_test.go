@@ -38,7 +38,7 @@ func parseLastLogEntry(buf *bytes.Buffer) (map[string]interface{}, error) {
 func TestGetRecommendations_NilRequest(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetRecommendations(context.Background(), nil)
 	if err == nil {
@@ -74,7 +74,7 @@ func TestGetRecommendations_NilRequest(t *testing.T) {
 func TestGetRecommendations_EmptyRequest(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{}
 	resp, err := plugin.GetRecommendations(context.Background(), req)
@@ -100,7 +100,7 @@ func TestGetRecommendations_TraceIDInLogs(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	expectedTraceID := "test-recommendations-trace-12345"
 	md := metadata.New(map[string]string{
@@ -144,7 +144,7 @@ func TestGetRecommendations_EC2WithFilter(t *testing.T) {
 	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
 	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		Filter: &pbc.RecommendationFilter{
@@ -198,7 +198,7 @@ func TestGetRecommendations_EBSWithFilter(t *testing.T) {
 	mock.ebsPrices["gp2"] = 0.10
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		Filter: &pbc.RecommendationFilter{
@@ -245,7 +245,7 @@ func TestGetRecommendations_DefaultRegion(t *testing.T) {
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
 	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-west-2", mock, logger)
+	plugin := NewAWSPublicPlugin("us-west-2", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		Filter: &pbc.RecommendationFilter{
@@ -284,7 +284,7 @@ func TestGetRecommendations_PulumiResourceType(t *testing.T) {
 	mock.ec2Prices["c5.xlarge/Linux/Shared"] = 0.17
 	mock.ec2Prices["c6i.xlarge/Linux/Shared"] = 0.17
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		Filter: &pbc.RecommendationFilter{
@@ -313,7 +313,7 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
 	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1")
 
@@ -399,7 +399,7 @@ func TestGenerateEC2Recommendations_NoUpgradeWhenNewIsExpensive(t *testing.T) {
 	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0400
 	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0500 // More expensive
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1")
 
@@ -419,7 +419,7 @@ func TestGenerateEC2Recommendations_NoUpgradeWhenPricingMissing(t *testing.T) {
 	mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
 	// t3.medium price NOT set
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1")
 
@@ -438,7 +438,7 @@ func TestGenerateEC2Recommendations_LatestGeneration(t *testing.T) {
 	// t3a is end of upgrade chain, no recommendation expected
 	mock.ec2Prices["t3a.micro/Linux/Shared"] = 0.0094
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	rec := plugin.getGenerationUpgradeRecommendation("t3a.micro", "us-east-1")
 
@@ -454,7 +454,7 @@ func TestGenerateEC2Recommendations_GravitonMigration(t *testing.T) {
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
 	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077 // ~20% cheaper
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1")
 
@@ -511,7 +511,7 @@ func TestGenerateEC2Recommendations_BothUpgrades(t *testing.T) {
 	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096 // Same price
 	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077 // Cheaper (Graviton)
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1")
 
@@ -543,7 +543,7 @@ func TestGetEBSRecommendations_Gp2ToGp3(t *testing.T) {
 	mock.ebsPrices["gp2"] = 0.10 // per GB-month
 	mock.ebsPrices["gp3"] = 0.08 // 20% cheaper
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tags := map[string]string{"size": "500"}
 	recs := plugin.getEBSRecommendations("gp2", "us-east-1", tags)
@@ -618,7 +618,7 @@ func TestGetEBSRecommendations_DefaultSize(t *testing.T) {
 	mock.ebsPrices["gp2"] = 0.10
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// No size tag
 	tags := map[string]string{}
@@ -647,7 +647,7 @@ func TestGetEBSRecommendations_VolumeSizeTag(t *testing.T) {
 	mock.ebsPrices["gp2"] = 0.10
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Use "volume_size" instead of "size"
 	tags := map[string]string{"volume_size": "200"}
@@ -671,7 +671,7 @@ func TestGetEBSRecommendations_NoRecommendationForGp3(t *testing.T) {
 	mock.ebsPrices["gp2"] = 0.10
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.getEBSRecommendations("gp3", "us-east-1", nil)
 
@@ -685,7 +685,7 @@ func TestGetEBSRecommendations_NoRecommendationForGp3(t *testing.T) {
 func TestGetEBSRecommendations_NoRecommendationForIo1(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	for _, volumeType := range []string{"io1", "io2", "st1", "sc1"} {
 		recs := plugin.getEBSRecommendations(volumeType, "us-east-1", nil)
@@ -700,7 +700,7 @@ func TestGetEBSRecommendations_NoRecommendationForIo1(t *testing.T) {
 func TestGenerateEC2Recommendations_InvalidInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	invalidTypes := []string{"", "invalid", "t2", ".medium", "t2.", "..."}
 
@@ -719,7 +719,7 @@ func TestRecommendationHasUniqueID(t *testing.T) {
 	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096
 	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1")
 
@@ -749,7 +749,7 @@ func TestGetRecommendations_LogsContainDurationMs(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{}
 	_, err := plugin.GetRecommendations(context.Background(), req)
@@ -778,7 +778,7 @@ func TestGetRecommendations_LogsContainRecommendationCount(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{}
 	_, err := plugin.GetRecommendations(context.Background(), req)
@@ -802,7 +802,7 @@ func TestGetRecommendations_ErrorLogsContainErrorCode(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.ErrorLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetRecommendations(context.Background(), nil)
 	if err == nil {
@@ -839,7 +839,7 @@ func TestGetRecommendations_Batch(t *testing.T) {
 	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -882,7 +882,7 @@ func TestGetRecommendations_FilteredBatch(t *testing.T) {
 	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -925,7 +925,7 @@ func TestGetRecommendations_FilteredBatch_ByResourceType(t *testing.T) {
 	mock.ebsPrices["gp3"] = 0.08
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -966,7 +966,7 @@ func TestGetRecommendations_Legacy(t *testing.T) {
 	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Legacy mode: no TargetResources, only Filter with Sku
 	req := &pbc.GetRecommendationsRequest{
@@ -999,7 +999,7 @@ func TestGetRecommendations_LegacyWithDefaultRegion(t *testing.T) {
 	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-west-2", mock, logger)
+	plugin := NewAWSPublicPlugin("us-west-2", "test-version", mock, logger)
 
 	// Legacy mode without explicit region - should use plugin's region
 	req := &pbc.GetRecommendationsRequest{
@@ -1041,7 +1041,7 @@ func TestGetRecommendations_SummaryLogging(t *testing.T) {
 	mock.ebsPrices["gp3"] = 0.08
 
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -1099,7 +1099,7 @@ func TestGetRecommendations_SummaryLogging(t *testing.T) {
 func TestGetRecommendations_EmptyBothModes(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// No TargetResources and no valid Filter
 	req := &pbc.GetRecommendationsRequest{
@@ -1125,7 +1125,7 @@ func TestGetRecommendations_ProviderFilter(t *testing.T) {
 	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -1152,7 +1152,7 @@ func TestGetRecommendations_ProviderFilter(t *testing.T) {
 func TestGetRecommendations_BatchSizeLimit(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Create 101 resources (exceeds limit of 100)
 	resources := make([]*pbc.ResourceDescriptor, 101)
@@ -1287,7 +1287,7 @@ func TestGetRecommendations_NativeIDPassthrough(t *testing.T) {
 			mock.ec2Prices["t2.medium/Linux/Shared"] = 0.0464
 			mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			// Build tags map
 			tags := make(map[string]string)
@@ -1350,7 +1350,7 @@ func TestGetRecommendations_MultipleRecsFromSameResource(t *testing.T) {
 	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096 // Generation upgrade
 	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077 // Graviton
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	expectedID := "urn:pulumi:stack::project::aws:ec2/instance:Instance::production-api"
 
@@ -1399,7 +1399,7 @@ func TestGetRecommendations_BatchIDCorrelation(t *testing.T) {
 	mock.ebsPrices["gp2"] = 0.10
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Define resources with unique IDs
 	resource1ID := "urn:pulumi:prod::app::aws:ec2/instance:Instance::web-1"
@@ -1467,7 +1467,7 @@ func TestGetRecommendations_Batch_EBSDefaultSize(t *testing.T) {
 	mock.ebsPrices["gp3"] = 0.08
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -1585,7 +1585,7 @@ func TestGetRecommendations_RDS_Batch(t *testing.T) {
 	mock.rdsInstancePrices["db.t4g.medium/mysql"] = 0.054 // Graviton, cheaper
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -1627,7 +1627,7 @@ func TestGetRecommendations_RDS_NoGravitonForOracle(t *testing.T) {
 	mock.rdsInstancePrices["db.m6g.large/oracle"] = 0.400 // Would be cheaper if Oracle supported Graviton
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -1663,7 +1663,7 @@ func TestGetRecommendations_RDS_GravitonForMySQL(t *testing.T) {
 	mock.rdsInstancePrices["db.t4g.medium/mysql"] = 0.054 // Graviton is cheaper
 
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
@@ -1708,7 +1708,7 @@ func TestInit_MaxBatchSizeFromEnv(t *testing.T) {
 
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Create 51 resources (exceeds limit of 50)
 	resources := make([]*pbc.ResourceDescriptor, 51)
@@ -1770,7 +1770,7 @@ func TestInit_StrictValidationFromEnv(t *testing.T) {
 
 			mock := newMockPricingClient("us-east-1", "USD")
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			// Request with unsupported provider
 			req := &pbc.GetRecommendationsRequest{
@@ -1810,7 +1810,7 @@ func TestInit_StrictValidation_UnsupportedService(t *testing.T) {
 
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Request with supported provider (AWS) but unsupported service (e.g. S3 bucket, assuming not implemented yet)
 	// Note: Currently EC2, EBS, RDS are implemented. S3 is not in the switch case in GetRecommendations.

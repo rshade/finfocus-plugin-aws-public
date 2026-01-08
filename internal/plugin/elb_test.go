@@ -17,7 +17,7 @@ func createELBMockPlugin(region string) *AWSPublicPlugin {
 	mock.albLCUPrice = 0.008
 	mock.nlbHourlyPrice = 0.0225
 	mock.nlbNLCUPrice = 0.006
-	return NewAWSPublicPlugin(region, mock, zerolog.Nop())
+	return NewAWSPublicPlugin(region, "test-version", mock, zerolog.Nop())
 }
 
 // TestEstimateELB_ALB verifies ALB cost estimation with fixed hourly rate and LCU charges.

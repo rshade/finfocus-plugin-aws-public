@@ -18,22 +18,27 @@ Go 1.25+: Follow standard conventions
 
 ## Architecture
 
-### Plugin Protocol (gRPC)
+### Plugin Protocol (Multi-Protocol)
+
 - The plugin implements **CostSourceService** from `pulumicost.v1` proto (see `../pulumicost-spec/proto/pulumicost/v1/costsource.proto`)
-- **Not** stdin/stdout JSON - uses gRPC with PORT announcement
-- On startup: plugin writes `PORT=<port>` to stdout, then serves gRPC on 127.0.0.1
+- **Not** stdin/stdout JSON - uses multi-protocol serving with PORT announcement
+- Supports gRPC, gRPC-Web, and Connect protocols on a single HTTP endpoint (when web enabled)
+- On startup: plugin writes `PORT=<port>` to stdout, then serves on 127.0.0.1
 - Core connects via gRPC and calls methods like `GetProjectedCost()`, `Supports()`, `Name()`
 - **One resource per RPC call** (not batch processing)
 - Uses **pluginsdk.Serve()** from `pulumicost-spec/sdk/go/pluginsdk` for lifecycle management
+- Optional web serving with CORS support via `PULUMICOST_PLUGIN_WEB_ENABLED=true`
 - Graceful shutdown on context cancellation
 
 ### Required gRPC Methods
+
 - **Name()**: Returns plugin name "aws-public"
 - **Supports(ResourceDescriptor)**: Checks if plugin supports a resource type/region
 - **GetProjectedCost(ResourceDescriptor)**: Returns cost estimate for **one** resource
 - **GetPricingSpec(ResourceDescriptor)** (optional): Returns detailed pricing info
 
 ### ResourceDescriptor (Proto Input)
+
 ```protobuf
 message ResourceDescriptor {
   string provider = 1;       // "aws"
@@ -45,6 +50,7 @@ message ResourceDescriptor {
 ```
 
 ### GetProjectedCostResponse (Proto Output)
+
 ```protobuf
 message GetProjectedCostResponse {
   double unit_price = 1;       // Hourly rate for EC2, GB-month rate for EBS
@@ -54,7 +60,51 @@ message GetProjectedCostResponse {
 }
 ```
 
+### Metadata Enrichment (v0.4.14+)
+
+The plugin enriches `GetProjectedCostResponse` with metadata fields for PulumiCost Core's advanced features:
+
+#### Growth Type Hints
+
+- **Field:** `growth_type` (GrowthType enum)
+- **Purpose:** Indicates cost growth pattern for forecasting models (Cost Time Machine)
+- **Values:**
+  - `GROWTH_TYPE_STATIC`: Fixed cost (EC2, EBS, EKS, ELB, NAT Gateway, CloudWatch, ElastiCache, RDS)
+  - `GROWTH_TYPE_LINEAR`: Accumulates linearly (S3, DynamoDB)
+  - `GROWTH_TYPE_UNSPECIFIED`: Default if field unavailable
+- **Implementation:** Static service classification map in `internal/plugin/classification.go`
+
+#### Dev Mode Cost Reduction (Future)
+
+- **Input Field:** `usage_profile` (UsageProfile enum) in ResourceDescriptor
+- **Purpose:** Apply realistic cost estimates for dev/test environments (160 hrs/month vs 730 hrs)
+- **Affected Services:** Time-based services (EC2, EKS, ELB, NAT Gateway, ElastiCache, RDS)
+- **Cost Reduction:** ~22% reduction (160/730 hours) when `USAGE_PROFILE_DEVELOPMENT`
+- **Billing Detail:** Appends "(dev profile)" to billing_detail
+- **Implementation:** Feature detection with `hasUsageProfile()` and `applyDevMode()`
+
+#### Topology Linking (Future)
+
+- **Field:** `lineage` (CostAllocationLineage message)
+- **Purpose:** Identify parent/child resource relationships for Blast Radius visualization
+- **Parent Tag Extraction:** Priority order (instance_id > cluster_name > vpc_id > subnet_id)
+- **Supported Relationships:**
+  - `attached_to`: EBS volumes attached to EC2 instances
+  - `within`: RDS/ElastiCache/NAT Gateway within VPC
+  - `managed_by`: Reserved for future use
+- **Implementation:** Tag-based parent extraction in `extractLineage()`
+
+#### Implementation Patterns
+
+- **Feature Detection:** Runtime type assertion to check proto field availability
+- **Thread Safety:** Read-only constant maps, no shared mutable state
+- **Backward Compatibility:** Optional fields default to zero values when unavailable
+- **Logging:** Structured zerolog INFO messages when metadata is applied
+- **Performance:** < 10ms enrichment overhead, < 100ms total RPC response
+- **Multi-Protocol Support:** Plugin supports gRPC, gRPC-Web, and Connect protocols via connect-go
+
 ### Error Handling
+
 - Uses **ErrorCode enum** from proto (not custom codes)
 - Key error codes:
   - `ERROR_CODE_UNSUPPORTED_REGION`: Resource region doesn't match plugin binary region
@@ -1069,6 +1119,7 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 - Embedded JSON pricing data (via `//go:embed`) (001-elasticache)
 - Go 1.25+ + zerolog (logging), sync (thread safety), pulumicost-spec SDK (gRPC) (021-map-prealloc)
 - N/A (embedded pricing data via `//go:embed`) (021-map-prealloc)
+- Go 1.25+ + gRPC (pulumicost-spec v0.4.12), zerolog, go-json (030-core-protocol-intelligence)
 
 ## Recent Changes
 - 016-runtime-actual-cost: Added Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)

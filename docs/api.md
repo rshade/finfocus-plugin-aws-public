@@ -15,6 +15,7 @@ service CostSourceService {
   rpc GetProjectedCost(GetProjectedCostRequest) returns (GetProjectedCostResponse);
   rpc GetActualCost(GetActualCostRequest) returns (GetActualCostResponse);
   rpc GetRecommendations(GetRecommendationsRequest) returns (GetRecommendationsResponse);
+  rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
 }
 ```
 
@@ -30,6 +31,26 @@ Returns the plugin identifier.
 ```json
 {
   "name": "pulumicost-plugin-aws-public"
+}
+```
+
+### GetPluginInfo
+
+Returns metadata about the plugin.
+
+**Request:** `GetPluginInfoRequest` (empty message)
+**Response:** `GetPluginInfoResponse`
+
+```json
+{
+  "name": "pulumicost-plugin-aws-public",
+  "version": "0.0.3",
+  "spec_version": "v0.4.14",
+  "providers": ["aws"],
+  "metadata": {
+    "region": "us-east-1",
+    "type": "public-pricing-fallback"
+  }
 }
 ```
 
@@ -103,14 +124,15 @@ Retrieves actual historical cost data for a resource.
 
 ```json
 {
-  "resource": {
+  "resource_id": "i-abc123",
+  "tags": {
     "provider": "aws",
     "resource_type": "ec2",
     "sku": "t3.micro",
     "region": "us-east-1"
   },
-  "start_time": "2024-01-01T00:00:00Z",
-  "end_time": "2024-01-31T23:59:59Z"
+  "start": "2024-01-01T00:00:00Z",
+  "end": "2024-01-31T23:59:59Z"
 }
 ```
 
@@ -276,6 +298,13 @@ Use grpcurl for manual API testing:
 grpcurl -plaintext localhost:50051 \
   pulumicost.v1.CostSourceService/GetProjectedCost \
   -d '{"resource": {"provider": "aws", "resource_type": "ec2", "sku": "t3.micro", "region": "us-east-1"}}'
+```
+
+Or for `GetPluginInfo`:
+
+```bash
+grpcurl -plaintext localhost:50051 \
+  pulumicost.v1.CostSourceService/GetPluginInfo
 ```
 
 ## Rate Limiting

@@ -165,7 +165,7 @@ func (m *mockPricingClientActual) ElastiCacheOnDemandPricePerHour(instanceType, 
 
 func newTestPluginForActual() *AWSPublicPlugin {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	return NewAWSPublicPlugin("us-east-1", &mockPricingClientActual{
+	return NewAWSPublicPlugin("us-east-1", "test-version", &mockPricingClientActual{
 		region: "us-east-1",
 		ec2Prices: map[string]float64{
 			"t3.micro": 0.0104, // $7.592/month

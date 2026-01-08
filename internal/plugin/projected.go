@@ -289,6 +289,9 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 			Msg("Carbon estimation skipped - instance type not in CCF data")
 	}
 
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:ec2:instance", resp)
+
 	return resp, nil
 }
 
@@ -396,6 +399,9 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 			Msg("EBS carbon estimation successful")
 	}
 
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:ebs:volume", resp)
+
 	return resp, nil
 }
 
@@ -491,6 +497,9 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 			Float64("carbon_grams", carbonGrams).
 			Msg("S3 carbon estimation successful")
 	}
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:s3:bucket", resp)
 
 	return resp, nil
 }
@@ -659,6 +668,9 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 				Msg("DynamoDB carbon estimation successful")
 		}
 
+		// Apply growth hint enrichment
+		setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:dynamodb:table", resp)
+
 		return resp, nil
 
 	}
@@ -751,6 +763,9 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 			Float64("carbon_grams", carbonGrams).
 			Msg("DynamoDB carbon estimation successful")
 	}
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:dynamodb:table", resp)
 
 	return resp, nil
 }
@@ -859,12 +874,17 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 		Float64("total_cost", totalMonthly).
 		Msg("ELB cost estimated")
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalMonthly,
 		UnitPrice:     fixedRate, // Using fixed hourly as primary unit price
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:elasticloadbalancing:loadbalancer", resp)
+
+	return resp, nil
 }
 
 // estimateStub returns $0 cost for services not yet implemented.
@@ -1048,6 +1068,9 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 			Msg("RDS carbon estimation successful")
 	}
 
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:rds:instance", resp)
+
 	return resp, nil
 }
 
@@ -1178,6 +1201,9 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 		Str("aws_region", resource.Region).
 		Float64("carbon_grams", carbonGrams).
 		Msg("EKS carbon estimation: control plane is shared infrastructure (0 gCO2e)")
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:eks:cluster", resp)
 
 	return resp, nil
 }
@@ -1340,6 +1366,9 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 			Msg("Lambda carbon estimation successful")
 	}
 
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:lambda:function", resp)
+
 	return resp, nil
 }
 
@@ -1407,12 +1436,17 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 		Float64("total_cost", totalCost).
 		Msg("NAT Gateway cost estimated")
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     pricing.HourlyRate, // Using hourly rate as primary unit price
 		Currency:      "USD",
 		BillingDetail: detail,
-	}, nil
+	}
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:ec2:nat-gateway", resp)
+
+	return resp, nil
 }
 
 // calculateTieredCost calculates the total cost for a quantity using tiered pricing.
@@ -1604,12 +1638,17 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 		Float64("total_cost", totalCost).
 		Msg("CloudWatch cost estimated")
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     0, // No single unit price for CloudWatch (multi-component)
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:cloudwatch:metric", resp)
+
+	return resp, nil
 }
 
 // estimateElastiCache calculates projected monthly cost for ElastiCache clusters.
@@ -1707,10 +1746,15 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 		Float64("monthly_cost", monthlyCost).
 		Msg("ElastiCache cost estimated")
 
-	return &pbc.GetProjectedCostResponse{
+	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  monthlyCost,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
-	}, nil
+	}
+
+	// Apply growth hint enrichment
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:elasticache:cluster", resp)
+
+	return resp, nil
 }

@@ -21,7 +21,7 @@ func TestGetProjectedCost_EC2(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -65,7 +65,7 @@ func TestGetProjectedCost_EC2_PulumiFormat(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	// Test with Pulumi format resource type
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
@@ -92,7 +92,7 @@ func TestGetProjectedCost_EBS_WithSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp3"] = 0.08
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -140,7 +140,7 @@ func TestGetProjectedCost_EBS_DefaultSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp2"] = 0.10
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -176,7 +176,7 @@ func TestGetProjectedCost_EBS_DefaultSize(t *testing.T) {
 func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -212,7 +212,7 @@ func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 func TestGetProjectedCost_MissingRequiredField(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	testCases := []struct {
 		name     string
@@ -283,7 +283,7 @@ func TestGetProjectedCost_UnknownInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	// Don't add any pricing data
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -312,7 +312,7 @@ func TestGetProjectedCost_UnknownInstanceType(t *testing.T) {
 func TestGetProjectedCost_StubServices(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	testCases := []string{"s3", "lambda", "dynamodb"} // RDS is now fully supported
 
@@ -353,7 +353,7 @@ func TestGetProjectedCost_APSoutheast1_EC2(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0116 // Singapore pricing (+12% vs us-east-1)
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.112
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name         string
@@ -409,7 +409,7 @@ func TestGetProjectedCost_APSoutheast1_EBS(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp3"] = 0.0896 // Singapore pricing
 	mock.ebsPrices["io2"] = 0.1456
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name       string
@@ -470,7 +470,7 @@ func TestGetProjectedCost_APSoutheast1_EBS(t *testing.T) {
 func TestGetProjectedCost_APSoutheast1_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	wrongRegions := []string{"us-east-1", "eu-west-1", "ap-southeast-2", "ap-northeast-1"}
 
@@ -508,7 +508,7 @@ func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0116
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.112
 	mock.ebsPrices["gp3"] = 0.0896
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	const numGoroutines = 20
 	const callsPerGoroutine = 10
@@ -587,7 +587,7 @@ func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 func BenchmarkGetProjectedCost_RegionMismatch(b *testing.B) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -608,7 +608,7 @@ func BenchmarkGetProjectedCost_RegionMismatch(b *testing.B) {
 func TestGetProjectedCost_RegionMismatchLatency(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("ap-southeast-1", mock, logger)
+	plugin := NewAWSPublicPlugin("ap-southeast-1", "test-version", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -663,7 +663,7 @@ func TestGetProjectedCost_CrossRegionPricingDifference(t *testing.T) {
 		mock := newMockPricingClient(data.region, "USD")
 		logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 		mock.ec2Prices["t3.micro/Linux/Shared"] = data.ec2Price
-		plugin := NewAWSPublicPlugin(data.region, mock, logger)
+		plugin := NewAWSPublicPlugin(data.region, "test-version", mock, logger)
 
 		resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 			Resource: &pbc.ResourceDescriptor{
@@ -713,7 +713,7 @@ func TestSupports_RegionRejection(t *testing.T) {
 		t.Run("Binary_"+pluginRegion, func(t *testing.T) {
 			mock := newMockPricingClient(pluginRegion, "USD")
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-			plugin := NewAWSPublicPlugin(pluginRegion, mock, logger)
+			plugin := NewAWSPublicPlugin(pluginRegion, "test-version", mock, logger)
 
 			totalTests := 0
 			successfulRejections := 0
@@ -786,7 +786,7 @@ func TestGetProjectedCostLogsContainRequiredFields(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -867,7 +867,7 @@ func TestDebugLogsContainInstanceTypeForEC2(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(&logBuf).Level(zerolog.DebugLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -916,7 +916,7 @@ func TestDebugLogsContainStorageTypeForEBS(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(&logBuf).Level(zerolog.DebugLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	req := &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -968,7 +968,7 @@ func TestGetProjectedCost_RDS_MySQL(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.rdsInstancePrices["db.t3.medium/MySQL"] = 0.068
 	mock.rdsStoragePrices["gp3"] = 0.10
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1023,7 +1023,7 @@ func TestGetProjectedCost_RDS_DefaultValues(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.rdsInstancePrices["db.m5.large/MySQL"] = 0.171
 	mock.rdsStoragePrices["gp2"] = 0.115
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1067,7 +1067,7 @@ func TestGetProjectedCost_RDS_PostgreSQL(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.rdsInstancePrices["db.t3.medium/PostgreSQL"] = 0.068
 	mock.rdsStoragePrices["gp3"] = 0.10
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1104,7 +1104,7 @@ func TestGetProjectedCost_RDS_UnknownEngine(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
 	mock.rdsStoragePrices["gp2"] = 0.115
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1138,7 +1138,7 @@ func TestGetProjectedCost_RDS_UnknownInstance(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	// Don't add any RDS pricing data
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1190,7 +1190,7 @@ func TestGetProjectedCost_RDS_AllEngines(t *testing.T) {
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 			mock.rdsInstancePrices["db.t3.micro/"+tt.expectedNormalized] = 0.05
 			mock.rdsStoragePrices["gp2"] = 0.115
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 				Resource: &pbc.ResourceDescriptor{
@@ -1227,7 +1227,7 @@ func TestGetProjectedCost_RDS_InvalidStorageSize(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
 	mock.rdsStoragePrices["gp2"] = 0.115
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name        string
@@ -1320,7 +1320,7 @@ func TestGetProjectedCost_EKS_StandardSupport(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.eksStandardPrice = 0.10 // $0.10/hour for standard support
 	mock.eksExtendedPrice = 0.50 // $0.50/hour for extended support
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1367,7 +1367,7 @@ func TestGetProjectedCost_EKS_ExtendedSupport(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.eksStandardPrice = 0.10 // $0.10/hour for standard support
 	mock.eksExtendedPrice = 0.50 // $0.50/hour for extended support
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1406,7 +1406,7 @@ func TestGetProjectedCost_EKS_MissingPricing(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	// Don't set eksStandardPrice or eksExtendedPrice - pricing is missing
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1445,7 +1445,7 @@ func TestGetProjectedCost_EKS_ExtendedSupportViaTags(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.eksStandardPrice = 0.10 // $0.10/hour for standard support
 	mock.eksExtendedPrice = 0.50 // $0.50/hour for extended support
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1497,7 +1497,7 @@ func TestGetProjectedCost_EKS_SupportTypeCaseInsensitive(t *testing.T) {
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 			mock.eksStandardPrice = 0.10
 			mock.eksExtendedPrice = 0.50
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 				Resource: &pbc.ResourceDescriptor{
@@ -1679,7 +1679,7 @@ func TestGetProjectedCost_EBS_VolumeSizeAlias(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ebsPrices["gp3"] = 0.08 // $0.08/GB-month
 
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name          string
@@ -1759,7 +1759,7 @@ func TestGetProjectedCost_RDS_EngineDefaulted(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
 
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name            string
@@ -1821,7 +1821,7 @@ func TestGetProjectedCost_Lambda_Basic(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.lambdaPrices["request"] = 0.0000002      // $0.20 per 1M
 	mock.lambdaPrices["gb-second"] = 0.0000166667 // Standard price
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1874,7 +1874,7 @@ func TestGetProjectedCost_Lambda_Defaults(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.lambdaPrices["request"] = 0.0000002
 	mock.lambdaPrices["gb-second"] = 0.0000166667
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1906,7 +1906,7 @@ func TestGetProjectedCost_Lambda_InvalidMemory(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.lambdaPrices["request"] = 0.0000002
 	mock.lambdaPrices["gb-second"] = 0.0000166667
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -1951,7 +1951,7 @@ func TestGetProjectedCost_Lambda_ARM64(t *testing.T) {
 	mock.lambdaPrices["request"] = 0.0000002
 	mock.lambdaPrices["gb-second"] = 0.0000166667       // x86 price
 	mock.lambdaPrices["gb-second-arm64"] = 0.0000133334 // ARM price (~20% cheaper)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2073,7 +2073,7 @@ func TestGetProjectedCost_Lambda_ArchitectureVariants(t *testing.T) {
 			mock.lambdaPrices["request"] = 0.0000002
 			mock.lambdaPrices["gb-second"] = 0.0000166667
 			mock.lambdaPrices["gb-second-arm64"] = 0.0000133334
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 				Resource: &pbc.ResourceDescriptor{
@@ -2114,7 +2114,7 @@ func TestGetProjectedCost_Lambda_ARMFallbackToX86(t *testing.T) {
 	mock.lambdaPrices["request"] = 0.0000002
 	mock.lambdaPrices["gb-second"] = 0.0000166667
 	// Note: No ARM pricing set (gb-second-arm64)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2149,7 +2149,7 @@ func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2206,7 +2206,7 @@ func TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.ec2Prices["unknown.instance/Linux/Shared"] = 0.01 // Add pricing so financial cost works
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2238,7 +2238,7 @@ func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
 	mockUSEast := newMockPricingClient("us-east-1", "USD")
 	mockUSEast.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	loggerUSEast := zerolog.New(nil).Level(zerolog.InfoLevel)
-	pluginUSEast := NewAWSPublicPlugin("us-east-1", mockUSEast, loggerUSEast)
+	pluginUSEast := NewAWSPublicPlugin("us-east-1", "test-version", mockUSEast, loggerUSEast)
 
 	respUSEast, err := pluginUSEast.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2256,7 +2256,7 @@ func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
 	mockEUNorth := newMockPricingClient("eu-north-1", "USD")
 	mockEUNorth.ec2Prices["t3.micro/Linux/Shared"] = 0.0116
 	loggerEUNorth := zerolog.New(nil).Level(zerolog.InfoLevel)
-	pluginEUNorth := NewAWSPublicPlugin("eu-north-1", mockEUNorth, loggerEUNorth)
+	pluginEUNorth := NewAWSPublicPlugin("eu-north-1", "test-version", mockEUNorth, loggerEUNorth)
 
 	respEUNorth, err := pluginEUNorth.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2307,7 +2307,7 @@ func TestGetProjectedCost_EC2_RequestLevelUtilization(t *testing.T) {
 	mockClient := newMockPricingClient("us-east-1", "USD")
 	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mockClient, logger)
 
 	// Request with high utilization (80%)
 	respHigh, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
@@ -2364,7 +2364,7 @@ func TestGetProjectedCost_EC2_PerResourceUtilization(t *testing.T) {
 	mockClient := newMockPricingClient("us-east-1", "USD")
 	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mockClient, logger)
 
 	perResourceUtil := 0.9 // 90% utilization
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
@@ -2421,7 +2421,7 @@ func TestGetProjectedCost_EC2_UtilizationPriority(t *testing.T) {
 	mockClient := newMockPricingClient("us-east-1", "USD")
 	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mockClient, logger)
 
 	// Test 1: Per-resource should override request-level
 	perResourceUtil := 0.95 // 95%
@@ -2489,7 +2489,7 @@ func TestGetProjectedCost_EC2_GPUInstance(t *testing.T) {
 	// GPU instance pricing
 	mockClient.ec2Prices["p3.2xlarge/Linux/Shared"] = 3.06
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mockClient, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mockClient, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2534,7 +2534,7 @@ func TestGetProjectedCost_DynamoDB(t *testing.T) {
 	mock.dynamoDBPrices["storage"] = 0.25
 	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
 	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name         string
@@ -2634,7 +2634,7 @@ func TestEstimateDynamoDB_MissingStoragePricing(t *testing.T) {
 	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
 	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2680,7 +2680,7 @@ func TestEstimateDynamoDB_MissingProvisionedPricing(t *testing.T) {
 	// Set storage but not provisioned prices
 	mock.dynamoDBPrices["storage"] = 0.25
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2729,7 +2729,7 @@ func TestEstimateDynamoDB_MissingOnDemandPricing(t *testing.T) {
 	// Set storage but not on-demand prices
 	mock.dynamoDBPrices["storage"] = 0.25
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2776,7 +2776,7 @@ func TestValidateNonNegativeInt64(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	traceID := "test-trace-123"
 
@@ -2856,7 +2856,7 @@ func TestValidateNonNegativeFloat64(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	traceID := "test-trace-123"
 
@@ -2939,7 +2939,7 @@ func TestEstimateDynamoDB_NegativeCapacityUnits(t *testing.T) {
 	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
 	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -2980,7 +2980,7 @@ func TestEstimateDynamoDB_InvalidTagValues(t *testing.T) {
 	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
 	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
 	logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3031,7 +3031,7 @@ func TestGetProjectedCost_NATGateway(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.natgwHourlyPrice = 0.045
 	mock.natgwDataPrice = 0.045
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name     string
@@ -3134,7 +3134,7 @@ func TestGetProjectedCost_CloudWatch_LogsIngestion(t *testing.T) {
 		{UpTo: 1e18, Rate: 0.10},      // Beyond 30 TB
 	}
 	mock.cwLogsStorageRate = 0.03 // $0.03/GB-month storage
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name         string
@@ -3254,7 +3254,7 @@ func TestGetProjectedCost_CloudWatch_LogsStorage(t *testing.T) {
 		{UpTo: 1e18, Rate: 0.50},
 	}
 	mock.cwLogsStorageRate = 0.03 // $0.03/GB-month
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name     string
@@ -3332,7 +3332,7 @@ func TestGetProjectedCost_CloudWatch_Metrics(t *testing.T) {
 		{UpTo: 250000, Rate: 0.10},
 		{UpTo: 1e18, Rate: 0.05},
 	}
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	tests := []struct {
 		name         string
@@ -3421,7 +3421,7 @@ func TestGetProjectedCost_CloudWatch_Combined(t *testing.T) {
 	mock.cwMetricsTiers = []pricing.TierRate{
 		{UpTo: 1e18, Rate: 0.30},
 	}
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3460,7 +3460,7 @@ func TestGetProjectedCost_CloudWatch_MissingPricing(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	// No CloudWatch pricing configured - should return $0 with explanation
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3497,7 +3497,7 @@ func TestGetProjectedCost_CloudWatch_PulumiResourceType(t *testing.T) {
 		{UpTo: 1e18, Rate: 0.50},
 	}
 	mock.cwLogsStorageRate = 0.03
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resourceTypes := []string{
 		"aws:cloudwatch/logGroup:LogGroup",
@@ -3676,7 +3676,7 @@ func TestGetProjectedCost_ElastiCache_BasicRedis(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.m5.large:Redis"] = 0.156 // $0.156/hour
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3720,7 +3720,7 @@ func TestGetProjectedCost_ElastiCache_PulumiClusterFormat(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017 // $0.017/hour
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3750,7 +3750,7 @@ func TestGetProjectedCost_ElastiCache_PulumiReplicationGroupFormat(t *testing.T)
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.r5.large:Redis"] = 0.252 // $0.252/hour
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3779,7 +3779,7 @@ func TestGetProjectedCost_ElastiCache_Memcached(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.m5.large:Memcached"] = 0.148 // $0.148/hour
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3813,7 +3813,7 @@ func TestGetProjectedCost_ElastiCache_Valkey(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.m5.large:Valkey"] = 0.156 // $0.156/hour (similar to Redis)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3860,7 +3860,7 @@ func TestGetProjectedCost_ElastiCache_EngineCaseInsensitive(t *testing.T) {
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 			mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017
 			mock.elasticachePrices["cache.t3.micro:Memcached"] = 0.017
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 				Resource: &pbc.ResourceDescriptor{
@@ -3891,7 +3891,7 @@ func TestGetProjectedCost_ElastiCache_MultiNode(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.m5.large:Redis"] = 0.156 // $0.156/hour
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3926,7 +3926,7 @@ func TestGetProjectedCost_ElastiCache_NumCacheClusters(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.r5.large:Redis"] = 0.252 // $0.252/hour
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3957,7 +3957,7 @@ func TestGetProjectedCost_ElastiCache_DefaultEngine(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017 // Redis is default
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -3989,7 +3989,7 @@ func TestGetProjectedCost_ElastiCache_MissingPricing(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	// No pricing set for this node type
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -4021,7 +4021,7 @@ func TestGetProjectedCost_ElastiCache_MissingPricing(t *testing.T) {
 func TestGetProjectedCost_ElastiCache_MissingNodeType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
@@ -4081,7 +4081,7 @@ func TestGetProjectedCost_ElastiCache_InvalidNodeCount(t *testing.T) {
 			mock := newMockPricingClient("us-east-1", "USD")
 			mock.elasticachePrices["cache.t3.micro:Redis"] = 0.018
 			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-			plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 			_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 				Resource: &pbc.ResourceDescriptor{

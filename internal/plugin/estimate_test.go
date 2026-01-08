@@ -261,7 +261,7 @@ func TestEstimateCost_EC2(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"instanceType": "t3.micro",
@@ -284,7 +284,7 @@ func TestEstimateCost_EBS(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ebsPrices["gp3"] = 0.08
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"type": "gp3",
@@ -308,7 +308,7 @@ func TestEstimateCost_EBS_DefaultSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ebsPrices["gp2"] = 0.10
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"type": "gp2",
@@ -331,7 +331,7 @@ func TestEstimateCost_RegionFromAvailabilityZone(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"instanceType":     "t3.micro",
@@ -353,7 +353,7 @@ func TestEstimateCost_WrongRegion(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"instanceType": "t3.micro",
@@ -374,7 +374,7 @@ func TestEstimateCost_WrongRegion(t *testing.T) {
 func TestEstimateCost_NonAWSProvider(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
 		ResourceType: "gcp:compute/instance:Instance",
@@ -389,7 +389,7 @@ func TestEstimateCost_NonAWSProvider(t *testing.T) {
 func TestEstimateCost_UnsupportedModule(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
 		ResourceType: "aws:rds/instance:Instance",
@@ -404,7 +404,7 @@ func TestEstimateCost_UnsupportedModule(t *testing.T) {
 func TestEstimateCost_NilRequest(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.EstimateCost(context.Background(), nil)
 
@@ -418,7 +418,7 @@ func TestEstimateCost_NilRequest(t *testing.T) {
 func TestEstimateCost_MissingResourceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
 		ResourceType: "",
@@ -434,7 +434,7 @@ func TestEstimateCost_MissingResourceType(t *testing.T) {
 func TestEstimateCost_InvalidResourceTypeFormat(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	_, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
 		ResourceType: "invalid-format",
@@ -451,7 +451,7 @@ func TestEstimateCost_NilAttributes(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
 		ResourceType: "aws:ec2/instance:Instance",
@@ -468,7 +468,7 @@ func TestEstimateCost_MissingInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"ami": "ami-12345678",
@@ -490,7 +490,7 @@ func TestEstimateCost_UnknownInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	// Don't add any prices - instance type won't be found
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	attrs, err := structpb.NewStruct(map[string]interface{}{
 		"instanceType": "unknown.type",
@@ -511,7 +511,7 @@ func TestEstimateCost_NonInstanceEC2Resource(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
 		ResourceType: "aws:ec2/securityGroup:SecurityGroup",

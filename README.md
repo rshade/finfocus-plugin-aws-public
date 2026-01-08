@@ -603,6 +603,155 @@ rpc GetProjectedCost(GetProjectedCostRequest) returns (GetProjectedCostResponse)
 - `billing_detail` - Human-readable explanation of calculation
 - `impact_metrics` - Array of environmental metrics (EC2 only: carbon footprint in gCO2e)
 
+### GetPluginInfo()
+
+Returns metadata about the plugin for compatibility verification and diagnostics.
+
+```protobuf
+rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
+```
+
+**Returns:**
+
+- `name` - The unique identifier for the plugin
+- `version` - The plugin version (semver)
+- `spec_version` - The pulumicost-spec version implemented
+- `providers` - List of supported cloud providers (e.g., ["aws"])
+- `metadata` - Additional diagnostic key-value pairs (e.g., region, plugin type)
+
+## Web Server / HTTP API
+
+The plugin includes a built-in web server for easy testing and inspection of plugin behavior.
+This allows you to interact with the plugin using standard HTTP tools like `curl` or browser-based clients.
+
+### Enabling Web Server
+
+Set the environment variable before starting the plugin:
+
+```bash
+export PULUMICOST_PLUGIN_WEB_ENABLED=true
+./pulumicost-plugin-aws-public-us-east-1
+```
+
+The plugin will start and log: `"web serving enabled with multi-protocol support"`.
+
+### Usage with `curl`
+
+You can send JSON requests directly to the plugin's gRPC endpoints using HTTP/1.1 POST requests.
+
+**Example: Get Projected Cost**
+
+```bash
+PORT=50051 # Replace with the actual port printed by the plugin
+
+curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetProjectedCost" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource": {
+      "provider": "aws",
+      "resource_type": "ec2",
+      "sku": "t3.micro",
+      "region": "us-east-1"
+    }
+  }'
+```
+
+**Example: Get Plugin Info**
+
+```bash
+curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetPluginInfo" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+**Example: Get Actual Cost**
+
+```bash
+curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetActualCost" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resource_id": "i-abc123",
+    "tags": {
+      "provider": "aws",
+      "resource_type": "ec2",
+      "sku": "t3.micro",
+      "region": "us-east-1"
+    },
+    "start": "2024-01-01T00:00:00Z",
+    "end": "2024-01-31T23:59:59Z"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "name": "pulumicost-plugin-aws-public",
+  "version": "0.0.3",
+  "specVersion": "v0.4.11",
+  "providers": ["aws"],
+  "metadata": {
+    "region": "us-east-1",
+    "type": "public-pricing-fallback"
+  }
+}
+```
+
+### Usage with JavaScript Client
+
+You can use the native `fetch` API in JavaScript/TypeScript to interact with the plugin.
+
+```javascript
+const PORT = 50051; // Replace with actual port
+
+// Example: Get Projected Cost
+async function getCostEstimate() {
+  const response = await fetch(`http://localhost:${PORT}/pulumicost.v1.CostSourceService/GetProjectedCost`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      resource: {
+        provider: 'aws',
+        resource_type: 'ec2',
+        sku: 't3.micro',
+        region: 'us-east-1'
+      }
+    })
+  });
+
+  const data = await response.json();
+  console.log('Estimated Cost:', data);
+}
+
+// Example: Get Recommendations
+async function getRecommendations() {
+  const response = await fetch(`http://localhost:${PORT}/pulumicost.v1.CostSourceService/GetRecommendations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      target_resources: [
+        {
+          provider: 'aws',
+          resource_type: 'ec2',
+          sku: 'm5.large',
+          region: 'us-east-1'
+        }
+      ]
+    })
+  });
+
+  const data = await response.json();
+  console.log('Recommendations:', data);
+}
+
+getCostEstimate();
+getRecommendations();
+```
+
 ## Error Handling
 
 ### ERROR_CODE_UNSUPPORTED_REGION

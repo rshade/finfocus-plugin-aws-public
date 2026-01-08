@@ -23,6 +23,7 @@ import (
 // AWSPublicPlugin implements the pluginsdk.Plugin interface for AWS public pricing.
 type AWSPublicPlugin struct {
 	region           string
+	version          string
 	pricing          pricing.PricingClient
 	carbonEstimator  carbon.CarbonEstimator
 	logger           zerolog.Logger // logger is immutable (copy-on-write)
@@ -37,13 +38,14 @@ type AWSPublicPlugin struct {
 //
 // Parameters:
 //   - region: AWS region used for pricing and lookups.
+//   - version: Plugin version string (semver).
 //   - pricingClient: client used to retrieve AWS pricing data.
 //   - logger: logger used by the plugin for structured logs.
 //
 // Returns:
 //
 //	A pointer to an initialized AWSPublicPlugin.
-func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logger zerolog.Logger) *AWSPublicPlugin {
+func NewAWSPublicPlugin(region string, version string, pricingClient pricing.PricingClient, logger zerolog.Logger) *AWSPublicPlugin {
 	testMode := IsTestMode()
 
 	if testMode {
@@ -81,6 +83,7 @@ func NewAWSPublicPlugin(region string, pricingClient pricing.PricingClient, logg
 
 	return &AWSPublicPlugin{
 		region:           region,
+		version:          version,
 		pricing:          pricingClient,
 		carbonEstimator:  carbon.NewEstimator(),
 		logger:           logger,
@@ -203,6 +206,27 @@ func (p *AWSPublicPlugin) newErrorWithID(traceID string, grpcCode codes.Code, ms
 // Name returns the plugin name identifier.
 func (p *AWSPublicPlugin) Name() string {
 	return "pulumicost-plugin-aws-public"
+}
+
+// GetPluginInfo returns metadata about the plugin.
+func (p *AWSPublicPlugin) GetPluginInfo(ctx context.Context, _ *pbc.GetPluginInfoRequest) (*pbc.GetPluginInfoResponse, error) {
+	traceID := p.getTraceID(ctx)
+
+	p.logger.Info().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, "GetPluginInfo").
+		Msg("providing plugin info")
+
+	return &pbc.GetPluginInfoResponse{
+		Name:        p.Name(),
+		Version:     p.version,
+		SpecVersion: pluginsdk.SpecVersion,
+		Providers:   []string{"aws"},
+		Metadata: map[string]string{
+			"region": p.region,
+			"type":   "public-pricing-fallback",
+		},
+	}, nil
 }
 
 // GetActualCost retrieves actual cost for a resource based on runtime.
