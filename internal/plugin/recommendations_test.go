@@ -368,8 +368,8 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	if genUpgradeRec.Impact == nil {
 		t.Fatal("Expected Impact to be set")
 	}
-	expectedCurrentMonthly := 0.0464 * hoursPerMonth // ~33.87
-	expectedNewMonthly := 0.0416 * hoursPerMonth     // ~30.37
+	expectedCurrentMonthly := 0.0464 * hoursPerMonth  // ~33.87
+	expectedNewMonthly := 0.0416 * hoursPerMonth      // ~30.37
 	expectedSavings := expectedCurrentMonthly - expectedNewMonthly
 
 	if genUpgradeRec.Impact.CurrentCost != expectedCurrentMonthly {
@@ -506,7 +506,7 @@ func TestGenerateEC2Recommendations_BothUpgrades(t *testing.T) {
 	// m5.large can upgrade to m6i and also migrate to m6g
 	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
 	mock.ec2Prices["m6i.large/Linux/Shared"] = 0.096 // Same price
-	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077 // Cheaper (Graviton)
+	mock.ec2Prices["m6g.large/Linux/Shared"] = 0.077  // Cheaper (Graviton)
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", mock, logger)
 
@@ -840,11 +840,11 @@ func TestGetRecommendations_Batch(t *testing.T) {
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
-			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},                                 // Upgrade
+			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"}, // Upgrade
 			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}}, // Upgrade
-			{ResourceType: "aws:ec2:Instance", Sku: "m5.large", Region: "us-east-1", Provider: "aws"},                                  // Upgrade + Graviton
-			{ResourceType: "aws:ec2:Instance", Sku: "t3.medium", Region: "us-east-1", Provider: "aws"},                                 // No upgrade (already new)
-			{ResourceType: "aws:ebs:Volume", Sku: "gp3", Region: "us-east-1", Provider: "aws"},                                         // No upgrade
+			{ResourceType: "aws:ec2:Instance", Sku: "m5.large", Region: "us-east-1", Provider: "aws"}, // Upgrade + Graviton
+			{ResourceType: "aws:ec2:Instance", Sku: "t3.medium", Region: "us-east-1", Provider: "aws"}, // No upgrade (already new)
+			{ResourceType: "aws:ebs:Volume", Sku: "gp3", Region: "us-east-1", Provider: "aws"}, // No upgrade
 		},
 	}
 
@@ -1128,7 +1128,7 @@ func TestGetRecommendations_ProviderFilter(t *testing.T) {
 		TargetResources: []*pbc.ResourceDescriptor{
 			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
 			{ResourceType: "gcp:compute:Instance", Sku: "n1-standard-1", Region: "us-central1", Provider: "gcp"}, // Should be skipped
-			{ResourceType: "azure:vm:Instance", Sku: "Standard_B1s", Region: "eastus", Provider: "azure"},        // Should be skipped
+			{ResourceType: "azure:vm:Instance", Sku: "Standard_B1s", Region: "eastus", Provider: "azure"},       // Should be skipped
 		},
 	}
 
@@ -1198,17 +1198,18 @@ func TestGetRecommendations_BatchSizeLimit(t *testing.T) {
 //   - Native ID populated (uses native ID)
 //   - Empty native ID with tag fallback (uses tag)
 //   - Whitespace-only native ID (treats as empty, uses tag)
+//   - Mixed whitespace native ID (treats as empty, uses tag)
 //   - Native ID takes priority when both present
 //   - Neither present (Resource.Id remains empty)
 //   - Name tag correlation preserved (unchanged behavior)
 func TestGetRecommendations_NativeIDPassthrough(t *testing.T) {
 	tests := []struct {
-		name          string
-		nativeID      string
-		tagResourceID string
-		tagName       string
-		expectedID    string
-		expectedName  string
+		name           string
+		nativeID       string
+		tagResourceID  string
+		tagName        string
+		expectedID     string
+		expectedName   string
 	}{
 		{
 			name:          "native ID populated",
