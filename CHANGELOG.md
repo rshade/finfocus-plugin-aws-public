@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.16](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.15...v0.0.16) (2026-01-08)
+
+
+### Features
+
+* **actual:** implement runtime-based actual cost from Pulumi metadata ([#217](https://github.com/rshade/pulumicost-plugin-aws-public/issues/217)) ([aa8a951](https://github.com/rshade/pulumicost-plugin-aws-public/commit/aa8a9519018cee51620ba6743280c40337143d36)), closes [#196](https://github.com/rshade/pulumicost-plugin-aws-public/issues/196)
+* **carbon:** implement comprehensive carbon estimation for AWS resources ([#220](https://github.com/rshade/pulumicost-plugin-aws-public/issues/220)) ([996aaca](https://github.com/rshade/pulumicost-plugin-aws-public/commit/996aaca531e01180b32a386a16831f03360a834e)), closes [#135](https://github.com/rshade/pulumicost-plugin-aws-public/issues/135) [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) [#138](https://github.com/rshade/pulumicost-plugin-aws-public/issues/138) [#139](https://github.com/rshade/pulumicost-plugin-aws-public/issues/139) [#140](https://github.com/rshade/pulumicost-plugin-aws-public/issues/140)
+* **cloudwatch:** implement CloudWatch cost estimation ([#210](https://github.com/rshade/pulumicost-plugin-aws-public/issues/210)) ([f95f4ad](https://github.com/rshade/pulumicost-plugin-aws-public/commit/f95f4ad7a221d392515922deb0ec9cd24cbb60a3)), closes [#19](https://github.com/rshade/pulumicost-plugin-aws-public/issues/19)
+* **dynamodb:** add validation, error handling, and integration tests ([#218](https://github.com/rshade/pulumicost-plugin-aws-public/issues/218)) ([e87e640](https://github.com/rshade/pulumicost-plugin-aws-public/commit/e87e640077a8ff8fdde9edb796ff66be03898d06)), closes [#147](https://github.com/rshade/pulumicost-plugin-aws-public/issues/147) [#149](https://github.com/rshade/pulumicost-plugin-aws-public/issues/149) [#151](https://github.com/rshade/pulumicost-plugin-aws-public/issues/151) [#152](https://github.com/rshade/pulumicost-plugin-aws-public/issues/152)
+* **elasticache:** implement cost estimation for ElastiCache clusters ([#219](https://github.com/rshade/pulumicost-plugin-aws-public/issues/219)) ([f483015](https://github.com/rshade/pulumicost-plugin-aws-public/commit/f483015bc4a00922c252e82659cdc03cb6cb03c3))
+* **natgw:** implement VPC NAT Gateway cost estimation ([#195](https://github.com/rshade/pulumicost-plugin-aws-public/issues/195)) ([cce77ab](https://github.com/rshade/pulumicost-plugin-aws-public/commit/cce77abe0e34cab60b230a0d8d3ccc6e2c27ea38)), closes [#56](https://github.com/rshade/pulumicost-plugin-aws-public/issues/56)
+* **plugin:** add FOCUS 1.2 cost records, RDS recommendations, and pricing specs ([313c322](https://github.com/rshade/pulumicost-plugin-aws-public/commit/313c322e891b6b299e462e4ac028ef7558ad68ae))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/pulumicost-plugin-aws-public to v0.0.15 ([#204](https://github.com/rshade/pulumicost-plugin-aws-public/issues/204)) ([c57b000](https://github.com/rshade/pulumicost-plugin-aws-public/commit/c57b000eee9390517177df9235e954970e27d67a))
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.12 ([#200](https://github.com/rshade/pulumicost-plugin-aws-public/issues/200)) ([c99bc97](https://github.com/rshade/pulumicost-plugin-aws-public/commit/c99bc973d6593cad8a04ca010e627e0fd0ed460c))
+* **deps:** update module github.com/rshade/pulumicost-spec to v0.4.13 ([#230](https://github.com/rshade/pulumicost-plugin-aws-public/issues/230)) ([b623e8d](https://github.com/rshade/pulumicost-plugin-aws-public/commit/b623e8df9c9a24045e91b1d056d6db0679debd40))
+
 ## [0.0.15](https://github.com/rshade/pulumicost-plugin-aws-public/compare/v0.0.14...v0.0.15) (2025-12-26)
 
 
