@@ -1,7 +1,7 @@
 # Carbon Estimation
 
 This document describes the carbon footprint estimation capabilities of the
-pulumicost-plugin-aws-public plugin.
+finfocus-plugin-aws-public plugin.
 
 ## Overview
 

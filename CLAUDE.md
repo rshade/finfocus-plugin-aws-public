@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is `pulumicost-plugin-aws-public`, a fallback PulumiCost plugin that estimates AWS resource costs using public AWS on-demand pricing data, without requiring CUR/Cost Explorer/Vantage data access. The plugin implements the gRPC CostSourceService protocol and is invoked as a separate process by PulumiCost core.
+This is `finfocus-plugin-aws-public`, a fallback FinFocus plugin that estimates AWS resource costs using public AWS on-demand pricing data, without requiring CUR/Cost Explorer/Vantage data access. The plugin implements the gRPC CostSourceService protocol and is invoked as a separate process by FinFocus core.
 
 ## Code Style
 
@@ -20,14 +20,14 @@ Go 1.25+: Follow standard conventions
 
 ### Plugin Protocol (Multi-Protocol)
 
-- The plugin implements **CostSourceService** from `pulumicost.v1` proto (see `../pulumicost-spec/proto/pulumicost/v1/costsource.proto`)
+- The plugin implements **CostSourceService** from `finfocus.v1` proto (see `../finfocus-spec/proto/finfocus/v1/costsource.proto`)
 - **Not** stdin/stdout JSON - uses multi-protocol serving with PORT announcement
 - Supports gRPC, gRPC-Web, and Connect protocols on a single HTTP endpoint (when web enabled)
 - On startup: plugin writes `PORT=<port>` to stdout, then serves on 127.0.0.1
 - Core connects via gRPC and calls methods like `GetProjectedCost()`, `Supports()`, `Name()`
 - **One resource per RPC call** (not batch processing)
-- Uses **pluginsdk.Serve()** from `pulumicost-spec/sdk/go/pluginsdk` for lifecycle management
-- Optional web serving with CORS support via `PULUMICOST_PLUGIN_WEB_ENABLED=true`
+- Uses **pluginsdk.Serve()** from `finfocus-spec/sdk/go/pluginsdk` for lifecycle management
+- Optional web serving with CORS support via `FINFOCUS_PLUGIN_WEB_ENABLED=true`
 - Graceful shutdown on context cancellation
 
 ### Required gRPC Methods
@@ -62,7 +62,7 @@ message GetProjectedCostResponse {
 
 ### Metadata Enrichment (v0.4.14+)
 
-The plugin enriches `GetProjectedCostResponse` with metadata fields for PulumiCost Core's advanced features:
+The plugin enriches `GetProjectedCostResponse` with metadata fields for FinFocus Core's advanced features:
 
 #### Growth Type Hints
 
@@ -131,7 +131,7 @@ The plugin initialization (`internal/pricing/client.go`) handles pricing data lo
 
 ### Region-Specific Binaries
 - **One binary per AWS region** using GoReleaser with build tags
-- Binary naming: `pulumicost-plugin-aws-public-<region>` (e.g., `pulumicost-plugin-aws-public-us-east-1`)
+- Binary naming: `finfocus-plugin-aws-public-<region>` (e.g., `finfocus-plugin-aws-public-us-east-1`)
 - Each binary embeds only its region's pricing data via `//go:embed`
 - Build tag mapping:
   - `us-east-1` → `region_use1`
@@ -285,7 +285,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 
 ```text
 cmd/
-  pulumicost-plugin-aws-public/     # gRPC service entrypoint
+  finfocus-plugin-aws-public/     # gRPC service entrypoint
     main.go                          # Calls pluginsdk.Serve()
 internal/
   carbon/
@@ -394,7 +394,7 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 go build ./...
 
 # Build with specific region tag
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
 
 # Build all region binaries using GoReleaser
 goreleaser build --snapshot --clean
@@ -405,7 +405,7 @@ region build tags, building a single region is sufficient. Don't wait for all
 54 builds (9 regions × 6 architectures). Use a single-region build instead:
 
 ```bash
-go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ### Testing
@@ -424,9 +424,9 @@ go test -tags=integration ./internal/plugin/...
 go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDPropagation
 
 # Test gRPC service manually (requires grpcurl or similar)
-# 1. Start plugin: ./pulumicost-plugin-aws-public-us-east-1
+# 1. Start plugin: ./finfocus-plugin-aws-public-us-east-1
 # 2. Capture PORT from stdout
-# 3. Call RPCs: grpcurl -plaintext -d '{"resource": {...}}' localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost
+# 3. Call RPCs: grpcurl -plaintext -d '{"resource": {...}}' localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 ### Test Cleanup
@@ -479,19 +479,19 @@ Run `make develop` to set up the complete development environment.
 ### Running the Plugin
 ```bash
 # Start the plugin (it will announce its PORT)
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 # Output: PORT=12345
 # Then serves gRPC on 127.0.0.1:12345
 
 # With PORT env variable
-PORT=9000 ./pulumicost-plugin-aws-public-us-east-1
+PORT=9000 ./finfocus-plugin-aws-public-us-east-1
 # Output: PORT=9000
 ```
 
-## Key Proto Types
+### Key Proto Types
 
 ### ResourceDescriptor
-From `pulumicost.v1.ResourceDescriptor`:
+From `finfocus.v1.ResourceDescriptor`:
 - `provider`: "aws"
 - `resource_type`: "ec2", "ebs", "s3", "lambda", "rds", "dynamodb", "elasticache"
 - `sku`: Instance type for EC2 (e.g., "t3.micro"), volume type for EBS (e.g., "gp3"), node type for ElastiCache (e.g., "cache.t3.micro")
@@ -509,11 +509,11 @@ The plugin accepts multiple resource type formats:
 All formats are normalized internally via the `detectService()` function in `internal/plugin/projected.go`.
 
 ### ErrorCode Enum
-From `pulumicost.v1.ErrorCode`:
+From `finfocus.v1.ErrorCode`:
 - `ERROR_CODE_UNSUPPORTED_REGION` (9): Region not supported by this binary
 - `ERROR_CODE_INVALID_RESOURCE` (6): Missing required fields in ResourceDescriptor
 - `ERROR_CODE_DATA_CORRUPTION` (11): Embedded pricing data is corrupt
-- See full list in `../pulumicost-spec/proto/pulumicost/v1/costsource.proto`
+- See full list in `../finfocus-spec/proto/finfocus/v1/costsource.proto`
 
 ## Estimation Logic
 
@@ -595,8 +595,8 @@ and excluded helps users accurately estimate total infrastructure costs.
 | Service | Included | Excluded | Carbon |
 |---------|----------|----------|--------|
 | EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e |
-| EBS | Storage GB-month | IOPS, throughput, snapshots | ❌ [#135](https://github.com/rshade/pulumicost-plugin-aws-public/issues/135) |
-| EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/pulumicost-plugin-aws-public/issues/136) |
+| EBS | Storage GB-month | IOPS, throughput, snapshots | ❌ [#135](https://github.com/rshade/finfocus-plugin-aws-public/issues/135) |
+| EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/finfocus-plugin-aws-public/issues/136) |
 | ElastiCache | On-demand node hours (Redis/Memcached/Valkey) | Reserved nodes, data transfer, snapshots | N/A |
 | ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
 | NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
@@ -604,7 +604,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | RDS | Instance hours + storage (gp2/gp3/io1), Multi-engine | Multi-AZ, read replicas, backups, IOPS | N/A |
 | S3 | Storage per GB-month by storage class | Requests, data transfer, lifecycle | N/A |
 | Lambda | Requests + compute (GB-seconds), x86_64/arm64 | Provisioned concurrency, Lambda@Edge | N/A |
-| DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ❌ [#137](https://github.com/rshade/pulumicost-plugin-aws-public/issues/137) |
+| DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ❌ [#137](https://github.com/rshade/finfocus-plugin-aws-public/issues/137) |
 
 ### EKS Clusters
 
@@ -953,7 +953,7 @@ call while all other code paths had been updated.
 ## Development Notes
 
 ### Implementing the Plugin Interface
-From `pulumicost-spec/sdk/go/pluginsdk`:
+From `finfocus-spec/sdk/go/pluginsdk`:
 ```go
 type Plugin interface {
     Name() string
@@ -973,12 +973,12 @@ func (s *Server) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.S
 ```
 
 ### Using pluginsdk.Serve()
-In `cmd/pulumicost-plugin-aws-public/main.go`:
+In `cmd/finfocus-plugin-aws-public/main.go`:
 ```go
 import (
     "context"
-    "github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-    "github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
+    "github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+    "github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
 )
 
 func main() {
@@ -1037,7 +1037,7 @@ func main() {
 ### Logging
 - **Never** log to stdout except for the PORT announcement, always use zerolog
 - Stdout is used **only** for `PORT=<port>` announcement
-- Use stderr with prefix `[pulumicost-plugin-aws-public]` for debug/diagnostic messages
+- Use stderr with prefix `[finfocus-plugin-aws-public]` for debug/diagnostic messages
 - Keep logging minimal by default
 
 ### Thread Safety
@@ -1080,13 +1080,13 @@ Future versions will support:
 ## Proto Dependencies
 
 This plugin depends on proto definitions from:
-- `github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1`
+- `github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1`
   - `CostSourceService` gRPC service
   - `ResourceDescriptor`, `GetProjectedCostRequest/Response`
   - `SupportsRequest/Response`, `PricingSpec`
   - `ErrorCode` enum, `ErrorDetail` message
 
-Always refer to the proto files in `../pulumicost-spec/proto/` for the authoritative API contract.
+Always refer to the proto files in `../finfocus-spec/proto/` for the authoritative API contract.
 
 ## Critical Protocol Notes
 
@@ -1105,21 +1105,7 @@ Always refer to the proto files in `../pulumicost-spec/proto/` for the authorita
 - Make pricing lookups thread-safe for concurrent RPCs
 
 
-- **Go 1.25+** with gRPC via pulumicost-spec/sdk/go/pluginsdk
-- **pulumicost-spec** protos for CostSourceService API
+- **Go 1.25+** with gRPC via finfocus-spec/sdk/go/pluginsdk
+- **finfocus-spec** protos for CostSourceService API
 - **zerolog** for structured JSON logging (stderr only)
 - **Embedded JSON** pricing data via `//go:embed` (no external storage)
-
-## Active Technologies
-- Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb) (016-runtime-actual-cost)
-- N/A (embedded pricing data, stateless service) (016-runtime-actual-cost)
-- Go 1.25+ + zerolog (logging), pluginsdk (gRPC), pulumicost-spec proto (020-dynamodb-hardening)
-- N/A (embedded pricing data) (020-dynamodb-hardening)
-- Go 1.25+ + gRPC (pulumicost-spec/sdk/go/pluginsdk), zerolog, sync.WaitGroup (001-elasticache)
-- Embedded JSON pricing data (via `//go:embed`) (001-elasticache)
-- Go 1.25+ + zerolog (logging), sync (thread safety), pulumicost-spec SDK (gRPC) (021-map-prealloc)
-- N/A (embedded pricing data via `//go:embed`) (021-map-prealloc)
-- Go 1.25+ + gRPC (pulumicost-spec v0.4.12), zerolog, go-json (030-core-protocol-intelligence)
-
-## Recent Changes
-- 016-runtime-actual-cost: Added Go 1.25+ + gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)

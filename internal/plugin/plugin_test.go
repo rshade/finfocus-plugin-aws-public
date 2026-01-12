@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -282,7 +282,7 @@ func TestName(t *testing.T) {
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
 	name := plugin.Name()
-	expected := "pulumicost-plugin-aws-public"
+	expected := "finfocus-plugin-aws-public"
 	if name != expected {
 		t.Errorf("Expected name %q, got %q", expected, name)
 	}

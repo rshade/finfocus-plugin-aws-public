@@ -59,6 +59,6 @@ Use `aws-public` for actual cost estimation when:
 
 For accurate actual cost reporting, we strongly recommend using a dedicated FinOps plugin that integrates with your cloud provider's billing data:
 
-- **[Vantage Plugin](https://github.com/rshade/pulumicost-plugin-vantage)**: Integrates with Vantage to provide precise historical cost data.
+- **[Vantage Plugin](https://github.com/rshade/finfocus-plugin-vantage)**: Integrates with Vantage to provide precise historical cost data.
 - **AWS Cost Explorer Plugin** (Planned): Will integrate directly with AWS Cost Explorer API.
 - **Kubecost Plugin** (Planned): For Kubernetes-specific cost visibility.

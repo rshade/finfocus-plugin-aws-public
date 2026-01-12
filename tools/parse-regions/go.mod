@@ -1,4 +1,4 @@
-module github.com/rshade/pulumicost-plugin-aws-public/tools/parse-regions
+module github.com/rshade/finfocus-plugin-aws-public/tools/parse-regions
 
 go 1.25.4
 

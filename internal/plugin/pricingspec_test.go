@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"

@@ -1,9 +1,9 @@
-# Project Context: pulumicost-plugin-aws-public
+# Project Context: finfocus-plugin-aws-public
 
 ## Core Architectural Identity
 
-The **pulumicost-plugin-aws-public** is a stateless, air-gapped gRPC projection
-engine. It serves as a specialized provider for the PulumiCost ecosystem,
+The **finfocus-plugin-aws-public** is a stateless, air-gapped gRPC projection
+engine. It serves as a specialized provider for the FinFocus ecosystem,
 transforming resource descriptors into cost and carbon estimates. Its primary
 design goal is to provide "good-enough" on-demand estimates without requiring
 AWS credentials or network access at runtime.
@@ -40,8 +40,8 @@ AWS credentials or network access at runtime.
 
 ## Interaction Model
 
-- **Protocol:** gRPC (implementing `pulumicost.v1.CostSourceService`).
-- **Lifecycle:** Orchestrated as a subprocess by PulumiCost Core.
+- **Protocol:** gRPC (implementing `finfocus.v1.CostSourceService`).
+- **Lifecycle:** Orchestrated as a subprocess by FinFocus Core.
 - **Discovery:** Announces its listening port via `stdout` (format:
   `PORT=XXXXX`).
 - **Telemetry:** Structured JSON logging (via `zerolog`) sent exclusively to

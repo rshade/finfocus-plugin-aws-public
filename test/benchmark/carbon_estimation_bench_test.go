@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
 
 const (

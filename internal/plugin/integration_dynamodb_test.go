@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -38,17 +38,17 @@ func TestIntegration_DynamoDB_Provisioned(t *testing.T) {
 	t.Log("Building binary with region_use1 tag...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-region-use1",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-region-use1",
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
-	defer os.Remove("../../dist/test-pulumicost-plugin-aws-public-region-use1")
+	defer os.Remove("../../dist/test-finfocus-plugin-aws-public-region-use1")
 
 	// Start the binary
 	t.Log("Starting binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-region-use1")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-region-use1")
 	cmd.Dir, _ = os.Getwd()
 
 	stdout, err := cmd.StdoutPipe()
@@ -157,17 +157,17 @@ func TestIntegration_DynamoDB_OnDemand(t *testing.T) {
 	t.Log("Building binary with region_use1 tag...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-region-use1-ondemand",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-region-use1-ondemand",
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
-	defer os.Remove("../../dist/test-pulumicost-plugin-aws-public-region-use1-ondemand")
+	defer os.Remove("../../dist/test-finfocus-plugin-aws-public-region-use1-ondemand")
 
 	// Start the binary
 	t.Log("Starting binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-region-use1-ondemand")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-region-use1-ondemand")
 	cmd.Dir, _ = os.Getwd()
 
 	stdout, err := cmd.StdoutPipe()

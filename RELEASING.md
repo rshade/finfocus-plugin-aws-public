@@ -1,6 +1,6 @@
-# Releasing pulumicost-plugin-aws-public
+# Releasing finfocus-plugin-aws-public
 
-This document describes the release process for the PulumiCost AWS Public Plugin.
+This document describes the release process for the FinFocus AWS Public Plugin.
 
 ## Overview
 
@@ -76,9 +76,9 @@ GoReleaser then:
 
 1. Generates pricing data for all regions (dummy data currently)
 2. Builds binaries for each region:
-   - `pulumicost-plugin-aws-public-us-east-1` (Linux, Darwin, Windows × amd64, arm64)
-   - `pulumicost-plugin-aws-public-us-west-2` (Linux, Darwin, Windows × amd64, arm64)
-   - `pulumicost-plugin-aws-public-eu-west-1` (Linux, Darwin, Windows × amd64, arm64)
+   - `finfocus-plugin-aws-public-us-east-1` (Linux, Darwin, Windows × amd64, arm64)
+   - `finfocus-plugin-aws-public-us-west-2` (Linux, Darwin, Windows × amd64, arm64)
+   - `finfocus-plugin-aws-public-eu-west-1` (Linux, Darwin, Windows × amd64, arm64)
 3. Creates GitHub Release with:
    - Changelog from release-please
    - Binary archives (tar.gz for Linux/Darwin, zip for Windows)
@@ -96,8 +96,8 @@ gh release list
 
 # Download and test a binary
 gh release download vX.Y.Z --pattern '*us-east-1*linux_amd64*'
-tar -xzf pulumicost-plugin-aws-public_vX.Y.Z_Linux_x86_64.tar.gz
-./pulumicost-plugin-aws-public-us-east-1
+tar -xzf finfocus-plugin-aws-public_vX.Y.Z_Linux_x86_64.tar.gz
+./finfocus-plugin-aws-public-us-east-1
 # Should output: PORT=<port>
 ```
 

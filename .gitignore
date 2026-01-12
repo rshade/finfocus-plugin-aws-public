@@ -40,8 +40,8 @@ internal/pricing/data/*.json
 internal/carbon/data/*.csv
 
 # Plugin binaries
-pulumicost-plugin-aws-public*
-!pulumicost-plugin-aws-public/
+finfocus-plugin-aws-public*
+!finfocus-plugin-aws-public/
 
 # GoReleaser artifacts
 vendor/

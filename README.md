@@ -1,7 +1,7 @@
-# PulumiCost AWS Public Plugin
+# FinFocus AWS Public Plugin
 
 A gRPC-based cost estimation plugin for
-[PulumiCost](https://github.com/rshade/pulumicost-core) that estimates AWS
+[FinFocus](https://github.com/rshade/finfocus-core) that estimates AWS
 infrastructure costs using publicly available AWS on-demand pricing data.
 
 ## Quick Start
@@ -10,14 +10,14 @@ infrastructure costs using publicly available AWS on-demand pricing data.
 
 ```bash
 # Clone the repository
-git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
-cd pulumicost-plugin-aws-public
+git clone https://github.com/rshade/finfocus-plugin-aws-public.git
+cd finfocus-plugin-aws-public
 
 # Build for your region (example: us-east-1)
 make build-region REGION=us-east-1
 
 # Start the plugin
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 ```
 
 ### Basic Usage
@@ -28,7 +28,7 @@ PORT=50051
 
 # Use grpcurl to test (example EC2 instance)
 grpcurl -plaintext localhost:$PORT \
-  pulumicost.v1.CostSourceService/GetProjectedCost \
+  finfocus.v1.CostSourceService/GetProjectedCost \
   -d '{
     "resource": {
       "provider": "aws",
@@ -68,7 +68,7 @@ This plugin provides basic actual cost estimation based on resource runtime and 
 
 ## Features
 
-- **gRPC Protocol**: Implements `CostSourceService` from `pulumicost.v1` proto
+- **gRPC Protocol**: Implements `CostSourceService` from `finfocus.v1` proto
 - **Region-Specific Binaries**: One binary per AWS region with embedded pricing
 - **Carbon Footprint Estimation**: EC2 instances include gCO2e metrics using CCF methodology
 - **Thread-Safe**: Concurrent RPC calls are handled safely
@@ -84,27 +84,27 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 
 **US Regions:**
 
-- `pulumicost-plugin-aws-public-us-east-1` (US East - N. Virginia)
-- `pulumicost-plugin-aws-public-us-west-2` (US West - Oregon)
+- `finfocus-plugin-aws-public-us-east-1` (US East - N. Virginia)
+- `finfocus-plugin-aws-public-us-west-2` (US West - Oregon)
 
 **Europe Regions:**
 
-- `pulumicost-plugin-aws-public-eu-west-1` (EU - Ireland)
+- `finfocus-plugin-aws-public-eu-west-1` (EU - Ireland)
 
 **Asia Pacific Regions:**
 
-- `pulumicost-plugin-aws-public-ap-southeast-1` (Asia Pacific - Singapore)
-- `pulumicost-plugin-aws-public-ap-southeast-2` (Asia Pacific - Sydney)
-- `pulumicost-plugin-aws-public-ap-northeast-1` (Asia Pacific - Tokyo)
-- `pulumicost-plugin-aws-public-ap-south-1` (Asia Pacific - Mumbai)
+- `finfocus-plugin-aws-public-ap-southeast-1` (Asia Pacific - Singapore)
+- `finfocus-plugin-aws-public-ap-southeast-2` (Asia Pacific - Sydney)
+- `finfocus-plugin-aws-public-ap-northeast-1` (Asia Pacific - Tokyo)
+- `finfocus-plugin-aws-public-ap-south-1` (Asia Pacific - Mumbai)
 
 **Canada Regions:**
 
-- `pulumicost-plugin-aws-public-ca-central-1` (Canada Central - Montreal)
+- `finfocus-plugin-aws-public-ca-central-1` (Canada Central - Montreal)
 
 **South America Regions:**
 
-- `pulumicost-plugin-aws-public-sa-east-1` (South America - São Paulo)
+- `finfocus-plugin-aws-public-sa-east-1` (South America - São Paulo)
 
 ### Cost Estimation
 
@@ -214,8 +214,8 @@ Always use one of the methods below to build with the correct `-tags` flag.
 
 ```bash
 # Clone the repository
-git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
-cd pulumicost-plugin-aws-public
+git clone https://github.com/rshade/finfocus-plugin-aws-public.git
+cd finfocus-plugin-aws-public
 
 # Build with fallback pricing (development only - NOT for production)
 make build
@@ -225,8 +225,8 @@ make build
 
 ```bash
 # Clone the repository
-git clone https://github.com/rshade/pulumicost-plugin-aws-public.git
-cd pulumicost-plugin-aws-public
+git clone https://github.com/rshade/finfocus-plugin-aws-public.git
+cd finfocus-plugin-aws-public
 
 # Build for default region (us-east-1 with real pricing)
 make build-default-region
@@ -235,8 +235,8 @@ make build-default-region
 make build-region REGION=us-east-1
 
 # OR use go build directly with region tags
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 \
-  ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 \
+  ./cmd/finfocus-plugin-aws-public
 ```
 
 ### Using GoReleaser
@@ -257,35 +257,35 @@ goreleaser build --snapshot --clean
 
 ```bash
 # Singapore (ap-southeast-1)
-go build -tags region_apse1 -o pulumicost-plugin-aws-public-ap-southeast-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apse1 -o finfocus-plugin-aws-public-ap-southeast-1 ./cmd/finfocus-plugin-aws-public
 
 # Sydney (ap-southeast-2)
-go build -tags region_apse2 -o pulumicost-plugin-aws-public-ap-southeast-2 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apse2 -o finfocus-plugin-aws-public-ap-southeast-2 ./cmd/finfocus-plugin-aws-public
 
 # Tokyo (ap-northeast-1)
-go build -tags region_apne1 -o pulumicost-plugin-aws-public-ap-northeast-1 \
-  ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apne1 -o finfocus-plugin-aws-public-ap-northeast-1 \
+  ./cmd/finfocus-plugin-aws-public
 
 # Mumbai (ap-south-1)
-go build -tags region_aps1 -o pulumicost-plugin-aws-public-ap-south-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_aps1 -o finfocus-plugin-aws-public-ap-south-1 ./cmd/finfocus-plugin-aws-public
 
 # Canada (ca-central-1)
-go build -tags region_cac1 -o pulumicost-plugin-aws-public-ca-central-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_cac1 -o finfocus-plugin-aws-public-ca-central-1 ./cmd/finfocus-plugin-aws-public
 
 # South America (sa-east-1)
-go build -tags region_sae1 -o pulumicost-plugin-aws-public-sa-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_sae1 -o finfocus-plugin-aws-public-sa-east-1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ## Usage
 
 ### Starting the Plugin
 
-The plugin is designed to be started by PulumiCost core, but can be run
+The plugin is designed to be started by FinFocus core, but can be run
 standalone for testing:
 
 ```bash
 # Start the plugin (announces PORT on stdout)
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 ```
 
 Output:
@@ -294,9 +294,9 @@ Output:
 PORT=50051
 ```
 
-### Integration with PulumiCost Core
+### Integration with FinFocus Core
 
-PulumiCost core discovers and communicates with the plugin via:
+FinFocus core discovers and communicates with the plugin via:
 
 1. **Startup**: Core starts plugin binary as subprocess
 2. **Port Discovery**: Core reads `PORT=<port>` from stdout
@@ -306,7 +306,7 @@ PulumiCost core discovers and communicates with the plugin via:
 ### Trace ID Propagation
 
 The plugin supports distributed tracing through trace ID propagation for request
-correlation across the PulumiCost ecosystem.
+correlation across the FinFocus ecosystem.
 
 #### How It Works
 
@@ -320,13 +320,13 @@ correlation across the PulumiCost ecosystem.
 
 #### Sending Trace ID
 
-Include `trace_id` in gRPC metadata using the key `pulumicost-trace-id`:
+Include `trace_id` in gRPC metadata using the key `finfocus-trace-id`:
 
 ```go
 import "google.golang.org/grpc/metadata"
 
 // Create metadata with trace_id
-md := metadata.Pairs("pulumicost-trace-id", "your-custom-trace-id")
+md := metadata.Pairs("finfocus-trace-id", "your-custom-trace-id")
 ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 // Use ctx for gRPC calls
@@ -570,7 +570,7 @@ Returns the plugin identifier.
 rpc Name(NameRequest) returns (NameResponse);
 ```
 
-**Response:** `name: "pulumicost-plugin-aws-public"`
+**Response:** `name: "finfocus-plugin-aws-public"`
 
 ### Supports()
 
@@ -615,7 +615,7 @@ rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
 
 - `name` - The unique identifier for the plugin
 - `version` - The plugin version (semver)
-- `spec_version` - The pulumicost-spec version implemented
+- `spec_version` - The finfocus-spec version implemented
 - `providers` - List of supported cloud providers (e.g., ["aws"])
 - `metadata` - Additional diagnostic key-value pairs (e.g., region, plugin type)
 
@@ -629,8 +629,8 @@ This allows you to interact with the plugin using standard HTTP tools like `curl
 Set the environment variable before starting the plugin:
 
 ```bash
-export PULUMICOST_PLUGIN_WEB_ENABLED=true
-./pulumicost-plugin-aws-public-us-east-1
+export FINFOCUS_PLUGIN_WEB_ENABLED=true
+./finfocus-plugin-aws-public-us-east-1
 ```
 
 The plugin will start and log: `"web serving enabled with multi-protocol support"`.
@@ -644,7 +644,7 @@ You can send JSON requests directly to the plugin's gRPC endpoints using HTTP/1.
 ```bash
 PORT=50051 # Replace with the actual port printed by the plugin
 
-curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetProjectedCost" \
+curl -X POST "http://localhost:$PORT/finfocus.v1.CostSourceService/GetProjectedCost" \
   -H "Content-Type: application/json" \
   -d '{
     "resource": {
@@ -659,7 +659,7 @@ curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetProjecte
 **Example: Get Plugin Info**
 
 ```bash
-curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetPluginInfo" \
+curl -X POST "http://localhost:$PORT/finfocus.v1.CostSourceService/GetPluginInfo" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
@@ -667,7 +667,7 @@ curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetPluginIn
 **Example: Get Actual Cost**
 
 ```bash
-curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetActualCost" \
+curl -X POST "http://localhost:$PORT/finfocus.v1.CostSourceService/GetActualCost" \
   -H "Content-Type: application/json" \
   -d '{
     "resource_id": "i-abc123",
@@ -686,7 +686,7 @@ curl -X POST "http://localhost:$PORT/pulumicost.v1.CostSourceService/GetActualCo
 
 ```json
 {
-  "name": "pulumicost-plugin-aws-public",
+  "name": "finfocus-plugin-aws-public",
   "version": "0.0.3",
   "specVersion": "v0.4.11",
   "providers": ["aws"],
@@ -706,7 +706,7 @@ const PORT = 50051; // Replace with actual port
 
 // Example: Get Projected Cost
 async function getCostEstimate() {
-  const response = await fetch(`http://localhost:${PORT}/pulumicost.v1.CostSourceService/GetProjectedCost`, {
+  const response = await fetch(`http://localhost:${PORT}/finfocus.v1.CostSourceService/GetProjectedCost`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -727,7 +727,7 @@ async function getCostEstimate() {
 
 // Example: Get Recommendations
 async function getRecommendations() {
-  const response = await fetch(`http://localhost:${PORT}/pulumicost.v1.CostSourceService/GetRecommendations`, {
+  const response = await fetch(`http://localhost:${PORT}/finfocus.v1.CostSourceService/GetRecommendations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -785,8 +785,8 @@ mode features.
 Set the environment variable before starting the plugin:
 
 ```bash
-export PULUMICOST_TEST_MODE=true
-./pulumicost-plugin-aws-public-us-east-1
+export FINFOCUS_TEST_MODE=true
+./finfocus-plugin-aws-public-us-east-1
 ```
 
 **Valid Values:**
@@ -809,7 +809,7 @@ Reference values for E2E test validation (as of 2025-12-01):
 When test mode is enabled, additional debug logs include calculation details:
 
 ```bash
-LOG_LEVEL=debug PULUMICOST_TEST_MODE=true ./pulumicost-plugin-aws-public-us-east-1
+LOG_LEVEL=debug FINFOCUS_TEST_MODE=true ./finfocus-plugin-aws-public-us-east-1
 ```
 
 ## Development
@@ -827,7 +827,7 @@ LOG_LEVEL=debug PULUMICOST_TEST_MODE=true ./pulumicost-plugin-aws-public-us-east
 make build
 
 # Region-specific build
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ### Adding New AWS Regions
@@ -881,7 +881,7 @@ make lint
 ```text
 .
 ├── cmd/
-│   └── pulumicost-plugin-aws-public/    # CLI entrypoint
+│   └── finfocus-plugin-aws-public/    # CLI entrypoint
 │       └── main.go
 ├── internal/
 │   ├── plugin/
@@ -943,7 +943,7 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 
 #### "Region not supported by this binary"
 
-- Ensure you're using the correct regional binary (e.g., `pulumicost-plugin-aws-public-us-east-1` for `us-east-1` resources)
+- Ensure you're using the correct regional binary (e.g., `finfocus-plugin-aws-public-us-east-1` for `us-east-1` resources)
 
 #### "EC2 instance type not found in pricing data"
 
@@ -958,7 +958,7 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 
 #### Plugin not starting"
 
-- Check that the binary has execute permissions: `chmod +x ./pulumicost-plugin-aws-public-*`
+- Check that the binary has execute permissions: `chmod +x ./finfocus-plugin-aws-public-*`
 - Verify you're in the correct directory
 - Check stderr for detailed error messages
 
@@ -992,17 +992,17 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 ### Post-Release Verification
 
 - [ ] Download released binary for primary region (us-east-1)
-- [ ] Check binary size: `stat -c%s pulumicost-plugin-aws-public-us-east-1` → should be > 10MB
+- [ ] Check binary size: `stat -c%s finfocus-plugin-aws-public-us-east-1` → should be > 10MB
 - [ ] Verify binary signature/checksum matches release
 
 ### Testing Real Pricing
 
 ```bash
 # Download released binary
-wget https://github.com/rshade/pulumicost-plugin-aws-public/releases/download/v0.x.x/pulumicost-plugin-aws-public_v0.x.x_Linux_x86_64
+wget https://github.com/rshade/finfocus-plugin-aws-public/releases/download/v0.x.x/finfocus-plugin-aws-public_v0.x.x_Linux_x86_64
 
 # Extract and test against real Pulumi plan
-./pulumicost-plugin-aws-public-us-east-1 &
+./finfocus-plugin-aws-public-us-east-1 &
 # Plugin starts and announces PORT
 
 # Use gRPC client to verify costs for real instance types:
@@ -1038,8 +1038,8 @@ emission estimation.
 
 ## Links
 
-- [PulumiCost Core](https://github.com/rshade/pulumicost-core)
-- [PulumiCost Spec](https://github.com/rshade/pulumicost-spec)
+- [FinFocus Core](https://github.com/rshade/finfocus-core)
+- [FinFocus Spec](https://github.com/rshade/finfocus-spec)
 - [AWS Pricing Documentation](https://aws.amazon.com/pricing/)
 - [API Documentation](docs/api.md)
-- [Code Documentation](https://pkg.go.dev/github.com/rshade/pulumicost-plugin-aws-public)
+- [Code Documentation](https://pkg.go.dev/github.com/rshade/finfocus-plugin-aws-public)

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/regionsconfig"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/regionsconfig"
 )
 
 // main is the program entrypoint. It parses command-line flags for the regions

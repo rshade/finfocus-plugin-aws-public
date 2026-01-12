@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,14 +23,21 @@ import (
 )
 
 // portAnnouncementTimeout is the maximum time to wait for the plugin to announce its listening port.
-// This can be overridden via the PULUMICOST_PORT_TIMEOUT environment variable (in milliseconds)
+// This can be overridden via the FINFOCUS_PORT_TIMEOUT environment variable (in milliseconds)
 // for slower CI environments or resource-constrained systems.
+// Backward compatibility is maintained with PORT_TIMEOUT.
 var portAnnouncementTimeout = getPortAnnouncementTimeout()
 
 // getPortAnnouncementTimeout reads the timeout from environment variable or returns default (15 seconds).
-// The environment variable PULUMICOST_PORT_TIMEOUT should specify the timeout in milliseconds.
+// The environment variables FINFOCUS_PORT_TIMEOUT or PORT_TIMEOUT should specify the timeout in milliseconds.
+// FINFOCUS_PORT_TIMEOUT takes precedence over PORT_TIMEOUT for backward compatibility.
 func getPortAnnouncementTimeout() time.Duration {
-	if envTimeout := os.Getenv("PULUMICOST_PORT_TIMEOUT"); envTimeout != "" {
+	// Check for new variable first, then fall back to deprecated
+	envTimeout := os.Getenv("FINFOCUS_PORT_TIMEOUT")
+	if envTimeout == "" {
+		envTimeout = os.Getenv("PORT_TIMEOUT")
+	}
+	if envTimeout != "" {
 		if ms, err := strconv.ParseInt(envTimeout, 10, 64); err == nil && ms > 0 {
 			return time.Duration(ms) * time.Millisecond
 		}
@@ -70,11 +77,11 @@ func TestIntegration_Validation(t *testing.T) {
 	// This ensures cleanup even if the test panics during build.
 	t.Log("Building plugin binary...")
 	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "pulumicost-plugin-aws-public")
+	binPath := filepath.Join(tmpDir, "finfocus-plugin-aws-public")
 
 	buildCmd := exec.Command("go", "build",
 		"-o", binPath,
-		"../../cmd/pulumicost-plugin-aws-public")
+		"../../cmd/finfocus-plugin-aws-public")
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
@@ -129,7 +136,7 @@ func TestIntegration_Validation(t *testing.T) {
 			wantCode: codes.InvalidArgument,
 		},
 		{
-			name: "empty request",
+			name:     "empty request",
 			resource: nil,
 			wantCode: codes.InvalidArgument,
 		},

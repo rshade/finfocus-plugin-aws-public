@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/verify-build.sh <binary-path>
-#   ./scripts/verify-build.sh pulumicost-plugin-aws-public-us-east-1
+#   ./scripts/verify-build.sh finfocus-plugin-aws-public-us-east-1
 #
 # This script checks:
 # 1. Binary exists
@@ -15,7 +15,7 @@
 
 set -e
 
-BINARY="${1:-pulumicost-plugin-aws-public-us-east-1}"
+BINARY="${1:-finfocus-plugin-aws-public-us-east-1}"
 
 if [ ! -f "$BINARY" ]; then
     echo "❌ ERROR: Binary not found: $BINARY"
@@ -49,7 +49,7 @@ if [ "$SIZE" -lt "$MIN_SIZE" ]; then
     echo "The v0.0.10 release had this issue, resulting in all costs being $0."
     echo ""
     echo "To rebuild with correct tags:"
-    echo "  go build -tags=region_use1 -o $BINARY ./cmd/pulumicost-plugin-aws-public/"
+    echo "  go build -tags=region_use1 -o $BINARY ./cmd/finfocus-plugin-aws-public/"
     exit 1
 fi
 

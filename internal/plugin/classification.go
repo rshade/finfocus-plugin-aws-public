@@ -1,6 +1,6 @@
 package plugin
 
-import pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+import pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 
 // ServiceClassification defines metadata for cost estimation enrichment
 type ServiceClassification struct {

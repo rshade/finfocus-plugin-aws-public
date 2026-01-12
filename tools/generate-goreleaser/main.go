@@ -6,7 +6,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/regionsconfig"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/regionsconfig"
 )
 
 // TemplateData holds the data passed to the GoReleaser template.
@@ -22,8 +22,8 @@ version: 2
 builds:
 {{- range .Regions}}
   - id: {{.Name}}
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-{{.Name}}
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-{{.Name}}
     env:
       - CGO_ENABLED=0
     goos:

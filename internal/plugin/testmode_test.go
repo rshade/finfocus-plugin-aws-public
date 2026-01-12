@@ -156,7 +156,7 @@ func TestValidateTestModeEnv(t *testing.T) {
 
 			// Verify warning contains expected content
 			if tt.expectWarning && hasWarning {
-				if !bytes.Contains(buf.Bytes(), []byte("Invalid PULUMICOST_TEST_MODE")) {
+				if !bytes.Contains(buf.Bytes(), []byte("Invalid FINFOCUS_TEST_MODE")) {
 					t.Errorf("Warning message missing expected content, got: %s", logOutput)
 				}
 				if !bytes.Contains(buf.Bytes(), []byte(tt.envValue)) {

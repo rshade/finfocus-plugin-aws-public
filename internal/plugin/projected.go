@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk/mapping"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk/mapping"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 )
 

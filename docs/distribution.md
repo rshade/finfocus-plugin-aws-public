@@ -1,6 +1,6 @@
 # Distribution and Release Configuration
 
-This document describes the configuration files used for building, packaging, and distributing the PulumiCost AWS Public Plugin.
+This document describes the configuration files used for building, packaging, and distributing the FinFocus AWS Public Plugin.
 
 ## GoReleaser Configuration
 
@@ -13,8 +13,8 @@ Each AWS region has a dedicated build configuration:
 ```yaml
 builds:
   - id: us-east-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-us-east-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-east-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -32,7 +32,7 @@ builds:
 
 ### Key Settings
 
-- **Binary Naming**: `pulumicost-plugin-aws-public-{region}` format
+- **Binary Naming**: `finfocus-plugin-aws-public-{region}` format
 - **Cross-Platform**: Linux, macOS (Darwin), and Windows builds
 - **Architecture**: AMD64 and ARM64 support
 - **Build Tags**: Region-specific tags for embedding pricing data
@@ -81,10 +81,10 @@ The plugin uses Go build tags to embed region-specific pricing data:
 
 ```bash
 # Build for US East 1 with real pricing
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
 
 # Build with fallback pricing (development only)
-go build -o pulumicost-plugin-aws-public ./cmd/pulumicost-plugin-aws-public
+go build -o finfocus-plugin-aws-public ./cmd/finfocus-plugin-aws-public
 ```
 
 ### Tag Format
@@ -147,10 +147,10 @@ go run ./tools/generate-pricing \
   --out-dir ./internal/pricing/data
 
 # Build specific region
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
 
 # Verify binary size (should be >10MB)
-ls -lh pulumicost-plugin-aws-public-us-east-1
+ls -lh finfocus-plugin-aws-public-us-east-1
 ```
 
 ## Adding New Regions

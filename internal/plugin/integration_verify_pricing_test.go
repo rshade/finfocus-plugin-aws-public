@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -63,8 +63,8 @@ func TestIntegration_VerifyPricingEmbedded(t *testing.T) {
 	t.Log("Building us-east-1 binary with real pricing...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-us-east-1",
+		"../../cmd/finfocus-plugin-aws-public")
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
@@ -73,11 +73,11 @@ func TestIntegration_VerifyPricingEmbedded(t *testing.T) {
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
-	defer os.Remove("../../dist/test-pulumicost-plugin-aws-public-us-east-1")
+	defer os.Remove("../../dist/test-finfocus-plugin-aws-public-us-east-1")
 
 	// Start the binary
 	t.Log("Starting gRPC server...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-us-east-1")
 	cmd.Dir = wd
 
 	stdout, err := cmd.StdoutPipe()

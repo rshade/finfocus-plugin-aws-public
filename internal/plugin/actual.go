@@ -5,22 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 )
 
-// Pulumi metadata tag keys.
-// These keys are injected by pulumicost-core from Pulumi state.
+// Standard tag keys for Pulumi state metadata.
+// These keys are injected by finfocus-core from Pulumi state.
 const (
-	// TagPulumiCreated is the RFC3339 timestamp of resource creation in Pulumi state.
-	// For imported resources, this is the import time, not actual cloud creation.
-	TagPulumiCreated = "pulumi:created"
-
-	// TagPulumiModified is the RFC3339 timestamp of last modification.
-	// NOTE: This feature does NOT use modified time as a fallback for created.
+	TagPulumiCreated  = "pulumi:created"
 	TagPulumiModified = "pulumi:modified"
-
-	// TagPulumiExternal indicates the resource was imported (not created by Pulumi).
-	// Value is "true" when present; absence means native Pulumi resource.
 	TagPulumiExternal = "pulumi:external"
 )
 

@@ -5,8 +5,8 @@ version: 2
 
 builds:
   - id: us-east-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-us-east-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-east-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -22,8 +22,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: us-west-2
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-us-west-2
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-west-2
     env:
       - CGO_ENABLED=0
     goos:
@@ -39,8 +39,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: eu-west-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-eu-west-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-eu-west-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -56,8 +56,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: ap-southeast-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-ap-southeast-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-ap-southeast-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -73,8 +73,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: ap-southeast-2
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-ap-southeast-2
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-ap-southeast-2
     env:
       - CGO_ENABLED=0
     goos:
@@ -90,8 +90,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: ap-northeast-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-ap-northeast-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-ap-northeast-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -107,8 +107,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: ap-south-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-ap-south-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-ap-south-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -124,8 +124,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: ca-central-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-ca-central-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-ca-central-1
     env:
       - CGO_ENABLED=0
     goos:
@@ -141,8 +141,8 @@ builds:
       - -s -w -X main.version={{ .Version }}
 
   - id: sa-east-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-sa-east-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-sa-east-1
     env:
       - CGO_ENABLED=0
     goos:

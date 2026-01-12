@@ -29,20 +29,20 @@ echo "Verifying release archives in $DIST_DIR..."
 echo ""
 
 # Find the first Linux x86_64 archive to verify
-# Archive naming pattern: pulumicost-plugin-aws-public_${VERSION}_Linux_x86_64_${REGION}.tar.gz
-ARCHIVE=$(find "$DIST_DIR" -maxdepth 1 -name "pulumicost-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | head -1)
+# Archive naming pattern: finfocus-plugin-aws-public_${VERSION}_Linux_x86_64_${REGION}.tar.gz
+ARCHIVE=$(find "$DIST_DIR" -maxdepth 1 -name "finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | head -1)
 
 if [ -z "$ARCHIVE" ]; then
-    echo "❌ FAILURE: No archives found matching pattern 'pulumicost-plugin-aws-public_*_Linux_x86_64_*.tar.gz'"
+    echo "❌ FAILURE: No archives found matching pattern 'finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz'"
     echo "   Found in $DIST_DIR:"
     ls -la "$DIST_DIR"/ 2>/dev/null || echo "   (directory empty or not accessible)"
     echo ""
-    echo "   Expected archives like: pulumicost-plugin-aws-public_0.0.13_Linux_x86_64_us-east-1.tar.gz"
+    echo "   Expected archives like: finfocus-plugin-aws-public_0.0.13_Linux_x86_64_us-east-1.tar.gz"
     exit 1
 fi
 
 # Count total archives for reporting
-TOTAL_ARCHIVES=$(find "$DIST_DIR" -maxdepth 1 -name "pulumicost-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | wc -l)
+TOTAL_ARCHIVES=$(find "$DIST_DIR" -maxdepth 1 -name "finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | wc -l)
 
 echo "Found $TOTAL_ARCHIVES Linux x86_64 archive(s)"
 echo "Verifying one archive (all built with same process)..."
@@ -59,7 +59,7 @@ echo "Checking: $archive_name"
 tar -xzf "$ARCHIVE" -C "$TEMP_DIR"
 
 # Find the binary (it's the only executable in the archive)
-binary=$(find "$TEMP_DIR" -type f -name "pulumicost-plugin-aws-public-*" | head -1)
+binary=$(find "$TEMP_DIR" -type f -name "finfocus-plugin-aws-public-*" | head -1)
 
 if [ -z "$binary" ]; then
     echo "  ❌ FAIL: No binary found in archive"

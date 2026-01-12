@@ -1,4 +1,4 @@
-module github.com/rshade/pulumicost-plugin-aws-public
+module github.com/rshade/finfocus-plugin-aws-public
 
 go 1.25.5
 
@@ -6,7 +6,7 @@ require (
 	github.com/goccy/go-json v0.10.5
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
-	github.com/rshade/pulumicost-spec v0.4.14
+	github.com/rshade/finfocus-spec v0.5.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11

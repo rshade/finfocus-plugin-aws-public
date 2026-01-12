@@ -16,15 +16,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
 // Note: portAnnouncementTimeout is defined in validation_integration_test.go
-// with env var override support (PULUMICOST_PORT_TIMEOUT). That version is shared
+// with env var override support (FINFOCUS_PORT_TIMEOUT). That version is shared
 // across all integration tests in this package.
 
 // TestIntegration_APSoutheast1_Binary performs end-to-end testing of the ap-southeast-1 binary.
@@ -52,17 +52,17 @@ func TestIntegration_APSoutheast1_Binary(t *testing.T) {
 	t.Log("Building ap-southeast-1 binary...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_apse1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-ap-southeast-1",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-ap-southeast-1",
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
-	defer os.Remove("../../dist/test-pulumicost-plugin-aws-public-ap-southeast-1")
+	defer os.Remove("../../dist/test-finfocus-plugin-aws-public-ap-southeast-1")
 
 	// Start the binary
 	t.Log("Starting ap-southeast-1 binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-ap-southeast-1")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-ap-southeast-1")
 	cmd.Dir, _ = os.Getwd()
 
 	stdout, err := cmd.StdoutPipe()
@@ -125,16 +125,16 @@ func TestIntegration_APSoutheast1_Binary(t *testing.T) {
 			t.Fatalf("Name() failed: %v", err)
 		}
 		t.Logf("Plugin name: %s", resp.Name)
-		if resp.Name != "pulumicost-plugin-aws-public" {
-			t.Errorf("Expected name 'pulumicost-plugin-aws-public', got %q", resp.Name)
+		if resp.Name != "finfocus-plugin-aws-public" {
+			t.Errorf("Expected name 'finfocus-plugin-aws-public', got %q", resp.Name)
 		}
 	})
 
 	// TODO(rshade): Re-enable Supports() tests once gRPC handler is implemented
 	// Supports() is not exposed via gRPC by pluginsdk - it works in unit tests but not integration tests.
 	// Tracking issues:
-	//   - pulumicost-spec#64: Add Supports() RPC method to proto
-	//   - pulumicost-core#160: Implement Supports() gRPC handler in pluginsdk
+	//   - finfocus-spec#64: Add Supports() RPC method to proto
+	//   - finfocus-core#160: Implement Supports() gRPC handler in pluginsdk
 	// For now, GetProjectedCost() properly validates regions and rejects mismatches.
 
 	// Test 4: GetProjectedCost() - t3.micro in ap-southeast-1
@@ -284,7 +284,7 @@ func TestIntegration_TraceIDPropagation(t *testing.T) {
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_apse1",
 		"-o", "../../dist/test-traceid-binary",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
@@ -448,8 +448,8 @@ func TestIntegration_EKS_UseEast1_Binary(t *testing.T) {
 	t.Log("Building us-east-1 binary for EKS testing...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1-eks",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-us-east-1-eks",
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	output, err := buildCmd.CombinedOutput()
 	if err != nil {
@@ -458,14 +458,14 @@ func TestIntegration_EKS_UseEast1_Binary(t *testing.T) {
 
 	// Ensure cleanup
 	defer func() {
-		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-us-east-1-eks"); err != nil {
+		if err := os.Remove("../../dist/test-finfocus-plugin-aws-public-us-east-1-eks"); err != nil {
 			t.Logf("Warning: failed to cleanup test binary: %v", err)
 		}
 	}()
 
 	// Start the binary
 	t.Log("Starting us-east-1 binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1-eks")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-us-east-1-eks")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to get stdout pipe: %v", err)
@@ -646,8 +646,8 @@ func TestIntegration_Lambda_UseEast1_Binary(t *testing.T) {
 	t.Log("Building us-east-1 binary for Lambda testing...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_use1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-us-east-1-lambda",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-us-east-1-lambda",
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	output, err := buildCmd.CombinedOutput()
 	if err != nil {
@@ -656,14 +656,14 @@ func TestIntegration_Lambda_UseEast1_Binary(t *testing.T) {
 
 	// Ensure cleanup
 	defer func() {
-		if err := os.Remove("../../dist/test-pulumicost-plugin-aws-public-us-east-1-lambda"); err != nil {
+		if err := os.Remove("../../dist/test-finfocus-plugin-aws-public-us-east-1-lambda"); err != nil {
 			t.Logf("Warning: failed to cleanup test binary: %v", err)
 		}
 	}()
 
 	// Start the binary
 	t.Log("Starting us-east-1 binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-us-east-1-lambda")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-us-east-1-lambda")
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("Failed to get stdout pipe: %v", err)

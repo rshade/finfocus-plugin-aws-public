@@ -11,7 +11,7 @@ package integration
 import (
 	"testing"
 
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

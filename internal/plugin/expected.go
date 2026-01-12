@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
 
 // ExpectedCostRange defines expected cost values with tolerance for E2E test validation.

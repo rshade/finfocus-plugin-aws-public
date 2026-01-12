@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	pb "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 )
 
 func TestSupports(t *testing.T) {
@@ -18,15 +18,15 @@ func TestSupports(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		req              *pbc.SupportsRequest
+		req              *pb.SupportsRequest
 		wantSupported    bool
 		wantReasonSubstr string // substring to check in reason
 	}{
 		// Fully supported resource types in correct region
 		{
 			name: "EC2 in correct region",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "us-east-1",
@@ -37,8 +37,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "EBS in correct region",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ebs",
 					Region:       "us-east-1",
@@ -51,8 +51,8 @@ func TestSupports(t *testing.T) {
 		// Stub/limited support resource types
 		{
 			name: "S3 fully supported",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "s3",
 					Region:       "us-east-1",
@@ -63,8 +63,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "S3 global fallback (empty region)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "s3",
 					Region:       "", // Empty region should fallback to plugin region
@@ -75,8 +75,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "Lambda fully supported",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "lambda",
 					Region:       "us-east-1",
@@ -87,8 +87,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "RDS fully supported",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "rds",
 					Region:       "us-east-1",
@@ -99,8 +99,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "DynamoDB fully supported",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "dynamodb",
 					Region:       "us-east-1",
@@ -112,8 +112,8 @@ func TestSupports(t *testing.T) {
 		// ElastiCache support (T050)
 		{
 			name: "ElastiCache supported",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "elasticache",
 					Region:       "us-east-1",
@@ -125,8 +125,8 @@ func TestSupports(t *testing.T) {
 		// ElastiCache Pulumi Cluster format (T051)
 		{
 			name: "ElastiCache Pulumi Cluster format",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "aws:elasticache/cluster:Cluster",
 					Region:       "us-east-1",
@@ -138,8 +138,8 @@ func TestSupports(t *testing.T) {
 		// ElastiCache Pulumi ReplicationGroup format (T052)
 		{
 			name: "ElastiCache Pulumi ReplicationGroup format",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "aws:elasticache/replicationGroup:ReplicationGroup",
 					Region:       "us-east-1",
@@ -152,8 +152,8 @@ func TestSupports(t *testing.T) {
 		// Wrong region
 		{
 			name: "EC2 in wrong region",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "eu-west-1",
@@ -164,8 +164,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "EBS in wrong region",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ebs",
 					Region:       "us-west-2",
@@ -176,8 +176,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "EC2 in ap-southeast-1 (wrong for us-east-1 binary)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "ap-southeast-1",
@@ -188,8 +188,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "EBS in ap-southeast-1 (wrong for us-east-1 binary)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ebs",
 					Region:       "ap-southeast-1",
@@ -202,8 +202,8 @@ func TestSupports(t *testing.T) {
 		// Wrong provider
 		{
 			name: "GCP provider",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "gcp",
 					ResourceType: "compute",
 					Region:       "us-east-1",
@@ -214,8 +214,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "Azure provider",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "azure",
 					ResourceType: "vm",
 					Region:       "us-east-1",
@@ -228,8 +228,8 @@ func TestSupports(t *testing.T) {
 		// Unknown resource types (edge case coverage)
 		{
 			name: "Unknown resource type",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "unknown-service",
 					Region:       "us-east-1",
@@ -240,8 +240,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "CloudFront not implemented",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "cloudfront",
 					Region:       "us-east-1",
@@ -254,8 +254,8 @@ func TestSupports(t *testing.T) {
 		// Pulumi resource type format support
 		{
 			name: "EC2 with Pulumi format",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "aws:ec2/instance:Instance",
 					Region:       "us-east-1",
@@ -266,8 +266,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "EBS with Pulumi format",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "aws:ebs/volume:Volume",
 					Region:       "us-east-1",
@@ -278,8 +278,8 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "S3 with Pulumi format",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "aws:s3/bucket:Bucket",
 					Region:       "us-east-1",
@@ -298,7 +298,7 @@ func TestSupports(t *testing.T) {
 		},
 		{
 			name: "Nil resource descriptor",
-			req: &pbc.SupportsRequest{
+			req: &pb.SupportsRequest{
 				Resource: nil,
 			},
 			wantSupported:    false,
@@ -336,8 +336,8 @@ func TestSupportsLogsContainRequiredFields(t *testing.T) {
 	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	req := &pbc.SupportsRequest{
-		Resource: &pbc.ResourceDescriptor{
+	req := &pb.SupportsRequest{
+		Resource: &pb.ResourceDescriptor{
 			Provider:     "aws",
 			ResourceType: "ec2",
 			Region:       "us-east-1",
@@ -414,14 +414,14 @@ func TestSupports_CACentral1(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		req              *pbc.SupportsRequest
+		req              *pb.SupportsRequest
 		wantSupported    bool
 		wantReasonSubstr string
 	}{
 		{
 			name: "EC2 in ca-central-1",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "ca-central-1",
@@ -432,8 +432,8 @@ func TestSupports_CACentral1(t *testing.T) {
 		},
 		{
 			name: "EBS in ca-central-1",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ebs",
 					Region:       "ca-central-1",
@@ -444,8 +444,8 @@ func TestSupports_CACentral1(t *testing.T) {
 		},
 		{
 			name: "S3 in ca-central-1 (fully supported)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "s3",
 					Region:       "ca-central-1",
@@ -456,8 +456,8 @@ func TestSupports_CACentral1(t *testing.T) {
 		},
 		{
 			name: "EC2 in us-east-1 (wrong for ca-central-1 binary)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "us-east-1",
@@ -468,8 +468,8 @@ func TestSupports_CACentral1(t *testing.T) {
 		},
 		{
 			name: "EC2 in sa-east-1 (different region)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "sa-east-1",
@@ -510,14 +510,14 @@ func TestSupports_SAEast1(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		req              *pbc.SupportsRequest
+		req              *pb.SupportsRequest
 		wantSupported    bool
 		wantReasonSubstr string
 	}{
 		{
 			name: "EC2 in sa-east-1",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "sa-east-1",
@@ -528,8 +528,8 @@ func TestSupports_SAEast1(t *testing.T) {
 		},
 		{
 			name: "EBS in sa-east-1",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ebs",
 					Region:       "sa-east-1",
@@ -540,8 +540,8 @@ func TestSupports_SAEast1(t *testing.T) {
 		},
 		{
 			name: "Lambda in sa-east-1 (fully supported)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "lambda",
 					Region:       "sa-east-1",
@@ -552,8 +552,8 @@ func TestSupports_SAEast1(t *testing.T) {
 		},
 		{
 			name: "EC2 in eu-west-1 (wrong for sa-east-1 binary)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "eu-west-1",
@@ -564,8 +564,8 @@ func TestSupports_SAEast1(t *testing.T) {
 		},
 		{
 			name: "EC2 in ca-central-1 (different region)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "ca-central-1",
@@ -608,8 +608,8 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
-		Resource: &pbc.ResourceDescriptor{
+	resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+		Resource: &pb.ResourceDescriptor{
 			Provider:     "aws",
 			ResourceType: "ec2",
 			Region:       "us-east-1",
@@ -631,7 +631,7 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 
 	foundCarbon := false
 	for _, m := range resp.SupportedMetrics {
-		if m == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+		if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 			foundCarbon = true
 			break
 		}
@@ -648,8 +648,8 @@ func TestSupports_DynamoDB_NoSupportedMetrics(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
-		Resource: &pbc.ResourceDescriptor{
+	resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+		Resource: &pb.ResourceDescriptor{
 			Provider:     "aws",
 			ResourceType: "dynamodb",
 			Region:       "us-east-1",
@@ -694,8 +694,8 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.resourceType, func(t *testing.T) {
-			resp, err := plugin.Supports(context.Background(), &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: tt.resourceType,
 					Region:       "us-east-1",
@@ -708,7 +708,7 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 
 			hasCarbon := false
 			for _, m := range resp.SupportedMetrics {
-				if m == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+				if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 					hasCarbon = true
 					break
 				}
@@ -729,14 +729,14 @@ func TestSupports_APSoutheast1(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		req              *pbc.SupportsRequest
+		req              *pb.SupportsRequest
 		wantSupported    bool
 		wantReasonSubstr string
 	}{
 		{
 			name: "EC2 in ap-southeast-1",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "ap-southeast-1",
@@ -747,8 +747,8 @@ func TestSupports_APSoutheast1(t *testing.T) {
 		},
 		{
 			name: "EBS in ap-southeast-1",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ebs",
 					Region:       "ap-southeast-1",
@@ -759,8 +759,8 @@ func TestSupports_APSoutheast1(t *testing.T) {
 		},
 		{
 			name: "S3 in ap-southeast-1 (fully supported)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "s3",
 					Region:       "ap-southeast-1",
@@ -771,8 +771,8 @@ func TestSupports_APSoutheast1(t *testing.T) {
 		},
 		{
 			name: "EC2 in us-east-1 (wrong for ap-southeast-1 binary)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "us-east-1",
@@ -783,8 +783,8 @@ func TestSupports_APSoutheast1(t *testing.T) {
 		},
 		{
 			name: "EC2 in ap-southeast-2 (different AP region)",
-			req: &pbc.SupportsRequest{
-				Resource: &pbc.ResourceDescriptor{
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
 					Provider:     "aws",
 					ResourceType: "ec2",
 					Region:       "ap-southeast-2",

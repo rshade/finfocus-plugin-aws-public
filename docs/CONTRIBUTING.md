@@ -1,19 +1,19 @@
-# Contributing to PulumiCost AWS Public Plugin
+# Contributing to FinFocus AWS Public Plugin
 
-Thank you for your interest in contributing to the PulumiCost AWS Public Plugin!
+Thank you for your interest in contributing to the FinFocus AWS Public Plugin!
 This document provides guidelines and information for contributors.
 
 ## Ways to Contribute
 
 ### 🐛 Reporting Issues
 
-- Use the [GitHub issue tracker](https://github.com/rshade/pulumicost-plugin-aws-public/issues)
+- Use the [GitHub issue tracker](https://github.com/rshade/finfocus-plugin-aws-public/issues)
 - Check existing issues to avoid duplicates
 - Provide detailed reproduction steps and environment information
 
 ### 💡 Suggesting Features
 
-- Open a [feature request](https://github.com/rshade/pulumicost-plugin-aws-public/issues/new?template=feature_request.md)
+- Open a [feature request](https://github.com/rshade/finfocus-plugin-aws-public/issues/new?template=feature_request.md)
 - Describe the problem you're trying to solve
 - Explain why this feature would be valuable
 
@@ -43,8 +43,8 @@ This document provides guidelines and information for contributors.
 
 ```bash
 # Clone your fork
-git clone https://github.com/your-username/pulumicost-plugin-aws-public.git
-cd pulumicost-plugin-aws-public
+git clone https://github.com/your-username/finfocus-plugin-aws-public.git
+cd finfocus-plugin-aws-public
 
 # Install dependencies
 go mod download
@@ -155,7 +155,7 @@ By contributing to this project, you agree that your contributions will be licen
 ## Getting Help
 
 - 📖 [Documentation](README.md)
-- 💬 [GitHub Discussions](https://github.com/rshade/pulumicost-plugin-aws-public/discussions)
-- 🐛 [Issue Tracker](https://github.com/rshade/pulumicost-plugin-aws-public/issues)
+- 💬 [GitHub Discussions](https://github.com/rshade/finfocus-plugin-aws-public/discussions)
+- 🐛 [Issue Tracker](https://github.com/rshade/finfocus-plugin-aws-public/issues)
 
-Thank you for contributing to PulumiCost! 🎉
+Thank you for contributing to FinFocus! 🎉

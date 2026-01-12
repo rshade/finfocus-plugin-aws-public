@@ -8,10 +8,10 @@ This directory contains sample ResourceDescriptor JSON files for manual testing 
 
 ```bash
 # Build and start the plugin for us-east-1
-go run ./cmd/pulumicost-plugin-aws-public
+go run ./cmd/finfocus-plugin-aws-public
 
 # Or use a pre-built binary
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 ```
 
 **Output**: `PORT=<port>` (capture this port number)
@@ -29,7 +29,7 @@ go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 **EC2 Instance (t3.micro)**:
 
 ```bash
-grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost < testdata/ec2-t3-micro-us-east-1.json
+grpcurl -plaintext -d @ localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost < testdata/ec2-t3-micro-us-east-1.json
 ```
 
 **Expected Response**:
@@ -46,7 +46,7 @@ grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProj
 **EBS Volume (gp3, 100GB)**:
 
 ```bash
-grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost < testdata/ebs-gp3-100gb-us-east-1.json
+grpcurl -plaintext -d @ localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost < testdata/ebs-gp3-100gb-us-east-1.json
 ```
 
 **Expected Response**:
@@ -63,7 +63,7 @@ grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProj
 **EBS Volume (default size)**:
 
 ```bash
-grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost < testdata/ebs-gp2-default-size-us-east-1.json
+grpcurl -plaintext -d @ localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost < testdata/ebs-gp2-default-size-us-east-1.json
 ```
 
 **Expected Response**:
@@ -80,7 +80,7 @@ grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProj
 **S3 Bucket (stub service)**:
 
 ```bash
-grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost < testdata/s3-bucket-us-east-1.json
+grpcurl -plaintext -d @ localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost < testdata/s3-bucket-us-east-1.json
 ```
 
 **Expected Response**:
@@ -97,7 +97,7 @@ grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProj
 **Region Mismatch (us-west-2 resource with us-east-1 plugin)**:
 
 ```bash
-grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost < testdata/ec2-m5-large-us-west-2.json
+grpcurl -plaintext -d @ localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost < testdata/ec2-m5-large-us-west-2.json
 ```
 
 **Expected Error**:
@@ -114,7 +114,7 @@ ERROR:
 
 ```bash
 grpcurl -plaintext -d '{"resource": {"provider": "aws", "resource_type": "ec2", "region": "us-east-1"}}' \
-  localhost:<port> pulumicost.v1.CostSourceService/Supports
+  localhost:<port> finfocus.v1.CostSourceService/Supports
 ```
 
 **Expected Response**:
@@ -130,7 +130,7 @@ grpcurl -plaintext -d '{"resource": {"provider": "aws", "resource_type": "ec2", 
 
 ```bash
 grpcurl -plaintext -d '{"resource": {"provider": "aws", "resource_type": "s3", "region": "us-east-1"}}' \
-  localhost:<port> pulumicost.v1.CostSourceService/Supports
+  localhost:<port> finfocus.v1.CostSourceService/Supports
 ```
 
 **Expected Response**:
@@ -146,7 +146,7 @@ grpcurl -plaintext -d '{"resource": {"provider": "aws", "resource_type": "s3", "
 
 ```bash
 grpcurl -plaintext -d '{"resource": {"provider": "aws", "resource_type": "ec2", "region": "us-west-2"}}' \
-  localhost:<port> pulumicost.v1.CostSourceService/Supports
+  localhost:<port> finfocus.v1.CostSourceService/Supports
 ```
 
 **Expected Response**:
@@ -161,7 +161,7 @@ grpcurl -plaintext -d '{"resource": {"provider": "aws", "resource_type": "ec2", 
 ### Name RPC
 
 ```bash
-grpcurl -plaintext localhost:<port> pulumicost.v1.CostSourceService/Name
+grpcurl -plaintext localhost:<port> finfocus.v1.CostSourceService/Name
 ```
 
 **Expected Response**:
@@ -216,13 +216,13 @@ ResourceDescriptor JSON format:
 
 **Connection Refused**:
 
-- Verify plugin is running: `ps aux | grep pulumicost-plugin`
+- Verify plugin is running: `ps aux | grep finfocus-plugin`
 - Check PORT was announced: Look for `PORT=<port>` in plugin output
 - Ensure using correct port number in grpcurl
 
 **gRPC Method Not Found**:
 
-- Verify proto path: `pulumicost.v1.CostSourceService/<method>`
+- Verify proto path: `finfocus.v1.CostSourceService/<method>`
 - Check plugin implements all required RPCs: Name, Supports, GetProjectedCost
 
 **Invalid JSON**:
@@ -237,7 +237,7 @@ Test concurrent RPC calls:
 ```bash
 # Launch 10 concurrent requests
 for i in {1..10}; do
-  grpcurl -plaintext -d @ localhost:<port> pulumicost.v1.CostSourceService/GetProjectedCost \
+  grpcurl -plaintext -d @ localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost \
     < testdata/ec2-t3-micro-us-east-1.json &
 done
 wait
@@ -247,11 +247,11 @@ wait
 
 ## Integration Testing
 
-For integration with pulumicost-core:
+For integration with finfocus-core:
 
 1. Ensure plugin binary is in PATH or specify full path in core config
 2. Core will start plugin as subprocess and capture PORT
 3. Core connects via gRPC to localhost:<port>
 4. Core calls GetProjectedCost for each resource in Pulumi state
 
-See [quickstart.md](../specs/001-pulumicost-aws-plugin/quickstart.md) for full integration examples.
+See [quickstart.md](../specs/001-finfocus-aws-plugin/quickstart.md) for full integration examples.

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 )
@@ -30,16 +30,18 @@ const (
 	modTypeVolumeUpgrade = "volume_type_upgrade"
 	// defaultEBSVolumeGB is the default volume size when not specified in tags.
 	defaultEBSVolumeGB = 100
-	// defaultMaxBatchSize is the default maximum batch size for GetRecommendations.
+	// defaultMaxBatchSize is the default maximum number of resources to process in GetRecommendations
 	defaultMaxBatchSize = 100
-	// maxMaxBatchSize is the upper bound to prevent resource exhaustion.
-	maxMaxBatchSize = 1000
-	// EnvMaxBatchSize is the environment variable for configuring batch size.
-	EnvMaxBatchSize = "PULUMICOST_MAX_BATCH_SIZE"
-	// EnvStrictValidation is the environment variable for enabling strict validation.
-	// When set to "true", GetRecommendations will fail on any invalid resource
-	// instead of silently skipping it.
-	EnvStrictValidation = "PULUMICOST_STRICT_VALIDATION"
+	// maxMaxBatchSize is the absolute maximum allowed batch size to prevent OOM/abuse
+	maxMaxBatchSize = 500
+	// EnvMaxBatchSize is the environment variable to override defaultMaxBatchSize
+	EnvMaxBatchSize = "FINFOCUS_MAX_BATCH_SIZE"
+	// EnvMaxBatchSizeDeprecated is the deprecated environment variable for backward compatibility
+	EnvMaxBatchSizeDeprecated = "MAX_BATCH_SIZE"
+	// EnvStrictValidation is the environment variable to enable fail-fast validation
+	EnvStrictValidation = "FINFOCUS_STRICT_VALIDATION"
+	// EnvStrictValidationDeprecated is the deprecated environment variable for backward compatibility
+	EnvStrictValidationDeprecated = "STRICT_VALIDATION"
 )
 
 // Ensure AWSPublicPlugin implements RecommendationsProvider.
@@ -189,7 +191,7 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 					Str("recommendation_id", rec.Id).
 					Msg("recommendation missing resource data")
 			}
-			
+
 			if rec.Impact != nil {
 				pctx.BatchStats.TotalSavings += rec.Impact.GetEstimatedSavings()
 			} else {
@@ -408,7 +410,7 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 		},
 		// FR-012: Include relevant metadata (architecture warnings)
 		Metadata: map[string]string{
-			"architecture_change":  "x86_64 -> arm64",
+			"architecture_change": "x86_64 -> arm64",
 			"requires_validation": "Application must support ARM architecture",
 		},
 		Source: sourceAWSPublic,

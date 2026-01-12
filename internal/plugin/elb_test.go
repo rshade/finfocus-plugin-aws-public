@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +27,13 @@ func createELBMockPlugin(region string) *AWSPublicPlugin {
 // - LCU extraction from tags
 // - Correct hourly and capacity-based cost calculation
 // - Proper billing detail formatting
+//
+// Test workflow:
+//  1. Initialize mock plugin with ALB pricing
+//  2. Define test cases for different SKUs and LCU values
+//  3. Call estimateELB for each test case
+//  4. Assert calculated monthly cost matches expected range
+//  5. Verify billing detail contains expected ALB/LCU information
 func TestEstimateELB_ALB(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -109,6 +116,13 @@ func TestEstimateELB_ALB(t *testing.T) {
 // - NLCU extraction from tags
 // - Correct hourly and capacity-based cost calculation
 // - Proper billing detail formatting with NLCU metric
+//
+// Test workflow:
+//  1. Initialize mock plugin with NLB pricing
+//  2. Define test cases for various NLB SKUs and NLCU values
+//  3. Execute estimateELB for each configuration
+//  4. Assert that monthly cost falls within expected regional bounds
+//  5. Verify that billing detail correctly reports NLCU usage
 func TestEstimateELB_NLB(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -182,6 +196,12 @@ func TestEstimateELB_NLB(t *testing.T) {
 // This test validates:
 // - Generic capacity_units tag is used when type-specific tag not found
 // - Fallback works for both ALB and NLB
+//
+// Test workflow:
+//  1. Setup mock plugin
+//  2. Provide resource with generic 'capacity_units' tag instead of 'lcu_per_hour' or 'nlcu_per_hour'
+//  3. Call estimateELB
+//  4. Assert that the capacity value is correctly identified and used for the specific LB type
 func TestEstimateELB_FallbackCapacityUnits(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -232,6 +252,12 @@ func TestEstimateELB_FallbackCapacityUnits(t *testing.T) {
 // - Non-numeric capacity unit values are gracefully handled
 // - Cost calculation defaults to fixed rate only
 // - No error is returned for invalid tag values
+//
+// Test workflow:
+//  1. Create mock plugin
+//  2. Provide a resource with an invalid non-numeric 'lcu_per_hour' tag
+//  3. Call estimateELB
+//  4. Assert that the operation succeeds with 0 capacity units, calculating cost based only on fixed hourly rate
 func TestEstimateELB_InvalidTag(t *testing.T) {
 	plugin := createELBMockPlugin("unknown")
 
@@ -257,6 +283,14 @@ func TestEstimateELB_InvalidTag(t *testing.T) {
 //
 // This is an integration test that calls GetProjectedCost through the RPC interface
 // to ensure proper wiring from the public API through to estimateELB.
+//
+// Test workflow:
+//  1. Setup mock plugin
+//  2. Create full GetProjectedCostRequest with ALB/NLB resources
+//  3. Call GetProjectedCost (the plugin's main entry point)
+//  4. Verify the response contains expected cost and billing metadata
+//
+// Run with: go test -tags=integration -run TestEstimateELB_RoundTripEstimate ./internal/plugin/...
 func TestEstimateELB_RoundTripEstimate(t *testing.T) {
 	tests := []struct {
 		name         string

@@ -1,9 +1,9 @@
-# PulumiCost AWS Public Plugin API Documentation
+# FinFocus AWS Public Plugin API Documentation
 
 ## Overview
 
-The PulumiCost AWS Public Plugin implements the `CostSourceService` gRPC service
-defined in the `pulumicost.v1` protocol buffer specification. This document provides
+The FinFocus AWS Public Plugin implements the `CostSourceService` gRPC service
+defined in the `finfocus.v1` protocol buffer specification. This document provides
 detailed API documentation for developers integrating with or extending the plugin.
 
 ## Service Definition
@@ -30,7 +30,7 @@ Returns the plugin identifier.
 
 ```json
 {
-  "name": "pulumicost-plugin-aws-public"
+  "name": "finfocus-plugin-aws-public"
 }
 ```
 
@@ -43,7 +43,7 @@ Returns metadata about the plugin.
 
 ```json
 {
-  "name": "pulumicost-plugin-aws-public",
+  "name": "finfocus-plugin-aws-public",
   "version": "0.0.3",
   "spec_version": "v0.4.14",
   "providers": ["aws"],
@@ -296,7 +296,7 @@ Use grpcurl for manual API testing:
 
 ```bash
 grpcurl -plaintext localhost:50051 \
-  pulumicost.v1.CostSourceService/GetProjectedCost \
+  finfocus.v1.CostSourceService/GetProjectedCost \
   -d '{"resource": {"provider": "aws", "resource_type": "ec2", "sku": "t3.micro", "region": "us-east-1"}}'
 ```
 
@@ -304,7 +304,7 @@ Or for `GetPluginInfo`:
 
 ```bash
 grpcurl -plaintext localhost:50051 \
-  pulumicost.v1.CostSourceService/GetPluginInfo
+  finfocus.v1.CostSourceService/GetPluginInfo
 ```
 
 ## Rate Limiting

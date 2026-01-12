@@ -1,4 +1,4 @@
-# Strategic Roadmap: pulumicost-plugin-aws-public
+# Strategic Roadmap: finfocus-plugin-aws-public
 
 ## Mission Statement
 
@@ -83,7 +83,7 @@ security overhead of cloud credentials.
 ## Strategic Guardrails (From CONTEXT.md)
 
 1. **Statelessness:** No local databases or historical trend storage. Data
-   "intelligence" (comparisons) belongs in PulumiCost Core.
+   "intelligence" (comparisons) belongs in FinFocus Core.
 2. **Air-Gapped:** Zero runtime network calls. All estimates derived from
    build-time snapshots.
 3. **Static Logic:** Recommendations are based on static mappings and SKU

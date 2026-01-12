@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -44,17 +44,17 @@ func TestIntegration_CACentral1_Binary(t *testing.T) {
 	t.Log("Building ca-central-1 binary...")
 	buildCmd := exec.Command("go", "build",
 		"-tags", "region_cac1",
-		"-o", "../../dist/test-pulumicost-plugin-aws-public-ca-central-1",
-		"../../cmd/pulumicost-plugin-aws-public")
+		"-o", "../../dist/test-finfocus-plugin-aws-public-ca-central-1",
+		"../../cmd/finfocus-plugin-aws-public")
 	buildCmd.Dir, _ = os.Getwd()
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build binary: %v\nOutput: %s", err, output)
 	}
-	defer os.Remove("../../dist/test-pulumicost-plugin-aws-public-ca-central-1")
+	defer os.Remove("../../dist/test-finfocus-plugin-aws-public-ca-central-1")
 
 	// Start the binary
 	t.Log("Starting ca-central-1 binary...")
-	cmd := exec.Command("../../dist/test-pulumicost-plugin-aws-public-ca-central-1")
+	cmd := exec.Command("../../dist/test-finfocus-plugin-aws-public-ca-central-1")
 	cmd.Dir, _ = os.Getwd()
 
 	stdout, err := cmd.StdoutPipe()
@@ -117,8 +117,8 @@ func TestIntegration_CACentral1_Binary(t *testing.T) {
 			t.Fatalf("Name() failed: %v", err)
 		}
 		t.Logf("Plugin name: %s", resp.Name)
-		if resp.Name != "pulumicost-plugin-aws-public" {
-			t.Errorf("Expected name 'pulumicost-plugin-aws-public', got %q", resp.Name)
+		if resp.Name != "finfocus-plugin-aws-public" {
+			t.Errorf("Expected name 'finfocus-plugin-aws-public', got %q", resp.Name)
 		}
 	})
 

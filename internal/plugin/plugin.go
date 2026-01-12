@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/carbon"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-	pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -27,14 +27,14 @@ type AWSPublicPlugin struct {
 	pricing          pricing.PricingClient
 	carbonEstimator  carbon.CarbonEstimator
 	logger           zerolog.Logger // logger is immutable (copy-on-write)
-	testMode         bool           // true when PULUMICOST_TEST_MODE=true
+	testMode         bool           // true when FINFOCUS_TEST_MODE=true
 	maxBatchSize     int            // configured max batch size for recommendations (read-only after init)
 	strictValidation bool           // fail-fast on invalid resources in recommendations (read-only after init)
 }
 
 // NewAWSPublicPlugin creates and returns a configured AWSPublicPlugin for the given AWS region.
 // It initializes the pricing client, a carbon estimator, and copies the provided logger.
-// Test mode is determined from the PULUMICOST_TEST_MODE environment variable and, if enabled, will be logged.
+// Test mode is determined from the FINFOCUS_TEST_MODE environment variable and, if enabled, will be logged.
 //
 // Parameters:
 //   - region: AWS region used for pricing and lookups.
@@ -59,11 +59,20 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 
 	// Initialize configuration
 	maxBatchSize := defaultMaxBatchSize
-	if val := os.Getenv(EnvMaxBatchSize); val != "" {
+	// Check for batch size (new variable takes precedence over deprecated)
+	val := os.Getenv(EnvMaxBatchSize)
+	if val == "" {
+		val = os.Getenv(EnvMaxBatchSizeDeprecated)
+	}
+	if val != "" {
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			if n > maxMaxBatchSize {
+				varName := EnvMaxBatchSize
+				if os.Getenv(EnvMaxBatchSize) == "" {
+					varName = EnvMaxBatchSizeDeprecated
+				}
 				logger.Warn().
-					Str("variable", EnvMaxBatchSize).
+					Str("variable", varName).
 					Int("requested", n).
 					Int("max_allowed", maxMaxBatchSize).
 					Msg("requested batch size exceeds maximum, capping")
@@ -72,14 +81,22 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 				maxBatchSize = n
 			}
 		} else {
+			varName := EnvMaxBatchSize
+			if os.Getenv(EnvMaxBatchSize) == "" {
+				varName = EnvMaxBatchSizeDeprecated
+			}
 			logger.Warn().
-				Str("variable", EnvMaxBatchSize).
+				Str("variable", varName).
 				Str("value", val).
 				Msg("invalid batch size value, using default")
 		}
 	}
 
+	// Check for strict validation (new variable takes precedence over deprecated)
 	strictValidation := parseBoolEnv(EnvStrictValidation)
+	if !strictValidation {
+		strictValidation = parseBoolEnv(EnvStrictValidationDeprecated)
+	}
 
 	return &AWSPublicPlugin{
 		region:           region,
@@ -205,7 +222,7 @@ func (p *AWSPublicPlugin) newErrorWithID(traceID string, grpcCode codes.Code, ms
 
 // Name returns the plugin name identifier.
 func (p *AWSPublicPlugin) Name() string {
-	return "pulumicost-plugin-aws-public"
+	return "finfocus-plugin-aws-public"
 }
 
 // GetPluginInfo returns metadata about the plugin.

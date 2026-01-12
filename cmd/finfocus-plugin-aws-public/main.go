@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
-	"github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
-	"github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 )
 
 // version is the plugin version, set at build time via ldflags.
@@ -32,7 +32,7 @@ func main() {
 // logs the AWS region returned by the pricing client, and performs a graceful shutdown on
 // os.Interrupt or syscall.SIGTERM.
 func run() error {
-	// Parse log level from environment using SDK (PULUMICOST_LOG_LEVEL > LOG_LEVEL > info)
+	// Parse log level from environment using SDK (FINFOCUS_LOG_LEVEL > LOG_LEVEL > info)
 	level := zerolog.InfoLevel
 	if lvl := pluginsdk.GetLogLevel(); lvl != "" {
 		if parsed, err := zerolog.ParseLevel(lvl); err == nil {
@@ -59,8 +59,8 @@ func run() error {
 		Str("aws_region", region).
 		Msg("plugin started")
 
-	// Determine port with SDK fallback (PULUMICOST_PLUGIN_PORT > PORT > ephemeral)
-	// Note: pluginsdk.GetPort() only checks PULUMICOST_PLUGIN_PORT. We maintain
+	// Determine port with SDK fallback (FINFOCUS_PLUGIN_PORT > PORT > ephemeral)
+	// Note: pluginsdk.GetPort() only checks FINFOCUS_PLUGIN_PORT. We maintain
 	// backward compatibility with the generic PORT env var for earlier plugin
 	// versions and common deployment patterns (e.g., container platforms that
 	// inject PORT). This is intentional and should not be removed.
@@ -70,10 +70,10 @@ func run() error {
 		if portStr := os.Getenv("PORT"); portStr != "" {
 			logger.Warn().
 				Str("env_var", "PORT").
-				Str("replacement", "PULUMICOST_PLUGIN_PORT").
+				Str("replacement", "FINFOCUS_PLUGIN_PORT").
 				Str("deprecated_since", "v0.0.8").
 				Str("removal_version", "v0.1.0").
-				Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use PULUMICOST_PLUGIN_PORT instead.")
+				Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use FINFOCUS_PLUGIN_PORT instead.")
 			if parsed, err := strconv.Atoi(portStr); err == nil && parsed > 0 && parsed <= 65535 {
 				port = parsed
 			} else if parsed, err := strconv.Atoi(portStr); err == nil {
@@ -108,7 +108,7 @@ func run() error {
 	}()
 
 	// Check if web serving is enabled (for browser/testing access)
-	webEnabled := strings.ToLower(os.Getenv("PULUMICOST_PLUGIN_WEB_ENABLED")) == "true"
+	webEnabled := strings.ToLower(os.Getenv("FINFOCUS_PLUGIN_WEB_ENABLED")) == "true"
 
 	// Serve using pluginsdk
 	config := pluginsdk.ServeConfig{
@@ -116,7 +116,7 @@ func run() error {
 		Port:   port, // Use determined port (0 for ephemeral)
 		// PluginInfo enables GetPluginInfo RPC for version negotiation with Core
 		PluginInfo: &pluginsdk.PluginInfo{
-			Name:        "pulumicost-plugin-aws-public",
+			Name:        "finfocus-plugin-aws-public",
 			Version:     version, // Injected by GoReleaser via -X main.version
 			SpecVersion: pluginsdk.SpecVersion,
 			Providers:   []string{"aws"},

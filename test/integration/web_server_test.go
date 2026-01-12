@@ -40,12 +40,12 @@ func TestWebServer(t *testing.T) {
 	tempDir := t.TempDir()
 	binaryPath := filepath.Join(tempDir, "plugin-server")
 
-	// We build the main package. assuming we are in test/integration, so main is ../../cmd/pulumicost-plugin-aws-public
+	// We build the main package. assuming we are in test/integration, so main is ../../cmd/finfocus-plugin-aws-public
 	rootDir, err := filepath.Abs("../..")
 	require.NoError(t, err)
 
 	t.Log("Building plugin binary...")
-	cmdBuild := exec.Command("go", "build", "-tags", "region_use1", "-o", binaryPath, "./cmd/pulumicost-plugin-aws-public")
+	cmdBuild := exec.Command("go", "build", "-tags", "region_use1", "-o", binaryPath, "./cmd/finfocus-plugin-aws-public")
 	cmdBuild.Dir = rootDir
 	output, err := cmdBuild.CombinedOutput()
 	require.NoError(t, err, "Build failed: %s", string(output))
@@ -53,8 +53,9 @@ func TestWebServer(t *testing.T) {
 	// Run the plugin
 	t.Log("Starting plugin server...")
 	cmd := exec.Command(binaryPath)
-	// Enable web serving
-	cmd.Env = append(os.Environ(), "PULUMICOST_PLUGIN_WEB_ENABLED=true")
+	cmd.Env = append(os.Environ(), "FINFOCUS_PLUGIN_WEB_ENABLED=true")
+	stdout, err := cmd.StdoutPipe()
+	require.NoError(t, err)
 
 	stdoutR, stdoutW := io.Pipe()
 	stderrR, stderrW := io.Pipe()
@@ -134,7 +135,7 @@ func TestWebServer(t *testing.T) {
 	}
 
 	// Make HTTP Request
-	url := fmt.Sprintf("http://localhost:%s/pulumicost.v1.CostSourceService/GetProjectedCost", port)
+	url := fmt.Sprintf("http://localhost:%s/finfocus.v1.CostSourceService/GetProjectedCost", port)
 	reqBody := []byte(`{
 		"resource": {
 			"provider": "aws",
@@ -162,7 +163,7 @@ func TestWebServer(t *testing.T) {
 	assert.Contains(t, string(body), "USD")
 
 	// Test GetPluginInfo
-	infoUrl := fmt.Sprintf("http://localhost:%s/pulumicost.v1.CostSourceService/GetPluginInfo", port)
+	infoUrl := fmt.Sprintf("http://localhost:%s/finfocus.v1.CostSourceService/GetPluginInfo", port)
 	t.Logf("Sending POST request to %s", infoUrl)
 	// Empty JSON body for GetPluginInfo
 	respInfo, err := http.Post(infoUrl, "application/json", bytes.NewBuffer([]byte("{}")))
@@ -176,5 +177,5 @@ func TestWebServer(t *testing.T) {
 	t.Logf("Response Body: %s", string(bodyInfo))
 
 	assert.Equal(t, http.StatusOK, respInfo.StatusCode)
-	assert.Contains(t, string(bodyInfo), "pulumicost-plugin-aws-public")
+	assert.Contains(t, string(bodyInfo), "finfocus-plugin-aws-public")
 }

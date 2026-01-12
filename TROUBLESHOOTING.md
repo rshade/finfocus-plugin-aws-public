@@ -1,4 +1,4 @@
-# Troubleshooting Guide: PulumiCost AWS Public Plugin
+# Troubleshooting Guide: FinFocus AWS Public Plugin
 
 This guide provides solutions for common issues encountered when using the AWS Public Pricing plugin.
 
@@ -12,7 +12,7 @@ This guide provides solutions for common issues encountered when using the AWS P
 
 **Solution**:
 
-- Ensure you are using the correct regional binary (e.g., `pulumicost-plugin-aws-public-us-east-1` for `us-east-1` resources).
+- Ensure you are using the correct regional binary (e.g., `finfocus-plugin-aws-public-us-east-1` for `us-east-1` resources).
 - For global services like S3, the plugin will now automatically fallback to its own region if the request region is empty.
 
 ### 2. "EC2 instance type not found in pricing data"
@@ -40,16 +40,16 @@ This guide provides solutions for common issues encountered when using the AWS P
 
 **Solution**:
 
-- Update your deployment configuration to use `PULUMICOST_PLUGIN_PORT` instead of `PORT`.
+- Update your deployment configuration to use `FINFOCUS_PLUGIN_PORT` instead of `PORT`.
 
 ## Debugging
 
 ### Enabling Test Mode
 
-To get more detailed logs, including request/response details, set the `PULUMICOST_TEST_MODE` environment variable:
+To get more detailed logs, including request/response details, set the `FINFOCUS_TEST_MODE` environment variable:
 
 ```bash
-export PULUMICOST_TEST_MODE=true
+export FINFOCUS_TEST_MODE=true
 ```
 
 ### Checking Logs
@@ -57,7 +57,7 @@ export PULUMICOST_TEST_MODE=true
 All diagnostic logs are written to `stderr` in structured JSON format. You can use `jq` to format them for readability:
 
 ```bash
-./pulumicost-plugin-aws-public-us-east-1 2>&1 | jq .
+./finfocus-plugin-aws-public-us-east-1 2>&1 | jq .
 ```
 
 ### Verifying gRPC connectivity
@@ -67,5 +67,5 @@ Use `grpcurl` to test the plugin manually:
 ```bash
 # Capture the PORT from stdout
 PORT=12345 # replace with actual port from plugin startup output (e.g., PORT=12345)
-grpcurl -plaintext localhost:$PORT pulumicost.v1.CostSourceService/Name
+grpcurl -plaintext localhost:$PORT finfocus.v1.CostSourceService/Name
 ```

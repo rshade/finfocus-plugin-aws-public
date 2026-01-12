@@ -1,6 +1,6 @@
 # AWS Region Management
 
-This document provides information about managing AWS regions in the pulumicost-plugin-aws-public project.
+This document provides information about managing AWS regions in the finfocus-plugin-aws-public project.
 
 ## Overview
 
@@ -84,7 +84,7 @@ Contains build blocks for all regions with appropriate build tags and settings.
    make build-region REGION=eu-west-3
 
    # Test with sample requests
-   ./pulumicost-plugin-aws-public-eu-west-3
+   ./finfocus-plugin-aws-public-eu-west-3
    ```
 
 ### Validation Rules
@@ -136,7 +136,7 @@ Test each region binary:
 
 ```bash
 # Start the plugin
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 
 # Test with gRPC calls (region should match)
 # Requests for wrong regions return UNSUPPORTED_REGION errors

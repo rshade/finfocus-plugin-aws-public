@@ -122,7 +122,7 @@ func parseResourcePart(resourcePart string) (resourceType, resourceID string) {
 	return resourcePart, ""
 }
 
-// ToPulumiResourceType maps the ARN service/resource type to a PulumiCost resource type.
+// ToPulumiResourceType maps the ARN service/resource type to a FinFocus resource type.
 // This handles the mapping differences between AWS ARN format and Pulumi resource types.
 //
 // Notable mappings:

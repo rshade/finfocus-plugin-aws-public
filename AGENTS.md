@@ -1,4 +1,4 @@
-# AGENTS.md - Development Guidelines for pulumicost-plugin-aws-public
+# AGENTS.md - Development Guidelines for finfocus-plugin-aws-public
 
 ## Build/Lint/Test Commands
 
@@ -27,7 +27,7 @@
 
 - Use zerolog with structured logging
 - Never log to stdout (except PORT announcement)
-- Prefix stderr logs: `[pulumicost-plugin-aws-public]`
+- Prefix stderr logs: `[finfocus-plugin-aws-public]`
 
 ### Architecture
 
@@ -53,12 +53,8 @@ v0.0.10/v0.0.11 were broken by filtering that stripped 85% of data.
 - `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
 
 ## Active Technologies
-- Go 1.25.5+ + gRPC (pluginsdk), pulumicost-spec (version TBD with protocol extensions), zerolog (030-core-protocol-intelligence)
-- Embedded JSON pricing data (memory-mapped, no runtime storage) (030-core-protocol-intelligence)
-
-- Embedded JSON pricing data in Go binaries (no runtime storage) - used across 001-carbon-estimation, 006-region-build-matrix, 010-eks-cost-estimation, 011-s3-cost-estimation
-- Go 1.25.5 + gRPC, zerolog (010-eks-cost-estimation)
-- Go 1.25.5 + GoReleaser, gRPC, build tags (006-region-build-matrix)
+- Go 1.25.5+ + gRPC (pluginsdk), finfocus-spec v0.5.0, zerolog
+- Memory-mapped JSON pricing data (embedded at build time)
 
 ## Recent Changes
 

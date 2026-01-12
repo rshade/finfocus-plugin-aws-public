@@ -1,17 +1,17 @@
-# Gemini Context for pulumicost-plugin-aws-public
+# Gemini Context for finfocus-plugin-aws-public
 
 This file provides context for Gemini when working with this repository.
 
 ## Project Overview
 
-**pulumicost-plugin-aws-public** is a gRPC-based plugin for PulumiCost that
+**finfocus-plugin-aws-public** is a gRPC-based plugin for FinFocus that
 estimates AWS infrastructure costs using publicly available on-demand pricing.
 
 - **Purpose:** Provides cost estimates without requiring AWS credentials,
   Cost Explorer access, or CUR data.
 - **Architecture:**
-  - **Protocol:** Implements `CostSourceService` from `pulumicost.v1` via gRPC.
-  - **Deployment:** Runs as a standalone subprocess started by PulumiCost core.
+  - **Protocol:** Implements `CostSourceService` from `finfocus.v1` via gRPC.
+  - **Deployment:** Runs as a standalone subprocess started by FinFocus core.
   - **Regionality:** Uses region-specific binaries to minimize size.
   - **Data:** Embeds pricing data at build time using `//go:embed`.
   - **Concurrency:** Thread-safe handling of concurrent gRPC calls.
@@ -76,7 +76,7 @@ make build-all-regions
 ### Running Locally
 
 1. **Build:** `make build-region REGION=us-east-1`
-2. **Run:** `./pulumicost-plugin-aws-public-us-east-1`
+2. **Run:** `./finfocus-plugin-aws-public-us-east-1`
 3. **Output:** Plugin prints `PORT=<number>` to stdout and starts gRPC server.
 
 ## Development Conventions
@@ -148,7 +148,7 @@ When adding support for a new AWS service, follow these steps:
 
 ## Directory Overview
 
-- `cmd/pulumicost-plugin-aws-public/`: Main entry point (`main.go`).
+- `cmd/finfocus-plugin-aws-public/`: Main entry point (`main.go`).
 - `internal/plugin/`: Core plugin logic (plugin, supports, projected, actual).
 - `internal/pricing/`: Pricing data handling and embedded data.
 - `tools/generate-pricing/`: Tool to fetch and generate pricing JSON.
@@ -164,10 +164,7 @@ When adding support for a new AWS service, follow these steps:
 - `CLAUDE.md`: Detailed reference for architecture and protocol.
 
 ## Active Technologies
-- Go 1.25+ + gRPC, rs/zerolog, pulumicost-spec sdk (001-nat-gateway-cost)
-- N/A (Embedded JSON pricing data) (001-nat-gateway-cost)
-
-- Go 1.25+ + gRPC (pulumicost.v1), rs/zerolog, pluginsdk; embedded JSON pricing via `//go:embed` parsed into indexed maps
+- Go 1.25+ + gRPC (finfocus.v1), rs/zerolog, pluginsdk; embedded JSON pricing via `//go:embed` parsed into indexed maps
 
 ## Recent Changes
 

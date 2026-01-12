@@ -62,8 +62,8 @@ dist: _build/$REGION
 
 builds:
   - id: $REGION
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-$REGION
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-$REGION
     env:
       - CGO_ENABLED=0
     goos:

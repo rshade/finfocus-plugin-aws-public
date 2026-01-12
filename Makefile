@@ -119,7 +119,7 @@ build: ## ⚠️  Build with FALLBACK pricing (development only - do NOT release
 	@echo "  make build-region REGION=us-east-1  # Build any region with real pricing"
 	@echo "  make build-all-regions         # Build all 12 regions"
 	@echo ""
-	@go build -ldflags "$(LDFLAGS)" -o pulumicost-plugin-aws-public ./cmd/pulumicost-plugin-aws-public
+	@go build -ldflags "$(LDFLAGS)" -o finfocus-plugin-aws-public ./cmd/finfocus-plugin-aws-public
 
 .PHONY: build-default-region
 build-default-region: ## Build us-east-1 with real AWS pricing (RECOMMENDED)
@@ -129,20 +129,20 @@ build-default-region: ## Build us-east-1 with real AWS pricing (RECOMMENDED)
 .PHONY: build-region
 build-region: ## Build region-specific binary (usage: make build-region REGION=us-east-1)
 	@echo "Building plugin for region $(REGION)..."
-	@go build -ldflags "$(LDFLAGS)" -tags region_$(shell ./scripts/region-tag.sh $(REGION)) -o pulumicost-plugin-aws-public-$(REGION) ./cmd/pulumicost-plugin-aws-public
+	@go build -ldflags "$(LDFLAGS)" -tags region_$(shell ./scripts/region-tag.sh $(REGION)) -o finfocus-plugin-aws-public-$(REGION) ./cmd/finfocus-plugin-aws-public
 
 .PHONY: build-all-regions
 build-all-regions: ## Build binaries for all supported regions
 	@echo "Building all $(REGION_COUNT) region binaries..."
 	@for region in $(REGIONS); do \
 		echo "Building $$region..."; \
-		go build -ldflags "$(LDFLAGS)" -tags region_$$(./scripts/region-tag.sh $$region) -o pulumicost-plugin-aws-public-$$region ./cmd/pulumicost-plugin-aws-public || exit 1; \
+		go build -ldflags "$(LDFLAGS)" -tags region_$$(./scripts/region-tag.sh $$region) -o finfocus-plugin-aws-public-$$region ./cmd/finfocus-plugin-aws-public || exit 1; \
 	done
 	@echo "All region binaries built successfully!"
-	@ls -lh pulumicost-plugin-aws-public-*
+	@ls -lh finfocus-plugin-aws-public-*
 
 .PHONY: clean
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
-	@rm -f pulumicost-plugin-aws-public*
+	@rm -f finfocus-plugin-aws-public*
 	@rm -rf dist/

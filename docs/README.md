@@ -1,6 +1,6 @@
-# PulumiCost AWS Public Plugin Documentation
+# FinFocus AWS Public Plugin Documentation
 
-Welcome to the comprehensive documentation for the PulumiCost AWS Public Plugin.
+Welcome to the comprehensive documentation for the FinFocus AWS Public Plugin.
 This plugin provides accurate AWS infrastructure cost estimation using embedded
 public pricing data.
 
@@ -48,16 +48,16 @@ public pricing data.
 
 ## Quick Links
 
-- 🏠 [Project Homepage](https://github.com/rshade/pulumicost-plugin-aws-public)
-- 📚 [PulumiCost Core](https://github.com/rshade/pulumicost-core)
-- 🔧 [Protocol Specification](https://github.com/rshade/pulumicost-spec)
+- 🏠 [Project Homepage](https://github.com/rshade/finfocus-plugin-aws-public)
+- 📚 [FinFocus Core](https://github.com/rshade/finfocus-core)
+- 🔧 [Protocol Specification](https://github.com/rshade/finfocus-spec)
 - 🌍 [Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/)
 
 ## Support
 
-- 📖 [Full Documentation Index](https://github.com/rshade/pulumicost-plugin-aws-public/tree/main/docs)
-- 🐛 [Report Issues](https://github.com/rshade/pulumicost-plugin-aws-public/issues)
-- 💬 [Discussions](https://github.com/rshade/pulumicost-plugin-aws-public/discussions)
+- 📖 [Full Documentation Index](https://github.com/rshade/finfocus-plugin-aws-public/tree/main/docs)
+- 🐛 [Report Issues](https://github.com/rshade/finfocus-plugin-aws-public/issues)
+- 💬 [Discussions](https://github.com/rshade/finfocus-plugin-aws-public/discussions)
 
 ---
 

@@ -37,7 +37,7 @@ Previous Sync Impact Report (v2.0.0):
   - MAJOR update to align with gRPC protocol instead of stdin/stdout JSON
 -->
 
-# PulumiCost Plugin AWS Public Constitution
+# FinFocus Plugin AWS Public Constitution
 
 ## Core Principles
 
@@ -50,7 +50,7 @@ Previous Sync Impact Report (v2.0.0):
 - Explicit is better than implicit: No magic, hidden behavior, or surprising side effects
 - Stateless components preferred: Each gRPC invocation is independent unless state is absolutely required
 
-**Rationale:** This plugin is called as an external gRPC service by PulumiCost core. Complexity compounds debugging difficulty when troubleshooting RPC interactions. Simple, obvious code reduces maintenance burden and makes contribution easier.
+**Rationale:** This plugin is called as an external gRPC service by FinFocus core. Complexity compounds debugging difficulty when troubleshooting RPC interactions. Simple, obvious code reduces maintenance burden and makes contribution easier.
 
 **File size guidance:**
 
@@ -88,12 +88,12 @@ Previous Sync Impact Report (v2.0.0):
 - **gRPC CostSourceService protocol is sacred:**
   - NEVER log to stdout except PORT announcement
   - Use zerolog for structured JSON logging to stderr
-  - Log entries MUST include `[pulumicost-plugin-aws-public]` component identifier
+  - Log entries MUST include `[finfocus-plugin-aws-public]` component identifier
   - Support LOG_LEVEL environment variable for log level configuration
   - Use `pluginsdk.Serve()` for lifecycle management
 - **PORT announcement:** Plugin MUST write `PORT=<port>` to stdout exactly once, then serve gRPC on 127.0.0.1
 - **Proto-defined types only:**
-  - Use `ResourceDescriptor`, `GetProjectedCostResponse`, `SupportsResponse` from pulumicost.v1
+  - Use `ResourceDescriptor`, `GetProjectedCostResponse`, `SupportsResponse` from finfocus.v1
   - NO custom JSON types or envelopes
 - **Error codes MUST use proto ErrorCode enum:**
   - `ERROR_CODE_INVALID_RESOURCE` (6): Missing required ResourceDescriptor fields
@@ -113,7 +113,7 @@ Previous Sync Impact Report (v2.0.0):
   with fallback estimate (`projected_monthly_cost × runtime_hours / 730`)
 - `GetPricingSpec()` → optional, may return detailed pricing info in future
 
-**Rationale:** PulumiCost core depends on predictable gRPC protocol behavior. Breaking protocol compatibility breaks the integration. Using proto-defined types ensures compatibility across all PulumiCost plugins. Thread safety is critical because gRPC handles concurrent requests.
+**Rationale:** FinFocus core depends on predictable gRPC protocol behavior. Breaking protocol compatibility breaks the integration. Using proto-defined types ensures compatibility across all FinFocus plugins. Thread safety is critical because gRPC handles concurrent requests.
 
 ### IV. Performance & Reliability
 
@@ -160,10 +160,10 @@ Previous Sync Impact Report (v2.0.0):
   - `region_usw2` → us-west-2
   - `region_euw1` → eu-west-1
 - Before hooks MUST generate pricing data (`tools/generate-pricing`) successfully
-- Binaries MUST be named `pulumicost-plugin-aws-public-<region>`
+- Binaries MUST be named `finfocus-plugin-aws-public-<region>`
 - **gRPC service MUST be functional:** Manual testing with grpcurl before release
 
-**Rationale:** Consistent build quality prevents regressions and ensures that PulumiCost core can reliably fetch and execute region-specific binaries. Linting catches common Go mistakes; tests validate correctness; GoReleaser ensures reproducible releases. gRPC functionality testing catches integration issues.
+**Rationale:** Consistent build quality prevents regressions and ensures that FinFocus core can reliably fetch and execute region-specific binaries. Linting catches common Go mistakes; tests validate correctness; GoReleaser ensures reproducible releases. gRPC functionality testing catches integration issues.
 
 ## Security Requirements
 
@@ -192,7 +192,7 @@ Previous Sync Impact Report (v2.0.0):
   - Pass all CI checks (lint, test, build)
   - Update CLAUDE.md if new conventions or patterns emerge
 - Markdown files MUST be linted with markdownlint after editing
-- **gRPC changes:** Update proto definitions in pulumicost-spec if protocol changes needed
+- **gRPC changes:** Update proto definitions in finfocus-spec if protocol changes needed
 
 **Code review requirements:**
 
@@ -201,7 +201,7 @@ Previous Sync Impact Report (v2.0.0):
 - Check for "AI slop": redundant tests, unused fields, over-complicated helpers
 - **Protocol compatibility:** Verify no breaking changes to gRPC interface
 
-**Rationale:** Consistent workflow reduces friction in collaboration and code review. Conventional commits enable automated changelog generation. Constitution compliance checks ensure long-term maintainability. gRPC protocol compatibility is critical for integration with PulumiCost core.
+**Rationale:** Consistent workflow reduces friction in collaboration and code review. Conventional commits enable automated changelog generation. Constitution compliance checks ensure long-term maintainability. gRPC protocol compatibility is critical for integration with FinFocus core.
 
 ## Governance
 
