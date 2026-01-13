@@ -10,7 +10,7 @@ implemented using existing proto message fields with semantic encoding.
 
 ## Existing Contract (Unchanged)
 
-The `GetActualCost` RPC uses the existing `pulumicost.v1.CostSourceService` contract:
+The `GetActualCost` RPC uses the existing `finfocus.v1.CostSourceService` contract:
 
 ```protobuf
 service CostSourceService {
@@ -45,7 +45,7 @@ message ActualCostResult {
 
 ### Request Tags Extension
 
-The `tags` map accepts the following Pulumi metadata keys (injected by pulumicost-core):
+The `tags` map accepts the following Pulumi metadata keys (injected by finfocus-core):
 
 | Key | Required | Format | Description |
 |-----|----------|--------|-------------|
@@ -81,7 +81,7 @@ aws-public-fallback[confidence:LOW] unsupported resource type
 This design intentionally avoids proto modifications:
 
 1. **Backward Compatible**: Existing clients continue to work unchanged
-2. **No Coordination**: No pulumicost-spec PR or version bump needed
+2. **No Coordination**: No finfocus-spec PR or version bump needed
 3. **Self-Documenting**: Source field carries its own metadata
 4. **Easy Parsing**: Simple string pattern matching for consumers
 
@@ -105,5 +105,5 @@ enum ConfidenceLevel {
 }
 ```
 
-This would be a MINOR version increment to pulumicost-spec and is not required
+This would be a MINOR version increment to finfocus-spec and is not required
 for this feature implementation.

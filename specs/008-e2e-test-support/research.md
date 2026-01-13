@@ -7,7 +7,7 @@
 
 ### 1. Test Mode Detection via Environment Variable
 
-**Decision**: Use `os.Getenv("PULUMICOST_TEST_MODE")` with strict "true" check
+**Decision**: Use `os.Getenv("FINFOCUS_TEST_MODE")` with strict "true" check
 
 **Rationale**:
 
@@ -27,15 +27,15 @@
 
 ```go
 func IsTestMode() bool {
-    return os.Getenv("PULUMICOST_TEST_MODE") == "true"
+    return os.Getenv("FINFOCUS_TEST_MODE") == "true"
 }
 
 func ValidateTestModeEnv(logger zerolog.Logger) {
-    val := os.Getenv("PULUMICOST_TEST_MODE")
+    val := os.Getenv("FINFOCUS_TEST_MODE")
     if val != "" && val != "true" && val != "false" {
         logger.Warn().
             Str("value", val).
-            Msg("Invalid PULUMICOST_TEST_MODE value; treating as disabled")
+            Msg("Invalid FINFOCUS_TEST_MODE value; treating as disabled")
     }
 }
 ```
@@ -105,7 +105,7 @@ func (p *AWSPublicPlugin) GetProjectedCost(
 - JSON file with expected ranges: Rejected - adds file I/O, parsing overhead
 - New gRPC endpoint (GetExpectedCostRange): Rejected - violates KISS, adds
   protocol surface, User Story 4 is P4 priority
-- Proto-embedded metadata: Rejected - requires pulumicost-spec changes
+- Proto-embedded metadata: Rejected - requires finfocus-spec changes
 
 **Data Structure**:
 
@@ -166,12 +166,12 @@ var ExpectedCostRanges = map[string]ExpectedCostRange{
 ```go
 type AWSPublicPlugin struct {
     logger   zerolog.Logger
-    testMode bool  // NEW: Set from PULUMICOST_TEST_MODE at construction
+    testMode bool  // NEW: Set from FINFOCUS_TEST_MODE at construction
     // ... existing fields
 }
 
 func NewAWSPublicPlugin(logger zerolog.Logger) *AWSPublicPlugin {
-    testMode := os.Getenv("PULUMICOST_TEST_MODE") == "true"
+    testMode := os.Getenv("FINFOCUS_TEST_MODE") == "true"
 
     // Log test mode status at startup
     if testMode {

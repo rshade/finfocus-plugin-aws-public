@@ -12,7 +12,7 @@ Formula: `actual_cost = projected_monthly_cost × (runtime_hours / 730)`.
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: pulumicost-core/pkg/pluginsdk, pulumicost-spec v0.3.0
+**Primary Dependencies**: finfocus-core/pkg/pluginsdk, finfocus-spec v0.3.0
 **Storage**: N/A (stateless calculation)
 **Testing**: Go testing with table-driven tests
 **Target Platform**: Linux (gRPC plugin binary)

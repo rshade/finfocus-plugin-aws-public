@@ -12,7 +12,7 @@ This quickstart guide provides step-by-step instructions for implementing carbon
 
 ### Required Knowledge
 - Go 1.25.5+ development
-- gRPC protocol and PulumiCost CostSourceService interface
+- gRPC protocol and FinFocus CostSourceService interface
 - Cloud Carbon Footprint (CCF) methodology
 - Embedded data patterns in Go (`//go:embed`)
 - Thread-safe concurrent programming with `sync.Once`
@@ -791,10 +791,10 @@ make build
 
 ```bash
 # Start the plugin
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 
 # Test with grpcurl (in another terminal)
-grpcurl -plaintext localhost:PORT pulumicost.v1.CostSourceService/Supports
+grpcurl -plaintext localhost:PORT finfocus.v1.CostSourceService/Supports
 ```
 
 ---
@@ -814,7 +814,7 @@ grpcurl -plaintext -d '{
     "utilization_percentage": "50",
     "hours": "730"
   }
-}' localhost:PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 2. **EBS Volume**:
@@ -827,7 +827,7 @@ grpcurl -plaintext -d '{
     "size_gb": "100",
     "hours": "730"
   }
-}' localhost:PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 3. **Lambda Function**:
@@ -841,7 +841,7 @@ grpcurl -plaintext -d '{
     "invocations": "1000000",
     "architecture": "x86_64"
   }
-}' localhost:PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 ### Automated Validation
@@ -857,7 +857,7 @@ make lint
 make build
 
 # Verify binary size (<250MB constraint)
-ls -lh pulumicost-plugin-aws-public-*
+ls -lh finfocus-plugin-aws-public-*
 ```
 
 ---

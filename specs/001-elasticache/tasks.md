@@ -59,7 +59,7 @@
 - [x] T021 Implement parseElastiCachePricing() method in internal/pricing/client.go
 - [x] T022 Add parseElastiCachePricing to parallel init goroutine in internal/pricing/client.go
 - [x] T023 Implement ElastiCacheOnDemandPricePerHour() lookup method in internal/pricing/client.go
-- [x] T024 Verify build compiles with `go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public`
+- [x] T024 Verify build compiles with `go build -tags region_use1 ./cmd/finfocus-plugin-aws-public`
 
 **Checkpoint**: Foundation ready - ElastiCache pricing data is embedded and parseable
 
@@ -192,7 +192,7 @@
 
 - [x] T063 Run `make lint` and fix any linting issues
 - [x] T064 Run `make test` and ensure all tests pass
-- [x] T065 [P] Build with `go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public` and verify binary size
+- [x] T065 [P] Build with `go build -tags region_use1 ./cmd/finfocus-plugin-aws-public` and verify binary size
 - [ ] T066 Validate quickstart.md examples with grpcurl against running plugin (Deferred)
 - [x] T067 Update CLAUDE.md with ElastiCache in supported services list
 

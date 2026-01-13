@@ -7,7 +7,7 @@
 
 ## Summary
 
-Add pricing data and build configurations for us-west-1, us-gov-west-1, and us-gov-east-1 regions to the PulumiCost AWS plugin. Implement region-specific binaries with embedded pricing data, following the existing pattern of build tags and GoReleaser configuration.
+Add pricing data and build configurations for us-west-1, us-gov-west-1, and us-gov-east-1 regions to the FinFocus AWS plugin. Implement region-specific binaries with embedded pricing data, following the existing pattern of build tags and GoReleaser configuration.
 
 ## Technical Context
 
@@ -18,7 +18,7 @@ Add pricing data and build configurations for us-west-1, us-gov-west-1, and us-g
 -->
 
 **Language/Version**: Go 1.25.4 minimum
-**Primary Dependencies**: gRPC (pulumicost.v1), pluginsdk, embedded pricing data
+**Primary Dependencies**: gRPC (finfocus.v1), pluginsdk, embedded pricing data
 **Storage**: Embedded pricing data (no external storage)
 **Testing**: Go testing framework, integration tests for gRPC methods
 **Target Platform**: Linux (cross-compiled Go binaries)
@@ -65,7 +65,7 @@ specs/[###-feature]/
 
 ```text
 # Go project structure (single binary plugin)
-cmd/pulumicost-plugin-aws-public/
+cmd/finfocus-plugin-aws-public/
 └── main.go                    # Plugin entry point
 
 internal/

@@ -31,7 +31,7 @@ Create the service classification map as the single source of truth:
 ```go
 package plugin
 
-import pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+import pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 
 // ServiceClassification defines metadata for cost estimation enrichment
 type ServiceClassification struct {
@@ -123,7 +123,7 @@ Add helper functions to check for protocol field availability:
 ```go
 package plugin
 
-import pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+import pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 
 // hasUsageProfile checks if UsageProfile field exists in request (feature detection)
 func hasUsageProfile(req *pbc.ResourceDescriptor) bool {
@@ -218,7 +218,7 @@ func TestSetGrowthHint(t *testing.T) {
 
 ### Phase 4: Dev Mode (P1) - BLOCKED ON PROTO
 
-**Protocol Change Required** in `rshade/pulumicost-spec`:
+**Protocol Change Required** in `rshade/finfocus-spec`:
 
 Create PR to add `UsageProfile` enum:
 
@@ -344,7 +344,7 @@ func TestApplyDevMode(t *testing.T) {
 
 ### Phase 5: Topology Linking (P3) - BLOCKED ON PROTO
 
-**Protocol Change Required** in `rshade/pulumicost-spec`:
+**Protocol Change Required** in `rshade/finfocus-spec`:
 
 Create PR to add `CostAllocationLineage` message:
 
@@ -508,7 +508,7 @@ make lint
 make build-region REGION=us-east-1
 
 # Check binary size
-ls -lh pulumicost-plugin-aws-public-us-east-1
+ls -lh finfocus-plugin-aws-public-us-east-1
 ```
 
 ---

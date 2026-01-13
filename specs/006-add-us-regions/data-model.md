@@ -35,7 +35,7 @@ Defines how region-specific binaries are built and deployed.
 **Attributes:**
 - `Region`: string - Target region name
 - `BuildTag`: string - Go build tag
-- `BinaryName`: string - Output binary name (e.g., "pulumicost-plugin-aws-public-us-west-1")
+- `BinaryName`: string - Output binary name (e.g., "finfocus-plugin-aws-public-us-west-1")
 - `EmbedFile`: string - Path to embedded pricing data file
 
 **Relationships:**

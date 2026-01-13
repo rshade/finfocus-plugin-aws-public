@@ -16,7 +16,7 @@ This feature does not introduce new gRPC endpoints or API contracts.
 
 ## Existing Contracts Used
 
-The feature relies on existing proto-defined contracts from `pulumicost-spec`:
+The feature relies on existing proto-defined contracts from `finfocus-spec`:
 
 ### GetProjectedCost
 
@@ -44,7 +44,7 @@ Used for: Verifying test resource compatibility
 
 ## Behavioral Changes (Non-Breaking)
 
-When `PULUMICOST_TEST_MODE=true`:
+When `FINFOCUS_TEST_MODE=true`:
 
 1. **Enhanced logging**: Additional debug-level logs with calculation details
 2. **Startup validation**: Warning logged for invalid env var values

@@ -53,7 +53,7 @@ specs/003-ca-sa-region-support/
 ```text
 src/
 ├── cmd/
-│   └── pulumicost-plugin-aws-public/  # Main entry point (unchanged)
+│   └── finfocus-plugin-aws-public/  # Main entry point (unchanged)
 ├── internal/
 │   ├── pricing/
 │   │   ├── embed_cac1.go              # NEW: Canada Central embed

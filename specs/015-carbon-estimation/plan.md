@@ -10,7 +10,7 @@ Implement carbon emission estimation for EC2 instances using Cloud Carbon Footpr
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: pulumicost-spec v0.4.10+ (MetricKind, ImpactMetric), zerolog, gRPC
+**Primary Dependencies**: finfocus-spec v0.4.10+ (MetricKind, ImpactMetric), zerolog, gRPC
 **Storage**: Embedded data via `//go:embed` (CSV for instance specs, constants for grid factors)
 **Testing**: Go testing with table-driven tests, integration tests for gRPC
 **Target Platform**: Linux server (gRPC plugin binary)

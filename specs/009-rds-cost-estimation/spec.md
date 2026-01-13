@@ -58,7 +58,7 @@ As a cloud cost analyst, I want cost estimates for different database engines (M
 
 ### User Story 4 - Supports Query for RDS (Priority: P1)
 
-As a PulumiCost core system, I need to query whether this plugin supports RDS resources, so that I can route cost requests to the appropriate plugin.
+As a FinFocus core system, I need to query whether this plugin supports RDS resources, so that I can route cost requests to the appropriate plugin.
 
 **Why this priority**: Equal priority to P1 as Supports() is prerequisite for any cost estimation to occur.
 

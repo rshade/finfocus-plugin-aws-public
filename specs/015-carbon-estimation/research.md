@@ -146,7 +146,7 @@ func GetInstanceSpec(instanceType string) (InstanceSpec, bool) {
 }
 ```
 
-### 5. Proto Integration (pulumicost-spec v0.4.10)
+### 5. Proto Integration (finfocus-spec v0.4.10)
 
 **Decision**: Use proto-defined types directly
 
@@ -195,7 +195,7 @@ message ResourceDescriptor {
 **Implementation**:
 
 ```go
-import pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+import pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 
 // In estimateEC2:
 resp := &pbc.GetProjectedCostResponse{
@@ -253,10 +253,10 @@ func clamp(v, min, max float64) float64 {
 
 ## Dependencies Update
 
-**Required**: Update `go.mod` to use `pulumicost-spec v0.4.10`:
+**Required**: Update `go.mod` to use `finfocus-spec v0.4.10`:
 
 ```bash
-go get github.com/rshade/pulumicost-spec@v0.4.10
+go get github.com/rshade/finfocus-spec@v0.4.10
 go mod tidy
 ```
 
@@ -280,5 +280,5 @@ All NEEDS CLARIFICATION items resolved:
 | Data source | CCF cloud-carbon-coefficients CSV |
 | Grid factors | Static constants from CCF |
 | Formula | CCF methodology exactly |
-| Proto types | pulumicost-spec v0.4.10 |
+| Proto types | finfocus-spec v0.4.10 |
 | Utilization | Priority: per-resource > request > default (0.5) |

@@ -1,6 +1,6 @@
 # Contract: GetProjectedCost() RPC
 
-**Service**: `pulumicost.v1.CostSourceService`
+**Service**: `finfocus.v1.CostSourceService`
 **Method**: `GetProjectedCost`
 **Purpose**: Estimates monthly cost for a single AWS resource using public pricing
 
@@ -118,7 +118,7 @@ if req.Resource.Region != p.region {
 }
 ```
 
-**Usage**: PulumiCost core detects this error and fetches the correct region binary.
+**Usage**: FinFocus core detects this error and fetches the correct region binary.
 
 ---
 
@@ -305,7 +305,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/GetProjectedCost
+  finfocus.v1.CostSourceService/GetProjectedCost
 
 # Expected response:
 {
@@ -327,7 +327,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/GetProjectedCost
+  finfocus.v1.CostSourceService/GetProjectedCost
 
 # Expected response:
 {
@@ -348,7 +348,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/GetProjectedCost
+  finfocus.v1.CostSourceService/GetProjectedCost
 
 # Expected error:
 ERROR:
@@ -437,7 +437,7 @@ func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 
 ---
 
-## Usage by PulumiCost Core
+## Usage by FinFocus Core
 
 1. Core calls Supports() first to check compatibility
 2. If `supported=true`, core calls GetProjectedCost() for each resource

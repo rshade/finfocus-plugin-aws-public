@@ -14,7 +14,7 @@
 
 3. **Run the Plugin**:
    ```bash
-   ./pulumicost-plugin-aws-public-us-east-1
+   ./finfocus-plugin-aws-public-us-east-1
    ```
 
 ## Test Requests

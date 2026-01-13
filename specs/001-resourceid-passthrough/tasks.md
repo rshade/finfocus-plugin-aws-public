@@ -28,8 +28,8 @@
 
 **Goal**: Update dependencies and verify build environment.
 
-- [x] T001 Update pulumicost-spec to v0.4.11 in go.mod
-- [x] T002 Run `go mod tidy` and verify build compiles with `go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public`
+- [x] T001 Update finfocus-spec to v0.4.11 in go.mod
+- [x] T002 Run `go mod tidy` and verify build compiles with `go build -tags region_use1 ./cmd/finfocus-plugin-aws-public`
 
 ## Phase 2: User Story 1 - Resource Correlation (P1)
 

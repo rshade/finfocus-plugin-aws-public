@@ -9,7 +9,7 @@ Implement cost estimation for AWS VPC NAT Gateways by extending the existing gRP
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: gRPC, rs/zerolog, pulumicost-spec sdk
+**Primary Dependencies**: gRPC, rs/zerolog, finfocus-spec sdk
 **Storage**: N/A (Embedded JSON pricing data)
 **Testing**: Go table-driven tests (unit + integration)
 **Target Platform**: Linux (amd64/arm64)

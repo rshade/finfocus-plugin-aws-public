@@ -116,7 +116,7 @@ explicit request timestamps, verifying the request parameters take precedence.
 
 ### Key Entities
 
-- **Resource Properties**: Metadata injected by pulumicost-core from Pulumi state
+- **Resource Properties**: Metadata injected by finfocus-core from Pulumi state
   - `pulumi:created`: RFC3339 timestamp of resource creation
   - `pulumi:modified`: RFC3339 timestamp of last modification
   - `pulumi:external`: Boolean flag indicating imported resource
@@ -144,9 +144,9 @@ explicit request timestamps, verifying the request parameters take precedence.
 
 ## Assumptions
 
-- **A-001**: pulumicost-core injects `pulumi:created`, `pulumi:modified`, and
+- **A-001**: finfocus-core injects `pulumi:created`, `pulumi:modified`, and
   `pulumi:external` into resource properties before calling the plugin.
-- **A-002**: Timestamps are in RFC3339 format as specified by pulumicost-core.
+- **A-002**: Timestamps are in RFC3339 format as specified by finfocus-core.
 - **A-003**: The existing `GetActualCost` calculation formula remains unchanged;
   this feature adds smarter timestamp resolution.
 - **A-004**: Stop/start tracking for EC2 instances is out of scope; estimates

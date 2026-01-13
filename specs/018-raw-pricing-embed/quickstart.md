@@ -40,8 +40,8 @@ data/
 
 ```bash
 # Build us-east-1 binary
-go build -tags=region_use1 -o pulumicost-plugin-aws-public-us-east-1 \
-  ./cmd/pulumicost-plugin-aws-public
+go build -tags=region_use1 -o finfocus-plugin-aws-public-us-east-1 \
+  ./cmd/finfocus-plugin-aws-public
 ```
 
 ### 3. Run Tests
@@ -120,10 +120,10 @@ Verify the binary was built with region tags:
 
 ```bash
 # Wrong (no pricing data):
-go build ./cmd/pulumicost-plugin-aws-public
+go build ./cmd/finfocus-plugin-aws-public
 
 # Correct (with pricing data):
-go build -tags=region_use1 ./cmd/pulumicost-plugin-aws-public
+go build -tags=region_use1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ## File Size Reference

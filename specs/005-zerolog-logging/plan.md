@@ -5,9 +5,9 @@
 
 ## Summary
 
-Adopt zerolog v1.34.0+ structured logging using PulumiCost SDK utilities
+Adopt zerolog v1.34.0+ structured logging using FinFocus SDK utilities
 (`NewPluginLogger`, `TracingUnaryServerInterceptor`, `TraceIDFromContext`) to
-enable distributed tracing correlation with pulumicost-core. All gRPC handlers
+enable distributed tracing correlation with finfocus-core. All gRPC handlers
 will log operations with consistent field names, trace_id propagation, and
 measurable performance overhead (<1ms).
 
@@ -17,8 +17,8 @@ measurable performance overhead (<1ms).
 **Primary Dependencies**:
 
 - github.com/rs/zerolog v1.34.0+ (logging)
-- github.com/rshade/pulumicost-spec v0.3.0+ (SDK logging utilities)
-- github.com/rshade/pulumicost-core v0.1.0 (pluginsdk.Serve)
+- github.com/rshade/finfocus-spec v0.3.0+ (SDK logging utilities)
+- github.com/rshade/finfocus-core v0.1.0 (pluginsdk.Serve)
 - google.golang.org/grpc v1.77.0 (gRPC server)
 
 **Storage**: N/A (logs to stderr only)
@@ -96,7 +96,7 @@ specs/005-zerolog-logging/
 
 ```text
 cmd/
-└── pulumicost-plugin-aws-public/
+└── finfocus-plugin-aws-public/
     └── main.go              # Add logger initialization, pass to plugin
 
 internal/

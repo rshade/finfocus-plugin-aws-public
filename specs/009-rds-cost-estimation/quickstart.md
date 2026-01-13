@@ -25,8 +25,8 @@ make lint
 make test
 
 # Build specific region binary (e.g., us-east-1)
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 \
-    ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 \
+    ./cmd/finfocus-plugin-aws-public
 
 # Generate pricing data (includes RDS)
 go run ./tools/generate-pricing \
@@ -41,7 +41,7 @@ go run ./tools/generate-pricing \
 
 ```bash
 # Start the plugin
-./pulumicost-plugin-aws-public-us-east-1 &
+./finfocus-plugin-aws-public-us-east-1 &
 # Capture: PORT=12345
 
 # Query RDS cost
@@ -57,7 +57,7 @@ grpcurl -plaintext -d '{
       "storage_size": "100"
     }
   }
-}' localhost:12345 pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 **Expected Response**:
@@ -84,7 +84,7 @@ grpcurl -plaintext -d '{
       "engine": "postgres"
     }
   }
-}' localhost:12345 pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 **Expected Response** (with defaults: gp2, 20GB):
@@ -108,7 +108,7 @@ grpcurl -plaintext -d '{
     "sku": "db.t3.medium",
     "region": "us-east-1"
   }
-}' localhost:12345 pulumicost.v1.CostSourceService/Supports
+}' localhost:12345 finfocus.v1.CostSourceService/Supports
 ```
 
 **Expected Response**:
@@ -151,7 +151,7 @@ grpcurl -plaintext -d '{
 
 ### "Resource region does not match plugin region"
 
-- Use the correct region-specific binary (e.g., `pulumicost-plugin-aws-public-us-east-1`)
+- Use the correct region-specific binary (e.g., `finfocus-plugin-aws-public-us-east-1`)
 - Ensure `resource.region` matches the binary's embedded region
 
 ### Storage cost seems wrong

@@ -40,4 +40,4 @@ All checklist items verified. The specification is ready for `/speckit.plan`.
 - Spec references GitHub Issue #196 which contains detailed technical context
 - Existing `GetActualCost` implementation provides foundation; this enhances
   timestamp resolution
-- Assumes pulumicost-core already injects Pulumi state metadata (A-001)
+- Assumes finfocus-core already injects Pulumi state metadata (A-001)

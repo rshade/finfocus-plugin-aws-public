@@ -6,18 +6,18 @@
 
 ## Overview
 
-This guide helps developers understand the rename from `pulumicost-plugin-aws-public` to `finfocus-plugin-aws-public`. This is a breaking change (v0.2.0) that updates naming across the entire codebase while maintaining functional compatibility.
+This guide helps developers understand the rename from `finfocus-plugin-aws-public` to `finfocus-plugin-aws-public`. This is a breaking change (v0.2.0) that updates naming across the entire codebase while maintaining functional compatibility.
 
 ## What Changed
 
 | Component | Before | After |
 |-----------|--------|-------|
-| Module Name | `pulumicost-plugin-aws-public` | `finfocus-plugin-aws-public` |
-| Binary Names | `pulumicost-plugin-aws-public-<region>` | `finfocus-plugin-aws-public-<region>` |
-| Proto Package | `pulumicost.v1` | `finfocus.v1` |
-| Spec Dependency | `github.com/rshade/pulumicost-spec v0.4.14` | `github.com/rshade/finfocus-spec v0.5.0` |
-| Logging Prefix | `[pulumicost-plugin-aws-public]` | `[finfocus-plugin-aws-public]` |
-| Command Directory | `cmd/pulumicost-plugin-aws-public/` | `cmd/finfocus-plugin-aws-public/` |
+| Module Name | `finfocus-plugin-aws-public` | `finfocus-plugin-aws-public` |
+| Binary Names | `finfocus-plugin-aws-public-<region>` | `finfocus-plugin-aws-public-<region>` |
+| Proto Package | `finfocus.v1` | `finfocus.v1` |
+| Spec Dependency | `github.com/rshade/finfocus-spec v0.4.14` | `github.com/rshade/finfocus-spec v0.5.0` |
+| Logging Prefix | `[finfocus-plugin-aws-public]` | `[finfocus-plugin-aws-public]` |
+| Command Directory | `cmd/finfocus-plugin-aws-public/` | `cmd/finfocus-plugin-aws-public/` |
 
 ## What Didn't Change
 
@@ -38,10 +38,10 @@ This guide helps developers understand the rename from `pulumicost-plugin-aws-pu
 
 ### Installation
 
-**Before (pulumicost):**
+**Before (finfocus):**
 ```bash
-git clone git@github.com:rshade/pulumicost-plugin-aws-public.git
-cd pulumicost-plugin-aws-public
+git clone git@github.com:rshade/finfocus-plugin-aws-public.git
+cd finfocus-plugin-aws-public
 make build
 ```
 
@@ -52,7 +52,7 @@ cd finfocus-plugin-aws-public
 make build
 ```
 
-**Note**: The repository URL will change from `pulumicost-plugin-aws-public` to `finfocus-plugin-aws-public` after migration.
+**Note**: The repository URL will change from `finfocus-plugin-aws-public` to `finfocus-plugin-aws-public` after migration.
 
 ### Building the Plugin
 
@@ -181,10 +181,10 @@ grpcurl -plaintext -d '{
 
 ### Importing the Plugin
 
-**Before (pulumicost):**
+**Before (finfocus):**
 ```go
 import (
-    finfocusv1 "github.com/rshade/pulumicost-spec/v1"
+    finfocusv1 "github.com/rshade/finfocus-spec/v1"
 )
 ```
 
@@ -197,11 +197,11 @@ import (
 
 ### Logging
 
-**Before (pulumicost):**
+**Before (finfocus):**
 ```go
 log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
     With().
-    Str("component", "[pulumicost-plugin-aws-public]").
+    Str("component", "[finfocus-plugin-aws-public]").
     Logger()
 ```
 
@@ -215,12 +215,12 @@ log := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).
 
 ### Proto Package Usage
 
-**Before (pulumicost):**
+**Before (finfocus):**
 ```go
-import pulumicostv1 "github.com/rshade/pulumicost-spec/proto/v1"
+import finfocusv1 "github.com/rshade/finfocus-spec/proto/v1"
 
 // Use proto types
-desc := &pulumicostv1.ResourceDescriptor{
+desc := &finfocusv1.ResourceDescriptor{
     Region: "us-east-1",
     ResourceType: "aws:ec2/instance:Instance",
 }
@@ -239,7 +239,7 @@ desc := &finfocusv1.ResourceDescriptor{
 
 ## Migration Guide for Users
 
-If you're upgrading from `pulumicost-plugin-aws-public` to `finfocus-plugin-aws-public`:
+If you're upgrading from `finfocus-plugin-aws-public` to `finfocus-plugin-aws-public`:
 
 ### 1. Update Your Repository
 
@@ -269,7 +269,7 @@ Update any configuration files that reference the plugin:
 
 **Before:**
 ```yaml
-plugin_binary: "/path/to/pulumicost-plugin-aws-public-use1"
+plugin_binary: "/path/to/finfocus-plugin-aws-public-use1"
 ```
 
 **After:**
@@ -283,8 +283,8 @@ If you're filtering logs by component name:
 
 **Before:**
 ```bash
-# Filter for pulumicost logs
-grep "\[pulumicost-plugin-aws-public\]" app.log
+# Filter for finfocus logs
+grep "\[finfocus-plugin-aws-public\]" app.log
 ```
 
 **After:**
@@ -346,13 +346,13 @@ PORT=50051  # Check output
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| v0.1.x | Deprecated | Old `pulumicost-plugin-aws-public` versions |
+| v0.1.x | Deprecated | Old `finfocus-plugin-aws-public` versions |
 | v0.2.0 | Current | First `finfocus-plugin-aws-public` release |
 
 **Breaking Changes in v0.2.0**:
 - Module name changed
 - Binary names changed
-- Proto package name changed (pulumicost.v1 → finfocus.v1)
+- Proto package name changed (finfocus.v1 → finfocus.v1)
 
 **No Breaking Changes**:
 - gRPC protocol interface unchanged

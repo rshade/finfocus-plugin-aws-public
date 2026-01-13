@@ -10,7 +10,7 @@
 
 ### User Story 1 - Faster Plugin Initialization (Priority: P1)
 
-As a PulumiCost user running cost estimates on large infrastructure deployments, I want the pricing plugin to initialize as quickly as possible so that my CI/CD pipelines have minimal overhead when estimating costs.
+As a FinFocus user running cost estimates on large infrastructure deployments, I want the pricing plugin to initialize as quickly as possible so that my CI/CD pipelines have minimal overhead when estimating costs.
 
 **Why this priority**: Plugin initialization happens on every invocation. Reducing initialization time directly improves user experience and reduces CI/CD pipeline duration for all users.
 
@@ -25,7 +25,7 @@ As a PulumiCost user running cost estimates on large infrastructure deployments,
 
 ### User Story 2 - Reduced Memory Churn (Priority: P2)
 
-As a platform engineer running PulumiCost in memory-constrained environments (e.g., serverless, containers with memory limits), I want the plugin to have predictable memory allocation patterns so that garbage collection pauses are minimized.
+As a platform engineer running FinFocus in memory-constrained environments (e.g., serverless, containers with memory limits), I want the plugin to have predictable memory allocation patterns so that garbage collection pauses are minimized.
 
 **Why this priority**: Unpredictable GC pauses can cause latency spikes in cost estimation responses, impacting user-perceived performance.
 

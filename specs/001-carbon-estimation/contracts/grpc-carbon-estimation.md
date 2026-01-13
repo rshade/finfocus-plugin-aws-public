@@ -2,7 +2,7 @@
 
 **Feature**: 001-carbon-estimation  
 **Date**: 2025-12-31  
-**Protocol**: gRPC (PulumiCost CostSourceService v1)
+**Protocol**: gRPC (FinFocus CostSourceService v1)
 
 This document defines the gRPC interface contract for carbon footprint estimation across AWS services.
 
@@ -10,12 +10,12 @@ This document defines the gRPC interface contract for carbon footprint estimatio
 
 ## Protocol Overview
 
-The plugin implements the `pulumicost.v1.CostSourceService` gRPC interface. Carbon estimation is delivered as an additional metric in the `GetProjectedCost` response.
+The plugin implements the `finfocus.v1.CostSourceService` gRPC interface. Carbon estimation is delivered as an additional metric in the `GetProjectedCost` response.
 
 **Key Protocol Requirements** (from constitution):
 - NEVER log to stdout except PORT announcement
 - Use zerolog for structured JSON logging to stderr
-- Log entries MUST include `[pulumicost-plugin-aws-public]` component identifier
+- Log entries MUST include `[finfocus-plugin-aws-public]` component identifier
 - Support LOG_LEVEL environment variable for log level configuration
 - Use proto-defined ErrorCode enum for errors
 - All gRPC method handlers MUST be thread-safe
@@ -24,7 +24,7 @@ The plugin implements the `pulumicost.v1.CostSourceService` gRPC interface. Carb
 
 ## Service Definition
 
-### Service: pulumicost.v1.CostSourceService
+### Service: finfocus.v1.CostSourceService
 
 ```protobuf
 service CostSourceService {
@@ -245,7 +245,7 @@ message GetProjectedCostResponse {
 
 ### Error Codes (Proto-Defined)
 
-Use proto-defined ErrorCode enum from pulumicost.v1:
+Use proto-defined ErrorCode enum from finfocus.v1:
 
 | Error Code | Value | Description | Use Case |
 |------------|-------|-------------|-----------|
@@ -260,7 +260,7 @@ Use proto-defined ErrorCode enum from pulumicost.v1:
 status: INVALID_ARGUMENT
 details: [
   {
-    "@type": "type.googleapis.com/pulumicost.v1.ErrorDetail",
+    "@type": "type.googleapis.com/finfocus.v1.ErrorDetail",
     "code": 6,  // ERROR_CODE_INVALID_RESOURCE
     "message": "Missing required property: instance_type"
   }
@@ -636,14 +636,14 @@ details: [
 
 **From Constitution**:
 - Use zerolog for structured JSON logging to stderr
-- Log entries MUST include `[pulumicost-plugin-aws-public]` component identifier
+- Log entries MUST include `[finfocus-plugin-aws-public]` component identifier
 - Never log to stdout except PORT announcement
 
 **Example Log Entry**:
 ```json
 {
   "level": "debug",
-  "component": "[pulumicost-plugin-aws-public]",
+  "component": "[finfocus-plugin-aws-public]",
   "msg": "Calculating carbon for EC2 instance",
   "service": "ec2",
   "instance_type": "t3.micro",

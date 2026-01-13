@@ -4,7 +4,7 @@
 **Created**: 2025-11-26
 **Status**: Draft
 **Input**: GitHub Issue #22 - Adopt zerolog v1.34.0+ structured logging using
-PulumiCost SDK utilities for distributed tracing correlation with pulumicost-core.
+FinFocus SDK utilities for distributed tracing correlation with finfocus-core.
 
 ## Clarifications
 
@@ -13,14 +13,14 @@ PulumiCost SDK utilities for distributed tracing correlation with pulumicost-cor
 - Q: When trace_id is missing from gRPC metadata, should logs use empty string,
   generate a UUID, or omit the field? → A: Generate UUID for untraced requests
 - Q: Should plugin validate/sanitize malformed trace_id values? → A: No,
-  delegated to SDK interceptor (rshade/pulumicost-spec#94)
+  delegated to SDK interceptor (rshade/finfocus-spec#94)
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - End-to-End Request Tracing (Priority: P1)
 
 As an operator debugging a cost estimation issue, I need to trace a single
-request from pulumicost-core through the aws-public plugin so that I can
+request from finfocus-core through the aws-public plugin so that I can
 identify where failures or slowdowns occur in the distributed system.
 
 **Why this priority**: Distributed tracing is the primary motivation for this
@@ -49,10 +49,10 @@ entries for that request.
 
 As an operator monitoring plugin health, I need all operations logged with
 consistent field names so that I can build dashboards, alerts, and queries
-across all PulumiCost components.
+across all FinFocus components.
 
 **Why this priority**: Consistent field naming enables cross-component
-monitoring and is required for integration with the broader PulumiCost
+monitoring and is required for integration with the broader FinFocus
 observability stack.
 
 **Independent Test**: Can be verified by examining log output and confirming
@@ -117,7 +117,7 @@ that SKU lookup results and pricing calculations are logged.
 
 ### Edge Cases
 
-- Malformed/oversized trace_id: Handled by SDK interceptor (rshade/pulumicost-spec#94)
+- Malformed/oversized trace_id: Handled by SDK interceptor (rshade/finfocus-spec#94)
 - Disk full/stderr unavailable: zerolog handles gracefully (drops logs, no crash)
 - High concurrency logging: zerolog is lock-free, handles high throughput
 - Sensitive field exposure: No sensitive data logged; costs are not PII
@@ -182,21 +182,21 @@ that SKU lookup results and pricing calculations are logged.
 ## Assumptions
 
 - SDK utilities (`NewPluginLogger`, `TracingUnaryServerInterceptor`,
-  `TraceIDFromContext`) are available in pulumicost-spec v0.3.0+
+  `TraceIDFromContext`) are available in finfocus-spec v0.3.0+
 - SDK provides standard field name constants that this plugin must use
 - zerolog v1.34.0+ is the required logging library version
 - Log output format is JSON (standard zerolog behavior)
 - Log level defaults to Info unless configured otherwise via environment
   variable
-- pulumicost-core will send trace_id in gRPC metadata using a standardized key
+- finfocus-core will send trace_id in gRPC metadata using a standardized key
 
 ## Dependencies
 
-- **External**: pulumicost-spec v0.3.0+ with SDK logging utilities
-  (rshade/pulumicost-spec#75)
+- **External**: finfocus-spec v0.3.0+ with SDK logging utilities
+  (rshade/finfocus-spec#75)
 - **External**: zerolog v1.34.0+ library
-- **External**: SDK trace_id validation in interceptor (rshade/pulumicost-spec#94)
-- **Related**: pulumicost-core logging implementation (rshade/pulumicost-core#170)
+- **External**: SDK trace_id validation in interceptor (rshade/finfocus-spec#94)
+- **Related**: finfocus-core logging implementation (rshade/finfocus-core#170)
 
 ## Out of Scope
 

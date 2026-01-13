@@ -33,5 +33,5 @@
 
 - All checklist items pass validation
 - Spec is ready for `/speckit.clarify` or `/speckit.plan`
-- External dependencies on pulumicost-spec SDK are documented in Assumptions
+- External dependencies on finfocus-spec SDK are documented in Assumptions
 - Implementation can begin with P1 stories (internal consolidation) immediately

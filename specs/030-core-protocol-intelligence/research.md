@@ -8,13 +8,13 @@
 
 ### RQ-1: What proto fields exist for Growth Type Hints?
 
-**Finding**: `GrowthType` enum and `growth_type` field EXIST in pulumicost-spec v0.4.12
+**Finding**: `GrowthType` enum and `growth_type` field EXIST in finfocus-spec v0.4.12
 
 **Evidence**:
 
 ```go
 // GetProjectedCostResponse.growth_type (field 6)
-GrowthType GrowthType `protobuf:"varint,6,opt,name=growth_type,json=growthType,proto3,enum=pulumicost.v1.GrowthType"`
+GrowthType GrowthType `protobuf:"varint,6,opt,name=growth_type,json=growthType,proto3,enum=finfocus.v1.GrowthType"`
 
 // GrowthType enum values
 GrowthType_GROWTH_TYPE_UNSPECIFIED  // 0 - Consumption-based (default)
@@ -35,16 +35,16 @@ GrowthType_GROWTH_TYPE_EXPONENTIAL  // 2 - Compounding growth (rare)
 
 ### RQ-2: What proto fields exist for Dev Mode (UsageProfile)?
 
-**Finding**: `UsageProfile` enum does NOT exist in pulumicost-spec v0.4.12
+**Finding**: `UsageProfile` enum does NOT exist in finfocus-spec v0.4.12
 
 **Evidence**:
 
 ```bash
-$ go doc github.com/rshade/pulumicost-spec/.../v1.UsageProfile
+$ go doc github.com/rshade/finfocus-spec/.../v1.UsageProfile
 UsageProfile not found
 ```
 
-**Decision**: Create PR to add `UsageProfile` to pulumicost-spec before implementing Dev Mode.
+**Decision**: Create PR to add `UsageProfile` to finfocus-spec before implementing Dev Mode.
 
 **Rationale**: Cannot implement without proto definition. Proto-first approach ensures compatibility.
 
@@ -75,16 +75,16 @@ message GetProjectedCostRequest {
 
 ### RQ-3: What proto fields exist for Topology Linking?
 
-**Finding**: `CostAllocationLineage` message does NOT exist in pulumicost-spec v0.4.12
+**Finding**: `CostAllocationLineage` message does NOT exist in finfocus-spec v0.4.12
 
 **Evidence**:
 
 ```bash
-$ go doc github.com/rshade/pulumicost-spec/.../v1.CostAllocationLineage
+$ go doc github.com/rshade/finfocus-spec/.../v1.CostAllocationLineage
 CostAllocationLineage not found
 ```
 
-**Decision**: Create PR to add `CostAllocationLineage` to pulumicost-spec before implementing Topology Linking.
+**Decision**: Create PR to add `CostAllocationLineage` to finfocus-spec before implementing Topology Linking.
 
 **Rationale**: Cannot implement without proto definition. Proto-first approach ensures compatibility.
 
@@ -166,7 +166,7 @@ message GetProjectedCostResponse {
 **Finding**: Use Go protobuf reflection or type assertion to check for protocol field availability at runtime, not version checking.
 
 **Evidence**:
-- pulumicost-spec versions may not correlate 1:1 with feature availability
+- finfocus-spec versions may not correlate 1:1 with feature availability
 - Proto optional fields default to zero values when unset
 - Reflection on proto messages is performant and idiomatic
 
@@ -181,26 +181,26 @@ message GetProjectedCostResponse {
 **Implementation Pattern**:
 ```go
 // Check if UsageProfile field exists in request
-func hasUsageProfile(req *pulumicostv1.ResourceDescriptor) bool {
-    _, ok := req.(interface{ GetUsageProfile() pulumicostv1.UsageProfile })
+func hasUsageProfile(req *finfocusv1.ResourceDescriptor) bool {
+    _, ok := req.(interface{ GetUsageProfile() finfocusv1.UsageProfile })
     return ok
 }
 
 // Check if GrowthType field exists in response
-func hasGrowthHint(resp *pulumicostv1.GetProjectedCostResponse) bool {
-    _, ok := resp.(interface{ SetGrowthType(pulumicostv1.GrowthType) })
+func hasGrowthHint(resp *finfocusv1.GetProjectedCostResponse) bool {
+    _, ok := resp.(interface{ SetGrowthType(finfocusv1.GrowthType) })
     return ok
 }
 
 // Check if Lineage field exists in response
-func hasLineage(resp *pulumicostv1.GetProjectedCostResponse) bool {
-    _, ok := resp.(interface{ SetLineage(*pulumicostv1.CostAllocationLineage) })
+func hasLineage(resp *finfocusv1.GetProjectedCostResponse) bool {
+    _, ok := resp.(interface{ SetLineage(*finfocusv1.CostAllocationLineage) })
     return ok
 }
 ```
 
 **Alternatives Considered**:
-- Version string comparison → Rejected: pulumicost-spec version is TBD
+- Version string comparison → Rejected: finfocus-spec version is TBD
 - Build tags → Rejected: requires multiple binary builds
 - Compile-time interface → Rejected: breaks compatibility
 
@@ -226,12 +226,12 @@ func hasLineage(resp *pulumicostv1.GetProjectedCostResponse) bool {
 **Implementation Pattern**:
 ```go
 // Pure transformation functions (no side effects)
-func applyDevMode(req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.GetProjectedCostResponse) {
+func applyDevMode(req *finfocusv1.ResourceDescriptor, resp *finfocusv1.GetProjectedCostResponse) {
     if !hasUsageProfile(req) {
         return // Field not available in this spec version
     }
 
-    if req.GetUsageProfile() == pulumicostv1.UsageProfile_DEVELOPMENT {
+    if req.GetUsageProfile() == finfocusv1.UsageProfile_DEVELOPMENT {
         classification, ok := serviceClassifications[req.ResourceType]
         if ok && classification.AffectedByDevMode {
             resp.CostPerMonth = resp.CostPerMonth * hoursPerMonthDev / hoursPerMonthProd
@@ -240,7 +240,7 @@ func applyDevMode(req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.GetPr
     }
 }
 
-func setGrowthHint(serviceType string, resp *pulumicostv1.GetProjectedCostResponse) {
+func setGrowthHint(serviceType string, resp *finfocusv1.GetProjectedCostResponse) {
     if !hasGrowthHint(resp) {
         return // Field not available
     }
@@ -251,7 +251,7 @@ func setGrowthHint(serviceType string, resp *pulumicostv1.GetProjectedCostRespon
     }
 }
 
-func extractLineage(req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.GetProjectedCostResponse) {
+func extractLineage(req *finfocusv1.ResourceDescriptor, resp *finfocusv1.GetProjectedCostResponse) {
     if !hasLineage(resp) {
         return // Field not available
     }
@@ -264,7 +264,7 @@ func extractLineage(req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.Get
     // Extract first matching tag key by priority
     for _, tagKey := range classification.ParentTagKeys {
         if parentID, exists := req.Tags[tagKey]; exists && parentID != "" {
-            resp.Lineage = &pulumicostv1.CostAllocationLineage{
+            resp.Lineage = &finfocusv1.CostAllocationLineage{
                 ParentResourceId:   parentID,
                 ParentResourceType: classification.ParentType,
                 Relationship:       classification.Relationship,
@@ -275,7 +275,7 @@ func extractLineage(req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.Get
 }
 
 // In gRPC handler - apply enrichment in order
-func (s *Server) GetProjectedCost(ctx context.Context, req *pulumicostv1.ResourceDescriptor) (*pulumicostv1.GetProjectedCostResponse, error) {
+func (s *Server) GetProjectedCost(ctx context.Context, req *finfocusv1.ResourceDescriptor) (*finfocusv1.GetProjectedCostResponse, error) {
     resp, err := s.calculateCost(req) // Existing logic - DO NOT MODIFY
     if err != nil {
         return nil, err
@@ -317,7 +317,7 @@ func (s *Server) GetProjectedCost(ctx context.Context, req *pulumicostv1.Resourc
 ```go
 // Read-only constant map (thread-safe by design)
 type ServiceClassification struct {
-    GrowthType        pulumicostv1.GrowthType
+    GrowthType        finfocusv1.GrowthType
     AffectedByDevMode bool
     ParentTagKeys     []string // Priority order
     ParentType        string
@@ -326,24 +326,24 @@ type ServiceClassification struct {
 
 var serviceClassifications = map[string]ServiceClassification{
     "aws:ec2:instance": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,
         ParentTagKeys:     nil,
     },
     "aws:s3:bucket": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_LINEAR,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_LINEAR,
         AffectedByDevMode: false,
         ParentTagKeys:     nil,
     },
     "aws:ebs:volume": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: false, // Storage is not time-based
         ParentTagKeys:     []string{"instance_id"},
         ParentType:        "aws:ec2:instance:Instance",
         Relationship:      "attached_to",
     },
     "aws:elasticloadbalancing:loadbalancer": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true, // Load balancer hours
         ParentTagKeys:     []string{"vpc_id"},
         ParentType:        "aws:ec2:vpc:Vpc",
@@ -389,8 +389,8 @@ import (
 )
 
 // In applyDevMode function
-func applyDevMode(ctx context.Context, req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.GetProjectedCostResponse) {
-    if req.GetUsageProfile() == pulumicostv1.UsageProfile_DEVELOPMENT {
+func applyDevMode(ctx context.Context, req *finfocusv1.ResourceDescriptor, resp *finfocusv1.GetProjectedCostResponse) {
+    if req.GetUsageProfile() == finfocusv1.UsageProfile_DEVELOPMENT {
         // Apply dev mode...
 
         // Log metadata enrichment
@@ -403,7 +403,7 @@ func applyDevMode(ctx context.Context, req *pulumicostv1.ResourceDescriptor, res
 }
 
 // In extractLineage function
-func extractLineage(ctx context.Context, req *pulumicostv1.ResourceDescriptor, resp *pulumicostv1.GetProjectedCostResponse) {
+func extractLineage(ctx context.Context, req *finfocusv1.ResourceDescriptor, resp *finfocusv1.GetProjectedCostResponse) {
     if parentID, exists := req.Tags["instance_id"]; exists && parentID != "" {
         // Set lineage...
 
@@ -444,7 +444,7 @@ func extractLineage(ctx context.Context, req *pulumicostv1.ResourceDescriptor, r
 **Optimization Pattern**:
 ```go
 // Fast path: check if feature detection passes early
-func setGrowthHint(serviceType string, resp *pulumicostv1.GetProjectedCostResponse) {
+func setGrowthHint(serviceType string, resp *finfocusv1.GetProjectedCostResponse) {
     // Early return if field not available (no allocation)
     if !hasGrowthHint(resp) {
         return
@@ -509,6 +509,6 @@ if parentID != "" {
 ## Next Steps
 
 1. Implement Growth Type Hints (P2) using existing `GrowthType` enum - can start immediately
-2. Create pulumicost-spec PR for `UsageProfile` enum (P1) and `CostAllocationLineage` message (P3)
+2. Create finfocus-spec PR for `UsageProfile` enum (P1) and `CostAllocationLineage` message (P3)
 3. Implement Dev Mode and Topology Linking after proto merges
 4. Proceed to Phase 1: Design & Contracts

@@ -66,8 +66,8 @@ var rawPricingJSON []byte
 #### .goreleaser.yaml (build block)
 ```yaml
 - id: {name}
-  main: ./cmd/pulumicost-plugin-aws-public
-  binary: pulumicost-plugin-aws-public-{name}
+  main: ./cmd/finfocus-plugin-aws-public
+  binary: finfocus-plugin-aws-public-{name}
   env:
     - CGO_ENABLED=0
   goos:

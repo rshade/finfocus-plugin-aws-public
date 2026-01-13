@@ -5,14 +5,14 @@
 
 ## Summary
 
-Add Amazon ElastiCache cost estimation to the PulumiCost AWS Public plugin. ElastiCache is a managed in-memory caching service supporting Redis, Memcached, and Valkey engines with node-based hourly pricing. The implementation follows the established service pattern (similar to RDS/EKS) with pricing data generation, embedding, parsing, and estimation.
+Add Amazon ElastiCache cost estimation to the FinFocus AWS Public plugin. ElastiCache is a managed in-memory caching service supporting Redis, Memcached, and Valkey engines with node-based hourly pricing. The implementation follows the established service pattern (similar to RDS/EKS) with pricing data generation, embedding, parsing, and estimation.
 
 **Technical Approach**: Index-based pricing lookup keyed by `{nodeType}:{engine}` (e.g., `cache.m5.large:redis`), consistent with the RDS pattern for multi-variant services.
 
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: gRPC (pulumicost-spec/sdk/go/pluginsdk), zerolog, sync.WaitGroup
+**Primary Dependencies**: gRPC (finfocus-spec/sdk/go/pluginsdk), zerolog, sync.WaitGroup
 **Storage**: Embedded JSON pricing data (via `//go:embed`)
 **Testing**: Go testing with table-driven tests, integration tests with region tags
 **Target Platform**: Linux server (gRPC service on 127.0.0.1)

@@ -104,8 +104,8 @@ import (
     "context"
     "time"
 
-    "github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
-    pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+    "github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+    pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
     "google.golang.org/grpc/codes"
 )
 
@@ -186,7 +186,7 @@ var recommendations []*pbc.Recommendation
 // }
 ```
 
-**Note**: Full dispatcher implementation depends on how PulumiCost core passes
+**Note**: Full dispatcher implementation depends on how FinFocus core passes
 resource context. Current skeleton returns empty list per research.md R7.
 
 ---
@@ -613,7 +613,7 @@ func TestGetEBSRecommendations(t *testing.T) {
 
 ## Phase 5: US4 - Graceful Error Handling (P4)
 
-**User Story**: As a PulumiCost user, I want GetRecommendations to return an empty list for unsupported services so that my automation doesn't break.
+**User Story**: As a FinFocus user, I want GetRecommendations to return an empty list for unsupported services so that my automation doesn't break.
 
 ### T5.1: Verify empty list for unsupported services
 
@@ -739,7 +739,7 @@ Verify all acceptance scenarios from spec.md pass:
 - [ ] Read spec.md user stories and acceptance criteria
 - [ ] Read data-model.md for mapping definitions
 - [ ] Understand existing plugin.go structure
-- [ ] Verify pulumicost-spec v0.4.7 dependency
+- [ ] Verify finfocus-spec v0.4.7 dependency
 
 ### After Completion
 

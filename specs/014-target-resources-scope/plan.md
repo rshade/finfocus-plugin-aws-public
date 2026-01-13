@@ -7,12 +7,12 @@
 
 ## Summary
 
-This feature implements batch processing support in the `GetRecommendations` RPC method. It updates the plugin to handle the `target_resources` field in the request (introduced in `pulumicost-spec` v0.4.9). The plugin will iterate over this list, apply any filters (AND logic), and return a list of cost recommendations. It maintains backward compatibility by falling back to `Filter.Sku` if `target_resources` is empty. Crucially, it implements a correlation strategy to map outputs back to inputs using `ResourceId`/`Arn`/`Name` and a consolidated logging strategy to maintain observability without noise.
+This feature implements batch processing support in the `GetRecommendations` RPC method. It updates the plugin to handle the `target_resources` field in the request (introduced in `finfocus-spec` v0.4.9). The plugin will iterate over this list, apply any filters (AND logic), and return a list of cost recommendations. It maintains backward compatibility by falling back to `Filter.Sku` if `target_resources` is empty. Crucially, it implements a correlation strategy to map outputs back to inputs using `ResourceId`/`Arn`/`Name` and a consolidated logging strategy to maintain observability without noise.
 
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: `github.com/rshade/pulumicost-spec` (v0.4.9 already in go.mod), `google.golang.org/grpc`
+**Primary Dependencies**: `github.com/rshade/finfocus-spec` (v0.4.9 already in go.mod), `google.golang.org/grpc`
 **Storage**: N/A (Stateless)
 **Testing**: Go standard library `testing`
 **Target Platform**: Linux/Cross-platform (Go binary)
@@ -43,7 +43,7 @@ specs/014-target-resources-scope/
 ├── data-model.md        # Phase 1 output
 ├── quickstart.md        # Phase 1 output
 ├── contracts/           # Phase 1 output
-│   └── pulumicost-v1-batch.yaml
+│   └── finfocus-v1-batch.yaml
 └── tasks.md             # Phase 2 output (to be created)
 ```
 

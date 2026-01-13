@@ -60,17 +60,11 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 	// Initialize configuration
 	maxBatchSize := defaultMaxBatchSize
 	// Check for batch size (new variable takes precedence over deprecated)
-	val := os.Getenv(EnvMaxBatchSize)
-	if val == "" {
-		val = os.Getenv(EnvMaxBatchSizeDeprecated)
-	}
-	if val != "" {
+	val, varName, found := getEnvWithDeprecation(logger, EnvMaxBatchSize, EnvMaxBatchSizeDeprecated, EnvMaxBatchSizeLegacy)
+
+	if found {
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			if n > maxMaxBatchSize {
-				varName := EnvMaxBatchSize
-				if os.Getenv(EnvMaxBatchSize) == "" {
-					varName = EnvMaxBatchSizeDeprecated
-				}
 				logger.Warn().
 					Str("variable", varName).
 					Int("requested", n).
@@ -81,10 +75,6 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 				maxBatchSize = n
 			}
 		} else {
-			varName := EnvMaxBatchSize
-			if os.Getenv(EnvMaxBatchSize) == "" {
-				varName = EnvMaxBatchSizeDeprecated
-			}
 			logger.Warn().
 				Str("variable", varName).
 				Str("value", val).
@@ -93,9 +83,10 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 	}
 
 	// Check for strict validation (new variable takes precedence over deprecated)
-	strictValidation := parseBoolEnv(EnvStrictValidation)
-	if !strictValidation {
-		strictValidation = parseBoolEnv(EnvStrictValidationDeprecated)
+	var strictValidation bool
+	val, _, found = getEnvWithDeprecation(logger, EnvStrictValidation, EnvStrictValidationDeprecated, EnvStrictValidationLegacy)
+	if found {
+		strictValidation = parseBoolVal(val)
 	}
 
 	return &AWSPublicPlugin{
@@ -110,11 +101,42 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 	}
 }
 
-// parseBoolEnv returns true if the environment variable is set to a truthy value.
+// parseBoolVal returns true if the string value is truthy.
 // Accepted values: "true", "1", "yes", "on" (case-insensitive).
-func parseBoolEnv(key string) bool {
-	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+func parseBoolVal(val string) bool {
+	val = strings.ToLower(strings.TrimSpace(val))
 	return val == "true" || val == "1" || val == "yes" || val == "on"
+}
+
+// getEnvWithDeprecation checks for an environment variable with fallback to deprecated names.
+// It logs warnings when deprecated variables are used.
+// Returns (value, variableName, found).
+func getEnvWithDeprecation(logger zerolog.Logger, current, deprecated, legacy string) (string, string, bool) {
+	if val := os.Getenv(current); val != "" {
+		return val, current, true
+	}
+
+	if val := os.Getenv(deprecated); val != "" {
+		logger.Warn().
+			Str("env_var", deprecated).
+			Str("replacement", current).
+			Str("deprecated_since", "v0.0.18").
+			Str("removal_version", "v1.0.0").
+			Msgf("%s is deprecated, use %s instead", deprecated, current)
+		return val, deprecated, true
+	}
+
+	if val := os.Getenv(legacy); val != "" {
+		logger.Warn().
+			Str("env_var", legacy).
+			Str("replacement", current).
+			Str("deprecated_since", "v0.0.18").
+			Str("removal_version", "v1.0.0").
+			Msgf("%s is deprecated, use %s instead", legacy, current)
+		return val, legacy, true
+	}
+
+	return "", "", false
 }
 
 // getTraceID extracts the trace_id from context or generates a UUID if not present.

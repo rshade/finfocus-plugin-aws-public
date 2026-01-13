@@ -1,20 +1,20 @@
-# Implementation Plan: PulumiCost AWS Public Plugin
+# Implementation Plan: FinFocus AWS Public Plugin
 
-**Branch**: `001-pulumicost-aws-plugin` | **Date**: 2025-11-16 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/001-pulumicost-aws-plugin/spec.md`
+**Branch**: `001-finfocus-aws-plugin` | **Date**: 2025-11-16 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/001-finfocus-aws-plugin/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-Implement a gRPC-based PulumiCost plugin that provides AWS cost estimates using public on-demand pricing data embedded at build time. The plugin implements the CostSourceService gRPC interface, serves on loopback via pluginsdk.Serve(), and supports region-specific binary distribution with EC2/EBS fully implemented and S3/Lambda/RDS/DynamoDB as stubs returning $0.
+Implement a gRPC-based FinFocus plugin that provides AWS cost estimates using public on-demand pricing data embedded at build time. The plugin implements the CostSourceService gRPC interface, serves on loopback via pluginsdk.Serve(), and supports region-specific binary distribution with EC2/EBS fully implemented and S3/Lambda/RDS/DynamoDB as stubs returning $0.
 
 ## Technical Context
 
 **Language/Version**: Go 1.25+
 **Primary Dependencies**:
-- `github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1` (proto definitions)
-- `github.com/rshade/pulumicost-core/pkg/pluginsdk` (plugin SDK and Serve function)
+- `github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1` (proto definitions)
+- `github.com/rshade/finfocus-core/pkg/pluginsdk` (plugin SDK and Serve function)
 - `google.golang.org/grpc` (gRPC runtime)
 - `google.golang.org/protobuf` (protobuf runtime)
 
@@ -70,7 +70,7 @@ Implement a gRPC-based PulumiCost plugin that provides AWS cost estimates using 
 
 - **gRPC CostSourceService**: Implements all required RPCs (Name, Supports, GetProjectedCost)
 - **PORT Announcement**: Writes `PORT=<port>` to stdout exactly once via pluginsdk.Serve()
-- **Proto-Defined Types Only**: Uses ResourceDescriptor, GetProjectedCostResponse, SupportsResponse from pulumicost.v1
+- **Proto-Defined Types Only**: Uses ResourceDescriptor, GetProjectedCostResponse, SupportsResponse from finfocus.v1
 - **Error Codes**: Uses proto ErrorCode enum (ERROR_CODE_INVALID_RESOURCE, ERROR_CODE_UNSUPPORTED_REGION, ERROR_CODE_DATA_CORRUPTION)
 - **Thread Safety**: Pricing client uses sync.Once, all RPC handlers are thread-safe
 - **Region-Specific Binaries**: Each binary embeds only its region's pricing data
@@ -101,7 +101,7 @@ Implement a gRPC-based PulumiCost plugin that provides AWS cost estimates using 
 - **GoReleaser**: Builds all region-specific binaries (us-east-1, us-west-2, eu-west-1)
 - **Build Tags**: region_use1, region_usw2, region_euw1 compile cleanly
 - **Before Hooks**: tools/generate-pricing runs successfully before build
-- **Binary Naming**: pulumicost-plugin-aws-public-<region>
+- **Binary Naming**: finfocus-plugin-aws-public-<region>
 - **gRPC Functional Testing**: Manual grpcurl testing before release
 
 **PASS**: Build process aligns with constitution requirements.
@@ -136,9 +136,9 @@ specs/[###-feature]/
 ### Source Code (repository root)
 
 ```text
-pulumicost-plugin-aws-public/
+finfocus-plugin-aws-public/
 ├── cmd/
-│   └── pulumicost-plugin-aws-public/
+│   └── finfocus-plugin-aws-public/
 │       ├── main.go                    # Entrypoint: pluginsdk.Serve() + pricing client init
 │       └── main_test.go               # Optional: integration test with subprocess
 │
@@ -173,7 +173,7 @@ pulumicost-plugin-aws-public/
 │
 ├── .goreleaser.yaml                   # Multi-binary build config with build tags
 ├── Makefile                           # lint, test, build targets
-├── go.mod                             # Dependencies (pulumicost-spec, pluginsdk, grpc)
+├── go.mod                             # Dependencies (finfocus-spec, pluginsdk, grpc)
 ├── go.sum
 ├── README.md                          # gRPC protocol, usage, integration docs
 ├── RELEASING.md                       # Release checklist

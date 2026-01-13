@@ -5,7 +5,7 @@
 
 ## Overview
 
-EKS cost estimation extends the existing pulumicost.v1 gRPC CostSourceService with EKS cluster pricing support.
+EKS cost estimation extends the existing finfocus.v1 gRPC CostSourceService with EKS cluster pricing support.
 
 ## gRPC Method Contracts
 
@@ -103,7 +103,7 @@ type PricingClient interface {
 ```json
 {
   "level": "debug",
-  "component": "pulumicost-plugin-aws-public",
+  "component": "finfocus-plugin-aws-public",
   "trace_id": "<request-id>",
   "operation": "GetProjectedCost",
   "aws_region": "us-east-1",
@@ -116,7 +116,7 @@ type PricingClient interface {
 ```json
 {
   "level": "error",
-  "component": "pulumicost-plugin-aws-public",
+  "component": "finfocus-plugin-aws-public",
   "trace_id": "<request-id>",
   "operation": "GetProjectedCost",
   "error": "pricing data unavailable for region",

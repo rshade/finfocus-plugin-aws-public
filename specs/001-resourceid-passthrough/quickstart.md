@@ -12,16 +12,16 @@
 ## Step 1: Update Dependency (5 min)
 
 ```bash
-# Update pulumicost-spec to v0.4.11
-go get github.com/rshade/pulumicost-spec@v0.4.11
+# Update finfocus-spec to v0.4.11
+go get github.com/rshade/finfocus-spec@v0.4.11
 go mod tidy
 ```
 
 Verify the update:
 
 ```bash
-grep pulumicost-spec go.mod
-# Should show: github.com/rshade/pulumicost-spec v0.4.11
+grep finfocus-spec go.mod
+# Should show: github.com/rshade/finfocus-spec v0.4.11
 ```
 
 ## Step 2: Implement ID Passthrough (10 min)
@@ -49,7 +49,7 @@ for _, rec := range recs {
 // Populate correlation info: Native Id takes priority over tag
 for _, rec := range recs {
     if rec.Resource != nil {
-        // Priority 1: Use native Id field (new in pulumicost-spec v0.4.11)
+        // Priority 1: Use native Id field (new in finfocus-spec v0.4.11)
         if id := strings.TrimSpace(resource.Id); id != "" {
             rec.Resource.Id = id
         } else if resourceID := resource.Tags["resource_id"]; resourceID != "" {
@@ -123,12 +123,12 @@ make lint
 make test
 
 # Build with region tag to verify compilation
-go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ## Success Criteria
 
-- [ ] `go.mod` shows pulumicost-spec v0.4.11+
+- [ ] `go.mod` shows finfocus-spec v0.4.11+
 - [ ] `make lint` passes
 - [ ] `make test` passes (including new ID passthrough tests)
 - [ ] Build succeeds with region tag

@@ -18,7 +18,7 @@
 
 ### User Story 1 - System Stability & Robustness (Priority: P1)
 
-As a PulumiCost user, I want the AWS public plugin to be stable and predictable, handling edge cases like missing pricing data or invalid region fallbacks without crashing or producing incorrect results, so that I can rely on the cost estimates.
+As a FinFocus user, I want the AWS public plugin to be stable and predictable, handling edge cases like missing pricing data or invalid region fallbacks without crashing or producing incorrect results, so that I can rely on the cost estimates.
 
 **Why this priority**: Correctness and stability are the core value propositions of a cost estimation tool.
 
@@ -59,16 +59,16 @@ As a developer or user of the plugin, I want clear, concise, and up-to-date docu
 
 ### Functional Requirements
 
-- **FR-001 (Panic Fix)**: System MUST verify `Impact` is non-nil before accessing properties in recommendations ([#123](https://github.com/rshade/pulumicost-plugin-aws-public/issues/123)).
-- **FR-002 (Carbon Logging)**: System MUST add structured JSON error logging (via `zerolog`) for CSV parsing failures in `parseInstanceSpecs` ([#142](https://github.com/rshade/pulumicost-plugin-aws-public/issues/142)).
-- **FR-003 (Carbon Style)**: System MUST ensure trailing newlines are present in carbon package files ([#145](https://github.com/rshade/pulumicost-plugin-aws-public/issues/145)).
-- **FR-004 (S3 Validation)**: System MUST fix region fallback for S3 global services to prevent invalid ARN generation ([#113](https://github.com/rshade/pulumicost-plugin-aws-public/issues/113)).
-- **FR-005 (Cost Validation)**: System MUST restore comprehensive validation in `getProjectedCost` ([#111](https://github.com/rshade/pulumicost-plugin-aws-public/issues/111)).
-- **FR-006 (Doc Cleanup)**: System MUST consolidate duplicate docstrings in `GetUtilization` ([#143](https://github.com/rshade/pulumicost-plugin-aws-public/issues/143)).
-- **FR-007 (Correlation Docs)**: System MUST document how correlation IDs are populated for recommendations using Code Comments (GoDoc) ([#128](https://github.com/rshade/pulumicost-plugin-aws-public/issues/128)).
-- **FR-008 (Deprecation Docs)**: System MUST add a deprecation timeline for the `PORT` environment variable fallback, specifying removal in the next minor version v0.x.x as it is already deprecated ([#116](https://github.com/rshade/pulumicost-plugin-aws-public/issues/116)).
-- **FR-009 (OS Mapping Docs)**: System MUST document the internal platform-to-OS mapping logic for EC2 pricing, which is the source of truth ([#63](https://github.com/rshade/pulumicost-plugin-aws-public/issues/63)).
-- **FR-010 (Troubleshooting)**: System MUST add a dedicated `TROUBLESHOOTING.md` file with examples of common error scenarios ([#60](https://github.com/rshade/pulumicost-plugin-aws-public/issues/60)).
+- **FR-001 (Panic Fix)**: System MUST verify `Impact` is non-nil before accessing properties in recommendations ([#123](https://github.com/rshade/finfocus-plugin-aws-public/issues/123)).
+- **FR-002 (Carbon Logging)**: System MUST add structured JSON error logging (via `zerolog`) for CSV parsing failures in `parseInstanceSpecs` ([#142](https://github.com/rshade/finfocus-plugin-aws-public/issues/142)).
+- **FR-003 (Carbon Style)**: System MUST ensure trailing newlines are present in carbon package files ([#145](https://github.com/rshade/finfocus-plugin-aws-public/issues/145)).
+- **FR-004 (S3 Validation)**: System MUST fix region fallback for S3 global services to prevent invalid ARN generation ([#113](https://github.com/rshade/finfocus-plugin-aws-public/issues/113)).
+- **FR-005 (Cost Validation)**: System MUST restore comprehensive validation in `getProjectedCost` ([#111](https://github.com/rshade/finfocus-plugin-aws-public/issues/111)).
+- **FR-006 (Doc Cleanup)**: System MUST consolidate duplicate docstrings in `GetUtilization` ([#143](https://github.com/rshade/finfocus-plugin-aws-public/issues/143)).
+- **FR-007 (Correlation Docs)**: System MUST document how correlation IDs are populated for recommendations using Code Comments (GoDoc) ([#128](https://github.com/rshade/finfocus-plugin-aws-public/issues/128)).
+- **FR-008 (Deprecation Docs)**: System MUST add a deprecation timeline for the `PORT` environment variable fallback, specifying removal in the next minor version v0.x.x as it is already deprecated ([#116](https://github.com/rshade/finfocus-plugin-aws-public/issues/116)).
+- **FR-009 (OS Mapping Docs)**: System MUST document the internal platform-to-OS mapping logic for EC2 pricing, which is the source of truth ([#63](https://github.com/rshade/finfocus-plugin-aws-public/issues/63)).
+- **FR-010 (Troubleshooting)**: System MUST add a dedicated `TROUBLESHOOTING.md` file with examples of common error scenarios ([#60](https://github.com/rshade/finfocus-plugin-aws-public/issues/60)).
 
 ### Key Entities *(include if feature involves data)*
 

@@ -34,7 +34,7 @@ Not a persisted entity but a runtime context affecting plugin behavior.
 
 | Field | Type | Description | Source |
 |-------|------|-------------|--------|
-| Enabled | bool | Test mode active | PULUMICOST_TEST_MODE env var |
+| Enabled | bool | Test mode active | FINFOCUS_TEST_MODE env var |
 | WarningLogged | bool | Invalid value warning emitted | Runtime state |
 
 **State Transitions**:
@@ -50,7 +50,7 @@ Not a persisted entity but a runtime context affecting plugin behavior.
 │  AWSPublicPlugin    │
 ├─────────────────────┤
 │ - logger            │
-│ - testMode: bool    │◄──── Set from PULUMICOST_TEST_MODE
+│ - testMode: bool    │◄──── Set from FINFOCUS_TEST_MODE
 │ - region            │
 └─────────┬───────────┘
           │
@@ -72,7 +72,7 @@ Not a persisted entity but a runtime context affecting plugin behavior.
 
 ```text
 Startup:
-  1. Read PULUMICOST_TEST_MODE env var
+  1. Read FINFOCUS_TEST_MODE env var
   2. Validate value ("true" = enabled, "false" = disabled, other = warning + disabled)
   3. Store testMode bool in plugin struct
   4. Log test mode status

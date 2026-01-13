@@ -14,7 +14,7 @@ Implement CloudWatch cost estimation for logs (ingestion/storage) and custom met
 ## Technical Context
 
 **Language/Version**: Go 1.25+ (same as existing codebase)
-**Primary Dependencies**: gRPC via pulumicost-spec/sdk/go/pluginsdk, zerolog for logging
+**Primary Dependencies**: gRPC via finfocus-spec/sdk/go/pluginsdk, zerolog for logging
 **Storage**: Embedded JSON via `//go:embed` (no external storage)
 **Testing**: Go testing with table-driven tests, integration tests with -tags=integration
 **Target Platform**: Linux/Darwin/Windows (cross-compiled region-specific binaries)
@@ -119,7 +119,7 @@ tools/
     └── main.go               # ADD: "AmazonCloudWatch" to serviceConfig map
 
 cmd/
-└── pulumicost-plugin-aws-public/
+└── finfocus-plugin-aws-public/
     └── main.go               # NO CHANGES (pluginsdk.Serve handles everything)
 
 CLAUDE.md                     # UPDATE: Document soft failure pattern and constants

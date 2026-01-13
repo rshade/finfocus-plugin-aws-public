@@ -8,7 +8,7 @@
 
 - Go 1.25+ installed
 - GoReleaser installed (for multi-platform builds)
-- Repository cloned: `pulumicost-plugin-aws-public`
+- Repository cloned: `finfocus-plugin-aws-public`
 - Working directory: Repository root
 
 ## Quick Build (Single Region)
@@ -25,11 +25,11 @@ go run ./tools/generate-pricing \
 # Build binary with region tag
 go build \
   -tags region_apse1 \
-  -o pulumicost-plugin-aws-public-ap-southeast-1 \
-  ./cmd/pulumicost-plugin-aws-public
+  -o finfocus-plugin-aws-public-ap-southeast-1 \
+  ./cmd/finfocus-plugin-aws-public
 
 # Run and verify
-./pulumicost-plugin-aws-public-ap-southeast-1
+./finfocus-plugin-aws-public-ap-southeast-1
 # Output: PORT=<port>
 # (Binary serves gRPC on localhost:<port>)
 ```
@@ -40,21 +40,21 @@ go build \
 
 ```bash
 go run ./tools/generate-pricing --regions ap-southeast-2 --out-dir ./internal/pricing/data --dummy
-go build -tags region_apse2 -o pulumicost-plugin-aws-public-ap-southeast-2 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apse2 -o finfocus-plugin-aws-public-ap-southeast-2 ./cmd/finfocus-plugin-aws-public
 ```
 
 **Tokyo (ap-northeast-1)**:
 
 ```bash
 go run ./tools/generate-pricing --regions ap-northeast-1 --out-dir ./internal/pricing/data --dummy
-go build -tags region_apne1 -o pulumicost-plugin-aws-public-ap-northeast-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apne1 -o finfocus-plugin-aws-public-ap-northeast-1 ./cmd/finfocus-plugin-aws-public
 ```
 
 **Mumbai (ap-south-1)**:
 
 ```bash
 go run ./tools/generate-pricing --regions ap-south-1 --out-dir ./internal/pricing/data --dummy
-go build -tags region_aps1 -o pulumicost-plugin-aws-public-ap-south-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_aps1 -o finfocus-plugin-aws-public-ap-south-1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ## Build All AP Regions (GoReleaser)
@@ -85,11 +85,11 @@ ls -lh dist/
 
 ```
 dist/
-├── pulumicost-plugin-aws-public-ap-southeast-1_linux_amd64/
-│   └── pulumicost-plugin-aws-public-ap-southeast-1
-├── pulumicost-plugin-aws-public-ap-southeast-1_darwin_arm64/
-│   └── pulumicost-plugin-aws-public-ap-southeast-1
-├── pulumicost-plugin-aws-public-ap-southeast-2_linux_amd64/
+├── finfocus-plugin-aws-public-ap-southeast-1_linux_amd64/
+│   └── finfocus-plugin-aws-public-ap-southeast-1
+├── finfocus-plugin-aws-public-ap-southeast-1_darwin_arm64/
+│   └── finfocus-plugin-aws-public-ap-southeast-1
+├── finfocus-plugin-aws-public-ap-southeast-2_linux_amd64/
 ... (24 total AP artifacts: 4 regions × 6 platforms)
 ```
 
@@ -100,7 +100,7 @@ dist/
 1. **Start the binary**:
 
 ```bash
-./pulumicost-plugin-aws-public-ap-southeast-1
+./finfocus-plugin-aws-public-ap-southeast-1
 # Note the PORT output, e.g., PORT=54321
 ```
 
@@ -110,7 +110,7 @@ dist/
 grpcurl -plaintext \
   -d '{}' \
   localhost:54321 \
-  pulumicost.v1.CostSourceService/Name
+  finfocus.v1.CostSourceService/Name
 
 # Expected output:
 # {
@@ -131,7 +131,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:54321 \
-  pulumicost.v1.CostSourceService/Supports
+  finfocus.v1.CostSourceService/Supports
 
 # Expected output:
 # {
@@ -153,7 +153,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:54321 \
-  pulumicost.v1.CostSourceService/Supports
+  finfocus.v1.CostSourceService/Supports
 
 # Expected output:
 # {
@@ -175,7 +175,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:54321 \
-  pulumicost.v1.CostSourceService/GetProjectedCost
+  finfocus.v1.CostSourceService/GetProjectedCost
 
 # Expected output (dummy data):
 # {
@@ -240,8 +240,8 @@ Add to `.goreleaser.yaml` under `builds:`:
 ```yaml
 # ap-southeast-1 binary
 - id: ap-southeast-1
-  main: ./cmd/pulumicost-plugin-aws-public
-  binary: pulumicost-plugin-aws-public-ap-southeast-1
+  main: ./cmd/finfocus-plugin-aws-public
+  binary: finfocus-plugin-aws-public-ap-southeast-1
   env:
     - CGO_ENABLED=0
   goos:
@@ -316,7 +316,7 @@ Update `README.md`:
 
 ```bash
 # Build Singapore binary
-go build -tags region_apse1 -o pulumicost-plugin-aws-public-ap-southeast-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apse1 -o finfocus-plugin-aws-public-ap-southeast-1 ./cmd/finfocus-plugin-aws-public
 
 # Build all binaries with GoReleaser
 goreleaser build --snapshot --clean
@@ -363,7 +363,7 @@ grep -A1 "//go:build" internal/pricing/embed_fallback.go
 
 ```bash
 # Build with verbose output
-go build -v -tags region_apse1 -o test-binary ./cmd/pulumicost-plugin-aws-public 2>&1 | grep embed
+go build -v -tags region_apse1 -o test-binary ./cmd/finfocus-plugin-aws-public 2>&1 | grep embed
 
 # Should show: internal/pricing/embed_apse1.go (not embed_use1.go or embed_fallback.go)
 ```

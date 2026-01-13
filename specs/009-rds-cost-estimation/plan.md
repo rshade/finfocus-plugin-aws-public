@@ -13,7 +13,7 @@ Server Express engines with Single-AZ deployment pricing only.
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: gRPC via pulumicost-spec/sdk/go/pluginsdk, zerolog for logging
+**Primary Dependencies**: gRPC via finfocus-spec/sdk/go/pluginsdk, zerolog for logging
 **Storage**: Embedded JSON pricing data via `//go:embed`
 **Testing**: Go testing with table-driven tests, mock pricing client
 **Target Platform**: Linux server (9 regional binaries)

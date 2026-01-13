@@ -5,7 +5,7 @@
 
 ## Summary
 
-Consolidate ~210 lines of duplicate code patterns and migrate to pulumicost-spec
+Consolidate ~210 lines of duplicate code patterns and migrate to finfocus-spec
 v0.4.8 SDK helpers for environment variables, request validation, property
 mapping, and ARN parsing. This reduces maintenance burden, ensures ecosystem
 consistency, and enables ARN-based resource identification for AWS integrations.
@@ -13,7 +13,7 @@ consistency, and enables ARN-based resource identification for AWS integrations.
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: pulumicost-spec v0.4.8 (pluginsdk, mapping packages),
+**Primary Dependencies**: finfocus-spec v0.4.8 (pluginsdk, mapping packages),
 gRPC, zerolog
 **Storage**: N/A (embedded pricing data via go:embed)
 **Testing**: Go testing with table-driven tests, `make test`
@@ -80,7 +80,7 @@ tools/
     └── main.go              # MODIFY: Import internal/regionsconfig
 
 cmd/
-└── pulumicost-plugin-aws-public/
+└── finfocus-plugin-aws-public/
     └── main.go              # MODIFY: Use pluginsdk.GetPort() with PORT fallback (FR-006, FR-008)
 ```
 

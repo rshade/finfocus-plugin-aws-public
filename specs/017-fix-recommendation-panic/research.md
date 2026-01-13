@@ -23,10 +23,10 @@
 - **Location**: `internal/plugin/supports.go` and `internal/plugin/validation.go`.
 
 ### 4. PORT Environment Variable Deprecation (#116)
-- **Problem**: `PORT` is used as a legacy fallback but is being replaced by `PULUMICOST_PLUGIN_PORT`.
+- **Problem**: `PORT` is used as a legacy fallback but is being replaced by `FINFOCUS_PLUGIN_PORT`.
 - **Decision**: Add a `logger.Warn()` message when the `PORT` environment variable is used, explicitly stating it is deprecated and will be removed in v0.x.x.
 - **Rationale**: Give users clear notice before removing support for the legacy environment variable.
-- **Location**: `cmd/pulumicost-plugin-aws-public/main.go`.
+- **Location**: `cmd/finfocus-plugin-aws-public/main.go`.
 
 ### 5. EC2 OS Mapping Documentation (#63)
 - **Problem**: Mapping from tags like `platform` to OS identifiers for pricing is implicit.

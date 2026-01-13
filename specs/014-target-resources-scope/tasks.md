@@ -6,7 +6,7 @@
 ## Phase 1: Setup
 **Goal**: Prepare environment for batch processing implementation.
 
-- [x] T001 Verify `pulumicost-spec` v0.4.9 dependency and proto definitions in `internal/plugin/plugin.go`
+- [x] T001 Verify `finfocus-spec` v0.4.9 dependency and proto definitions in `internal/plugin/plugin.go`
 - [x] T002 Define `ProcessingContext` and `BatchStats` structs in `internal/plugin/recommendations.go`
 - [x] T003 [P] Implement `matchesFilter` helper function in `internal/plugin/recommendations.go`
 

@@ -5,10 +5,10 @@
 
 ## SDK Logging Utilities
 
-### Decision: Use pulumicost-spec/sdk/go/pluginsdk logging utilities
+### Decision: Use finfocus-spec/sdk/go/pluginsdk logging utilities
 
 **Rationale**: The SDK provides pre-built utilities specifically designed for
-PulumiCost plugin logging, ensuring consistency across all plugins.
+FinFocus plugin logging, ensuring consistency across all plugins.
 
 **Alternatives considered**:
 
@@ -18,7 +18,7 @@ PulumiCost plugin logging, ensuring consistency across all plugins.
 
 ### Available SDK Functions
 
-Location: `github.com/rshade/pulumicost-spec/sdk/go/pluginsdk/logging.go`
+Location: `github.com/rshade/finfocus-spec/sdk/go/pluginsdk/logging.go`
 
 1. **NewPluginLogger(pluginName, version string, level zerolog.Level, w io.Writer)**
    - Creates zerolog logger with plugin_name and plugin_version pre-configured
@@ -27,7 +27,7 @@ Location: `github.com/rshade/pulumicost-spec/sdk/go/pluginsdk/logging.go`
 
 2. **TracingUnaryServerInterceptor()**
    - gRPC server interceptor for trace_id extraction
-   - Reads `x-pulumicost-trace-id` from gRPC metadata
+   - Reads `x-finfocus-trace-id` from gRPC metadata
    - Stores in context via ContextWithTraceID()
 
 3. **TraceIDFromContext(ctx context.Context) string**
@@ -58,13 +58,13 @@ FieldErrorCode     = "error_code"
 
 ### Decision: JSON `plugin_name` field replaces text prefix convention
 
-**Rationale**: The CLAUDE.md constitution mentions using `[pulumicost-plugin-aws-public]`
+**Rationale**: The CLAUDE.md constitution mentions using `[finfocus-plugin-aws-public]`
 prefix for stderr diagnostic messages. With structured JSON logging via zerolog,
 this convention is superseded by the `plugin_name` field in every log entry.
 
 **Equivalence**:
 
-- Old convention: `[pulumicost-plugin-aws-public] error: ...`
+- Old convention: `[finfocus-plugin-aws-public] error: ...`
 - New convention: `{"plugin_name":"aws-public","level":"error",...}`
 
 The JSON `plugin_name` field provides the same log source identification while
@@ -114,7 +114,7 @@ func (p *AWSPublicPlugin) getTraceID(ctx context.Context) string {
 }
 ```
 
-**Action**: Created GitHub issue rshade/pulumicost-core#188 to add UnaryInterceptors
+**Action**: Created GitHub issue rshade/finfocus-core#188 to add UnaryInterceptors
 support to ServeConfig for future enhancement
 
 ## Missing trace_id Handling
@@ -141,7 +141,7 @@ if traceID == "" {
 ### Decision: Delegated to SDK interceptor
 
 **Rationale**: Clarified during /speckit.clarify session. Created issue
-rshade/pulumicost-spec#94 to add validation to TracingUnaryServerInterceptor.
+rshade/finfocus-spec#94 to add validation to TracingUnaryServerInterceptor.
 
 **Current state**: SDK interceptor passes through trace_id without validation.
 Plugin trusts whatever the SDK provides.
@@ -214,5 +214,5 @@ require (
 )
 ```
 
-Note: zerolog is likely already a transitive dependency via pulumicost-spec.
+Note: zerolog is likely already a transitive dependency via finfocus-spec.
 Need to verify and potentially add explicit require.

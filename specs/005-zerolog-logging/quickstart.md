@@ -6,12 +6,12 @@
 ## Overview
 
 This guide explains how to integrate zerolog structured logging with trace
-propagation into the pulumicost-plugin-aws-public plugin.
+propagation into the finfocus-plugin-aws-public plugin.
 
 ## Prerequisites
 
 - Go 1.25+
-- pulumicost-spec v0.3.0+ with SDK logging utilities
+- finfocus-spec v0.3.0+ with SDK logging utilities
 - zerolog v1.34.0+
 
 ## Step 1: Add Dependencies
@@ -40,7 +40,7 @@ import (
     "os"
 
     "github.com/rs/zerolog"
-    "github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
+    "github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 )
 
 const version = "0.0.3"
@@ -75,7 +75,7 @@ package plugin
 
 import (
     "github.com/rs/zerolog"
-    "github.com/rshade/pulumicost-spec/sdk/go/pluginsdk"
+    "github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 )
 
 type AWSPublicPlugin struct {
@@ -186,7 +186,7 @@ go test -bench=. ./internal/plugin/...
 Start plugin with debug logging:
 
 ```bash
-LOG_LEVEL=debug ./pulumicost-plugin-aws-public-us-east-1 2>&1 | jq .
+LOG_LEVEL=debug ./finfocus-plugin-aws-public-us-east-1 2>&1 | jq .
 ```
 
 Expected output format:
@@ -213,7 +213,7 @@ Expected output format:
 ### Missing trace_id
 
 - Ensure TracingUnaryServerInterceptor is registered
-- Check pulumicost-core is sending x-pulumicost-trace-id header
+- Check finfocus-core is sending x-finfocus-trace-id header
 
 ### Performance issues
 

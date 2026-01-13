@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"os"
+	"sync"
 
 	"github.com/rs/zerolog"
 )
@@ -15,8 +16,11 @@ const testModeEnvVarDeprecated = "PULUMICOST_TEST_MODE"
 // testModeEnvVarLegacy is the legacy environment variable for additional backward compatibility.
 const testModeEnvVarLegacy = "TEST_MODE"
 
-// testModeDeprecationLogged tracks if we've already logged the deprecation warning.
-var testModeDeprecationLogged bool
+// testModeDeprecationOnce ensures the deprecation warning is logged exactly once.
+var testModeDeprecationOnce sync.Once
+
+// testModeLegacyOnce ensures the legacy warning is logged exactly once.
+var testModeLegacyOnce sync.Once
 
 // IsTestMode returns true if test mode is enabled via environment variable.
 // Only the exact string "true" enables test mode (strict matching per FR-011).
@@ -33,9 +37,6 @@ func IsTestMode() bool {
 	return os.Getenv(testModeEnvVarLegacy) == "true"
 }
 
-// testModeLegacyLogged tracks if we've already logged the legacy warning.
-var testModeLegacyLogged bool
-
 // IsTestModeWithLogger returns true if test mode is enabled, logging deprecation warning if needed.
 func IsTestModeWithLogger(logger zerolog.Logger) bool {
 	if os.Getenv(testModeEnvVar) == "true" {
@@ -43,28 +44,26 @@ func IsTestModeWithLogger(logger zerolog.Logger) bool {
 	}
 	// Backward compatibility: check deprecated env var
 	if os.Getenv(testModeEnvVarDeprecated) == "true" {
-		if !testModeDeprecationLogged {
+		testModeDeprecationOnce.Do(func() {
 			logger.Warn().
 				Str("env_var", testModeEnvVarDeprecated).
 				Str("replacement", testModeEnvVar).
 				Str("deprecated_since", "v0.0.18").
 				Str("removal_version", "v1.0.0").
 				Msg("PULUMICOST_TEST_MODE is deprecated, use FINFOCUS_TEST_MODE instead")
-			testModeDeprecationLogged = true
-		}
+		})
 		return true
 	}
 	// Additional backward compatibility: check legacy env var
 	if os.Getenv(testModeEnvVarLegacy) == "true" {
-		if !testModeLegacyLogged {
+		testModeLegacyOnce.Do(func() {
 			logger.Warn().
 				Str("env_var", testModeEnvVarLegacy).
 				Str("replacement", testModeEnvVar).
 				Str("deprecated_since", "v0.0.18").
 				Str("removal_version", "v1.0.0").
 				Msg("TEST_MODE is deprecated, use FINFOCUS_TEST_MODE instead")
-			testModeLegacyLogged = true
-		}
+		})
 		return true
 	}
 	return false

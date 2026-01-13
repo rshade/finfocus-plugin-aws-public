@@ -15,8 +15,8 @@ The build process (via GoReleaser) produces the following binaries:
 
 | ID | Binary Name | Tags Used |
 | :--- | :--- | :--- |
-| `ca-central-1` | `pulumicost-plugin-aws-public-ca-central-1` | `region_cac1` |
-| `sa-east-1` | `pulumicost-plugin-aws-public-sa-east-1` | `region_sae1` |
+| `ca-central-1` | `finfocus-plugin-aws-public-ca-central-1` | `region_cac1` |
+| `sa-east-1` | `finfocus-plugin-aws-public-sa-east-1` | `region_sae1` |
 
 ## Usage Contract
 The plugin does not accept runtime flags for region selection. The region is fixed at compile time.

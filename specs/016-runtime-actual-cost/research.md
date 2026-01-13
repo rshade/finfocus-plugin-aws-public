@@ -17,7 +17,7 @@ documented.
 ### Question
 
 How to represent confidence levels (HIGH/MEDIUM/LOW) in `ActualCostResult` without
-modifying the pulumicost-spec proto schema?
+modifying the finfocus-spec proto schema?
 
 ### Research Findings
 
@@ -99,7 +99,7 @@ func formatSourceWithConfidence(confidence ConfidenceLevel, note string) string 
    the entire FocusCostRecord, adding complexity for simple confidence indication.
 
 2. **Proto amendment**: Ideal long-term but blocks implementation on external spec
-   changes. Can be pursued in parallel if there's consensus in pulumicost-spec.
+   changes. Can be pursued in parallel if there's consensus in finfocus-spec.
 
 ---
 
@@ -107,13 +107,13 @@ func formatSourceWithConfidence(confidence ConfidenceLevel, note string) string 
 
 ### Question
 
-How does pulumicost-core inject `pulumi:created`, `pulumi:modified`, and
+How does finfocus-core inject `pulumi:created`, `pulumi:modified`, and
 `pulumi:external` into `GetActualCostRequest`? What are the exact key names?
 
 ### Research Findings
 
 Per spec assumption A-001:
-> pulumicost-core injects `pulumi:created`, `pulumi:modified`, and `pulumi:external`
+> finfocus-core injects `pulumi:created`, `pulumi:modified`, and `pulumi:external`
 > into resource properties before calling the plugin.
 
 The injection point is `GetActualCostRequest.tags` map. This follows the existing
@@ -322,7 +322,7 @@ func resolveTimestamps(req *pbc.GetActualCostRequest) (*TimestampResolution, err
 
 ## References
 
-- **Proto Source**: `pulumicost-spec/proto/pulumicost/v1/costsource.proto`
+- **Proto Source**: `finfocus-spec/proto/finfocus/v1/costsource.proto`
   - ActualCostResult: lines 369-386
   - GetActualCostRequest: lines 140-152
 

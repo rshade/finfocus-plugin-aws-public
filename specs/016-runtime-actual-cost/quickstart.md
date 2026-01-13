@@ -48,7 +48,7 @@ go test -tags=integration,region_use1 ./internal/plugin/... -run TestIntegration
 
 ```bash
 # Start the plugin (note the PORT output)
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 # Output: PORT=12345
 ```
 
@@ -63,7 +63,7 @@ grpcurl -plaintext -d '{
   "tags": {
     "pulumi:created": "'$START_TIME'"
   }
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 ```
 
 **Expected Response**:
@@ -91,7 +91,7 @@ grpcurl -plaintext -d '{
     "pulumi:created": "'$START_TIME'",
     "pulumi:external": "true"
   }
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 ```
 
 **Expected Response** (note MEDIUM confidence):
@@ -123,7 +123,7 @@ grpcurl -plaintext -d '{
   "tags": {
     "pulumi:created": "'$CREATED_TIME'"
   }
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 ```
 
 **Expected**: Cost for 168 hours (7 days), NOT 720 hours (30 days)
@@ -134,7 +134,7 @@ grpcurl -plaintext -d '{
 grpcurl -plaintext -d '{
   "resource_id": "{\"provider\":\"aws\",\"resource_type\":\"ec2\",\"sku\":\"t3.micro\",\"region\":\"us-east-1\"}",
   "tags": {}
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 ```
 
 **Expected**: gRPC error with code INVALID_ARGUMENT

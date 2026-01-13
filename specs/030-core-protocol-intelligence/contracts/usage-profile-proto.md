@@ -1,7 +1,7 @@
 # Protocol Extension: UsageProfile Enum
 
 **Feature**: 030-core-protocol-intelligence (P1 - Dev Mode)
-**Status**: PROPOSED - Requires PR to rshade/pulumicost-spec
+**Status**: PROPOSED - Requires PR to rshade/finfocus-spec
 **Date**: 2026-01-05
 
 ## Purpose

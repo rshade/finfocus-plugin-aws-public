@@ -42,7 +42,7 @@ that tests cover the unified implementations.
 ### User Story 2 - Plugin Integrates SDK Validation Helpers (Priority: P2)
 
 As a plugin maintainer, I want to use SDK-provided request validation helpers
-so that validation logic is consistent across the PulumiCost ecosystem and
+so that validation logic is consistent across the FinFocus ecosystem and
 error messages follow standard formats.
 
 **Why this priority**: Request validation is called on every RPC, and
@@ -74,19 +74,19 @@ codes and messages match SDK standards.
 
 As a plugin operator, I want the plugin to correctly read environment variables
 using SDK-standardized helpers so that configuration works consistently with
-pulumicost-core regardless of which variable name is used.
+finfocus-core regardless of which variable name is used.
 
 **Why this priority**: Environment variable inconsistencies between core and
 plugin caused E2E test failures. SDK helpers with proper fallback logic prevent
 integration issues.
 
 **Independent Test**: Can be tested by starting the plugin with
-PULUMICOST_PLUGIN_PORT, PORT, or neither and verifying correct behavior in
+FINFOCUS_PLUGIN_PORT, PORT, or neither and verifying correct behavior in
 each case.
 
 **Acceptance Scenarios**:
 
-1. **Given** PULUMICOST_PLUGIN_PORT=8080 is set, **When** the plugin starts,
+1. **Given** FINFOCUS_PLUGIN_PORT=8080 is set, **When** the plugin starts,
    **Then** it listens on port 8080.
 
 2. **Given** only PORT=9000 is set (legacy fallback), **When** the plugin
@@ -129,7 +129,7 @@ annotations match expected behavior.
 
 ### User Story 5 - Plugin Supports ARN-Based Resource Identification (P3)
 
-As a PulumiCost core developer, I want to identify resources using their AWS
+As a FinFocus core developer, I want to identify resources using their AWS
 ARN so that integration with AWS-native systems (CUR, Config) is simplified
 without requiring JSON construction or tag population.
 
@@ -190,10 +190,10 @@ formats and verifying correct resource type, region, and service extraction.
 #### SDK Environment Variable Handling
 
 - **FR-006**: System MUST use pluginsdk.GetPort() for port configuration with
-  PULUMICOST_PLUGIN_PORT taking precedence over PORT
+  FINFOCUS_PLUGIN_PORT taking precedence over PORT
 - **FR-007**: System MUST use pluginsdk.GetLogLevel() for logging configuration
 - **FR-008**: System MUST eliminate direct os.Getenv() calls for
-  PulumiCost-related variables
+  FinFocus-related variables
 
 #### SDK Request Validation
 
@@ -247,14 +247,14 @@ formats and verifying correct resource type, region, and service extraction.
 - **SC-003**: All existing unit tests pass without modification after SDK
   integration
 - **SC-004**: Error response format remains backward compatible - existing
-  error handling in pulumicost-core continues to work
+  error handling in finfocus-core continues to work
 - **SC-005**: Plugin starts successfully with any combination of
-  PULUMICOST_PLUGIN_PORT, PORT, or neither set
+  FINFOCUS_PLUGIN_PORT, PORT, or neither set
 - **SC-006**: ARN parsing correctly identifies resource type and region for 7
   supported AWS services (EC2, EBS, RDS, S3, Lambda, DynamoDB, EKS)
 - **SC-007**: Property extraction code reduced by at least 40% (from ~300
   lines to ~180 lines or fewer)
-- **SC-008**: Manual E2E verification with pulumicost-core passes using all
+- **SC-008**: Manual E2E verification with finfocus-core passes using all
   three resource identification methods (ARN, JSON, Tags) - verified post-PR
   via existing CI workflow
 
@@ -263,12 +263,12 @@ formats and verifying correct resource type, region, and service extraction.
 ### Session 2025-12-16
 
 - Q: How should implementation proceed when an SDK dependency is not yet
-  available? → A: Use pulumicost-spec v0.4.8 (already released with all
+  available? → A: Use finfocus-spec v0.4.8 (already released with all
   required features)
 
 ## Assumptions
 
-- pulumicost-spec v0.4.8 is available and includes all required SDK features:
+- finfocus-spec v0.4.8 is available and includes all required SDK features:
   env.go helpers, mapping package, validation helpers, and ARN field support
 - SDK validation helpers return gRPC status errors compatible with current
   error handling

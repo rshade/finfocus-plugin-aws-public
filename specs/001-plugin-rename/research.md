@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document consolidates research findings for the plugin rename from `pulumicost-plugin-aws-public` to `finfocus-plugin-aws-public`. Since this is a systematic rename operation with no architecture changes, no external research was required. All technical decisions are established from the existing codebase and RENAME-PLAN.md Phase 3 requirements.
+This document consolidates research findings for the plugin rename from `finfocus-plugin-aws-public` to `finfocus-plugin-aws-public`. Since this is a systematic rename operation with no architecture changes, no external research was required. All technical decisions are established from the existing codebase and RENAME-PLAN.md Phase 3 requirements.
 
 ## Research Tasks
 
@@ -27,26 +27,26 @@ This document consolidates research findings for the plugin rename from `pulumic
 **Implementation**:
 ```bash
 go mod edit -module github.com/rshade/finfocus-plugin-aws-public
-# Update all imports from pulumicost-spec to finfocus-spec
+# Update all imports from finfocus-spec to finfocus-spec
 go mod tidy
 ```
 
 ### Task 2: Proto Package Migration
 
-**Decision**: Update proto imports from `pulumicost.v1` to `finfocus.v1`
+**Decision**: Update proto imports from `finfocus.v1` to `finfocus.v1`
 
 **Rationale**:
 - Proto package names changed in finfocus-spec v0.5.0
-- Message structure is identical between pulumicost.v1 and finfocus.v1
+- Message structure is identical between finfocus.v1 and finfocus.v1
 - Only package name changes, no breaking changes to message fields
 - gRPC service interface remains compatible
 
 **Alternatives Considered**:
-- Keep using pulumicost-spec v0.4.14 - rejected because finfocus-spec v0.5.0 is the new standard
+- Keep using finfocus-spec v0.4.14 - rejected because finfocus-spec v0.5.0 is the new standard
 - Shim layer to translate between packages - rejected as unnecessary complexity
 
 **Implementation**:
-- Find all `import "pulumicost.v1"` statements
+- Find all `import "finfocus.v1"` statements
 - Replace with `import "finfocus.v1"`
 - Update proto code generation if custom proto files exist
 
@@ -55,7 +55,7 @@ go mod tidy
 **Decision**: Update Makefile and .goreleaser.yaml to use finfocus naming
 
 **Rationale**:
-- Makefile contains build targets referencing pulumicost-plugin-aws-public
+- Makefile contains build targets referencing finfocus-plugin-aws-public
 - .goreleaser.yaml defines binary names and release artifact naming
 - Binary naming is part of the user-facing contract
 - Build tags (region_use1, region_usw2, region_euw1) remain unchanged
@@ -67,12 +67,12 @@ go mod tidy
 **Implementation**:
 - Update `BINARY_NAME` variable in Makefile
 - Update binary name templates in .goreleaser.yaml
-- Update reference to cmd/pulumicost-plugin-aws-public in build paths
+- Update reference to cmd/finfocus-plugin-aws-public in build paths
 - Keep region build tags unchanged
 
 ### Task 4: Directory Renaming Strategy
 
-**Decision**: Rename `cmd/pulumicost-plugin-aws-public/` to `cmd/finfocus-plugin-aws-public/`
+**Decision**: Rename `cmd/finfocus-plugin-aws-public/` to `cmd/finfocus-plugin-aws-public/`
 
 **Rationale**:
 - Command directory follows module naming convention
@@ -85,16 +85,16 @@ go mod tidy
 
 **Implementation**:
 ```bash
-git mv cmd/pulumicost-plugin-aws-public cmd/finfocus-plugin-aws-public
+git mv cmd/finfocus-plugin-aws-public cmd/finfocus-plugin-aws-public
 # Update internal imports if any
 ```
 
 ### Task 5: Logging Prefix Update
 
-**Decision**: Update logging prefixes from `[pulumicost-plugin-aws-public]` to `[finfocus-plugin-aws-public]`
+**Decision**: Update logging prefixes from `[finfocus-plugin-aws-public]` to `[finfocus-plugin-aws-public]`
 
 **Rationale**:
-- Constitution requirement III: "Log entries MUST include [pulumicost-plugin-aws-public] component identifier"
+- Constitution requirement III: "Log entries MUST include [finfocus-plugin-aws-public] component identifier"
 - Update to maintain consistency with new naming
 - Zerolog logger initialization typically includes component name
 
@@ -103,7 +103,7 @@ git mv cmd/pulumicost-plugin-aws-public cmd/finfocus-plugin-aws-public
 - Remove prefix entirely - rejected because constitution requires component identifier
 
 **Implementation**:
-- Find all `[pulumicost-plugin-aws-public]` strings in logging code
+- Find all `[finfocus-plugin-aws-public]` strings in logging code
 - Replace with `[finfocus-plugin-aws-public]`
 - Ensure log level configuration (LOG_LEVEL env var) remains unchanged
 
@@ -121,10 +121,10 @@ git mv cmd/pulumicost-plugin-aws-public cmd/finfocus-plugin-aws-public
 - Leave legacy references - rejected because it confuses users
 
 **Implementation**:
-- Use grep to find all occurrences of "pulumicost" in markdown files
+- Use grep to find all occurrences of "finfocus" in markdown files
 - Replace with "finfocus" where appropriate (package names, binary names)
 - Update import path examples in code blocks
-- Update links to other repositories if they reference pulumicost-spec
+- Update links to other repositories if they reference finfocus-spec
 
 ## Verification Strategy
 
@@ -156,8 +156,8 @@ grpcurl -plaintext 127.0.0.1:<PORT> list
 
 ### Reference Check
 ```bash
-# Verify no remaining pulumicost references
-grep -r "pulumicost" --exclude-dir=specs --exclude-dir=.git .
+# Verify no remaining finfocus references
+grep -r "finfocus" --exclude-dir=specs --exclude-dir=.git .
 # Should return only results in RENAME-PLAN.md, AGENTS.md, etc. (documentation of migration)
 ```
 
@@ -167,13 +167,13 @@ grep -r "pulumicost" --exclude-dir=specs --exclude-dir=.git .
 **Mitigation**: Use automated refactoring tools (gopls) to update all imports, then verify with `go mod tidy`
 
 ### Risk 2: Documentation Inconsistencies
-**Mitigation**: Comprehensive grep search for "pulumicost" in markdown files, manual review of code examples
+**Mitigation**: Comprehensive grep search for "finfocus" in markdown files, manual review of code examples
 
 ### Risk 3: Build System Errors
 **Mitigation**: Run full build for all three regions (us-east-1, us-west-2, eu-west-1) before committing
 
 ### Risk 4: gRPC Protocol Incompatibility
-**Mitigation**: Verify proto message structure is identical between pulumicost.v1 and finfocus.v1, manual gRPC testing
+**Mitigation**: Verify proto message structure is identical between finfocus.v1 and finfocus.v1, manual gRPC testing
 
 ## Open Questions
 

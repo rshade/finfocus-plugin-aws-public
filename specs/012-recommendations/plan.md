@@ -10,7 +10,7 @@ Implement the `GetRecommendations` RPC by implementing the `pluginsdk.Recommenda
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: pulumicost-spec v0.4.7 (gRPC + pluginsdk), zerolog
+**Primary Dependencies**: finfocus-spec v0.4.7 (gRPC + pluginsdk), zerolog
 **Storage**: N/A (embedded pricing data via `//go:embed`)
 **Testing**: Go testing (`make test`), table-driven tests
 **Target Platform**: Linux server (gRPC plugin process)

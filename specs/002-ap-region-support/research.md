@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document consolidates research findings for adding Asia Pacific AWS region support to the pulumicost-plugin-aws-public. All decisions are based on existing codebase patterns and AWS region naming conventions.
+This document consolidates research findings for adding Asia Pacific AWS region support to the finfocus-plugin-aws-public. All decisions are based on existing codebase patterns and AWS region naming conventions.
 
 ## Research Questions & Findings
 
@@ -36,25 +36,25 @@ This document consolidates research findings for adding Asia Pacific AWS region 
 
 ### Q2: What binary naming convention should we follow?
 
-**Decision**: `pulumicost-plugin-aws-public-<region>` where `<region>` is the AWS region identifier
+**Decision**: `finfocus-plugin-aws-public-<region>` where `<region>` is the AWS region identifier
 
 **Rationale**:
 
-- Existing binaries: `pulumicost-plugin-aws-public-us-east-1`, etc.
+- Existing binaries: `finfocus-plugin-aws-public-us-east-1`, etc.
 - Users/operators understand AWS region names (ap-southeast-1) more than abbreviations (apse1)
 - GoReleaser `binary:` field in `.goreleaser.yaml` uses this pattern
 
 **Examples**:
 
-- `pulumicost-plugin-aws-public-ap-southeast-1` (Singapore)
-- `pulumicost-plugin-aws-public-ap-southeast-2` (Sydney)
-- `pulumicost-plugin-aws-public-ap-northeast-1` (Tokyo)
-- `pulumicost-plugin-aws-public-ap-south-1` (Mumbai)
+- `finfocus-plugin-aws-public-ap-southeast-1` (Singapore)
+- `finfocus-plugin-aws-public-ap-southeast-2` (Sydney)
+- `finfocus-plugin-aws-public-ap-northeast-1` (Tokyo)
+- `finfocus-plugin-aws-public-ap-south-1` (Mumbai)
 
 **Alternatives Considered**:
 
-- Use build tag in binary name (e.g., `pulumicost-plugin-aws-public-apse1`) - **Rejected**: Less clear to operators
-- City names (e.g., `pulumicost-plugin-aws-public-singapore`) - **Rejected**: Inconsistent with existing pattern, AWS uses region IDs
+- Use build tag in binary name (e.g., `finfocus-plugin-aws-public-apse1`) - **Rejected**: Less clear to operators
+- City names (e.g., `finfocus-plugin-aws-public-singapore`) - **Rejected**: Inconsistent with existing pattern, AWS uses region IDs
 
 **References**:
 
@@ -111,8 +111,8 @@ var rawPricingJSON []byte
 
 ```yaml
 - id: ap-southeast-1
-  main: ./cmd/pulumicost-plugin-aws-public
-  binary: pulumicost-plugin-aws-public-ap-southeast-1
+  main: ./cmd/finfocus-plugin-aws-public
+  binary: finfocus-plugin-aws-public-ap-southeast-1
   env:
     - CGO_ENABLED=0
   goos:
@@ -313,7 +313,7 @@ generate-pricing (--dummy)
 ### Region Selection Flow
 
 ```
-User runs: pulumicost-plugin-aws-public-ap-southeast-1
+User runs: finfocus-plugin-aws-public-ap-southeast-1
   → Binary has region_apse1 build tag
   → embed_apse1.go selected at compile time
   → rawPricingJSON contains Singapore pricing
@@ -374,7 +374,7 @@ Result: Exactly one pricing data source
 | Decision Point | Choice | Rationale |
 |----------------|--------|-----------|
 | Build Tags | region_apse1, region_apse2, region_apne1, region_aps1 | Consistent with existing 4-letter pattern |
-| Binary Names | pulumicost-plugin-aws-public-<region> | User-friendly AWS region identifiers |
+| Binary Names | finfocus-plugin-aws-public-<region> | User-friendly AWS region identifiers |
 | Embed Files | One per region (embed_apse1.go, etc.) | Matches existing pattern |
 | GoReleaser | Add 4 parallel build configs | No changes to archive/release process |
 | Pricing Tool | Extend --regions flag, keep --dummy | Minimal changes to existing tool |

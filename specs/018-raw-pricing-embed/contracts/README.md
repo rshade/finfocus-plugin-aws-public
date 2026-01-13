@@ -19,7 +19,7 @@ interface remains unchanged:
 The plugin continues to use proto definitions from:
 
 ```text
-github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1
+github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1
 ```
 
 No changes to:

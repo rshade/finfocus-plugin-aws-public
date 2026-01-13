@@ -5,7 +5,7 @@
 
 ## Overview
 
-This guide covers how to estimate costs for Amazon ElastiCache clusters using the PulumiCost AWS Public plugin.
+This guide covers how to estimate costs for Amazon ElastiCache clusters using the FinFocus AWS Public plugin.
 
 ## Basic Usage
 
@@ -249,7 +249,7 @@ cost_per_month = hourly_rate × num_nodes × 730 hours
 make build-region REGION=us-east-1
 
 # Start plugin (captures PORT)
-./bin/pulumicost-plugin-aws-public-us-east-1
+./bin/finfocus-plugin-aws-public-us-east-1
 
 # In another terminal, use grpcurl:
 grpcurl -plaintext -d '{
@@ -260,5 +260,5 @@ grpcurl -plaintext -d '{
     "region": "us-east-1",
     "tags": {"engine": "redis"}
   }
-}' localhost:<PORT> pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:<PORT> finfocus.v1.CostSourceService/GetProjectedCost
 ```

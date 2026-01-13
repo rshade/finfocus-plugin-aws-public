@@ -5,8 +5,8 @@
 
 ## Overview
 
-This feature adds E2E test support to the pulumicost-plugin-aws-public plugin,
-enabling reliable integration testing with pulumicost-core.
+This feature adds E2E test support to the finfocus-plugin-aws-public plugin,
+enabling reliable integration testing with finfocus-core.
 
 ## Prerequisites
 
@@ -19,8 +19,8 @@ enabling reliable integration testing with pulumicost-core.
 Set the environment variable before starting the plugin:
 
 ```bash
-export PULUMICOST_TEST_MODE=true
-./pulumicost-plugin-aws-public-us-east-1
+export FINFOCUS_TEST_MODE=true
+./finfocus-plugin-aws-public-us-east-1
 ```
 
 **Valid Values**:
@@ -90,7 +90,7 @@ When test mode is enabled, additional debug logs are emitted:
 Enable full debug output:
 
 ```bash
-LOG_LEVEL=debug PULUMICOST_TEST_MODE=true ./pulumicost-plugin-aws-public-us-east-1
+LOG_LEVEL=debug FINFOCUS_TEST_MODE=true ./finfocus-plugin-aws-public-us-east-1
 ```
 
 ## Actual Cost Fallback Validation
@@ -118,7 +118,7 @@ tolerance := 0.01
 
 ## Testing Checklist
 
-- [ ] Plugin starts with `PULUMICOST_TEST_MODE=true`
+- [ ] Plugin starts with `FINFOCUS_TEST_MODE=true`
 - [ ] Invalid env values log warning and disable test mode
 - [ ] t3.micro EC2 cost within 1% of $7.592/month
 - [ ] gp2 EBS 8GB cost within 5% of $0.80/month
@@ -137,7 +137,7 @@ tolerance := 0.01
 
 ### No Enhanced Logs
 
-1. Verify `PULUMICOST_TEST_MODE=true` (exact string)
+1. Verify `FINFOCUS_TEST_MODE=true` (exact string)
 2. Set `LOG_LEVEL=debug` for detailed output
 3. Check stderr (logs go to stderr, not stdout)
 

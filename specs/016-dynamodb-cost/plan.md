@@ -46,7 +46,7 @@ specs/016-dynamodb-cost/
 ### Source Code (repository root)
 
 ```text
-cmd/pulumicost-plugin-aws-public/
+cmd/finfocus-plugin-aws-public/
   └── main.go            # Entry point (no changes expected)
 
 internal/

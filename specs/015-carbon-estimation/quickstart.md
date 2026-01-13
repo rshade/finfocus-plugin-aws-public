@@ -6,7 +6,7 @@
 ## Prerequisites
 
 1. Go 1.25+
-2. pulumicost-spec v0.4.10+ (update go.mod)
+2. finfocus-spec v0.4.10+ (update go.mod)
 3. CCF instance data CSV downloaded
 
 ## Quick Setup
@@ -14,7 +14,7 @@
 ### 1. Update Dependencies
 
 ```bash
-go get github.com/rshade/pulumicost-spec@v0.4.10
+go get github.com/rshade/finfocus-spec@v0.4.10
 go mod tidy
 ```
 
@@ -33,7 +33,7 @@ curl -L -o data/ccf_instance_specs.csv \
 
 ```bash
 # Build with region tag to verify embedded data works
-go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 ./cmd/finfocus-plugin-aws-public
 
 # Run tests
 make test
@@ -209,7 +209,7 @@ func TestCarbonEstimation_T3Micro_USEast1(t *testing.T) {
 
 ```bash
 # Start plugin
-./pulumicost-plugin-aws-public-us-east-1 &
+./finfocus-plugin-aws-public-us-east-1 &
 PORT=$(head -1) # Capture PORT=XXXXX
 
 # Test with grpcurl
@@ -220,7 +220,7 @@ grpcurl -plaintext -d '{
     "sku": "t3.micro",
     "region": "us-east-1"
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 
 # Verify response contains impact_metrics with METRIC_KIND_CARBON_FOOTPRINT
 ```

@@ -8,10 +8,10 @@
 ### Environment Variable Helpers
 
 **Decision**: Use `pluginsdk.GetPort()`, `pluginsdk.GetLogLevel()`, and related
-helpers for all PulumiCost environment variables.
+helpers for all FinFocus environment variables.
 
 **Rationale**: SDK provides type-safe accessors with consistent naming
-conventions (`PULUMICOST_*` prefix) and fallback logic where appropriate.
+conventions (`FINFOCUS_*` prefix) and fallback logic where appropriate.
 
 **Alternatives considered**:
 
@@ -21,11 +21,11 @@ conventions (`PULUMICOST_*` prefix) and fallback logic where appropriate.
 **Key API Signatures**:
 
 ```go
-func GetPort() int              // PULUMICOST_PLUGIN_PORT only
-func GetLogLevel() string       // PULUMICOST_LOG_LEVEL, falls back to LOG_LEVEL
-func GetLogFormat() string      // PULUMICOST_LOG_FORMAT
-func GetTraceID() string        // PULUMICOST_TRACE_ID
-func GetTestMode() bool         // PULUMICOST_TEST_MODE="true"
+func GetPort() int              // FINFOCUS_PLUGIN_PORT only
+func GetLogLevel() string       // FINFOCUS_LOG_LEVEL, falls back to LOG_LEVEL
+func GetLogFormat() string      // FINFOCUS_LOG_FORMAT
+func GetTraceID() string        // FINFOCUS_TRACE_ID
+func GetTestMode() bool         // FINFOCUS_TEST_MODE="true"
 func IsTestMode() bool          // Silent version (no warnings)
 ```
 
@@ -212,9 +212,9 @@ func (p *AWSPublicPlugin) RegionMismatchError(
 
 ### Port Fallback Handling
 
-**Decision**: Keep local `PORT` fallback alongside `PULUMICOST_PLUGIN_PORT`.
+**Decision**: Keep local `PORT` fallback alongside `FINFOCUS_PLUGIN_PORT`.
 
-**Rationale**: SDK's `GetPort()` only reads `PULUMICOST_PLUGIN_PORT`. For
+**Rationale**: SDK's `GetPort()` only reads `FINFOCUS_PLUGIN_PORT`. For
 backward compatibility, plugin should check both.
 
 **Implementation**:
@@ -278,7 +278,7 @@ modification - validation behavior is backward compatible.
 
 ### Integration Tests
 
-Verify gRPC error format unchanged for pulumicost-core compatibility:
+Verify gRPC error format unchanged for finfocus-core compatibility:
 
 - ERROR_CODE_INVALID_RESOURCE with trace_id
 - ERROR_CODE_UNSUPPORTED_REGION with pluginRegion/requiredRegion

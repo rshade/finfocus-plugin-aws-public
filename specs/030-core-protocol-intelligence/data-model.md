@@ -40,7 +40,7 @@ enum UsageProfile {
 
 **Purpose**: Indicates cost growth pattern for forecasting models (Cost Time Machine).
 
-**Proto Definition** (exists in pulumicost-spec v0.4.12):
+**Proto Definition** (exists in finfocus-spec v0.4.12):
 ```protobuf
 enum GrowthType {
   GROWTH_TYPE_UNSPECIFIED = 0;  // Default: static cost
@@ -98,7 +98,7 @@ message CostAllocationLineage {
 **Go Definition**:
 ```go
 type ServiceClassification struct {
-    GrowthType        pulumicostv1.GrowthType  // Growth pattern
+    GrowthType        finfocusv1.GrowthType  // Growth pattern
     AffectedByDevMode bool                      // Whether dev mode reduces cost
     ParentTagKeys     []string                  // Tag keys to extract parent (priority order)
     ParentType        string                    // Parent resource type string
@@ -122,65 +122,65 @@ type ServiceClassification struct {
 ```go
 var serviceClassifications = map[string]ServiceClassification{
     "aws:ec2:instance": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,  // Instance hours
         ParentTagKeys:     nil,    // No parent
     },
     "aws:ebs:volume": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: false,  // Storage is not time-based
         ParentTagKeys:     []string{"instance_id"},
         ParentType:        "aws:ec2:instance:Instance",
         Relationship:      "attached_to",
     },
     "aws:eks:cluster": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,  // Cluster hours
         ParentTagKeys:     nil,    // No parent
     },
     "aws:s3:bucket": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_LINEAR,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_LINEAR,
         AffectedByDevMode: false,  // Storage is not time-based
         ParentTagKeys:     nil,    // No parent
     },
     "aws:lambda:function": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: false,  // Usage-based (requests/compute)
         ParentTagKeys:     nil,    // No parent
     },
     "aws:dynamodb:table": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_LINEAR,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_LINEAR,
         AffectedByDevMode: false,  // Usage-based (throughput/storage)
         ParentTagKeys:     nil,    // No parent
     },
     "aws:elasticloadbalancing:loadbalancer": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,  // Load balancer hours
         ParentTagKeys:     []string{"vpc_id"},
         ParentType:        "aws:ec2:vpc:Vpc",
         Relationship:      "within",
     },
     "aws:ec2:nat-gateway": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,  // Gateway hours
         ParentTagKeys:     []string{"vpc_id", "subnet_id"},
         ParentType:        "aws:ec2:vpc:Vpc",
         Relationship:      "within",
     },
     "aws:cloudwatch:metric": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: false,  // Ingestion is throughput
         ParentTagKeys:     nil,    // No parent
     },
     "aws:elasticache:cluster": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,  // Node hours
         ParentTagKeys:     []string{"vpc_id"},
         ParentType:        "aws:ec2:vpc:Vpc",
         Relationship:      "within",
     },
     "aws:rds:instance": {
-        GrowthType:        pulumicostv1.GrowthType_GROWTH_TYPE_STATIC,
+        GrowthType:        finfocusv1.GrowthType_GROWTH_TYPE_STATIC,
         AffectedByDevMode: true,  // Instance hours
         ParentTagKeys:     []string{"vpc_id"},
         ParentType:        "aws:ec2:vpc:Vpc",
@@ -295,18 +295,18 @@ const (
 
 ```go
 // Type assertions for field availability
-func hasUsageProfile(req *pulumicostv1.ResourceDescriptor) bool {
-    _, ok := req.(interface{ GetUsageProfile() pulumicostv1.UsageProfile })
+func hasUsageProfile(req *finfocusv1.ResourceDescriptor) bool {
+    _, ok := req.(interface{ GetUsageProfile() finfocusv1.UsageProfile })
     return ok
 }
 
-func hasGrowthHint(resp *pulumicostv1.GetProjectedCostResponse) bool {
-    _, ok := resp.(interface{ SetGrowthType(pulumicostv1.GrowthType) })
+func hasGrowthHint(resp *finfocusv1.GetProjectedCostResponse) bool {
+    _, ok := resp.(interface{ SetGrowthType(finfocusv1.GrowthType) })
     return ok
 }
 
-func hasLineage(resp *pulumicostv1.GetProjectedCostResponse) bool {
-    _, ok := resp.(interface{ SetLineage(*pulumicostv1.CostAllocationLineage) })
+func hasLineage(resp *finfocusv1.GetProjectedCostResponse) bool {
+    _, ok := resp.(interface{ SetLineage(*finfocusv1.CostAllocationLineage) })
     return ok
 }
 ```
@@ -344,7 +344,7 @@ func hasLineage(resp *pulumicostv1.GetProjectedCostResponse) bool {
 
 ## References
 
-- Protocol definitions: pulumicost-spec (rshade/pulumicost-spec)
+- Protocol definitions: finfocus-spec (rshade/finfocus-spec)
 - Research findings: research.md (RQ-1 through RQ-10)
 - Feature specification: spec.md
 - Constitution compliance: .specify/memory/constitution.md

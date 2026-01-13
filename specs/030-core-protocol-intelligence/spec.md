@@ -7,7 +7,7 @@
 
 ## Overview
 
-Enrich cost estimation responses with metadata that enables PulumiCost Core's advanced features: Cost Time Machine forecasting, Blast Radius topology visualization, and Dev Mode realistic estimates. This is a protocol enhancement that adds intelligence to existing cost estimates without changing pricing calculations.
+Enrich cost estimation responses with metadata that enables FinFocus Core's advanced features: Cost Time Machine forecasting, Blast Radius topology visualization, and Dev Mode realistic estimates. This is a protocol enhancement that adds intelligence to existing cost estimates without changing pricing calculations.
 
 ## Clarifications
 
@@ -17,15 +17,15 @@ Enrich cost estimation responses with metadata that enables PulumiCost Core's ad
 - Q: What should be the maximum acceptable response time for a single resource cost estimation request? → A: < 100ms - Fast response for interactive dev/test scenarios
 - Q: For the BURST UsageProfile enum value, what behavior should it implement? → A: 730 hours (same as PRODUCTION) - no special handling
 - Q: What logging level and details should be used when dev mode, growth hints, or lineage fields are added to responses? → A: INFO level with structured fields for UsageProfile, GrowthType, parent detection
-- Q: How should the plugin detect and handle protocol field availability when the upstream pulumicost-spec version varies? → A: Feature detection - check if protocol fields exist at runtime, omit if absent
+- Q: How should the plugin detect and handle protocol field availability when the upstream finfocus-spec version varies? → A: Feature detection - check if protocol fields exist at runtime, omit if absent
 
 ### Consolidated GitHub Issues
 
 | Issue | Title | Core Feature Enabled |
 |-------|-------|---------------------|
-| [#207](https://github.com/rshade/pulumicost-plugin-aws-public/issues/207) | Storage Growth Heuristics | Cost Time Machine forecasting |
-| [#208](https://github.com/rshade/pulumicost-plugin-aws-public/issues/208) | Resource Topology Linking | Blast Radius visualization |
-| [#209](https://github.com/rshade/pulumicost-plugin-aws-public/issues/209) | Dev Mode Heuristics | Realistic dev/test estimates |
+| [#207](https://github.com/rshade/finfocus-plugin-aws-public/issues/207) | Storage Growth Heuristics | Cost Time Machine forecasting |
+| [#208](https://github.com/rshade/finfocus-plugin-aws-public/issues/208) | Resource Topology Linking | Blast Radius visualization |
+| [#209](https://github.com/rshade/finfocus-plugin-aws-public/issues/209) | Dev Mode Heuristics | Realistic dev/test estimates |
 
 ### External Dependency
 
@@ -35,7 +35,7 @@ Enrich cost estimation responses with metadata that enables PulumiCost Core's ad
 2. Define `parent_resource_id` and `CostAllocationLineage` message (#208)
 3. Define `UsageProfile` enum and request field (#209)
 
-**Dependency**: rshade/pulumicost-spec (version TBD with protocol extensions)
+**Dependency**: rshade/finfocus-spec (version TBD with protocol extensions)
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -57,7 +57,7 @@ As a developer estimating costs for a dev/test environment, I want the plugin to
 
 ### User Story 2 - Growth Type Hints for Forecasting (Priority: P2)
 
-As a platform engineer using PulumiCost's forecasting feature, I want the plugin to indicate which resources naturally accumulate data over time so that Core can apply appropriate growth models to project future costs accurately.
+As a platform engineer using FinFocus's forecasting feature, I want the plugin to indicate which resources naturally accumulate data over time so that Core can apply appropriate growth models to project future costs accurately.
 
 **Why this priority**: Enables "Cost Time Machine" - a key differentiating feature. Without growth hints, Core cannot distinguish S3 (grows linearly) from EC2 (static cost).
 
@@ -182,7 +182,7 @@ As a platform engineer reviewing infrastructure changes, I want the plugin to id
 
 | File | Changes |
 |------|---------|
-| `go.mod` | Update pulumicost-spec dependency |
+| `go.mod` | Update finfocus-spec dependency |
 | `internal/plugin/constants.go` | Add `hoursPerMonthDev = 160` |
 | `internal/plugin/projected.go` | Add UsageProfile handling, GrowthType, lineage extraction |
 | `internal/plugin/projected_test.go` | Tests for all three features |

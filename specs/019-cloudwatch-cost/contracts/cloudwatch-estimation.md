@@ -6,7 +6,7 @@
 ## gRPC Service Contract
 
 CloudWatch cost estimation uses the existing `CostSourceService` from
-`pulumicost.v1` proto. No new RPC methods are added.
+`finfocus.v1` proto. No new RPC methods are added.
 
 ### Supports Request
 

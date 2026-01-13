@@ -19,7 +19,7 @@ resource memory configuration and usage tags.
 ## Technical Context
 
 - **Language/Version**: Go 1.25+
-- **Primary Dependencies**: gRPC (pulumicost.v1 protocol), internal/pricing
+- **Primary Dependencies**: gRPC (finfocus.v1 protocol), internal/pricing
   (embedded data), zerolog
 - **Storage**: Embedded JSON pricing data (using `//go:embed`)
 - **Testing**: Go testing (unit for calculation, integration for pricing

@@ -64,7 +64,7 @@ specs/[###-feature]/
 ### Source Code (repository root)
 
 ```text
-cmd/pulumicost-plugin-aws-public/
+cmd/finfocus-plugin-aws-public/
 └── main.go                    # gRPC service entry point
 
 internal/

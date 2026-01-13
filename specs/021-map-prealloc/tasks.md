@@ -84,7 +84,7 @@
 
 **Purpose**: Final cleanup and PR preparation
 
-- [ ] T018 [P] Run `go build -tags=region_use1 ./cmd/pulumicost-plugin-aws-public` to verify build succeeds
+- [ ] T018 [P] Run `go build -tags=region_use1 ./cmd/finfocus-plugin-aws-public` to verify build succeeds
 - [ ] T019 [P] Verify markdown files are linted: `npx markdownlint specs/021-map-prealloc/*.md`
 - [ ] T020 Prepare PR description with benchmark comparison table from benchstat output
 

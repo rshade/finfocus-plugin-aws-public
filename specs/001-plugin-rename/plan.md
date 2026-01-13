@@ -7,7 +7,7 @@
 
 ## Summary
 
-Rename the plugin from `pulumicost-plugin-aws-public` to `finfocus-plugin-aws-public` across all code, configuration, documentation, and build artifacts. This is a breaking change (v0.2.0) as part of the FinFocus migration, updating module name, dependencies, imports, logging prefixes, and binary naming from `pulumicost` to `finfocus`. Technical approach involves systematic text replacement across 40+ files, directory renaming, and verification via existing build/test/lint commands.
+Rename the plugin from `finfocus-plugin-aws-public` to `finfocus-plugin-aws-public` across all code, configuration, documentation, and build artifacts. This is a breaking change (v0.2.0) as part of the FinFocus migration, updating module name, dependencies, imports, logging prefixes, and binary naming from `finfocus` to `finfocus`. Technical approach involves systematic text replacement across 40+ files, directory renaming, and verification via existing build/test/lint commands.
 
 ## Technical Context
 
@@ -77,7 +77,7 @@ specs/001-plugin-rename/
 ### Source Code (repository root)
 
 ```text
-cmd/pulumicost-plugin-aws-public/  # RENAMED TO cmd/finfocus-plugin-aws-public/
+cmd/finfocus-plugin-aws-public/  # RENAMED TO cmd/finfocus-plugin-aws-public/
 └── main.go                        # Entry point (updated for finfocus naming)
 
 internal/
@@ -108,7 +108,7 @@ internal/testdata/                 # Test pricing data (region-specific embed)
 └── pricing_euw1.json              # eu-west-1 pricing
 ```
 
-**Structure Decision**: Go gRPC plugin with embedded pricing data. This is a single project type (no separate frontend/backend). The primary structure change is renaming `cmd/pulumicost-plugin-aws-public/` to `cmd/finfocus-plugin-aws-public/` and updating the module name in `go.mod`. All other directories remain unchanged; only imports and references within files are updated.
+**Structure Decision**: Go gRPC plugin with embedded pricing data. This is a single project type (no separate frontend/backend). The primary structure change is renaming `cmd/finfocus-plugin-aws-public/` to `cmd/finfocus-plugin-aws-public/` and updating the module name in `go.mod`. All other directories remain unchanged; only imports and references within files are updated.
 
 ## Complexity Tracking
 
@@ -123,7 +123,7 @@ No constitution violations requiring justification. This is a systematic rename 
 Since Technical Context has no NEEDS CLARIFICATION markers, no external research is required. All technical decisions are established:
 
 - **Language/Version**: Go 1.25.5+ (existing)
-- **Primary Dependencies**: gRPC (pluginsdk), finfocus-spec v0.5.0 (replacing pulumicost-spec v0.4.14)
+- **Primary Dependencies**: gRPC (pluginsdk), finfocus-spec v0.5.0 (replacing finfocus-spec v0.4.14)
 - **Storage**: Memory-mapped JSON pricing data (existing)
 - **Testing**: Go testing with table-driven tests (existing)
 - **Target Platform**: Linux region-specific binaries (existing)
@@ -145,16 +145,16 @@ The plugin uses embedded pricing data with these entities (unchanged):
 - **PricingData**: Raw AWS pricing JSON parsed from embedded files
 - **Product**: AWS service product definitions (EC2, S3, RDS, EKS, Lambda, DynamoDB, ELB)
 - **PriceTerm**: OnDemand price terms with currency and price values
-- **ResourceDescriptor**: Input from PulumiCost core (via proto)
-- **CostResponse**: Output to PulumiCost core (via proto)
+- **ResourceDescriptor**: Input from FinFocus core (via proto)
+- **CostResponse**: Output to FinFocus core (via proto)
 
-All entities remain structurally identical; only import paths change from `pulumicost.v1` to `finfocus.v1`.
+All entities remain structurally identical; only import paths change from `finfocus.v1` to `finfocus.v1`.
 
 ### API Contracts
 
 **Status**: No changes required. gRPC interface is unchanged.
 
-The plugin implements the `CostSourceService` interface from `finfocus.v1` (formerly `pulumicost.v1`):
+The plugin implements the `CostSourceService` interface from `finfocus.v1` (formerly `finfocus.v1`):
 - `Name()` - Returns service name
 - `Supports(ResourceDescriptor)` - Checks region and resource type
 - `GetProjectedCost(ResourceDescriptor)` - Calculates projected costs

@@ -9,7 +9,7 @@
 
 ### User Story 1 - Accurate Pricing Data Retrieval (Priority: P1)
 
-As a PulumiCost user estimating AWS costs, I need the plugin to return accurate pricing for all supported AWS services so that my infrastructure cost estimates match real AWS pricing.
+As a FinFocus user estimating AWS costs, I need the plugin to return accurate pricing for all supported AWS services so that my infrastructure cost estimates match real AWS pricing.
 
 **Why this priority**: This is the core functionality. Without accurate pricing data, the entire plugin's value proposition fails. The v0.0.10 and v0.0.11 bugs demonstrated that combining/processing pricing data introduces risk of silent failures where prices return $0.
 

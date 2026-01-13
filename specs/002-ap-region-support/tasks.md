@@ -50,7 +50,7 @@ Repository structure (single Go project):
 ### Implementation for User Story 1
 
 - [ ] T008 [US1] Create embed file internal/pricing/embed_apse1.go with build tag region_apse1 and go:embed for data/aws_pricing_ap-southeast-1.json
-- [ ] T009 [US1] Add GoReleaser build configuration to .goreleaser.yaml for ap-southeast-1 binary (id: ap-southeast-1, binary: pulumicost-plugin-aws-public-ap-southeast-1, tags: region_apse1, platforms: linux/darwin/windows, arch: amd64/arm64)
+- [ ] T009 [US1] Add GoReleaser build configuration to .goreleaser.yaml for ap-southeast-1 binary (id: ap-southeast-1, binary: finfocus-plugin-aws-public-ap-southeast-1, tags: region_apse1, platforms: linux/darwin/windows, arch: amd64/arm64)
 - [ ] T010 [US1] Extend internal/plugin/supports_test.go with table-driven test cases for ap-southeast-1 region validation (matching and mismatching regions)
 - [ ] T011 [US1] Extend internal/plugin/projected_test.go with test cases for ap-southeast-1 EC2 and EBS pricing calculations
 - [ ] T012 [US1] Extend internal/pricing/client_test.go with test cases for ap-southeast-1 pricing data loading and lookup
@@ -70,7 +70,7 @@ Repository structure (single Go project):
 ### Implementation for User Story 2
 
 - [ ] T015 [P] [US2] Create embed file internal/pricing/embed_apse2.go with build tag region_apse2 and go:embed for data/aws_pricing_ap-southeast-2.json
-- [ ] T016 [US2] Add GoReleaser build configuration to .goreleaser.yaml for ap-southeast-2 binary (id: ap-southeast-2, binary: pulumicost-plugin-aws-public-ap-southeast-2, tags: region_apse2, platforms: linux/darwin/windows, arch: amd64/arm64)
+- [ ] T016 [US2] Add GoReleaser build configuration to .goreleaser.yaml for ap-southeast-2 binary (id: ap-southeast-2, binary: finfocus-plugin-aws-public-ap-southeast-2, tags: region_apse2, platforms: linux/darwin/windows, arch: amd64/arm64)
 - [ ] T017 [P] [US2] Extend internal/plugin/supports_test.go with test cases for ap-southeast-2 region validation
 - [ ] T018 [P] [US2] Extend internal/plugin/projected_test.go with test cases for ap-southeast-2 EC2 and EBS pricing calculations
 - [ ] T019 [P] [US2] Extend internal/pricing/client_test.go with test cases for ap-southeast-2 pricing data loading
@@ -90,7 +90,7 @@ Repository structure (single Go project):
 ### Implementation for User Story 3
 
 - [ ] T022 [P] [US3] Create embed file internal/pricing/embed_apne1.go with build tag region_apne1 and go:embed for data/aws_pricing_ap-northeast-1.json
-- [ ] T023 [US3] Add GoReleaser build configuration to .goreleaser.yaml for ap-northeast-1 binary (id: ap-northeast-1, binary: pulumicost-plugin-aws-public-ap-northeast-1, tags: region_apne1, platforms: linux/darwin/windows, arch: amd64/arm64)
+- [ ] T023 [US3] Add GoReleaser build configuration to .goreleaser.yaml for ap-northeast-1 binary (id: ap-northeast-1, binary: finfocus-plugin-aws-public-ap-northeast-1, tags: region_apne1, platforms: linux/darwin/windows, arch: amd64/arm64)
 - [ ] T024 [P] [US3] Extend internal/plugin/supports_test.go with test cases for ap-northeast-1 region validation
 - [ ] T025 [P] [US3] Extend internal/plugin/projected_test.go with test cases for ap-northeast-1 EC2 and EBS pricing calculations
 - [ ] T026 [P] [US3] Extend internal/pricing/client_test.go with test cases for ap-northeast-1 pricing data loading
@@ -110,7 +110,7 @@ Repository structure (single Go project):
 ### Implementation for User Story 4
 
 - [ ] T029 [P] [US4] Create embed file internal/pricing/embed_aps1.go with build tag region_aps1 and go:embed for data/aws_pricing_ap-south-1.json
-- [ ] T030 [US4] Add GoReleaser build configuration to .goreleaser.yaml for ap-south-1 binary (id: ap-south-1, binary: pulumicost-plugin-aws-public-ap-south-1, tags: region_aps1, platforms: linux/darwin/windows, arch: amd64/arm64)
+- [ ] T030 [US4] Add GoReleaser build configuration to .goreleaser.yaml for ap-south-1 binary (id: ap-south-1, binary: finfocus-plugin-aws-public-ap-south-1, tags: region_aps1, platforms: linux/darwin/windows, arch: amd64/arm64)
 - [ ] T031 [P] [US4] Extend internal/plugin/supports_test.go with test cases for ap-south-1 region validation
 - [ ] T032 [P] [US4] Extend internal/plugin/projected_test.go with test cases for ap-south-1 EC2 and EBS pricing calculations
 - [ ] T033 [P] [US4] Extend internal/pricing/client_test.go with test cases for ap-south-1 pricing data loading

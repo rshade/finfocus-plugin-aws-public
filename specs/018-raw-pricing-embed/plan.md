@@ -12,7 +12,7 @@ Each service's pricing will be fetched from AWS Price List API and embedded verb
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: encoding/json, sync.Once, go:embed, zerolog, gRPC (pulumicost-spec)
+**Primary Dependencies**: encoding/json, sync.Once, go:embed, zerolog, gRPC (finfocus-spec)
 **Storage**: Embedded JSON files via `//go:embed` (no external storage)
 **Testing**: Go testing with build tags (`-tags=region_use1`)
 **Target Platform**: Linux/Windows/macOS binaries per region

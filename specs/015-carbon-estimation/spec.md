@@ -4,17 +4,17 @@
 **Created**: 2025-12-19
 **Status**: Draft
 **Input**: User description: "Implement carbon emission estimation for AWS EC2 instances using Cloud Carbon Footprint methodology"
-**Related Issue**: [#120](https://github.com/rshade/pulumicost-plugin-aws-public/issues/120)
+**Related Issue**: [#120](https://github.com/rshade/finfocus-plugin-aws-public/issues/120)
 
 ## Overview
 
-Enable the AWS Public Pricing plugin to estimate carbon emissions (gCO2e) for AWS resources alongside financial cost estimates. This supports the PulumiCost "GreenOps" initiative by providing sustainability metrics using the open-source Cloud Carbon Footprint (CCF) methodology.
+Enable the AWS Public Pricing plugin to estimate carbon emissions (gCO2e) for AWS resources alongside financial cost estimates. This supports the FinFocus "GreenOps" initiative by providing sustainability metrics using the open-source Cloud Carbon Footprint (CCF) methodology.
 
 ## User Scenarios & Testing
 
 ### User Story 1 - View Carbon Footprint for EC2 Instance (Priority: P1)
 
-As a cloud engineer using PulumiCost, I want to see the estimated carbon footprint when I request cost estimates for EC2 instances, so that I can understand both the financial and environmental impact of my infrastructure decisions.
+As a cloud engineer using FinFocus, I want to see the estimated carbon footprint when I request cost estimates for EC2 instances, so that I can understand both the financial and environmental impact of my infrastructure decisions.
 
 **Why this priority**: This is the core value proposition - providing carbon visibility alongside cost for the most common compute resource type. Without this, the feature delivers no value.
 
@@ -32,7 +32,7 @@ As a cloud engineer using PulumiCost, I want to see the estimated carbon footpri
 
 ### User Story 2 - Discovery of Carbon Estimation Capabilities (Priority: P2)
 
-As a PulumiCost core engine, I want to discover which sustainability metrics a plugin supports, so that I can correctly aggregate and display carbon data from multiple plugins.
+As a FinFocus core engine, I want to discover which sustainability metrics a plugin supports, so that I can correctly aggregate and display carbon data from multiple plugins.
 
 **Why this priority**: Essential for integration with the core engine, but depends on P1 being implemented first.
 
@@ -160,4 +160,4 @@ Cloud Carbon Footprint data is licensed under Apache 2.0. The following attribut
 
 ## Dependencies
 
-- `pulumicost-spec` v0.4.10+ (provides MetricKind enum, ImpactMetric message, supported_metrics field)
+- `finfocus-spec` v0.4.10+ (provides MetricKind enum, ImpactMetric message, supported_metrics field)

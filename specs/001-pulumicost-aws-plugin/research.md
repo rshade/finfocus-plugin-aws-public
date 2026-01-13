@@ -1,4 +1,4 @@
-# Research: PulumiCost AWS Public Plugin
+# Research: FinFocus AWS Public Plugin
 
 **Phase**: 0 - Technical Research
 **Date**: 2025-11-16
@@ -6,16 +6,16 @@
 
 ## Purpose
 
-This document captures technical research for implementing the PulumiCost AWS Public Plugin. Since this is a greenfield project, research focuses on external dependencies, protocol requirements, and Go tooling patterns.
+This document captures technical research for implementing the FinFocus AWS Public Plugin. Since this is a greenfield project, research focuses on external dependencies, protocol requirements, and Go tooling patterns.
 
 ## External Dependencies Analysis
 
-### 1. pulumicost-spec Proto Definitions
+### 1. finfocus-spec Proto Definitions
 
-**Repository**: `github.com/rshade/pulumicost-spec`
-**Package**: `github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1`
+**Repository**: `github.com/rshade/finfocus-spec`
+**Package**: `github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1`
 
-**Key Proto Messages** (from `proto/pulumicost/v1/costsource.proto`):
+**Key Proto Messages** (from `proto/finfocus/v1/costsource.proto`):
 
 ```protobuf
 // CostSourceService - gRPC service interface
@@ -65,14 +65,14 @@ enum ErrorCode {
 - Return proto-defined response messages only
 - Use ErrorCode enum values (no custom error codes)
 
-**Import Path**: `pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"`
+**Import Path**: `pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"`
 
 ---
 
-### 2. pulumicost-core/pkg/pluginsdk
+### 2. finfocus-core/pkg/pluginsdk
 
-**Repository**: `github.com/rshade/pulumicost-core`
-**Package**: `github.com/rshade/pulumicost-core/pkg/pluginsdk`
+**Repository**: `github.com/rshade/finfocus-core`
+**Package**: `github.com/rshade/finfocus-core/pkg/pluginsdk`
 
 **Key Functions** (from `pkg/pluginsdk/sdk.go`):
 
@@ -86,7 +86,7 @@ type ServeConfig struct {
 }
 
 type Plugin interface {
-    // Implements pulumicost.v1.CostSourceServiceServer
+    // Implements finfocus.v1.CostSourceServiceServer
 }
 ```
 
@@ -172,7 +172,7 @@ var rawPricingJSON = []byte(`{"region": "unknown", "ec2": {}, "ebs": {}}`)
 
 **Build Command**:
 ```bash
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
 ```
 
 ---
@@ -237,24 +237,24 @@ before:
 
 builds:
   - id: us-east-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-us-east-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-east-1
     tags:
       - region_use1
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
 
   - id: us-west-2
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-us-west-2
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-west-2
     tags:
       - region_usw2
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
 
   - id: eu-west-1
-    main: ./cmd/pulumicost-plugin-aws-public
-    binary: pulumicost-plugin-aws-public-eu-west-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-eu-west-1
     tags:
       - region_euw1
     goos: [linux, darwin, windows]
@@ -332,7 +332,7 @@ go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-di
 
 **Verification**:
 ```bash
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 # Expected output: PORT=12345
 # Then plugin serves gRPC on 127.0.0.1:12345
 ```
@@ -401,7 +401,7 @@ type mockPricingClient struct {
 **Example** (manual testing with grpcurl):
 ```bash
 # Start plugin
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 # Output: PORT=12345
 
 # Call GetProjectedCost
@@ -415,7 +415,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/GetProjectedCost
+  finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 ---
@@ -437,7 +437,7 @@ grpcurl -plaintext \
 
 **Question**: How to attach ErrorDetail with ErrorCode enum to gRPC status errors?
 
-**Research Needed**: Check pulumicost-spec for ErrorDetail proto definition and usage examples in pulumicost-core.
+**Research Needed**: Check finfocus-spec for ErrorDetail proto definition and usage examples in finfocus-core.
 
 **Workaround for v1**: Use gRPC status.New() with standard codes, document proto ErrorCode in error message text.
 
@@ -447,7 +447,7 @@ grpcurl -plaintext \
 
 All Technical Context requirements from plan.md are resolved:
 - ✅ Language/Version: Go 1.25+
-- ✅ Primary Dependencies: pulumicost-spec (proto), pluginsdk, gRPC
+- ✅ Primary Dependencies: finfocus-spec (proto), pluginsdk, gRPC
 - ✅ Testing: go test with table-driven tests, mockPricingClient
 - ✅ Build Tooling: GoReleaser with build tags
 - ✅ Protocol: gRPC CostSourceService with PORT announcement

@@ -12,7 +12,7 @@ Enhance `GetActualCost` to automatically detect resource runtime from Pulumi sta
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: gRPC, pulumicost-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)
+**Primary Dependencies**: gRPC, finfocus-spec (proto), zerolog, google.golang.org/protobuf (timestamppb)
 **Storage**: N/A (embedded pricing data, stateless service)
 **Testing**: Go testing with table-driven tests, integration tests with `-tags=integration`
 **Target Platform**: Linux server (gRPC service on 127.0.0.1)

@@ -79,11 +79,11 @@ description: "Task list for feature implementation"
 
 **Independent Test**: Can be tested by sending request with UsageProfile=DEVELOPMENT and verifying EC2 cost is ~22% of production
 
-**⚠️ PRE-REQUISITE**: Must create PR to pulumicost-spec to add UsageProfile enum before implementing this phase
+**⚠️ PRE-REQUISITE**: Must create PR to finfocus-spec to add UsageProfile enum before implementing this phase
 
 ### Implementation for User Story 1
 
-- [ ] T021 [P] Create PR to rshade/pulumicost-spec for UsageProfile enum - reference issue #209 (specs/030-core-protocol-intelligence/contracts/usage-profile-proto.md)
+- [ ] T021 [P] Create PR to rshade/finfocus-spec for UsageProfile enum - reference issue #209 (specs/030-core-protocol-intelligence/contracts/usage-profile-proto.md)
 - [ ] T022 [P] Implement `applyDevMode()` function in `internal/plugin/enrichment.go` with context parameter for logging
 - [ ] T023 [P] Add zerolog logging to `applyDevMode()` function (INFO level with usage_profile, resource_type fields)
 - [ ] T024 [P] Integrate `applyDevMode()` call in `internal/plugin/projected.go` estimateEC2Cost function (before setGrowthHint)
@@ -103,11 +103,11 @@ description: "Task list for feature implementation"
 
 **Independent Test**: Can be tested by sending EBS volume request with instance_id tag and verifying response includes parent_resource_id
 
-**⚠️ PRE-REQUISITE**: Must create PR to pulumicost-spec to add CostAllocationLineage message before implementing this phase
+**⚠️ PRE-REQUISITE**: Must create PR to finfocus-spec to add CostAllocationLineage message before implementing this phase
 
 ### Implementation for User Story 3
 
-- [ ] T030 [P]Create PR to rshade/pulumicost-spec for CostAllocationLineage message - reference issue #208 (specs030-core-protocol-intelligence/contracts/cost-allocation-lineage-proto.md)
+- [ ] T030 [P]Create PR to rshade/finfocus-spec for CostAllocationLineage message - reference issue #208 (specs030-core-protocol-intelligence/contracts/cost-allocation-lineage-proto.md)
 - [ ] T031 [P] Implement `extractLineage()` function in `internal/plugin/enrichment.go` with context parameter for logging
 - [ ] T032 [P] Add zerolog logging to `extractLineage()` function (INFO level with parent_detected, parent_type, relationship fields)
 - [ ] T033 [P] Integrate `extractLineage()` call in `internal/plugin/projected.go` estimateEBSCost function (after applyDevMode, after setGrowthHint)
@@ -150,13 +150,13 @@ description: "Task list for feature implementation"
 **Purpose**: Documentation updates and final validation
 
 - [ ] T051 Update `CLAUDE.md` with growth classification, dev mode, and topology relationship patterns
-- [ ] T052 Update `go.mod` with pulumicost-spec dependency after proto merges
+- [ ] T052 Update `go.mod` with finfocus-spec dependency after proto merges
 - [ ] T053 Run `make lint` and fix all issues
 - [ ] T054 Run `make test` and verify all tests pass
 - [ ] T055 Run `go test -race ./internal/plugin/...` to verify thread safety (no data races)
 - [ ] T056 Verify < 100ms performance target for GetProjectedCost RPC (benchmark tests if needed)
 - [ ] T057 Run `make build-region REGION=us-east-1` and verify binary compiles
-- [ ] T058 Check binary size is < 250MB (ls -lh pulumicost-plugin-aws-public-us-east-1)
+- [ ] T058 Check binary size is < 250MB (ls -lh finfocus-plugin-aws-public-us-east-1)
 - [ ] T059 Verify backward compatibility (existing cost calculations unchanged for UNSPECIFIED UsageProfile)
 - [ ] T060 Create comprehensive integration test validation per quickstart.md Verification Commands
 

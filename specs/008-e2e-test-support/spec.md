@@ -9,13 +9,13 @@
 
 ### Session 2025-12-02
 
-- Q: How should the plugin handle invalid PULUMICOST_TEST_MODE values? →
+- Q: How should the plugin handle invalid FINFOCUS_TEST_MODE values? →
   A: Treat as disabled (production mode) and log warning at startup
 
 ## Problem Statement
 
-The pulumicost-plugin-aws-public plugin needs to support end-to-end testing
-scenarios within the pulumicost ecosystem. Currently, there is no standardized
+The finfocus-plugin-aws-public plugin needs to support end-to-end testing
+scenarios within the finfocus ecosystem. Currently, there is no standardized
 way to:
 
 - Validate cost calculations against expected ranges during automated tests
@@ -31,7 +31,7 @@ scenarios.
 
 ### User Story 1 - Validate Projected Costs in E2E Tests (Priority: P1)
 
-As an E2E test framework (pulumicost-core), I need to verify that projected
+As an E2E test framework (finfocus-core), I need to verify that projected
 cost calculations for standard test resources fall within expected ranges, so
 that I can detect regressions in cost estimation accuracy.
 
@@ -133,7 +133,7 @@ values.
 - How does the system handle requests for resources not in the expected cost
   range database?
 - What happens when pricing data changes and expected ranges become stale?
-- When PULUMICOST_TEST_MODE is set to invalid values (e.g., "maybe", "1",
+- When FINFOCUS_TEST_MODE is set to invalid values (e.g., "maybe", "1",
   "yes", empty string), the system treats it as disabled (production mode)
   and logs a warning at startup
 
@@ -144,7 +144,7 @@ values.
 - **FR-001**: System MUST maintain backward compatibility - all existing
   production behaviors remain unchanged when test mode is disabled
 - **FR-002**: System MUST support test mode activation via
-  PULUMICOST_TEST_MODE environment variable
+  FINFOCUS_TEST_MODE environment variable
 - **FR-003**: System MUST return deterministic cost calculations for the same
   resource configuration (no randomness or external dependencies in test mode)
 - **FR-004**: System MUST support projected cost requests for t3.micro EC2
@@ -161,7 +161,7 @@ values.
   ranges (1% for EC2, 5% for EBS)
 - **FR-010**: System MUST not make external network calls in test mode (all
   pricing data embedded)
-- **FR-011**: System MUST treat invalid PULUMICOST_TEST_MODE values as disabled
+- **FR-011**: System MUST treat invalid FINFOCUS_TEST_MODE values as disabled
   (production mode) and log a warning at startup; only "true" enables test mode
 
 ### Key Entities
@@ -177,7 +177,7 @@ values.
 
 ### Measurable Outcomes
 
-- **SC-001**: All E2E test scenarios from pulumicost-core pass with the plugin
+- **SC-001**: All E2E test scenarios from finfocus-core pass with the plugin
   integration
 - **SC-002**: Cost calculation responses return in under 100ms in test mode
 - **SC-003**: Projected cost calculations for t3.micro EC2 are within 1% of
@@ -206,7 +206,7 @@ values.
 
 ## Dependencies
 
-- E2E test implementation in pulumicost-core (#177)
+- E2E test implementation in finfocus-core (#177)
 - Fallback actual cost implementation (#24) - completed
 - Zerolog structured logging (#005) - completed
 - Plugin release v0.0.1 (#23)

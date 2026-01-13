@@ -5,7 +5,7 @@
 
 ## Overview
 
-S3 storage cost estimation is now supported in the pulumicost-plugin-aws-public. This guide shows how to test and use the new functionality.
+S3 storage cost estimation is now supported in the finfocus-plugin-aws-public. This guide shows how to test and use the new functionality.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ Test via gRPC using grpcurl:
 
 ```bash
 # Start the plugin
-./bin/pulumicost-plugin-aws-public-us-east-1
+./bin/finfocus-plugin-aws-public-us-east-1
 
 # In another terminal, test S3 cost estimation
 grpcurl -plaintext -d '{
@@ -38,7 +38,7 @@ grpcurl -plaintext -d '{
   "sku": "STANDARD",
   "region": "us-east-1",
   "tags": {"size": "100"}
-}' 127.0.0.1:PORT pulumicost.v1.CostSourceService.GetProjectedCost
+}' 127.0.0.1:PORT finfocus.v1.CostSourceService.GetProjectedCost
 ```
 
 Expected response:

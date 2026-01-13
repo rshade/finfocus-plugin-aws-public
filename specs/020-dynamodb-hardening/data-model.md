@@ -11,7 +11,7 @@ No new entities are introduced. This feature modifies validation and error handl
 
 ### ResourceDescriptor (Input)
 
-Proto-defined input from pulumicost.v1:
+Proto-defined input from finfocus.v1:
 
 | Field | Type | DynamoDB Usage |
 |-------|------|----------------|
@@ -33,7 +33,7 @@ Proto-defined input from pulumicost.v1:
 
 ### GetProjectedCostResponse (Output)
 
-Proto-defined output from pulumicost.v1:
+Proto-defined output from finfocus.v1:
 
 | Field | Type | Description |
 |-------|------|-------------|

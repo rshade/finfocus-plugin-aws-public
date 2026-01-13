@@ -6,7 +6,7 @@
 ## Prerequisites
 
 - Go 1.25+
-- pulumicost-spec v0.4.8 in go.mod
+- finfocus-spec v0.4.8 in go.mod
 - Existing tests passing (`make test`)
 
 ## Implementation Order
@@ -166,7 +166,7 @@ if err := pluginsdk.ValidateProjectedCostRequest(req); err != nil {
 
 ### Issue: PORT env var not recognized
 
-**Solution**: Keep local fallback (SDK only reads PULUMICOST_PLUGIN_PORT):
+**Solution**: Keep local fallback (SDK only reads FINFOCUS_PLUGIN_PORT):
 
 ```go
 port := pluginsdk.GetPort()

@@ -15,7 +15,7 @@
 
 ### User Story 1 - Batch Resource Analysis (Priority: P1)
 
-As a client system (like PulumiCost Core), I want to submit a list of multiple resources in a single request so that I can efficiently get cost recommendations for all of them without making sequential calls.
+As a client system (like FinFocus Core), I want to submit a list of multiple resources in a single request so that I can efficiently get cost recommendations for all of them without making sequential calls.
 
 **Why this priority**: This is the core purpose of the feature, enabling the new batch-oriented workflow supported by the protocol update.
 
@@ -68,7 +68,7 @@ As an older client system, I want to continue sending requests with only `Filter
 
 ### Functional Requirements
 
-- **FR-001**: The plugin MUST update its dependency to `github.com/rshade/pulumicost-spec` v0.4.9 or later.
+- **FR-001**: The plugin MUST update its dependency to `github.com/rshade/finfocus-spec` v0.4.9 or later.
 - **FR-002**: The `GetRecommendations` method MUST accept and process `req.TargetResources` as the primary list of resources to analyze.
 - **FR-003**: The system MUST implement a legacy fallback: if `req.TargetResources` is empty, it MUST check `req.Filter` for a specific `Sku` and `ResourceType` and treat it as a single-item scope.
 - **FR-004**: If both `req.TargetResources` and the legacy filter fallback are empty, the system MUST return 0 recommendations.

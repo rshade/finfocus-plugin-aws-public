@@ -1,6 +1,6 @@
 # Implementation Plan: EKS Cluster Cost Estimation
 
-**Branch**: `010-eks-cost-estimation` | **Date**: 2025-12-06 | **Spec**: /mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/010-eks-cost-estimation/spec.md
+**Branch**: `010-eks-cost-estimation` | **Date**: 2025-12-06 | **Spec**: /mnt/c/GitHub/go/src/github.com/rshade/finfocus-plugin-aws-public/specs/010-eks-cost-estimation/spec.md
 **Input**: Feature specification from `/specs/010-eks-cost-estimation/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
@@ -50,7 +50,7 @@ specs/[###-feature]/
 ### Source Code (repository root)
 
 ```text
-cmd/pulumicost-plugin-aws-public/
+cmd/finfocus-plugin-aws-public/
 ├── main.go
 
 internal/

@@ -5,12 +5,12 @@
 
 ## Summary
 
-Pass through the native `Id` field from `ResourceDescriptor` to `Recommendation.Resource.Id` for proper resource correlation in batch requests. This requires updating pulumicost-spec to v0.4.11+ and modifying the `GetRecommendations` handler to prioritize the native ID over the existing tag-based correlation.
+Pass through the native `Id` field from `ResourceDescriptor` to `Recommendation.Resource.Id` for proper resource correlation in batch requests. This requires updating finfocus-spec to v0.4.11+ and modifying the `GetRecommendations` handler to prioritize the native ID over the existing tag-based correlation.
 
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: pulumicost-spec v0.4.11+ (provides `Id` field on `ResourceDescriptor`), gRPC, zerolog
+**Primary Dependencies**: finfocus-spec v0.4.11+ (provides `Id` field on `ResourceDescriptor`), gRPC, zerolog
 **Storage**: N/A (stateless gRPC service)
 **Testing**: Go testing with table-driven tests, existing test patterns in `recommendations_test.go`
 **Target Platform**: Linux server (gRPC plugin binary)
@@ -54,7 +54,7 @@ internal/
 └── plugin/
     ├── recommendations.go       # MODIFY: Add native Id passthrough
     └── recommendations_test.go  # MODIFY: Add tests for Id priority
-go.mod                           # MODIFY: Update pulumicost-spec to v0.4.11+
+go.mod                           # MODIFY: Update finfocus-spec to v0.4.11+
 ```
 
 **Structure Decision**: Existing plugin structure. No new files needed - only modifications to existing `recommendations.go` and its test file, plus dependency version bump.
@@ -68,7 +68,7 @@ go.mod                           # MODIFY: Update pulumicost-spec to v0.4.11+
 ### Change Summary
 
 1. **Dependency Update** (`go.mod`):
-   - Update `github.com/rshade/pulumicost-spec` from current version to `v0.4.11`
+   - Update `github.com/rshade/finfocus-spec` from current version to `v0.4.11`
 
 2. **Code Change** (`internal/plugin/recommendations.go`):
    - Modify the correlation logic in `GetRecommendations` (around lines 112-123)
@@ -88,10 +88,10 @@ go.mod                           # MODIFY: Update pulumicost-spec to v0.4.11+
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Breaking existing tag-based correlation | Low | High | Maintain fallback to tags when native ID empty |
-| pulumicost-spec v0.4.11 API incompatibility | Very Low | Medium | SDK follows semver; Id field is additive |
+| finfocus-spec v0.4.11 API incompatibility | Very Low | Medium | SDK follows semver; Id field is additive |
 | Test coverage gap | Low | Low | Explicit test cases for all scenarios |
 
 ### Dependencies
 
-- **External**: pulumicost-spec v0.4.11 (available)
+- **External**: finfocus-spec v0.4.11 (available)
 - **Internal**: None - self-contained change

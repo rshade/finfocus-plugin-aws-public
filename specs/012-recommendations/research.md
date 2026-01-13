@@ -7,11 +7,11 @@
 
 ### Decision
 
-Use the official `pulumicost.v1` proto types for recommendations, which differ from the simplified proposal in the GitHub issue.
+Use the official `finfocus.v1` proto types for recommendations, which differ from the simplified proposal in the GitHub issue.
 
 ### Findings
 
-The pulumicost-spec v0.4.7 defines a rich `Recommendation` type:
+The finfocus-spec v0.4.7 defines a rich `Recommendation` type:
 
 ```go
 type Recommendation struct {
@@ -45,7 +45,7 @@ type Recommendation struct {
 ### Rationale
 
 Using official proto types ensures:
-1. Compatibility with PulumiCost core aggregation
+1. Compatibility with FinFocus core aggregation
 2. Proper validation via `pluginsdk.ValidateRecommendation()`
 3. Pagination support via `pluginsdk.PaginateRecommendations()`
 4. Summary calculation via `pluginsdk.CalculateRecommendationSummary()`
@@ -298,7 +298,7 @@ Since this plugin is region-specific and doesn't have access to actual resource 
 
 **Selected**: Option A with enhancement - Plugin returns empty unless called with specific resource context via the filter's `ResourceId` field.
 
-For practical use, PulumiCost core would call GetRecommendations for specific resources it knows about, passing context via the filter.
+For practical use, FinFocus core would call GetRecommendations for specific resources it knows about, passing context via the filter.
 
 ---
 

@@ -18,7 +18,7 @@ Defines the relationship between AWS region identifiers, build tags, binary name
 
 - **aws_region_id** (string): Official AWS region identifier (e.g., "ap-southeast-1")
 - **build_tag** (string): Go build constraint tag (e.g., "region_apse1")
-- **binary_name** (string): Output binary filename (e.g., "pulumicost-plugin-aws-public-ap-southeast-1")
+- **binary_name** (string): Output binary filename (e.g., "finfocus-plugin-aws-public-ap-southeast-1")
 - **city_name** (string): Human-readable location (e.g., "Singapore")
 - **geographic_area** (string): Geographic grouping (e.g., "Asia Pacific")
 
@@ -26,17 +26,17 @@ Defines the relationship between AWS region identifiers, build tags, binary name
 
 | aws_region_id | build_tag | binary_name | city_name | geographic_area |
 |---------------|-----------|-------------|-----------|-----------------|
-| ap-southeast-1 | region_apse1 | pulumicost-plugin-aws-public-ap-southeast-1 | Singapore | Asia Pacific |
-| ap-southeast-2 | region_apse2 | pulumicost-plugin-aws-public-ap-southeast-2 | Sydney | Asia Pacific |
-| ap-northeast-1 | region_apne1 | pulumicost-plugin-aws-public-ap-northeast-1 | Tokyo | Asia Pacific |
-| ap-south-1 | region_aps1 | pulumicost-plugin-aws-public-ap-south-1 | Mumbai | Asia Pacific |
+| ap-southeast-1 | region_apse1 | finfocus-plugin-aws-public-ap-southeast-1 | Singapore | Asia Pacific |
+| ap-southeast-2 | region_apse2 | finfocus-plugin-aws-public-ap-southeast-2 | Sydney | Asia Pacific |
+| ap-northeast-1 | region_apne1 | finfocus-plugin-aws-public-ap-northeast-1 | Tokyo | Asia Pacific |
+| ap-south-1 | region_aps1 | finfocus-plugin-aws-public-ap-south-1 | Mumbai | Asia Pacific |
 
 **Validation Rules**:
 
 - `aws_region_id` MUST match AWS official region naming convention
 - `build_tag` MUST follow `region_<4char>` pattern
 - `build_tag` MUST be unique across all regions
-- `binary_name` MUST follow `pulumicost-plugin-aws-public-<aws_region_id>` pattern
+- `binary_name` MUST follow `finfocus-plugin-aws-public-<aws_region_id>` pattern
 
 **Relationships**:
 
@@ -193,7 +193,7 @@ Defines how to build a region-specific binary with GoReleaser.
 
 ```yaml
 - id: <region_id>
-  main: ./cmd/pulumicost-plugin-aws-public
+  main: ./cmd/finfocus-plugin-aws-public
   binary: <binary_name>
   env:
     - CGO_ENABLED=0
@@ -214,10 +214,10 @@ Defines how to build a region-specific binary with GoReleaser.
 
 | id | binary | tags | platforms |
 |----|--------|------|-----------|
-| ap-southeast-1 | pulumicost-plugin-aws-public-ap-southeast-1 | [region_apse1] | 6 (3 OS × 2 arch) |
-| ap-southeast-2 | pulumicost-plugin-aws-public-ap-southeast-2 | [region_apse2] | 6 (3 OS × 2 arch) |
-| ap-northeast-1 | pulumicost-plugin-aws-public-ap-northeast-1 | [region_apne1] | 6 (3 OS × 2 arch) |
-| ap-south-1 | pulumicost-plugin-aws-public-ap-south-1 | [region_aps1] | 6 (3 OS × 2 arch) |
+| ap-southeast-1 | finfocus-plugin-aws-public-ap-southeast-1 | [region_apse1] | 6 (3 OS × 2 arch) |
+| ap-southeast-2 | finfocus-plugin-aws-public-ap-southeast-2 | [region_apse2] | 6 (3 OS × 2 arch) |
+| ap-northeast-1 | finfocus-plugin-aws-public-ap-northeast-1 | [region_apne1] | 6 (3 OS × 2 arch) |
+| ap-south-1 | finfocus-plugin-aws-public-ap-south-1 | [region_aps1] | 6 (3 OS × 2 arch) |
 
 **Build Matrix**:
 
@@ -346,7 +346,7 @@ type EBSPricing struct {
 [Not Built]
     ↓ goreleaser build -tags region_apse1
 [Built - Unstarted]
-    ↓ ./pulumicost-plugin-aws-public-ap-southeast-1
+    ↓ ./finfocus-plugin-aws-public-ap-southeast-1
 [Starting]
     ↓ PORT announcement
 [Serving gRPC]

@@ -6,11 +6,11 @@
 
 ## Overview
 
-The gRPC API contracts for the plugin remain **unchanged** by this rename operation. The proto interface is identical between `pulumicost.v1` (pulumicost-spec v0.4.14) and `finfocus.v1` (finfocus-spec v0.5.0). Only the proto package name has changed; message structure, field names, and service methods are identical.
+The gRPC API contracts for the plugin remain **unchanged** by this rename operation. The proto interface is identical between `finfocus.v1` (finfocus-spec v0.4.14) and `finfocus.v1` (finfocus-spec v0.5.0). Only the proto package name has changed; message structure, field names, and service methods are identical.
 
 ## gRPC Service Definition
 
-The plugin implements the `CostSourceService` interface from `finfocus.v1` (formerly `pulumicost.v1`):
+The plugin implements the `CostSourceService` interface from `finfocus.v1` (formerly `finfocus.v1`):
 
 ```protobuf
 service CostSourceService {
@@ -24,11 +24,11 @@ service CostSourceService {
 
 ## Proto Package Change
 
-### Before (pulumicost-spec v0.4.14)
+### Before (finfocus-spec v0.4.14)
 
 ```protobuf
 syntax = "proto3";
-package pulumicost.v1;
+package finfocus.v1;
 
 // Messages...
 message ResourceDescriptor { ... }
@@ -196,29 +196,29 @@ The plugin is designed for concurrent gRPC calls:
 
 | Spec Version | Proto Package | Status |
 |--------------|---------------|--------|
-| pulumicost-spec v0.4.14 | `pulumicost.v1` | Deprecated |
+| finfocus-spec v0.4.14 | `finfocus.v1` | Deprecated |
 | finfocus-spec v0.5.0 | `finfocus.v1` | Current |
 
 ### Breaking Changes
 
-**No breaking changes to message structure** between pulumicost.v1 and finfocus.v1:
+**No breaking changes to message structure** between finfocus.v1 and finfocus.v1:
 - Message names unchanged
 - Field names unchanged
 - Field numbers unchanged
 - Field types unchanged
 - Service methods unchanged
 
-**Only change**: Proto package name (`pulumicost.v1` → `finfocus.v1`)
+**Only change**: Proto package name (`finfocus.v1` → `finfocus.v1`)
 
 ## Implementation Notes
 
 ### Go Client Code
 
-**Before (pulumicost):**
+**Before (finfocus):**
 ```go
-import pulumicostv1 "github.com/rshade/pulumicost-spec/proto/v1"
+import finfocusv1 "github.com/rshade/finfocus-spec/proto/v1"
 
-desc := &pulumicostv1.ResourceDescriptor{
+desc := &finfocusv1.ResourceDescriptor{
     Region: "us-east-1",
     ResourceType: "aws:ec2/instance:Instance",
 }

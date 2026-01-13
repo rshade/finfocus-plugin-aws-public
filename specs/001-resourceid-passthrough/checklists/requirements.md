@@ -37,7 +37,7 @@
 - SC-001 through SC-004 define measurable outcomes (100%, zero, all tests)
 - Two user stories cover the primary flow (P1) and backward compatibility (P2)
 - Three edge cases identified with clear expected behaviors
-- External dependency clearly documented (pulumicost-spec v0.4.11+ available)
+- External dependency clearly documented (finfocus-spec v0.4.11+ available)
 - No technology-specific implementation details in spec
 
 **Ready for**: `/speckit.plan` or `/speckit.clarify`

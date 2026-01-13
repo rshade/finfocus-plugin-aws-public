@@ -87,7 +87,7 @@ var elasticacheEngineNormalization = map[string]string{
 
 ### Input: ResourceDescriptor
 
-**Source**: Proto definition from pulumicost-spec
+**Source**: Proto definition from finfocus-spec
 
 **Relevant Fields for ElastiCache**:
 
@@ -114,7 +114,7 @@ type ResourceDescriptor struct {
 
 ### Output: GetProjectedCostResponse
 
-**Source**: Proto definition from pulumicost-spec
+**Source**: Proto definition from finfocus-spec
 
 ```go
 type GetProjectedCostResponse struct {
@@ -209,7 +209,7 @@ ElastiCache cache.m5.large (redis), 1 node(s), 730 hrs/month, engine defaulted t
 
 ```go
 if instanceType == "" {
-    return nil, pluginsdk.NewPulumiCostError(
+    return nil, pluginsdk.NewFinFocusError(
         pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
         "ElastiCache requires instance type in Sku or tags",
         nil,

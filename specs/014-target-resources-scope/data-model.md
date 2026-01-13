@@ -3,7 +3,7 @@
 ## Entities
 
 ### ResourceDescriptor (Proto)
-*From `pulumicost.v1`*
+*From `finfocus.v1`*
 - `name`: string
 - `resource_type`: string
 - `provider`: string

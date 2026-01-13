@@ -14,8 +14,8 @@ Add support for four Asia Pacific AWS regions (ap-southeast-1, ap-southeast-2, a
 **Language/Version**: Go 1.25+
 **Primary Dependencies**:
 
-- github.com/rshade/pulumicost-core/pkg/pluginsdk
-- github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1
+- github.com/rshade/finfocus-core/pkg/pluginsdk
+- github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1
 - google.golang.org/grpc
 
 **Storage**: Embedded JSON pricing files (go:embed) - no external storage
@@ -94,7 +94,7 @@ specs/002-ap-region-support/
 
 ```text
 cmd/
-└── pulumicost-plugin-aws-public/
+└── finfocus-plugin-aws-public/
     └── main.go                    # [NO CHANGES - uses pluginsdk.Serve()]
 
 internal/
@@ -156,10 +156,10 @@ See [research.md](./research.md) for detailed findings.
 ### Key Decisions
 
 1. **Region Identifier Mapping**:
-   - ap-southeast-1 (Singapore) → `region_apse1` → `pulumicost-plugin-aws-public-ap-southeast-1`
-   - ap-southeast-2 (Sydney) → `region_apse2` → `pulumicost-plugin-aws-public-ap-southeast-2`
-   - ap-northeast-1 (Tokyo) → `region_apne1` → `pulumicost-plugin-aws-public-ap-northeast-1`
-   - ap-south-1 (Mumbai) → `region_aps1` → `pulumicost-plugin-aws-public-ap-south-1`
+   - ap-southeast-1 (Singapore) → `region_apse1` → `finfocus-plugin-aws-public-ap-southeast-1`
+   - ap-southeast-2 (Sydney) → `region_apse2` → `finfocus-plugin-aws-public-ap-southeast-2`
+   - ap-northeast-1 (Tokyo) → `region_apne1` → `finfocus-plugin-aws-public-ap-northeast-1`
+   - ap-south-1 (Mumbai) → `region_aps1` → `finfocus-plugin-aws-public-ap-south-1`
 
 2. **Build Tag Pattern**: Follow existing 4-letter abbreviation pattern for consistency (use1, usw2, euw1 → apse1, apse2, apne1, aps1)
 
@@ -206,7 +206,7 @@ See [quickstart.md](./quickstart.md) for developer onboarding.
 
 ```bash
 # Build Singapore binary
-go build -tags region_apse1 -o pulumicost-plugin-aws-public-ap-southeast-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_apse1 -o finfocus-plugin-aws-public-ap-southeast-1 ./cmd/finfocus-plugin-aws-public
 
 # Build all AP region binaries with GoReleaser
 goreleaser build --snapshot --clean --id ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1
@@ -223,7 +223,7 @@ go run ./tools/generate-pricing --regions ap-southeast-1,ap-southeast-2,ap-north
 
 ### External Dependencies
 
-- **pulumicost-spec**: Proto definitions for CostSourceService (no changes needed)
+- **finfocus-spec**: Proto definitions for CostSourceService (no changes needed)
 - **pluginsdk**: Lifecycle management (no changes needed)
 - **GoReleaser**: Build orchestration (configuration update only)
 

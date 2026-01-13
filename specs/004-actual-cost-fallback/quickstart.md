@@ -6,11 +6,11 @@
 ## Overview
 
 This guide explains how to use the new GetActualCost fallback
-functionality in the pulumicost-plugin-aws-public.
+functionality in the finfocus-plugin-aws-public.
 
 ## Prerequisites
 
-- pulumicost-plugin-aws-public binary for your region
+- finfocus-plugin-aws-public binary for your region
 - grpcurl or similar gRPC client for testing
 - Understanding of ResourceDescriptor structure
 
@@ -20,7 +20,7 @@ functionality in the pulumicost-plugin-aws-public.
 
 ```bash
 # Start the us-east-1 region binary
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 # Output: PORT=12345
 ```
 
@@ -37,7 +37,7 @@ grpcurl -plaintext -d '{
   },
   "from": "2025-01-01T00:00:00Z",
   "to": "2025-01-02T00:00:00Z"
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 ```
 
 ### Example Response
@@ -94,7 +94,7 @@ grpcurl -plaintext -d '{
   "resource": {...},
   "from": "2025-01-02T00:00:00Z",
   "to": "2025-01-01T00:00:00Z"
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 
 # Error: invalid time range: from is after to
 ```
@@ -112,7 +112,7 @@ grpcurl -plaintext -d '{
   },
   "from": "2025-01-01T00:00:00Z",
   "to": "2025-01-02T00:00:00Z"
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 
 # Error: region mismatch (ERROR_CODE_UNSUPPORTED_REGION)
 ```
@@ -125,14 +125,14 @@ grpcurl -plaintext -d '{
   "resource": {...},
   "from": "2025-01-01T00:00:00Z",
   "to": "2025-01-01T00:00:00Z"
-}' localhost:12345 pulumicost.v1.CostSourceService/GetActualCost
+}' localhost:12345 finfocus.v1.CostSourceService/GetActualCost
 
 # Response: {"cost": 0, "currency": "USD", "billingDetail": "Zero runtime hours"}
 ```
 
-## Integration with PulumiCost Core
+## Integration with FinFocus Core
 
-PulumiCost core automatically discovers and calls GetActualCost when
+FinFocus core automatically discovers and calls GetActualCost when
 analyzing resource runtime costs. No additional configuration needed
 once the plugin is available.
 

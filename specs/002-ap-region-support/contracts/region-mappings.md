@@ -6,19 +6,19 @@
 
 ## Overview
 
-This contract defines the authoritative mapping between AWS region identifiers, Go build tags, binary names, and geographic locations for all supported regions in pulumicost-plugin-aws-public.
+This contract defines the authoritative mapping between AWS region identifiers, Go build tags, binary names, and geographic locations for all supported regions in finfocus-plugin-aws-public.
 
 ## Complete Region Mapping Table
 
 | AWS Region ID | Build Tag | Binary Name | City | Geographic Area | Status |
 |---------------|-----------|-------------|------|-----------------|--------|
-| us-east-1 | region_use1 | pulumicost-plugin-aws-public-us-east-1 | N. Virginia | North America | Existing |
-| us-west-2 | region_usw2 | pulumicost-plugin-aws-public-us-west-2 | Oregon | North America | Existing |
-| eu-west-1 | region_euw1 | pulumicost-plugin-aws-public-eu-west-1 | Ireland | Europe | Existing |
-| ap-southeast-1 | region_apse1 | pulumicost-plugin-aws-public-ap-southeast-1 | Singapore | Asia Pacific | **New** |
-| ap-southeast-2 | region_apse2 | pulumicost-plugin-aws-public-ap-southeast-2 | Sydney | Asia Pacific | **New** |
-| ap-northeast-1 | region_apne1 | pulumicost-plugin-aws-public-ap-northeast-1 | Tokyo | Asia Pacific | **New** |
-| ap-south-1 | region_aps1 | pulumicost-plugin-aws-public-ap-south-1 | Mumbai | Asia Pacific | **New** |
+| us-east-1 | region_use1 | finfocus-plugin-aws-public-us-east-1 | N. Virginia | North America | Existing |
+| us-west-2 | region_usw2 | finfocus-plugin-aws-public-us-west-2 | Oregon | North America | Existing |
+| eu-west-1 | region_euw1 | finfocus-plugin-aws-public-eu-west-1 | Ireland | Europe | Existing |
+| ap-southeast-1 | region_apse1 | finfocus-plugin-aws-public-ap-southeast-1 | Singapore | Asia Pacific | **New** |
+| ap-southeast-2 | region_apse2 | finfocus-plugin-aws-public-ap-southeast-2 | Sydney | Asia Pacific | **New** |
+| ap-northeast-1 | region_apne1 | finfocus-plugin-aws-public-ap-northeast-1 | Tokyo | Asia Pacific | **New** |
+| ap-south-1 | region_aps1 | finfocus-plugin-aws-public-ap-south-1 | Mumbai | Asia Pacific | **New** |
 
 ## Build Tag Naming Convention
 
@@ -52,7 +52,7 @@ When direction is two letters (e.g., "southeast", "northeast"), both letters are
 ### Pattern
 
 ```
-pulumicost-plugin-aws-public-<aws-region-id>
+finfocus-plugin-aws-public-<aws-region-id>
 ```
 
 Where `<aws-region-id>` is the official AWS region identifier with hyphens.
@@ -98,11 +98,11 @@ Where `<aws-region-id>` matches the AWS Region ID column exactly.
 **Examples**:
 ```yaml
 - id: us-east-1
-  binary: pulumicost-plugin-aws-public-us-east-1
+  binary: finfocus-plugin-aws-public-us-east-1
   tags: [region_use1]
 
 - id: ap-southeast-1
-  binary: pulumicost-plugin-aws-public-ap-southeast-1
+  binary: finfocus-plugin-aws-public-ap-southeast-1
   tags: [region_apse1]
 ```
 
@@ -188,7 +188,7 @@ When adding a new region to this contract:
 
 1. [ ] Add row to Complete Region Mapping Table
 2. [ ] Verify build tag follows naming convention
-3. [ ] Verify binary name follows `pulumicost-plugin-aws-public-<region>` pattern
+3. [ ] Verify binary name follows `finfocus-plugin-aws-public-<region>` pattern
 4. [ ] Create embed file with pattern `embed_<suffix>.go`
 5. [ ] Create pricing data file with pattern `aws_pricing_<region>.json`
 6. [ ] Add build configuration to `.goreleaser.yaml` with matching ID
@@ -214,7 +214,7 @@ When adding a new region to this contract:
 
 ### Binary Name Constraints
 
-- MUST start with `pulumicost-plugin-aws-public-`
+- MUST start with `finfocus-plugin-aws-public-`
 - MUST end with AWS region ID
 - MUST use hyphens throughout (no underscores)
 - MUST be lowercase

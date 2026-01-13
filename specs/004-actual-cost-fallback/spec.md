@@ -9,7 +9,7 @@
 
 ### User Story 1 - Calculate Actual Cost for Running Resources (Priority: P1)
 
-As a PulumiCost user, I want to get actual cost estimates for resources
+As a FinFocus user, I want to get actual cost estimates for resources
 that have been running for a specific time period, so I can understand
 my cloud spending without requiring AWS Cost Explorer access.
 
@@ -37,7 +37,7 @@ non-zero cost based on the runtime hours.
 
 ### User Story 2 - Handle Invalid Time Ranges Gracefully (Priority: P2)
 
-As a PulumiCost user, I want clear error messages when I provide invalid
+As a FinFocus user, I want clear error messages when I provide invalid
 time ranges, so I can correct my inputs without confusion.
 
 **Why this priority**: Error handling is essential for usability but
@@ -62,7 +62,7 @@ various invalid time ranges and verifying appropriate error responses.
 
 ### User Story 3 - Support Stub Services with Zero Cost (Priority: P3)
 
-As a PulumiCost user, I want GetActualCost to handle stub services (S3,
+As a FinFocus user, I want GetActualCost to handle stub services (S3,
 Lambda, RDS, DynamoDB) consistently by returning zero costs with clear
 explanations.
 
@@ -127,7 +127,7 @@ details.
 - **FR-012**: System MUST parse ResourceId as JSON-encoded
   ResourceDescriptor (v0.3.0 proto)
 
-### Key Entities (pulumicost-spec v0.3.0)
+### Key Entities (finfocus-spec v0.3.0)
 
 - **GetActualCostRequest**: Contains resource_id (JSON-encoded
   ResourceDescriptor), Start/End protobuf Timestamps, and tags map
@@ -167,13 +167,13 @@ details.
 
 ## Dependencies
 
-This feature blocks the following issues in pulumicost-core that require
+This feature blocks the following issues in finfocus-core that require
 functional actual cost calculations for comprehensive testing workflows:
 
-- pulumicost-core#177
-- pulumicost-core#178
-- pulumicost-core#180
-- pulumicost-core#182
+- finfocus-core#177
+- finfocus-core#178
+- finfocus-core#180
+- finfocus-core#182
 
 ## Out of Scope
 

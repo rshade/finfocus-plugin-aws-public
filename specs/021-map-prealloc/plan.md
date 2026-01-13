@@ -10,7 +10,7 @@ Add pre-allocation capacity hints to six pricing index maps in `internal/pricing
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: zerolog (logging), sync (thread safety), pulumicost-spec SDK (gRPC)
+**Primary Dependencies**: zerolog (logging), sync (thread safety), finfocus-spec SDK (gRPC)
 **Storage**: N/A (embedded pricing data via `//go:embed`)
 **Testing**: Go testing with existing `BenchmarkNewClient` and `BenchmarkNewClient_Parallel`
 **Target Platform**: Linux server (gRPC plugin binary)

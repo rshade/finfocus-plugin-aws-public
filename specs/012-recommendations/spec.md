@@ -4,13 +4,13 @@
 **Created**: 2025-12-15
 **Status**: Draft
 **GitHub Issue**: #105
-**Input**: User description: "Implement GetRecommendations RPC from pulumicost-spec v0.4.7 for cost optimization recommendations"
+**Input**: User description: "Implement GetRecommendations RPC from finfocus-spec v0.4.7 for cost optimization recommendations"
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - EC2 Instance Generation Upgrade Suggestions (Priority: P1)
 
-As an infrastructure engineer using PulumiCost, I want to receive recommendations when my EC2 instances use older generation types so that I can modernize to newer, more cost-effective instances without manual research.
+As an infrastructure engineer using FinFocus, I want to receive recommendations when my EC2 instances use older generation types so that I can modernize to newer, more cost-effective instances without manual research.
 
 **Why this priority**: Generation upgrades are the most common and safest optimization opportunity. Newer generations (t2→t3, m4→m5) are drop-in replacements that provide better performance at the same or lower price. This delivers immediate, actionable value with minimal risk.
 
@@ -58,7 +58,7 @@ As an infrastructure engineer, I want to receive recommendations to migrate gp2 
 
 ### User Story 4 - Graceful Handling of Unsupported Services (Priority: P4)
 
-As a PulumiCost user, I want GetRecommendations to return an empty list for services where recommendations aren't supported so that my automation doesn't break and I understand the limitation.
+As a FinFocus user, I want GetRecommendations to return an empty list for services where recommendations aren't supported so that my automation doesn't break and I understand the limitation.
 
 **Why this priority**: Important for API completeness and robustness, but doesn't directly deliver cost optimization value.
 
@@ -83,7 +83,7 @@ As a PulumiCost user, I want GetRecommendations to return an empty list for serv
 
 ### Functional Requirements
 
-- **FR-001**: System MUST implement the GetRecommendations RPC method as defined in pulumicost-spec v0.4.7
+- **FR-001**: System MUST implement the GetRecommendations RPC method as defined in finfocus-spec v0.4.7
 - **FR-002**: System MUST return generation upgrade recommendations for EC2 instances when newer generations offer same or lower price
 - **FR-003**: System MUST return Graviton/ARM migration recommendations for compatible x86 instance families
 - **FR-004**: System MUST return gp2→gp3 volume type upgrade recommendations for EBS volumes
@@ -141,13 +141,13 @@ As a PulumiCost user, I want GetRecommendations to return an empty list for serv
 
 - AWS public pricing data is embedded in the binary at build time
 - The pricing client already provides methods for EC2 and EBS price lookups
-- The pulumicost-spec v0.4.7+ proto definitions include GetRecommendationsRequest/Response messages
+- The finfocus-spec v0.4.7+ proto definitions include GetRecommendationsRequest/Response messages
 - Instance type format is consistently "family.size" (e.g., "t2.medium", "m5.large")
 - 730 hours per month is the standard calculation for on-demand pricing
 - Region-specific pricing is already handled by the region-specific binary builds
 
 ## Dependencies
 
-- pulumicost-spec v0.4.7 or later (proto definitions)
+- finfocus-spec v0.4.7 or later (proto definitions)
 - Existing pricing client with EC2OnDemandPricePerHour and EBSPricePerGBMonth methods
 - pluginsdk for trace_id extraction and logging field constants

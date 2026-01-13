@@ -4,13 +4,13 @@
 **Created**: 2025-12-26
 **Status**: Draft
 **GitHub Issue**: #198
-**Input**: Pass through the native resource ID from ResourceDescriptor to recommendation responses for proper correlation in pulumicost-core.
+**Input**: Pass through the native resource ID from ResourceDescriptor to recommendation responses for proper correlation in finfocus-core.
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Resource Correlation in Batch Requests (Priority: P1)
 
-As a pulumicost-core developer, I need recommendation responses to include the resource ID from the original request so I can correctly correlate recommendations back to their source resources when processing batch responses.
+As a finfocus-core developer, I need recommendation responses to include the resource ID from the original request so I can correctly correlate recommendations back to their source resources when processing batch responses.
 
 **Why this priority**: This is the core value proposition. Without proper ID correlation, batch recommendation requests become unusable because the caller cannot determine which resource each recommendation applies to.
 
@@ -26,7 +26,7 @@ As a pulumicost-core developer, I need recommendation responses to include the r
 
 ### User Story 2 - Backward Compatibility with Tag-Based Correlation (Priority: P2)
 
-As an existing pulumicost-core user, I need the plugin to continue supporting correlation via the `resource_id` tag when the native ID field is not populated, so my existing integrations keep working.
+As an existing finfocus-core user, I need the plugin to continue supporting correlation via the `resource_id` tag when the native ID field is not populated, so my existing integrations keep working.
 
 **Why this priority**: Maintains backward compatibility during the transition period. Existing callers may still use the tag-based approach.
 
@@ -61,7 +61,7 @@ As an existing pulumicost-core user, I need the plugin to continue supporting co
 
 ### Key Entities
 
-- **ResourceDescriptor**: Input resource with new `Id` field (from pulumicost-spec#200)
+- **ResourceDescriptor**: Input resource with new `Id` field (from finfocus-spec#200)
   - Key attributes: `Id` (new), `Provider`, `ResourceType`, `Sku`, `Region`, `Tags`
 - **Recommendation**: Output containing cost optimization suggestions
   - Key attributes: `Resource.Id` (populated from input), `Resource.Name`, `Impact`, `ActionDetail`
@@ -81,9 +81,9 @@ As an existing pulumicost-core user, I need the plugin to continue supporting co
 
 ### External Dependencies
 
-- **Requires**: pulumicost-spec v0.4.11+ (rshade/pulumicost-spec#200 merged)
+- **Requires**: finfocus-spec v0.4.11+ (rshade/finfocus-spec#200 merged)
   - Status: Available - v0.4.11 released with `Id` field on `ResourceDescriptor`
-  - Action: Update `go.mod` to `github.com/rshade/pulumicost-spec v0.4.11` or later
+  - Action: Update `go.mod` to `github.com/rshade/finfocus-spec v0.4.11` or later
 
 ## Assumptions
 

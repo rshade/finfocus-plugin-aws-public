@@ -1,4 +1,4 @@
-# Data Model: PulumiCost AWS Public Plugin
+# Data Model: FinFocus AWS Public Plugin
 
 **Phase**: 1 - Design
 **Date**: 2025-11-16
@@ -10,7 +10,7 @@ This document defines the internal data structures used by the plugin. The plugi
 
 ## Proto-Defined Types (External Interface)
 
-**Source**: `github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1`
+**Source**: `github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1`
 
 These types are NEVER modified by the plugin - they are defined by the proto contract.
 
@@ -129,7 +129,7 @@ message SupportsResponse {
 package plugin
 
 import (
-    pbc "github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1"
+    pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 )
 
 // AWSPublicPlugin implements CostSourceService gRPC interface
@@ -490,7 +490,7 @@ func buildEBSIndex(ebsData map[string]ebsVolumePrice) map[string]ebsVolumePrice 
 - No string-to-number conversions in hot path (pricing is pre-parsed)
 
 **Proto Compatibility**:
-- Plugin uses generated proto code from pulumicost-spec
+- Plugin uses generated proto code from finfocus-spec
 - No manual proto message construction (use proto builders)
 - Proto version compatibility handled by gRPC runtime
 

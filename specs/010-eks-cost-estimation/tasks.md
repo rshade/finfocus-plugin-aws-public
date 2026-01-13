@@ -155,4 +155,4 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies</content>
-<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/010-eks-cost-estimation/tasks.md
+<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/finfocus-plugin-aws-public/specs/010-eks-cost-estimation/tasks.md

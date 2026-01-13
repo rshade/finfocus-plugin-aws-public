@@ -16,7 +16,7 @@
 ## Path Conventions
 
 - **Go plugin**: `cmd/`, `internal/` at repository root
-- Per plan.md: `cmd/pulumicost-plugin-aws-public/`, `internal/plugin/`,
+- Per plan.md: `cmd/finfocus-plugin-aws-public/`, `internal/plugin/`,
   `internal/pricing/`
 
 ---
@@ -27,7 +27,7 @@
 
 - [x] T001 Add zerolog v1.34.0+ and google/uuid dependencies in go.mod
 - [x] T002 Run `go mod tidy` to resolve dependencies
-- [x] T003 Verify SDK logging utilities available from pulumicost-spec v0.3.0+
+- [x] T003 Verify SDK logging utilities available from finfocus-spec v0.3.0+
 
 ---
 
@@ -44,13 +44,13 @@
   in internal/plugin/plugin.go (see research.md U1 Remediation pattern)
 - [x] T007 Add logError helper method for consistent error logging in
   internal/plugin/plugin.go
-- [x] T008 Initialize logger in cmd/pulumicost-plugin-aws-public/main.go using
+- [x] T008 Initialize logger in cmd/finfocus-plugin-aws-public/main.go using
   NewPluginLogger with LOG_LEVEL env var
 - [x] T009 Pass logger to NewAWSPublicPlugin in
-  cmd/pulumicost-plugin-aws-public/main.go
+  cmd/finfocus-plugin-aws-public/main.go
 - [x] T010 Implement getTraceID helper with manual metadata extraction workaround
   (ServeConfig does not support interceptors - see research.md U1 Remediation,
-  tracked in rshade/pulumicost-core#188)
+  tracked in rshade/finfocus-core#188)
 
 **Checkpoint**: Logger infrastructure ready - handler instrumentation can begin
 
@@ -136,10 +136,10 @@ plugin_version, aws_region
 ### Implementation for User Story 3
 
 - [x] T030 [US3] Add startup info log after logger creation in
-  cmd/pulumicost-plugin-aws-public/main.go
+  cmd/finfocus-plugin-aws-public/main.go
 - [x] T031 [US3] Include plugin_name, plugin_version, aws_region in startup log
 - [x] T032 [US3] Add error logging for initialization failures (pricing client,
-  etc.) in cmd/pulumicost-plugin-aws-public/main.go
+  etc.) in cmd/finfocus-plugin-aws-public/main.go
 
 ### Tests for User Story 3
 

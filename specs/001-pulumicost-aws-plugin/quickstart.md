@@ -1,4 +1,4 @@
-# Quickstart: PulumiCost AWS Public Plugin Development
+# Quickstart: FinFocus AWS Public Plugin Development
 
 **Phase**: 1 - Design
 **Date**: 2025-11-16
@@ -20,9 +20,9 @@
 ### 1. Initialize Go Module
 
 ```bash
-cd /mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public
+cd /mnt/c/GitHub/go/src/github.com/rshade/finfocus-plugin-aws-public
 
-go mod init github.com/rshade/pulumicost-plugin-aws-public
+go mod init github.com/rshade/finfocus-plugin-aws-public
 ```
 
 ---
@@ -31,10 +31,10 @@ go mod init github.com/rshade/pulumicost-plugin-aws-public
 
 ```bash
 # Add proto definitions
-go get github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1
+go get github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1
 
 # Add plugin SDK
-go get github.com/rshade/pulumicost-core/pkg/pluginsdk
+go get github.com/rshade/finfocus-core/pkg/pluginsdk
 
 # Add gRPC and protobuf
 go get google.golang.org/grpc
@@ -46,7 +46,7 @@ go get google.golang.org/protobuf
 ### 3. Create Directory Structure
 
 ```bash
-mkdir -p cmd/pulumicost-plugin-aws-public
+mkdir -p cmd/finfocus-plugin-aws-public
 mkdir -p internal/plugin
 mkdir -p internal/pricing
 mkdir -p internal/config
@@ -219,7 +219,7 @@ go test ./internal/plugin -v
 **Why fifth**: Ties everything together with pluginsdk.Serve().
 
 **Files to create**:
-1. `cmd/pulumicost-plugin-aws-public/main.go` - Initialize pricing client, create plugin, call pluginsdk.Serve()
+1. `cmd/finfocus-plugin-aws-public/main.go` - Initialize pricing client, create plugin, call pluginsdk.Serve()
 
 **Implementation**:
 ```go
@@ -231,21 +231,21 @@ import (
     "log"
     "os"
 
-    "github.com/rshade/pulumicost-core/pkg/pluginsdk"
-    "github.com/rshade/pulumicost-plugin-aws-public/internal/plugin"
-    "github.com/rshade/pulumicost-plugin-aws-public/internal/pricing"
+    "github.com/rshade/finfocus-core/pkg/pluginsdk"
+    "github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
+    "github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 func main() {
     // Initialize pricing client
     pricingClient, err := pricing.NewClient()
     if err != nil {
-        fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Failed to initialize pricing: %v\n", err)
+        fmt.Fprintf(os.Stderr, "[finfocus-plugin-aws-public] Failed to initialize pricing: %v\n", err)
         os.Exit(1)
     }
 
     // Log initialization to stderr
-    fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Initialized for region: %s\n", pricingClient.Region())
+    fmt.Fprintf(os.Stderr, "[finfocus-plugin-aws-public] Initialized for region: %s\n", pricingClient.Region())
 
     // Create plugin
     p := plugin.NewAWSPublicPlugin(pricingClient.Region(), pricingClient)
@@ -256,18 +256,18 @@ func main() {
         Plugin: p,
         Port:   0, // 0 = use PORT env or ephemeral
     }); err != nil {
-        log.Fatalf("[pulumicost-plugin-aws-public] Serve failed: %v", err)
+        log.Fatalf("[finfocus-plugin-aws-public] Serve failed: %v", err)
     }
 }
 ```
 
 **Test manually**:
 ```bash
-go build -o pulumicost-plugin-aws-public ./cmd/pulumicost-plugin-aws-public
+go build -o finfocus-plugin-aws-public ./cmd/finfocus-plugin-aws-public
 
-./pulumicost-plugin-aws-public
+./finfocus-plugin-aws-public
 # Expected output to stdout: PORT=12345
-# Stderr: [pulumicost-plugin-aws-public] Initialized for region: unknown
+# Stderr: [finfocus-plugin-aws-public] Initialized for region: unknown
 ```
 
 ---
@@ -382,9 +382,9 @@ var rawPricingJSON []byte
 **Test**:
 ```bash
 # Build with us-east-1 tag
-go build -tags region_use1 -o pulumicost-plugin-aws-public-us-east-1 ./cmd/pulumicost-plugin-aws-public
+go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
 
-./pulumicost-plugin-aws-public-us-east-1
+./finfocus-plugin-aws-public-us-east-1
 # Stderr should show: Initialized for region: us-east-1
 ```
 
@@ -428,13 +428,13 @@ go test ./... -cover
 
 **Start the plugin**:
 ```bash
-go run ./cmd/pulumicost-plugin-aws-public
+go run ./cmd/finfocus-plugin-aws-public
 # Output: PORT=12345
 ```
 
 **Test Name RPC**:
 ```bash
-grpcurl -plaintext localhost:12345 pulumicost.v1.CostSourceService/Name
+grpcurl -plaintext localhost:12345 finfocus.v1.CostSourceService/Name
 ```
 
 **Test Supports RPC**:
@@ -442,7 +442,7 @@ grpcurl -plaintext localhost:12345 pulumicost.v1.CostSourceService/Name
 grpcurl -plaintext \
   -d '{"resource": {"provider": "aws", "resource_type": "ec2", "region": "us-east-1"}}' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/Supports
+  finfocus.v1.CostSourceService/Supports
 ```
 
 **Test GetProjectedCost RPC**:
@@ -457,7 +457,7 @@ grpcurl -plaintext \
     }
   }' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/GetProjectedCost
+  finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 ---
@@ -488,7 +488,7 @@ fmt.Println("Debug message")  // BAD - writes to stdout
 
 **DO**:
 ```go
-fmt.Fprintf(os.Stderr, "[pulumicost-plugin-aws-public] Debug message\n")  // GOOD
+fmt.Fprintf(os.Stderr, "[finfocus-plugin-aws-public] Debug message\n")  // GOOD
 ```
 
 **Why**: stdout is reserved for PORT announcement only.
@@ -579,9 +579,9 @@ After implementing all phases:
 ## Getting Help
 
 - **Constitution**: See `.specify/memory/constitution.md` for rules and principles
-- **Spec**: See `specs/001-pulumicost-aws-plugin/spec.md` for requirements
-- **Contracts**: See `specs/001-pulumicost-aws-plugin/contracts/` for API details
-- **Proto Definitions**: Check `github.com/rshade/pulumicost-spec/proto/`
+- **Spec**: See `specs/001-finfocus-aws-plugin/spec.md` for requirements
+- **Contracts**: See `specs/001-finfocus-aws-plugin/contracts/` for API details
+- **Proto Definitions**: Check `github.com/rshade/finfocus-spec/proto/`
 
 ---
 

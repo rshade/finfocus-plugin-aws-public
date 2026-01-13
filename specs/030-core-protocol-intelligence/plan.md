@@ -5,12 +5,12 @@
 
 ## Summary
 
-Protocol enhancement to enrich cost estimation responses with metadata enabling PulumiCost Core's advanced features: Cost Time Machine forecasting (GrowthType hints), Blast Radius topology visualization (parent_resource_id lineage), and Dev Mode realistic estimates (UsageProfile-based hour adjustments). This is a metadata-only enhancement that does not change pricing calculations, adding three protocol extensions: UsageProfile enum with DEVELOPMENT profile (160 hrs/month), GrowthType classification (STATIC/LINEAR), and CostAllocationLineage message with parent-child relationships extracted from tags.
+Protocol enhancement to enrich cost estimation responses with metadata enabling FinFocus Core's advanced features: Cost Time Machine forecasting (GrowthType hints), Blast Radius topology visualization (parent_resource_id lineage), and Dev Mode realistic estimates (UsageProfile-based hour adjustments). This is a metadata-only enhancement that does not change pricing calculations, adding three protocol extensions: UsageProfile enum with DEVELOPMENT profile (160 hrs/month), GrowthType classification (STATIC/LINEAR), and CostAllocationLineage message with parent-child relationships extracted from tags.
 
 ## Technical Context
 
 **Language/Version**: Go 1.25.5+
-**Primary Dependencies**: gRPC (pluginsdk), pulumicost-spec (version TBD with protocol extensions), zerolog
+**Primary Dependencies**: gRPC (pluginsdk), finfocus-spec (version TBD with protocol extensions), zerolog
 **Storage**: Embedded JSON pricing data (memory-mapped, no runtime storage)
 **Testing**: Go testing (`make test`, `go test -v ./...`)
 **Target Platform**: Linux server (region-specific binaries with build tags: region_use1, region_usw2, region_euw1)
@@ -82,14 +82,14 @@ test/
     └── [existing test fixtures]
 
 cmd/
-└── pulumicost-plugin-aws-public/
+└── finfocus-plugin-aws-public/
     └── main.go            # No changes (gRPC lifecycle unchanged)
 
 tools/
 └── [existing generation tools - no changes]
 
 CLAUDE.md                  # Document growth classification, dev mode, topology relationships
-go.mod                     # Update pulumicost-spec dependency
+go.mod                     # Update finfocus-spec dependency
 ```
 
 **Structure Decision**: Single project (existing gRPC plugin structure) - modifying `internal/plugin/projected.go` to add metadata enrichment without changing pricing lookup logic, maintaining clean separation of concerns.

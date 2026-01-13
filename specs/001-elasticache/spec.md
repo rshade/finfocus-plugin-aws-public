@@ -83,7 +83,7 @@ As a platform engineer, I want the system to use sensible defaults when optional
 
 ### User Story 5 - Support Check (Priority: P3)
 
-As a PulumiCost core service, I want to query whether the plugin supports ElastiCache resources so that I can route requests appropriately.
+As a FinFocus core service, I want to query whether the plugin supports ElastiCache resources so that I can route requests appropriately.
 
 **Why this priority**: Support checking is infrastructure-level functionality. The core estimation features are more critical for end users.
 

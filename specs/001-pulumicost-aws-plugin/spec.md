@@ -1,15 +1,15 @@
-# Feature Specification: PulumiCost AWS Public Plugin
+# Feature Specification: FinFocus AWS Public Plugin
 
-**Feature Branch**: `001-pulumicost-aws-plugin`
+**Feature Branch**: `001-finfocus-aws-plugin`
 **Created**: 2025-11-16
 **Status**: Draft - Revised for gRPC Protocol
-**Input**: User description: "PulumiCost AWS Public Plugin - A fallback cost plugin for PulumiCost that estimates AWS resource costs using public AWS on-demand pricing, without needing CUR/Cost Explorer/Vantage data"
+**Input**: User description: "FinFocus AWS Public Plugin - A fallback cost plugin for FinFocus that estimates AWS resource costs using public AWS on-demand pricing, without needing CUR/Cost Explorer/Vantage data"
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Basic Cost Estimation via gRPC (Priority: P1)
 
-A PulumiCost user needs to estimate the monthly costs of their AWS infrastructure stack that includes EC2 instances and EBS volumes. The PulumiCost core calls the plugin's gRPC service for each resource, and the plugin returns cost estimates using publicly available pricing data.
+A FinFocus user needs to estimate the monthly costs of their AWS infrastructure stack that includes EC2 instances and EBS volumes. The FinFocus core calls the plugin's gRPC service for each resource, and the plugin returns cost estimates using publicly available pricing data.
 
 **Why this priority**: This is the core value proposition - providing immediate cost estimates for the most common AWS compute and storage resources via the standard gRPC protocol. Without this, the plugin has no value.
 
@@ -25,9 +25,9 @@ A PulumiCost user needs to estimate the monthly costs of their AWS infrastructur
 
 ### User Story 2 - gRPC Service Lifecycle Management (Priority: P1)
 
-The PulumiCost core needs to start the plugin, discover its gRPC port, communicate via gRPC, and shut down gracefully. The plugin must announce its port and handle lifecycle signals properly.
+The FinFocus core needs to start the plugin, discover its gRPC port, communicate via gRPC, and shut down gracefully. The plugin must announce its port and handle lifecycle signals properly.
 
-**Why this priority**: This is foundational infrastructure. Without proper lifecycle management, the plugin cannot integrate with PulumiCost core at all.
+**Why this priority**: This is foundational infrastructure. Without proper lifecycle management, the plugin cannot integrate with FinFocus core at all.
 
 **Independent Test**: Can be fully tested by starting the plugin process, capturing PORT announcement on stdout, connecting a gRPC client, invoking methods, and verifying graceful shutdown on context cancellation.
 
@@ -42,7 +42,7 @@ The PulumiCost core needs to start the plugin, discover its gRPC port, communica
 
 ### User Story 3 - Resource Support Detection (Priority: P2)
 
-The PulumiCost core needs to determine whether the plugin can provide cost estimates for a given resource type before attempting to call GetProjectedCost. The plugin implements the Supports() RPC to advertise its capabilities.
+The FinFocus core needs to determine whether the plugin can provide cost estimates for a given resource type before attempting to call GetProjectedCost. The plugin implements the Supports() RPC to advertise its capabilities.
 
 **Why this priority**: This enables efficient routing and prevents unnecessary RPC calls for unsupported resources. Critical for multi-plugin environments.
 
@@ -59,7 +59,7 @@ The PulumiCost core needs to determine whether the plugin can provide cost estim
 
 ### User Story 4 - Region-Specific Cost Estimation (Priority: P2)
 
-A PulumiCost user deploys resources across different AWS regions and needs accurate region-specific pricing. Each plugin binary embeds pricing for exactly one region and handles region mismatches gracefully via gRPC error responses.
+A FinFocus user deploys resources across different AWS regions and needs accurate region-specific pricing. Each plugin binary embeds pricing for exactly one region and handles region mismatches gracefully via gRPC error responses.
 
 **Why this priority**: AWS pricing varies significantly by region. This ensures cost estimates are accurate by distributing region-specific binaries.
 
@@ -75,7 +75,7 @@ A PulumiCost user deploys resources across different AWS regions and needs accur
 
 ### User Story 5 - Stub Support for Additional AWS Services (Priority: P3)
 
-A PulumiCost user has a stack that includes S3 buckets, Lambda functions, RDS databases, or DynamoDB tables alongside EC2/EBS resources. The plugin acknowledges these resources via Supports() and returns $0 estimates via GetProjectedCost.
+A FinFocus user has a stack that includes S3 buckets, Lambda functions, RDS databases, or DynamoDB tables alongside EC2/EBS resources. The plugin acknowledges these resources via Supports() and returns $0 estimates via GetProjectedCost.
 
 **Why this priority**: This provides a complete picture of the stack and sets user expectations about what is and isn't fully estimated. It prevents silent failures.
 
@@ -91,7 +91,7 @@ A PulumiCost user has a stack that includes S3 buckets, Lambda functions, RDS da
 
 ### User Story 6 - Transparent Cost Breakdown via Pricing Spec (Priority: P2 - Optional for MVP)
 
-A PulumiCost user wants to understand how costs are calculated for each resource, including pricing rates, billing modes, and assumptions. The plugin optionally implements GetPricingSpec() to provide detailed pricing information.
+A FinFocus user wants to understand how costs are calculated for each resource, including pricing rates, billing modes, and assumptions. The plugin optionally implements GetPricingSpec() to provide detailed pricing information.
 
 **Why this priority**: Transparency builds trust and allows users to validate estimates against their expected usage patterns. Critical for adoption. **Note**: This is an enhancement feature that can be deferred to v2 if needed - the core cost estimation (US1) provides billing_detail which covers basic transparency.
 
@@ -121,7 +121,7 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 ### Functional Requirements
 
 **gRPC Service Implementation:**
-- **FR-001**: Plugin MUST implement the CostSourceService gRPC interface from pulumicost.v1 proto
+- **FR-001**: Plugin MUST implement the CostSourceService gRPC interface from finfocus.v1 proto
 - **FR-002**: Plugin MUST implement Name() RPC returning NameResponse with name="aws-public"
 - **FR-003**: Plugin MUST implement Supports() RPC to indicate resource support based on resource_type and region
 - **FR-004**: Plugin MUST implement GetProjectedCost() RPC to return cost estimates for a single resource
@@ -133,7 +133,7 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 - **FR-008**: Plugin MUST serve gRPC on loopback address (127.0.0.1) only
 - **FR-009**: Plugin MUST use PORT environment variable when set, otherwise select ephemeral port
 - **FR-010**: Plugin MUST perform graceful shutdown when context is cancelled
-- **FR-011**: Plugin MUST use the pluginsdk.Serve() function from pulumicost-core/pkg/pluginsdk
+- **FR-011**: Plugin MUST use the pluginsdk.Serve() function from finfocus-core/pkg/pluginsdk
 - **FR-012**: Plugin MUST register CostSourceService with the gRPC server
 
 **Resource Support:**
@@ -161,7 +161,7 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 - **FR-028**: ERROR_CODE_UNSUPPORTED_REGION errors MUST include ErrorDetail.details map with pluginRegion and requiredRegion keys
 - **FR-029**: Plugin MUST return ERROR_CODE_INVALID_RESOURCE when ResourceDescriptor lacks required fields (provider, resource_type, sku, region)
 - **FR-030**: Plugin MUST return ERROR_CODE_DATA_CORRUPTION when embedded pricing data is corrupted or unreadable
-- **FR-031**: Plugin MUST use ErrorCode enum values from pulumicost.v1.ErrorCode proto definition
+- **FR-031**: Plugin MUST use ErrorCode enum values from finfocus.v1.ErrorCode proto definition
 - **FR-032**: Plugin MUST NOT define custom error codes outside the proto enum
 
 **Pricing Data Management:**
@@ -172,7 +172,7 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 - **FR-037**: Plugin MUST support a build-time tool for fetching and trimming AWS pricing data from public APIs
 - **FR-038**: Build-time pricing tool MUST support a dummy mode for development without AWS API access
 - **FR-039**: Plugin MUST use GoReleaser to build region-specific binaries with embedded pricing data
-- **FR-040**: Plugin MUST follow binary naming convention: pulumicost-plugin-aws-public-{region}
+- **FR-040**: Plugin MUST follow binary naming convention: finfocus-plugin-aws-public-{region}
 
 **EBS Volume Defaults:**
 - **FR-041**: GetProjectedCost() MUST check ResourceDescriptor.tags for "size" or "volume_size" when estimating EBS
@@ -190,7 +190,7 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 
 ### Key Entities
 
-**Proto-Defined Types (from pulumicost/v1/costsource.proto):**
+**Proto-Defined Types (from finfocus/v1/costsource.proto):**
 - **ResourceDescriptor**: Input message containing provider, resource_type, sku, region, and tags for identifying a resource
 - **GetProjectedCostRequest**: RPC request containing a ResourceDescriptor
 - **GetProjectedCostResponse**: RPC response containing unit_price, currency, cost_per_month, and billing_detail
@@ -234,9 +234,9 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 
 ## Assumptions
 
-- PulumiCost core uses the gRPC CostSourceService protocol defined in pulumicost-spec
-- PulumiCost core invokes plugins as separate processes and connects via announced gRPC port
-- PulumiCost core handles orchestration of multiple region-specific binaries for multi-region stacks
+- FinFocus core uses the gRPC CostSourceService protocol defined in finfocus-spec
+- FinFocus core invokes plugins as separate processes and connects via announced gRPC port
+- FinFocus core handles orchestration of multiple region-specific binaries for multi-region stacks
 - AWS provides public pricing API endpoints that are accessible without authentication (build-time only)
 - AWS pricing data structure is consistent enough to be trimmed and parsed reliably
 - Standard on-demand pricing is sufficient for v1 (no spot, reserved, or savings plan pricing)
@@ -251,13 +251,13 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 - ResourceDescriptor.tags may contain "size" or "volume_size" for EBS volumes
 - Binary size under 10MB per region is acceptable for distribution
 - A single binary per region approach is acceptable for v1 (multi-region handled by core)
-- The pluginsdk package from pulumicost-core provides Serve() for lifecycle management
+- The pluginsdk package from finfocus-core provides Serve() for lifecycle management
 
 ## Dependencies
 
 - Go programming language and toolchain (version 1.25 or later)
-- pulumicost-spec repository for proto definitions
-- pulumicost-core/pkg/pluginsdk for plugin SDK and Serve() function
+- finfocus-spec repository for proto definitions
+- finfocus-core/pkg/pluginsdk for plugin SDK and Serve() function
 - gRPC and protobuf Go packages
 - GoReleaser for multi-binary build orchestration
 - AWS public pricing API access (build-time only, not runtime)
@@ -273,7 +273,7 @@ A PulumiCost user wants to understand how costs are calculated for each resource
 - Non-AWS cloud providers
 - Historical cost data (GetActualCost RPC not implemented)
 - Cost optimization recommendations
-- Multi-region handling within a single binary (handled by PulumiCost core calling region-specific binaries)
+- Multi-region handling within a single binary (handled by FinFocus core calling region-specific binaries)
 - Authentication or authorization (plugin serves on loopback only)
 - Detailed S3 cost estimation including storage classes, requests, and data transfer
 - Detailed Lambda cost estimation including invocations, duration, and memory

@@ -41,7 +41,7 @@ go test -tags=integration ./internal/plugin/... -run TestCloudWatch -v
 
 ```bash
 # Start plugin
-./pulumicost-plugin-aws-public-us-east-1 &
+./finfocus-plugin-aws-public-us-east-1 &
 PORT=$(grep -m1 "PORT=" /proc/$!/fd/1 | cut -d= -f2)
 
 # Query log costs (100 GB ingestion, 500 GB storage)
@@ -56,7 +56,7 @@ grpcurl -plaintext -d '{
       "log_storage_gb": "500"
     }
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 Expected response:
@@ -83,7 +83,7 @@ grpcurl -plaintext -d '{
       "custom_metrics": "50"
     }
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 Expected response:
@@ -112,7 +112,7 @@ grpcurl -plaintext -d '{
       "custom_metrics": "50"
     }
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 Expected response:
@@ -141,7 +141,7 @@ grpcurl -plaintext -d '{
       "log_ingestion_gb": "15360"
     }
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 Expected calculation:
@@ -163,7 +163,7 @@ grpcurl -plaintext -d '{
       "custom_metrics": "100000"
     }
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```
 
 Expected calculation:
@@ -187,7 +187,7 @@ If you see `$0.00` with message "pricing unavailable":
 If `Supports()` returns `false`:
 
 - Verify the binary region matches the request region
-- Binary name indicates region: `pulumicost-plugin-aws-public-us-east-1`
+- Binary name indicates region: `finfocus-plugin-aws-public-us-east-1`
 
 ### Invalid Tag Values
 
@@ -199,5 +199,5 @@ grpcurl -plaintext -d '{
   "resource": {
     "tags": { "log_ingestion_gb": "not-a-number" }
   }
-}' localhost:$PORT pulumicost.v1.CostSourceService/GetProjectedCost
+}' localhost:$PORT finfocus.v1.CostSourceService/GetProjectedCost
 ```

@@ -9,7 +9,7 @@
 
 ### User Story 1 - Canada Region Support (Priority: P1)
 
-As a PulumiCost user deploying infrastructure in Canada, I want to use a dedicated `ca-central-1` plugin binary so that I can estimate costs using accurate, region-specific pricing data without downloading unnecessary data for other regions.
+As a FinFocus user deploying infrastructure in Canada, I want to use a dedicated `ca-central-1` plugin binary so that I can estimate costs using accurate, region-specific pricing data without downloading unnecessary data for other regions.
 
 **Why this priority**: Expanding region support is critical for users operating in specific geographies to get accurate cost estimates.
 
@@ -17,7 +17,7 @@ As a PulumiCost user deploying infrastructure in Canada, I want to use a dedicat
 
 **Acceptance Scenarios**:
 
-1. **Given** the `pulumicost-plugin-aws-public-ca-central-1` binary is built, **When** it is started, **Then** it should run successfully and listen on a port.
+1. **Given** the `finfocus-plugin-aws-public-ca-central-1` binary is built, **When** it is started, **Then** it should run successfully and listen on a port.
 2. **Given** the running `ca-central-1` plugin, **When** a cost estimation request for a `ca-central-1` resource is made, **Then** it returns a valid cost estimate using Canadian pricing.
 3. **Given** the running `ca-central-1` plugin, **When** a cost estimation request for a `us-east-1` resource is made, **Then** it returns an `ERROR_CODE_UNSUPPORTED_REGION` error.
 
@@ -25,7 +25,7 @@ As a PulumiCost user deploying infrastructure in Canada, I want to use a dedicat
 
 ### User Story 2 - South America Region Support (Priority: P1)
 
-As a PulumiCost user deploying infrastructure in South America, I want to use a dedicated `sa-east-1` plugin binary so that I can estimate costs using accurate, region-specific pricing data for the São Paulo region.
+As a FinFocus user deploying infrastructure in South America, I want to use a dedicated `sa-east-1` plugin binary so that I can estimate costs using accurate, region-specific pricing data for the São Paulo region.
 
 **Why this priority**: Validates the plugin architecture's ability to support South American AWS regions.
 
@@ -33,7 +33,7 @@ As a PulumiCost user deploying infrastructure in South America, I want to use a 
 
 **Acceptance Scenarios**:
 
-1. **Given** the `pulumicost-plugin-aws-public-sa-east-1` binary is built, **When** it is started, **Then** it should run successfully and listen on a port.
+1. **Given** the `finfocus-plugin-aws-public-sa-east-1` binary is built, **When** it is started, **Then** it should run successfully and listen on a port.
 2. **Given** the running `sa-east-1` plugin, **When** a cost estimation request for a `sa-east-1` resource is made, **Then** it returns a valid cost estimate using South American pricing.
 3. **Given** the running `sa-east-1` plugin, **When** a cost estimation request for a `ca-central-1` resource is made, **Then** it returns an `ERROR_CODE_UNSUPPORTED_REGION` error.
 
@@ -76,4 +76,4 @@ As a PulumiCost user deploying infrastructure in South America, I want to use a 
 - **SC-001**: Binaries for `ca-central-1` and `sa-east-1` build successfully without compilation errors.
 - **SC-002**: Generated pricing data files for new regions are non-empty and contain valid JSON.
 - **SC-003**: All unit and integration tests, including new region-specific tests, pass (exit code 0).
-- **SC-004**: The release artifacts list includes `pulumicost-plugin-aws-public-ca-central-1` and `pulumicost-plugin-aws-public-sa-east-1`.
+- **SC-004**: The release artifacts list includes `finfocus-plugin-aws-public-ca-central-1` and `finfocus-plugin-aws-public-sa-east-1`.

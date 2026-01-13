@@ -1,6 +1,6 @@
-# Tasks: PulumiCost AWS Public Plugin
+# Tasks: FinFocus AWS Public Plugin
 
-**Input**: Design documents from `/specs/001-pulumicost-aws-plugin/`
+**Input**: Design documents from `/specs/001-finfocus-aws-plugin/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
 **Tests**: Unit tests are included for critical pricing logic and gRPC handlers per constitution testing requirements.
@@ -16,7 +16,7 @@
 ## Path Conventions
 
 - Repository follows standard Go project layout
-- `cmd/pulumicost-plugin-aws-public/` for entrypoint
+- `cmd/finfocus-plugin-aws-public/` for entrypoint
 - `internal/plugin/` for gRPC service implementation
 - `internal/pricing/` for embedded pricing data
 - `internal/config/` for configuration
@@ -28,10 +28,10 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [x] T001 Initialize Go module with `go mod init github.com/rshade/pulumicost-plugin-aws-public`
+- [x] T001 Initialize Go module with `go mod init github.com/rshade/finfocus-plugin-aws-public`
 - [x] T002 Create directory structure: cmd/, internal/plugin, internal/pricing, internal/config, tools/generate-pricing, data/
-- [x] T003 [P] Add proto dependencies: `go get github.com/rshade/pulumicost-spec/sdk/go/proto/pulumicost/v1`
-- [x] T004 [P] Add pluginsdk dependency: `go get github.com/rshade/pulumicost-core/pkg/pluginsdk`
+- [x] T003 [P] Add proto dependencies: `go get github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1`
+- [x] T004 [P] Add pluginsdk dependency: `go get github.com/rshade/finfocus-core/pkg/pluginsdk`
 - [x] T005 [P] Add gRPC dependencies: `go get google.golang.org/grpc google.golang.org/protobuf`
 - [x] T006 [P] Create Makefile with lint, test, and build targets
 - [x] T007 [P] Create .gitignore with data/*.json (generated pricing files)
@@ -84,10 +84,10 @@
 
 - [x] T023 [P] [US2] Implement Name() RPC returning "aws-public" in internal/plugin/name.go (implemented in plugin.go)
 - [x] T024 [P] [US2] Write unit test for Name() RPC in internal/plugin/name_test.go (in plugin_test.go)
-- [x] T025 [US2] Implement main.go entrypoint: initialize pricing client, create plugin, call pluginsdk.Serve() in cmd/pulumicost-plugin-aws-public/main.go
-- [x] T026 [US2] Add stderr logging for initialization and region in cmd/pulumicost-plugin-aws-public/main.go
-- [x] T027 [US2] Test manual plugin startup: `go run ./cmd/pulumicost-plugin-aws-public` verifies PORT announcement
-- [x] T028 [US2] Test Name() RPC with grpcurl: `grpcurl -plaintext localhost:<port> pulumicost.v1.CostSourceService/Name`
+- [x] T025 [US2] Implement main.go entrypoint: initialize pricing client, create plugin, call pluginsdk.Serve() in cmd/finfocus-plugin-aws-public/main.go
+- [x] T026 [US2] Add stderr logging for initialization and region in cmd/finfocus-plugin-aws-public/main.go
+- [x] T027 [US2] Test manual plugin startup: `go run ./cmd/finfocus-plugin-aws-public` verifies PORT announcement
+- [x] T028 [US2] Test Name() RPC with grpcurl: `grpcurl -plaintext localhost:<port> finfocus.v1.CostSourceService/Name`
 - [x] T029 [US2] Test graceful shutdown with Ctrl+C
 
 **Checkpoint**: Plugin starts, announces PORT, serves gRPC Name() RPC, shuts down gracefully
@@ -173,7 +173,7 @@
 - [x] T054 [US4] Create .goreleaser.yaml with 3 builds (us-east-1, us-west-2, eu-west-1) using build tags
 - [x] T055 [US4] Add before hook to .goreleaser.yaml: `go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./internal/pricing/data --dummy` (updated path)
 - [x] T056 [US4] Test GoReleaser snapshot build: `goreleaser build --snapshot --clean`
-- [x] T057 [US4] Verify us-east-1 binary: `./dist/pulumicost-plugin-aws-public-us-east-1_linux_amd64_v1/pulumicost-plugin-aws-public-us-east-1` announces PORT and logs region
+- [x] T057 [US4] Verify us-east-1 binary: `./dist/finfocus-plugin-aws-public-us-east-1_linux_amd64_v1/finfocus-plugin-aws-public-us-east-1` announces PORT and logs region
 - [x] T058 [US4] Verify us-west-2 binary embeds us-west-2 pricing
 - [x] T059 [US4] Test us-east-1 binary with us-west-2 resource, verify ERROR_CODE_UNSUPPORTED_REGION error
 
@@ -187,9 +187,9 @@
 
 **Independent Test**: Call GetPricingSpec for EC2/EBS, validate rate_per_unit and billing_mode
 
-**Status**: **DEFERRED TO V2** - GetPricingSpec() RPC is not yet defined in pulumicost-spec proto v0.1.0
+**Status**: **DEFERRED TO V2** - GetPricingSpec() RPC is not yet defined in finfocus-spec proto v0.1.0
 
-**Tracking**: https://github.com/rshade/pulumicost-spec/issues/62
+**Tracking**: https://github.com/rshade/finfocus-spec/issues/62
 
 **Note**: This user story is optional and deferred until the proto specification is updated to include GetPricingSpec() message types
 

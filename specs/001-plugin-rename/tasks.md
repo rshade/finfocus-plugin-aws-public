@@ -24,8 +24,8 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [X] T001 Update go.mod module name in go.mod from pulumicost-plugin-aws-public to finfocus-plugin-aws-public
-- [X] T002 Update spec dependency in go.mod from github.com/rshade/pulumicost-spec v0.4.14 to github.com/rshade/finfocus-spec v0.5.0
+- [X] T001 Update go.mod module name in go.mod from finfocus-plugin-aws-public to finfocus-plugin-aws-public
+- [X] T002 Update spec dependency in go.mod from github.com/rshade/finfocus-spec v0.4.14 to github.com/rshade/finfocus-spec v0.5.0
 - [X] T003 [P] Clean Go module cache with go clean -modcache (running in background - 1.2GB cache)
 
 ---
@@ -36,8 +36,8 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [X] T004 Update all import statements from pulumicost-spec to finfocus-spec across all Go files in internal/, cmd/, tools/, and examples/
-- [X] T005 Update all import statements from pulumicost.v1 to finfocus.v1 across all Go files
+- [X] T004 Update all import statements from finfocus-spec to finfocus-spec across all Go files in internal/, cmd/, tools/, and examples/
+- [X] T005 Update all import statements from finfocus.v1 to finfocus.v1 across all Go files
 
 **Checkpoint**: Foundation ready - user story implementation can now begin (sequential due to dependencies)
 
@@ -45,7 +45,7 @@
 
 ## Phase 3: User Story 1 - Migrate Core Dependencies (Priority: P1) 🎯 MVP
 
-**Goal**: Update module name, spec dependency, and all imports from pulumicost to finfocus so that plugin uses new naming and dependencies.
+**Goal**: Update module name, spec dependency, and all imports from finfocus to finfocus so that plugin uses new naming and dependencies.
 
 **Independent Test**: Verify go.mod has correct module name and dependencies, and imports compile without errors by running go mod tidy and go build.
 
@@ -66,14 +66,14 @@
 
 ### Implementation for User Story 2
 
-- [X] T008 Rename cmd/pulumicost-plugin-aws-public/ directory to cmd/finfocus-plugin-aws-public/ using git mv
+- [X] T008 Rename cmd/finfocus-plugin-aws-public/ directory to cmd/finfocus-plugin-aws-public/ using git mv
 - [X] T009 Update package declaration and imports in cmd/finfocus-plugin-aws-public/main.go to work with new module name
 - [X] T010 Update plugin registration in cmd/finfocus-plugin-aws-public/main.go to use finfocus naming
-- [X] T011 Update BINARY_NAME variable in Makefile from pulumicost-plugin-aws-public to finfocus-plugin-aws-public
-- [X] T012 Update build path references in Makefile from cmd/pulumicost-plugin-aws-public to cmd/finfocus-plugin-aws-public
-- [X] T013 Update binary name templates in .goreleaser.yaml from pulumicost-plugin-aws-public to finfocus-plugin-aws-public
-- [X] T014 Update build path references in .goreleaser.yaml from cmd/pulumicost-plugin-aws-public to cmd/finfocus-plugin-aws-public
-- [X] T015 Update .gitignore to reference cmd/finfocus-plugin-aws-public instead of cmd/pulumicost-plugin-aws-public if present
+- [X] T011 Update BINARY_NAME variable in Makefile from finfocus-plugin-aws-public to finfocus-plugin-aws-public
+- [X] T012 Update build path references in Makefile from cmd/finfocus-plugin-aws-public to cmd/finfocus-plugin-aws-public
+- [X] T013 Update binary name templates in .goreleaser.yaml from finfocus-plugin-aws-public to finfocus-plugin-aws-public
+- [X] T014 Update build path references in .goreleaser.yaml from cmd/finfocus-plugin-aws-public to cmd/finfocus-plugin-aws-public
+- [X] T015 Update .gitignore to reference cmd/finfocus-plugin-aws-public instead of cmd/finfocus-plugin-aws-public if present
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -81,23 +81,23 @@
 
 ## Phase 5: User Story 3 - Update Code and Documentation (Priority: P3)
 
-**Goal**: Update logging prefixes, documentation, and all references from pulumicost to finfocus so that codebase is consistently renamed.
+**Goal**: Update logging prefixes, documentation, and all references from finfocus to finfocus so that codebase is consistently renamed.
 
-**Independent Test**: Search for any remaining pulumicost references and verify they are all updated using grep.
+**Independent Test**: Search for any remaining finfocus references and verify they are all updated using grep.
 
 ### Implementation for User Story 3
 
-- [X] T016 [P] Update logging prefix in internal/pricing/loader.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]
-- [X] T017 [P] Update logging prefix in internal/pricing/lookup.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]
-- [X] T018 [P] Update logging prefix in internal/plugin/server.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]
-- [X] T019 [P] Update logging prefix in internal/plugin/costs.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]
-- [X] T020 [P] Update logging prefix in cmd/finfocus-plugin-aws-public/main.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]
-- [X] T021 [P] Update all references in README.md from pulumicost-plugin-aws-public to finfocus-plugin-aws-public
-- [X] T022 [P] Update import paths in README.md from github.com/rshade/pulumicost-spec to github.com/rshade/finfocus-spec
-- [X] T023 [P] Update binary name references in README.md from pulumicost-plugin-aws-public to finfocus-plugin-aws-public
-- [X] T024 [P] Update AGENTS.md logging prefix requirement from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]
-- [X] T025 [P] Update all markdown files in docs/ directory from pulumicost to finfocus using grep and replace
-- [X] T026 [P] Update all .md files in repository root from pulumicost to finfocus using grep and replace (excluding spec directories)
+- [X] T016 [P] Update logging prefix in internal/pricing/loader.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]
+- [X] T017 [P] Update logging prefix in internal/pricing/lookup.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]
+- [X] T018 [P] Update logging prefix in internal/plugin/server.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]
+- [X] T019 [P] Update logging prefix in internal/plugin/costs.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]
+- [X] T020 [P] Update logging prefix in cmd/finfocus-plugin-aws-public/main.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]
+- [X] T021 [P] Update all references in README.md from finfocus-plugin-aws-public to finfocus-plugin-aws-public
+- [X] T022 [P] Update import paths in README.md from github.com/rshade/finfocus-spec to github.com/rshade/finfocus-spec
+- [X] T023 [P] Update binary name references in README.md from finfocus-plugin-aws-public to finfocus-plugin-aws-public
+- [X] T024 [P] Update AGENTS.md logging prefix requirement from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]
+- [X] T025 [P] Update all markdown files in docs/ directory from finfocus to finfocus using grep and replace
+- [X] T026 [P] Update all .md files in repository root from finfocus to finfocus using grep and replace (excluding spec directories)
 - [X] T027 Update test files in internal/**/test/ directories to use new import paths if they import local packages (verified: no old imports found)
 
 **Checkpoint**: All user stories should now be independently functional
@@ -112,7 +112,7 @@
 - [X] T029 Run make test and verify all tests pass (all tests passed successfully)
 - [X] T030 Run make build for all regions (us-east-1, us-west-2, eu-west-1) and verify binary outputs match new naming convention (finfocus-plugin-aws-public 25MB binary created)
 - [X] T031 Test gRPC functionality by starting plugin and using grpcurl to verify plugin registers as finfocus-plugin-aws-public (manual verification required - not automated in this workflow)
-- [X] T032 Verify no remaining pulumicost references in codebase using grep -r "pulumicost" --exclude-dir=specs --exclude-dir=.git . (762 total references: 2 in comments about external pulumicost-core system; 760 in dist/ old binaries and tools; 0 in Go source code)
+- [X] T032 Verify no remaining finfocus references in codebase using grep -r "finfocus" --exclude-dir=specs --exclude-dir=.git . (762 total references: 2 in comments about external finfocus-core system; 760 in dist/ old binaries and tools; 0 in Go source code)
 
 ---
 
@@ -156,19 +156,19 @@
 
 ```bash
 # Launch all logging prefix updates together:
-Task: "Update logging prefix in internal/pricing/loader.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]"
-Task: "Update logging prefix in internal/pricing/lookup.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]"
-Task: "Update logging prefix in internal/plugin/server.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]"
-Task: "Update logging prefix in internal/plugin/costs.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]"
-Task: "Update logging prefix in cmd/finfocus-plugin-aws-public/main.go from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]"
+Task: "Update logging prefix in internal/pricing/loader.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]"
+Task: "Update logging prefix in internal/pricing/lookup.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]"
+Task: "Update logging prefix in internal/plugin/server.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]"
+Task: "Update logging prefix in internal/plugin/costs.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]"
+Task: "Update logging prefix in cmd/finfocus-plugin-aws-public/main.go from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]"
 
 # Launch all documentation updates together:
-Task: "Update all references in README.md from pulumicost-plugin-aws-public to finfocus-plugin-aws-public"
-Task: "Update import paths in README.md from github.com/rshade/pulumicost-spec to github.com/rshade/finfocus-spec"
-Task: "Update binary name references in README.md from pulumicost-plugin-aws-public to finfocus-plugin-aws-public"
-Task: "Update AGENTS.md logging prefix requirement from [pulumicost-plugin-aws-public] to [finfocus-plugin-aws-public]"
-Task: "Update all markdown files in docs/ directory from pulumicost to finfocus using grep and replace"
-Task: "Update all .md files in repository root from pulumicost to finfocus using grep and replace"
+Task: "Update all references in README.md from finfocus-plugin-aws-public to finfocus-plugin-aws-public"
+Task: "Update import paths in README.md from github.com/rshade/finfocus-spec to github.com/rshade/finfocus-spec"
+Task: "Update binary name references in README.md from finfocus-plugin-aws-public to finfocus-plugin-aws-public"
+Task: "Update AGENTS.md logging prefix requirement from [finfocus-plugin-aws-public] to [finfocus-plugin-aws-public]"
+Task: "Update all markdown files in docs/ directory from finfocus to finfocus using grep and replace"
+Task: "Update all .md files in repository root from finfocus to finfocus using grep and replace"
 Task: "Update test files in internal/**/test/ directories to use new import paths if they import local packages"
 ```
 

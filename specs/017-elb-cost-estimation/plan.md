@@ -10,7 +10,7 @@ Implement cost estimation for AWS Application Load Balancers (ALB) and Network L
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: gRPC, pulumicost.v1 protocol, rs/zerolog, pluginsdk
+**Primary Dependencies**: gRPC, finfocus.v1 protocol, rs/zerolog, pluginsdk
 **Storage**: Embedded JSON pricing data (Go 1.16+ `embed`), parsed into indexed maps
 **Testing**: Go standard `testing` library, table-driven unit and integration tests
 **Target Platform**: Linux (multiple regional binaries)
@@ -25,7 +25,7 @@ Implement cost estimation for AWS Application Load Balancers (ALB) and Network L
 
 - **[x] KISS**: Logic follows existing estimator patterns in `projected.go`.
 - **[x] SRP**: `estimateELB` handles calculation; `PricingClient` handles data retrieval.
-- **[x] Protocol Consistency**: Uses `pulumicost.v1` types and `pluginsdk.Serve()`.
+- **[x] Protocol Consistency**: Uses `finfocus.v1` types and `pluginsdk.Serve()`.
 - **[x] Thread Safety**: Pricing data is cached and read-only after initialization.
 - **[x] ZeroLog**: Structured JSON logging to stderr.
 

@@ -90,13 +90,13 @@ const (
 
 ### 3. Pulumi Metadata Tags
 
-**Purpose**: Standard tag keys for Pulumi state metadata injected by pulumicost-core.
+**Purpose**: Standard tag keys for Pulumi state metadata injected by finfocus-core.
 
 **Location**: `internal/plugin/actual.go` (constants)
 
 ```go
 // Pulumi metadata tag keys.
-// These keys are injected by pulumicost-core from Pulumi state.
+// These keys are injected by finfocus-core from Pulumi state.
 const (
     // TagPulumiCreated is the RFC3339 timestamp of resource creation in Pulumi state.
     // For imported resources, this is the import time, not actual cloud creation.

@@ -15,7 +15,7 @@
 
 ## Path Conventions
 
-- **Go plugin**: `internal/plugin/`, `cmd/pulumicost-plugin-aws-public/`
+- **Go plugin**: `internal/plugin/`, `cmd/finfocus-plugin-aws-public/`
 - **Tests**: Co-located as `*_test.go` files per Go convention
 
 ---
@@ -41,16 +41,16 @@
 
 **CRITICAL**: All user stories depend on test mode detection working correctly
 
-- [X] T005 Add startup validation of PULUMICOST_TEST_MODE in
-  cmd/pulumicost-plugin-aws-public/main.go
+- [X] T005 Add startup validation of FINFOCUS_TEST_MODE in
+  cmd/finfocus-plugin-aws-public/main.go
 - [X] T006 Log test mode status at plugin startup in
-  cmd/pulumicost-plugin-aws-public/main.go
+  cmd/finfocus-plugin-aws-public/main.go
 - [X] T007 [P] Create testmode_test.go with unit tests for IsTestMode() and
   ValidateTestModeEnv() in internal/plugin/testmode_test.go
 - [X] T008 Verify existing tests pass with test mode disabled via make test
 
 **Checkpoint**: Test mode detection works; plugin starts correctly with/without
-PULUMICOST_TEST_MODE set
+FINFOCUS_TEST_MODE set
 
 ---
 
@@ -182,7 +182,7 @@ verify response includes min, max, expected, and tolerance
 - [X] T034 [P] Update CLAUDE.md with 001-e2e-test-support feature summary
 - [X] T035 Run quickstart.md validation scenarios manually
 - [X] T036 Verify backward compatibility: existing tests pass without
-  PULUMICOST_TEST_MODE set
+  FINFOCUS_TEST_MODE set
 
 ---
 

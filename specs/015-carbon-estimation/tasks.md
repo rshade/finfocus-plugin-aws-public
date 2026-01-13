@@ -28,7 +28,7 @@ Based on plan.md structure (existing Go gRPC plugin):
 
 **Purpose**: Project initialization, dependency updates, and data acquisition
 
-- [x] T001 Update go.mod to use pulumicost-spec v0.4.10 via `go get github.com/rshade/pulumicost-spec@v0.4.10`
+- [x] T001 Update go.mod to use finfocus-spec v0.4.10 via `go get github.com/rshade/finfocus-spec@v0.4.10`
 - [x] T002 Run `go mod tidy` to update go.sum
 - [x] T003 Create carbon package directory structure at internal/carbon/
 - [x] T004 [P] Download CCF instance data CSV to data/ccf_instance_specs.csv from cloud-carbon-coefficients repo
@@ -100,7 +100,7 @@ Based on plan.md structure (existing Go gRPC plugin):
 - [x] T029 [US2] Add helper function to determine supported metrics by resource type in internal/plugin/supports.go
 - [x] T030 [US2] Ensure unsupported resource types return empty supported_metrics in internal/plugin/supports.go
 
-**Checkpoint**: PulumiCost core can now discover which plugins support carbon estimation. US2 is fully functional.
+**Checkpoint**: FinFocus core can now discover which plugins support carbon estimation. US2 is fully functional.
 
 ---
 
@@ -134,7 +134,7 @@ Based on plan.md structure (existing Go gRPC plugin):
 
 - [x] T039 [P] Run `make lint` and fix any linting issues across all new files
 - [x] T040 [P] Run `make test` and ensure all tests pass
-- [x] T041 [P] Verify single-region build compiles: `go build -tags region_use1 ./cmd/pulumicost-plugin-aws-public`
+- [x] T041 [P] Verify single-region build compiles: `go build -tags region_use1 ./cmd/finfocus-plugin-aws-public`
 - [x] T042 [P] Update CLAUDE.md with carbon estimation documentation
 - [x] T043 Validate quickstart.md scenarios work with actual build
 - [x] T044 [P] Add edge case test for GPU instance types (should still return financial cost) in internal/plugin/projected_test.go

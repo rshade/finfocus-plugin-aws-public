@@ -69,7 +69,7 @@
 
 - [x] T013 [P] [US2] Consolidate duplicate docstrings for `GetUtilization` in `internal/carbon/utilization.go`
 - [x] T014 [P] [US2] Add GoDoc explaining correlation ID population (`ResourceId`/`Name`) in `internal/plugin/recommendations.go`
-- [x] T015 [US2] Implement deprecation warning for `PORT` env var in `cmd/pulumicost-plugin-aws-public/main.go`
+- [x] T015 [US2] Implement deprecation warning for `PORT` env var in `cmd/finfocus-plugin-aws-public/main.go`
 - [x] T016 [P] [US2] Document internal platform-to-OS mapping logic in `internal/plugin/ec2_attrs.go`
 
 **Checkpoint**: Documentation sprint completed (SC-003).

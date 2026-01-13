@@ -5,7 +5,7 @@
 
 ## Overview
 
-This feature uses existing proto-defined entities from `pulumicost.v1`.
+This feature uses existing proto-defined entities from `finfocus.v1`.
 No new entities are created; this document describes the relevant
 structures and their usage in the GetActualCost flow.
 
@@ -13,7 +13,7 @@ structures and their usage in the GetActualCost flow.
 
 ### GetActualCostRequest (proto-defined, v0.3.0)
 
-**Source**: `pulumicost.v1.GetActualCostRequest`
+**Source**: `finfocus.v1.GetActualCostRequest`
 
 | Field       | Type                      | Description                    |
 | ----------- | ------------------------- | ------------------------------ |
@@ -38,7 +38,7 @@ ResourceDescriptor with provider, resource_type, sku, region, and tags.
 
 ### GetActualCostResponse (proto-defined, v0.3.0)
 
-**Source**: `pulumicost.v1.GetActualCostResponse`
+**Source**: `finfocus.v1.GetActualCostResponse`
 
 | Field   | Type                       | Description                     |
 | ------- | -------------------------- | ------------------------------- |
@@ -46,7 +46,7 @@ ResourceDescriptor with provider, resource_type, sku, region, and tags.
 
 ### ActualCostResult (proto-defined, v0.3.0)
 
-**Source**: `pulumicost.v1.ActualCostResult`
+**Source**: `finfocus.v1.ActualCostResult`
 
 | Field        | Type                      | Description                   |
 | ------------ | ------------------------- | ----------------------------- |
@@ -67,7 +67,7 @@ ResourceDescriptor with provider, resource_type, sku, region, and tags.
 
 ### ResourceDescriptor (proto-defined)
 
-**Source**: `pulumicost.v1.ResourceDescriptor`
+**Source**: `finfocus.v1.ResourceDescriptor`
 
 | Field         | Type                 | Description                         |
 | ------------- | -------------------- | ----------------------------------- |

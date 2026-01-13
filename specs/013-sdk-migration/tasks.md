@@ -24,7 +24,7 @@
 
 **Purpose**: Verify prerequisites and ensure SDK dependency is available
 
-- [x] T001 Verify pulumicost-spec v0.4.8 is in go.mod with `go list -m github.com/rshade/pulumicost-spec`
+- [x] T001 Verify finfocus-spec v0.4.8 is in go.mod with `go list -m github.com/rshade/finfocus-spec`
 - [x] T002 Run `make test` to establish baseline - all existing tests must pass
 - [x] T003 Run `make lint` to establish baseline - no new linting errors allowed
 
@@ -121,18 +121,18 @@
 
 **Goal**: Replace direct os.Getenv() calls with SDK helpers while preserving PORT fallback for backward compatibility
 
-**Independent Test**: Start plugin with PULUMICOST_PLUGIN_PORT=8080, then PORT=9000 only, then neither - verify correct port selection in each case
+**Independent Test**: Start plugin with FINFOCUS_PLUGIN_PORT=8080, then PORT=9000 only, then neither - verify correct port selection in each case
 
 ### Implementation for User Story 3
 
 #### Environment Variable Migration (FR-006, FR-007, FR-008)
 
-- [X] T042 [US3] Update cmd/pulumicost-plugin-aws-public/main.go to use pluginsdk.GetPort() with PORT fallback
+- [X] T042 [US3] Update cmd/finfocus-plugin-aws-public/main.go to use pluginsdk.GetPort() with PORT fallback
 - [X] T043 [US3] Update internal/plugin/plugin.go to use pluginsdk.GetLogLevel() for log configuration
 - [X] T044 [US3] Verify pluginsdk.GetTraceID() is used in request handling (already via SDK)
 - [X] T045 [US3] Remove direct os.Getenv("PORT") calls from main.go (kept PORT fallback for backward compat)
 - [X] T046 [US3] Remove direct os.Getenv("LOG_LEVEL") calls from plugin.go
-- [X] T047 [US3] Document port precedence (PULUMICOST_PLUGIN_PORT > PORT > ephemeral) in code comments
+- [X] T047 [US3] Document port precedence (FINFOCUS_PLUGIN_PORT > PORT > ephemeral) in code comments
 - [X] T048 [US3] Run `make test` to verify env var handling works correctly
 - [X] T049 [US3] Run `make lint` to verify no new linting errors
 
@@ -211,7 +211,7 @@
   - [X] SC-002: RegionConfig consolidated (1 definition instead of 2) - internal/regionsconfig package created
   - [X] SC-003: All existing tests pass
   - [X] SC-004: Error format backward compatible
-  - [X] SC-005: Port configuration works (PULUMICOST_PLUGIN_PORT > PORT > ephemeral)
+  - [X] SC-005: Port configuration works (FINFOCUS_PLUGIN_PORT > PORT > ephemeral)
   - [X] SC-006: ARN parsing works for 7 services (EC2, EBS, RDS, S3, Lambda, DynamoDB, EKS)
   - [X] SC-007: Property extraction reduced by 40% - extractAWSSKU/extractAWSRegion helpers
 - [X] T080 Run quickstart.md verification steps to validate implementation

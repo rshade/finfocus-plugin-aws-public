@@ -6,7 +6,7 @@
 
 ## Overview
 
-The data model for the plugin remains **unchanged** by this rename operation. All entities, relationships, and data structures are identical; only import paths and type references change from `pulumicost.v1` to `finfocus.v1`.
+The data model for the plugin remains **unchanged** by this rename operation. All entities, relationships, and data structures are identical; only import paths and type references change from `finfocus.v1` to `finfocus.v1`.
 
 ## Core Entities
 
@@ -70,7 +70,7 @@ On-demand pricing term for a product.
 
 ### ResourceDescriptor (Proto: finfocus.v1.ResourceDescriptor)
 
-Input from PulumiCost core describing a cloud resource.
+Input from FinFocus core describing a cloud resource.
 
 **Purpose**: Provides resource metadata for cost estimation
 
@@ -85,13 +85,13 @@ Input from PulumiCost core describing a cloud resource.
 - resource_type must match supported services
 - properties must include required fields for resource type
 
-**Source**: Passed via gRPC from PulumiCost core
+**Source**: Passed via gRPC from FinFocus core
 
 ---
 
 ### CostResponse (Proto: finfocus.v1.GetProjectedCostResponse)
 
-Output to PulumiCost core with cost estimates.
+Output to FinFocus core with cost estimates.
 
 **Purpose**: Provides projected cost calculations for a resource
 
@@ -106,7 +106,7 @@ Output to PulumiCost core with cost estimates.
 - currency must match pricing data
 - cost_per_month is calculated as unit_price * usage_multiplier
 
-**Destination**: Returned via gRPC to PulumiCost core
+**Destination**: Returned via gRPC to FinFocus core
 
 ---
 
@@ -114,7 +114,7 @@ Output to PulumiCost core with cost estimates.
 
 ```
 ┌─────────────────┐
-│ PulumiCost Core │
+│ FinFocus Core │
 └────────┬────────┘
          │ gRPC: ResourceDescriptor
          ▼
@@ -130,7 +130,7 @@ Output to PulumiCost core with cost estimates.
          │ gRPC: GetProjectedCostResponse
          ▼
 ┌─────────────────┐
-│ PulumiCost Core │
+│ FinFocus Core │
 └─────────────────┘
 ```
 
@@ -219,10 +219,10 @@ To meet performance targets (<100ms GetProjectedCost), pricing data is indexed:
 
 ### What Changed
 
-- Import paths: `pulumicost.v1` → `finfocus.v1`
-- Module name: `pulumicost-plugin-aws-public` → `finfocus-plugin-aws-public`
-- Logging prefix: `[pulumicost-plugin-aws-public]` → `[finfocus-plugin-aws-public]`
-- Dependency: `github.com/rshade/pulumicost-spec` → `github.com/rshade/finfocus-spec`
+- Import paths: `finfocus.v1` → `finfocus.v1`
+- Module name: `finfocus-plugin-aws-public` → `finfocus-plugin-aws-public`
+- Logging prefix: `[finfocus-plugin-aws-public]` → `[finfocus-plugin-aws-public]`
+- Dependency: `github.com/rshade/finfocus-spec` → `github.com/rshade/finfocus-spec`
 
 ### What Did NOT Change
 

@@ -596,3 +596,112 @@ func TestStartupLogFormat(t *testing.T) {
 		}
 	}
 }
+
+func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
+	tests := []struct {
+		name              string
+		envVars           map[string]string
+		expectedBatchSize int
+		expectedStrict    bool
+		expectWarning     bool
+	}{
+		{
+			name: "new batch size takes precedence",
+			envVars: map[string]string{
+				"FINFOCUS_MAX_BATCH_SIZE":   "150",
+				"PULUMICOST_MAX_BATCH_SIZE": "200",
+			},
+			expectedBatchSize: 150,
+			expectedStrict:    false,
+			expectWarning:     false,
+		},
+		{
+			name: "deprecated PULUMICOST batch size works",
+			envVars: map[string]string{
+				"PULUMICOST_MAX_BATCH_SIZE": "200",
+			},
+			expectedBatchSize: 200,
+			expectedStrict:    false,
+			expectWarning:     true,
+		},
+		{
+			name: "legacy MAX_BATCH_SIZE works",
+			envVars: map[string]string{
+				"MAX_BATCH_SIZE": "175",
+			},
+			expectedBatchSize: 175,
+			expectedStrict:    false,
+			expectWarning:     true,
+		},
+		{
+			name: "new strict validation false takes precedence over deprecated true",
+			envVars: map[string]string{
+				"FINFOCUS_STRICT_VALIDATION":   "false",
+				"PULUMICOST_STRICT_VALIDATION": "true",
+			},
+			expectedBatchSize: 100, // default
+			expectedStrict:    false,
+			expectWarning:     false,
+		},
+		{
+			name: "new strict validation true works",
+			envVars: map[string]string{
+				"FINFOCUS_STRICT_VALIDATION": "true",
+			},
+			expectedBatchSize: 100,
+			expectedStrict:    true,
+			expectWarning:     false,
+		},
+		{
+			name: "deprecated PULUMICOST strict validation works",
+			envVars: map[string]string{
+				"PULUMICOST_STRICT_VALIDATION": "true",
+			},
+			expectedBatchSize: 100,
+			expectedStrict:    true,
+			expectWarning:     true,
+		},
+		{
+			name: "legacy STRICT_VALIDATION works",
+			envVars: map[string]string{
+				"STRICT_VALIDATION": "true",
+			},
+			expectedBatchSize: 100,
+			expectedStrict:    true,
+			expectWarning:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup env vars
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			// Capture logs to check for warnings
+			var logBuf bytes.Buffer
+			logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+			mock := newMockPricingClient("us-east-1", "USD")
+
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+			if plugin.maxBatchSize != tt.expectedBatchSize {
+				t.Errorf("maxBatchSize = %d, want %d", plugin.maxBatchSize, tt.expectedBatchSize)
+			}
+
+			if plugin.strictValidation != tt.expectedStrict {
+				t.Errorf("strictValidation = %v, want %v", plugin.strictValidation, tt.expectedStrict)
+			}
+
+			logOutput := logBuf.String()
+			hasWarning := strings.Contains(logOutput, "deprecated")
+			if tt.expectWarning && !hasWarning {
+				t.Error("Expected deprecation warning, got none")
+			}
+			if !tt.expectWarning && hasWarning {
+				t.Errorf("Expected no deprecation warning, got: %s", logOutput)
+			}
+		})
+	}
+}

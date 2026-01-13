@@ -12,7 +12,7 @@ Harden DynamoDB cost estimation with comprehensive input validation, proper erro
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: zerolog (logging), pluginsdk (gRPC), pulumicost-spec proto
+**Primary Dependencies**: zerolog (logging), pluginsdk (gRPC), finfocus-spec proto
 **Storage**: N/A (embedded pricing data)
 **Testing**: Go testing with table-driven tests, integration tests with build tags
 **Target Platform**: Linux server (gRPC plugin binary)

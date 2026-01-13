@@ -2,11 +2,11 @@
 
 **Feature**: 015-carbon-estimation
 **Date**: 2025-12-19
-**Proto Version**: pulumicost-spec v0.4.10
+**Proto Version**: finfocus-spec v0.4.10
 
 ## Overview
 
-This feature uses new proto fields added in pulumicost-spec v0.4.10. No proto changes are required in this plugin - only implementation of the new fields.
+This feature uses new proto fields added in finfocus-spec v0.4.10. No proto changes are required in this plugin - only implementation of the new fields.
 
 ## New Proto Fields Used
 

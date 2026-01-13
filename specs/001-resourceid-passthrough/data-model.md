@@ -11,7 +11,7 @@ This feature modifies how data flows through the `GetRecommendations` handler, s
 
 ### ResourceDescriptor (Input - from proto)
 
-The input resource descriptor from pulumicost-spec v0.4.11+.
+The input resource descriptor from finfocus-spec v0.4.11+.
 
 | Field | Type | Description | New/Existing |
 |-------|------|-------------|--------------|

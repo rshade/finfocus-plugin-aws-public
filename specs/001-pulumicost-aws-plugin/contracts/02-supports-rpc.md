@@ -1,6 +1,6 @@
 # Contract: Supports() RPC
 
-**Service**: `pulumicost.v1.CostSourceService`
+**Service**: `finfocus.v1.CostSourceService`
 **Method**: `Supports`
 **Purpose**: Determines if the plugin can estimate costs for a given resource
 
@@ -84,7 +84,7 @@ if req.Resource.Region != p.region {
 }
 ```
 
-**Critical**: This is how PulumiCost core detects it needs a different region-specific binary.
+**Critical**: This is how FinFocus core detects it needs a different region-specific binary.
 
 ---
 
@@ -137,7 +137,7 @@ Invalid or missing fields result in `supported=false` with explanatory `reason`.
 grpcurl -plaintext \
   -d '{"resource": {"provider": "aws", "resource_type": "ec2", "region": "us-east-1"}}' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/Supports
+  finfocus.v1.CostSourceService/Supports
 
 # Expected response:
 {
@@ -149,7 +149,7 @@ grpcurl -plaintext \
 grpcurl -plaintext \
   -d '{"resource": {"provider": "aws", "resource_type": "ec2", "region": "us-west-2"}}' \
   localhost:12345 \
-  pulumicost.v1.CostSourceService/Supports
+  finfocus.v1.CostSourceService/Supports
 
 # Expected response:
 {
@@ -211,7 +211,7 @@ func TestSupports_StubService(t *testing.T) {
 
 ---
 
-## Usage by PulumiCost Core
+## Usage by FinFocus Core
 
 1. Core analyzes Pulumi stack and extracts resources
 2. For each resource, core calls Supports() to check compatibility

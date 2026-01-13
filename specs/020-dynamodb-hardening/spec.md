@@ -17,7 +17,7 @@
 
 ### User Story 1 - Transparent Cost Estimation Feedback (Priority: P1)
 
-As a developer using the PulumiCost plugin, I want to receive clear warnings when my DynamoDB cost estimate may be incomplete or inaccurate, so that I can make informed decisions about my infrastructure costs.
+As a developer using the FinFocus plugin, I want to receive clear warnings when my DynamoDB cost estimate may be incomplete or inaccurate, so that I can make informed decisions about my infrastructure costs.
 
 **Why this priority**: Silent $0 estimates with no indication of failure directly mislead users about costs. This is the most impactful issue as it affects trust in the tool.
 
@@ -33,7 +33,7 @@ As a developer using the PulumiCost plugin, I want to receive clear warnings whe
 
 ### User Story 2 - Invalid Input Detection and Recovery (Priority: P2)
 
-As a developer integrating the PulumiCost plugin, I want the system to detect and handle invalid capacity/request values gracefully, so that erroneous inputs don't produce misleading results.
+As a developer integrating the FinFocus plugin, I want the system to detect and handle invalid capacity/request values gracefully, so that erroneous inputs don't produce misleading results.
 
 **Why this priority**: Invalid inputs (like negative capacity units) being silently accepted can produce negative or nonsensical cost estimates, compounding user confusion.
 
@@ -50,7 +50,7 @@ As a developer integrating the PulumiCost plugin, I want the system to detect an
 
 ### User Story 3 - Accurate Pricing Extraction (Priority: P3)
 
-As a PulumiCost maintainer, I want DynamoDB pricing lookups to precisely match the correct product families, so that provisioned and on-demand pricing are never confused.
+As a FinFocus maintainer, I want DynamoDB pricing lookups to precisely match the correct product families, so that provisioned and on-demand pricing are never confused.
 
 **Why this priority**: Incorrect pricing matches can silently produce wrong cost estimates. While less visible than $0 estimates, this affects accuracy for all users.
 
@@ -66,7 +66,7 @@ As a PulumiCost maintainer, I want DynamoDB pricing lookups to precisely match t
 
 ### User Story 4 - End-to-End Validation via Integration Tests (Priority: P4)
 
-As a PulumiCost developer, I want comprehensive integration tests for DynamoDB cost estimation, so that regressions in pricing extraction or estimation logic are caught before release.
+As a FinFocus developer, I want comprehensive integration tests for DynamoDB cost estimation, so that regressions in pricing extraction or estimation logic are caught before release.
 
 **Why this priority**: Integration tests provide confidence that the entire pipeline works correctly, but are less urgent than fixing the underlying issues that cause silent failures.
 

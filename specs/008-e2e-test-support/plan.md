@@ -5,16 +5,16 @@
 
 ## Summary
 
-Add E2E test support features to the pulumicost-plugin-aws-public plugin,
-including test mode detection via `PULUMICOST_TEST_MODE` environment variable,
+Add E2E test support features to the finfocus-plugin-aws-public plugin,
+including test mode detection via `FINFOCUS_TEST_MODE` environment variable,
 enhanced diagnostic logging when enabled, and documented expected cost ranges
 for standard test resources (t3.micro EC2, gp2 EBS 8GB). This enables reliable
-integration testing with pulumicost-core E2E tests.
+integration testing with finfocus-core E2E tests.
 
 ## Technical Context
 
 **Language/Version**: Go 1.25+
-**Primary Dependencies**: gRPC (pluginsdk), pulumicost-spec protos, zerolog
+**Primary Dependencies**: gRPC (pluginsdk), finfocus-spec protos, zerolog
 **Storage**: Embedded JSON files (go:embed) - no external storage
 **Testing**: Go testing via `make test`
 **Target Platform**: Linux server (gRPC plugin process)
@@ -68,8 +68,8 @@ internal/
     └── config.go        # Add test mode config
 
 cmd/
-└── pulumicost-plugin-aws-public/
-    └── main.go          # Check PULUMICOST_TEST_MODE at startup
+└── finfocus-plugin-aws-public/
+    └── main.go          # Check FINFOCUS_TEST_MODE at startup
 ```
 
 **Structure Decision**: Existing single-project structure. New files added to

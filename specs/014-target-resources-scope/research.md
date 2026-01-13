@@ -2,7 +2,7 @@
 
 ## Dependency Verification
 
-**Status**: `github.com/rshade/pulumicost-spec` is already at `v0.4.9` in `go.mod`.
+**Status**: `github.com/rshade/finfocus-spec` is already at `v0.4.9` in `go.mod`.
 **Action**: No upgrade required. Will verify that the generated proto code in the vendor/module cache matches the expected fields (`TargetResources`).
 
 ## Implementation Approach

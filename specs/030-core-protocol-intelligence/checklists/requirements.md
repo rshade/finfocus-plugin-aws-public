@@ -31,7 +31,7 @@
 
 ## Notes
 
-- External dependency on pulumicost-spec is clearly documented as a prerequisite
+- External dependency on finfocus-spec is clearly documented as a prerequisite
 - All three consolidated issues (#207, #208, #209) are addressed with clear requirements
 - Service classifications table provides clear guidance for implementation
 - Ready for `/speckit.clarify` or `/speckit.plan`

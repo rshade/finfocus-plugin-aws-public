@@ -1,6 +1,6 @@
 # Contract: Name() RPC
 
-**Service**: `pulumicost.v1.CostSourceService`
+**Service**: `finfocus.v1.CostSourceService`
 **Method**: `Name`
 **Purpose**: Returns the plugin identifier for routing and discovery
 
@@ -37,7 +37,7 @@ message NameResponse {
 **Contract**:
 - `name` MUST be `"aws-public"` for this plugin
 - `name` MUST be consistent across all invocations
-- `name` MUST match the plugin identifier expected by PulumiCost core
+- `name` MUST match the plugin identifier expected by FinFocus core
 
 ---
 
@@ -74,7 +74,7 @@ func (p *AWSPublicPlugin) Name(
 
 ```bash
 # grpcurl test
-grpcurl -plaintext localhost:12345 pulumicost.v1.CostSourceService/Name
+grpcurl -plaintext localhost:12345 finfocus.v1.CostSourceService/Name
 
 # Expected response:
 {
@@ -96,7 +96,7 @@ func TestName(t *testing.T) {
 
 ---
 
-## Usage by PulumiCost Core
+## Usage by FinFocus Core
 
 1. Core starts the plugin subprocess
 2. Core reads PORT from stdout

@@ -1,4 +1,4 @@
-# Specification Quality Checklist: PulumiCost AWS Public Plugin
+# Specification Quality Checklist: FinFocus AWS Public Plugin
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2025-11-16
@@ -32,12 +32,12 @@
 
 ## Protocol Alignment
 
-- [x] Spec aligns with CostSourceService gRPC protocol from pulumicost-spec
+- [x] Spec aligns with CostSourceService gRPC protocol from finfocus-spec
 - [x] Uses proto-defined types (ResourceDescriptor, GetProjectedCostResponse, ErrorCode)
 - [x] Correctly describes per-resource RPC model (not batch processing)
 - [x] PORT announcement and lifecycle management specified
 - [x] Error handling uses proto ErrorCode enum
-- [x] Plugin SDK usage from pulumicost-core referenced
+- [x] Plugin SDK usage from finfocus-core referenced
 
 ## Notes
 
@@ -53,7 +53,7 @@
 
 ### Validation Results: ✅ All checklist items pass
 
-The specification has been completely rewritten based on actual protocol analysis from pulumicost-core and pulumicost-spec repositories. Key strengths:
+The specification has been completely rewritten based on actual protocol analysis from finfocus-core and finfocus-spec repositories. Key strengths:
 
 1. **Protocol-Accurate**: All 6 user stories now correctly describe gRPC interactions with proper RPC method names and proto message types
 

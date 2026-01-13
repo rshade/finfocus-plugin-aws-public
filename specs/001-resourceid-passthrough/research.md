@@ -9,7 +9,7 @@
 This feature has no technical unknowns requiring research. All decisions are straightforward based on:
 
 1. The existing implementation in `recommendations.go`
-2. The proto contract from pulumicost-spec
+2. The proto contract from finfocus-spec
 3. Standard Go patterns already used in the codebase
 
 ## Decisions
@@ -21,7 +21,7 @@ This feature has no technical unknowns requiring research. All decisions are str
 **Rationale**:
 - Native proto field is the canonical source
 - Tag-based correlation was a workaround when proto lacked Id field
-- Aligns with how pulumicost-core will use the field
+- Aligns with how finfocus-core will use the field
 
 **Alternatives Considered**:
 - Tag takes priority: Rejected - would break callers migrating to native ID
@@ -57,7 +57,7 @@ This feature has no technical unknowns requiring research. All decisions are str
 
 | Dependency | Version | Status | Notes |
 |------------|---------|--------|-------|
-| pulumicost-spec | v0.4.11 | ✅ Available | Contains `Id` field on `ResourceDescriptor` |
+| finfocus-spec | v0.4.11 | ✅ Available | Contains `Id` field on `ResourceDescriptor` |
 
 ## No Further Research Needed
 

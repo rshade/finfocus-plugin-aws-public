@@ -34,4 +34,4 @@
 - Specification is complete and ready for `/speckit.plan`
 - All requirements derived from issue #120 and CCF methodology research
 - Attribution requirements documented for Apache 2.0 compliance
-- Dependency on pulumicost-spec v0.4.10+ is satisfied (released)
+- Dependency on finfocus-spec v0.4.10+ is satisfied (released)

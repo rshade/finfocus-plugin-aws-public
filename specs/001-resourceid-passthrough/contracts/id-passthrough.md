@@ -2,7 +2,7 @@
 
 **Feature**: 001-resourceid-passthrough
 **Date**: 2025-12-26
-**Protocol**: gRPC (pulumicost.v1.CostSourceService)
+**Protocol**: gRPC (finfocus.v1.CostSourceService)
 
 ## Contract Summary
 
@@ -10,7 +10,7 @@ This document defines the expected behavior for resource ID passthrough in the `
 
 ## Proto Reference
 
-From `pulumicost-spec v0.4.11+`:
+From `finfocus-spec v0.4.11+`:
 
 ```protobuf
 message ResourceDescriptor {

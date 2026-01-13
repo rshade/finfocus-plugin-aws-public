@@ -5,7 +5,7 @@
 
 ## Summary
 
-This sprint focuses on improving the stability, reliability, and documentation of the PulumiCost AWS Public Plugin. The primary goal is to address several reported bugs, including a high-priority panic in recommendation processing and validation errors in S3 region fallback. Additionally, the sprint will consolidate documentation, add a dedicated troubleshooting guide, and formalize the deprecation of the `PORT` environment variable fallback.
+This sprint focuses on improving the stability, reliability, and documentation of the FinFocus AWS Public Plugin. The primary goal is to address several reported bugs, including a high-priority panic in recommendation processing and validation errors in S3 region fallback. Additionally, the sprint will consolidate documentation, add a dedicated troubleshooting guide, and formalize the deprecation of the `PORT` environment variable fallback.
 
 ## Technical Context
 
@@ -47,7 +47,7 @@ specs/017-fix-recommendation-panic/
 
 ```text
 cmd/
-└── pulumicost-plugin-aws-public/
+└── finfocus-plugin-aws-public/
     └── main.go          # PORT deprecation warning
 
 internal/
@@ -65,7 +65,7 @@ internal/
 TROUBLESHOOTING.md       # New troubleshooting guide
 ```
 
-**Structure Decision**: Single Go project following established pulumicost-plugin conventions.
+**Structure Decision**: Single Go project following established finfocus-plugin conventions.
 
 ## Complexity Tracking
 

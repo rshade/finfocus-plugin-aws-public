@@ -5,7 +5,7 @@
 
 ## Overview
 
-This guide walks through implementing EKS cluster cost estimation in the pulumicost-plugin-aws-public. The implementation adds support for `resource_type: "eks"` to the gRPC service.
+This guide walks through implementing EKS cluster cost estimation in the finfocus-plugin-aws-public. The implementation adds support for `resource_type: "eks"` to the gRPC service.
 
 ## Prerequisites
 
@@ -111,11 +111,11 @@ go test ./internal/plugin -v -run TestProjectedEKS
 ```bash
 # Test Supports
 grpcurl -plaintext -d '{"provider":"aws","resource_type":"eks","region":"us-east-1"}' \
-  localhost:PORT pulumicost.v1.CostSourceService.Supports
+  localhost:PORT finfocus.v1.CostSourceService.Supports
 
 # Test GetProjectedCost
 grpcurl -plaintext -d '{"provider":"aws","resource_type":"eks","region":"us-east-1"}' \
-  localhost:PORT pulumicost.v1.CostSourceService.GetProjectedCost
+  localhost:PORT finfocus.v1.CostSourceService.GetProjectedCost
 ```
 
 ## Build & Deploy
@@ -132,10 +132,10 @@ make build
 ### Verify Build
 ```bash
 # Check binary size (< 10MB)
-ls -lh bin/pulumicost-plugin-aws-public-us-east-1
+ls -lh bin/finfocus-plugin-aws-public-us-east-1
 
 # Test gRPC functionality
-grpcurl -plaintext localhost:PORT pulumicost.v1.CostSourceService.Name
+grpcurl -plaintext localhost:PORT finfocus.v1.CostSourceService.Name
 ```
 
 ## Expected Output
@@ -164,7 +164,7 @@ For a valid EKS cluster request:
 Enable debug logging to see pricing lookups:
 
 ```bash
-LOG_LEVEL=debug ./bin/pulumicost-plugin-aws-public-us-east-1
+LOG_LEVEL=debug ./bin/finfocus-plugin-aws-public-us-east-1
 ```
 
 ## Next Steps

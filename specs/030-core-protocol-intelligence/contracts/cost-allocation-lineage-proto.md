@@ -1,7 +1,7 @@
 # Protocol Extension: CostAllocationLineage Message
 
 **Feature**: 030-core-protocol-intelligence (P3 - Topology Linking)
-**Status**: PROPOSED - Requires PR to rshade/pulumicost-spec
+**Status**: PROPOSED - Requires PR to rshade/finfocus-spec
 **Date**: 2026-01-05
 
 ## Purpose
