@@ -1066,6 +1066,28 @@ This fetches real AWS pricing data and ensures pricing files exist before embedd
 
 ## Configuration (v1)
 
+### Environment Variables for Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `FINFOCUS_PLUGIN_PORT` | int | ephemeral | Port to serve gRPC/Web (replaces `PORT`) |
+| `FINFOCUS_LOG_LEVEL` | string | "info" | Log level (debug, info, warn, error, fatal) |
+| `FINFOCUS_PLUGIN_WEB_ENABLED` | bool | false | Enable HTTP/Web serving (Connect/gRPC-Web) |
+| `FINFOCUS_CORS_ALLOWED_ORIGINS` | string | "" | Comma-separated list of allowed CORS origins (e.g., `*` or `http://localhost:3000`). Empty/unset disables CORS headers. |
+| `FINFOCUS_CORS_ALLOW_CREDENTIALS` | bool | false | Allow credentials in CORS requests (cannot be true if origin is `*`) |
+| `FINFOCUS_CORS_MAX_AGE` | int | 86400 | Max age for CORS preflight cache (seconds). Invalid or negative values fall back to default. |
+| `FINFOCUS_PLUGIN_HEALTH_ENDPOINT` | bool | false | Enable `/healthz` HTTP endpoint (returns 200 OK) |
+
+**Usage Example:**
+```bash
+# Typical configuration for local development with a frontend
+export FINFOCUS_PLUGIN_WEB_ENABLED=true
+export FINFOCUS_CORS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
+export FINFOCUS_CORS_ALLOW_CREDENTIALS=true
+export FINFOCUS_PLUGIN_HEALTH_ENDPOINT=true
+./finfocus-plugin-aws-public-us-east-1
+```
+
 Current configuration is minimal:
 - Currency: `USD` (hardcoded default)
 - Account discount factor: `1.0` (no discount)

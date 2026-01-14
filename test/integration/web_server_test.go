@@ -54,9 +54,7 @@ func TestWebServer(t *testing.T) {
 	t.Log("Starting plugin server...")
 	cmd := exec.Command(binaryPath)
 	cmd.Env = append(os.Environ(), "FINFOCUS_PLUGIN_WEB_ENABLED=true")
-	stdout, err := cmd.StdoutPipe()
-	require.NoError(t, err)
-
+	
 	stdoutR, stdoutW := io.Pipe()
 	stderrR, stderrW := io.Pipe()
 	cmd.Stdout = stdoutW

@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -53,22 +52,8 @@ func TestIsTestMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore original value
-			original := os.Getenv(testModeEnvVar)
-			defer func() {
-				if original == "" {
-					_ = os.Unsetenv(testModeEnvVar)
-				} else {
-					_ = os.Setenv(testModeEnvVar, original)
-				}
-			}()
-
 			// Set test value
-			if tt.envValue == "" {
-				_ = os.Unsetenv(testModeEnvVar)
-			} else {
-				_ = os.Setenv(testModeEnvVar, tt.envValue)
-			}
+			t.Setenv(testModeEnvVar, tt.envValue)
 
 			got := IsTestMode()
 			if got != tt.want {
@@ -123,22 +108,8 @@ func TestValidateTestModeEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore original value
-			original := os.Getenv(testModeEnvVar)
-			defer func() {
-				if original == "" {
-					_ = os.Unsetenv(testModeEnvVar)
-				} else {
-					_ = os.Setenv(testModeEnvVar, original)
-				}
-			}()
-
 			// Set test value
-			if tt.envValue == "" {
-				_ = os.Unsetenv(testModeEnvVar)
-			} else {
-				_ = os.Setenv(testModeEnvVar, tt.envValue)
-			}
+			t.Setenv(testModeEnvVar, tt.envValue)
 
 			// Capture log output
 			var buf bytes.Buffer

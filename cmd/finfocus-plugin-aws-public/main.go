@@ -128,10 +128,12 @@ func run() error {
 	}
 
 	// Enable web serving if requested (supports browser access via connect-go)
-	if webEnabled {
-		config.Web = pluginsdk.WebConfig{
-			Enabled: true,
-		}
+	webConfig, err := parseWebConfig(webEnabled, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to parse web configuration")
+	}
+	if webConfig.Enabled {
+		config.Web = webConfig
 		logger.Info().Msg("web serving enabled with multi-protocol support")
 	}
 	if err := pluginsdk.Serve(ctx, config); err != nil {
