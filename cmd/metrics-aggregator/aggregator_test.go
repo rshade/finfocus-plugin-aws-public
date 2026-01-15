@@ -30,7 +30,11 @@ func TestFetchMetrics(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	metrics, err := fetchMetrics(ctx, port)
+	httpClient := &http.Client{
+		Timeout: 1 * time.Second,
+	}
+
+	metrics, err := fetchMetrics(ctx, port, httpClient)
 	if err != nil {
 		t.Fatalf("fetchMetrics failed: %v", err)
 	}
@@ -51,10 +55,14 @@ func TestAggregatedMetricsHandler(t *testing.T) {
 		Timeout:    1 * time.Second,
 	}
 
+	httpClient := &http.Client{
+		Timeout: config.Timeout,
+	}
+
 	req := httptest.NewRequest("GET", "/metrics/aggregated", nil)
 	w := httptest.NewRecorder()
 
-	aggregatedMetricsHandler(w, req, config)
+	aggregatedMetricsHandler(w, req, config, httpClient)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {

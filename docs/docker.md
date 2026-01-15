@@ -36,8 +36,10 @@ docker run -d \
   --name finfocus-aws \
   -p 8001-8012:8001-8012 \
   -p 9090:9090 \
-  ghcr.io/rshade/finfocus-plugin-aws-public:latest
+  ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION}
 ```
+
+> **Note:** Replace `${VERSION}` with an actual release tag (e.g., `v0.1.0`) or use `:latest` for the newest release.
 
 ### Kubernetes Deployment
 
@@ -55,7 +57,7 @@ spec:
     spec:
       containers:
         - name: plugin
-          image: ghcr.io/rshade/finfocus-plugin-aws-public:latest
+          image: ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION}
           ports:
             - containerPort: 8001
               name: us-east-1

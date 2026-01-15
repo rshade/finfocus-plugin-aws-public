@@ -1559,9 +1559,9 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 					fmt.Sprintf("invalid value for 'custom_metrics': %q is not a valid number", val),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
-			if parsed < 0 {
+			if parsed < 0 || parsed > 1e6 {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
-					fmt.Sprintf("invalid value for 'custom_metrics': %.2f cannot be negative", parsed),
+					fmt.Sprintf("invalid value for 'custom_metrics': %g must be between 0 and 1000000", parsed),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
 			customMetrics = parsed
@@ -1704,9 +1704,9 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 					fmt.Sprintf("invalid value for node count: %q is not a valid integer", nodeCountStr),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
-			if parsed < 1 {
+			if parsed < 1 || parsed > 1000 {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
-					fmt.Sprintf("invalid value for node count: %d must be at least 1", parsed),
+					fmt.Sprintf("invalid value for node count: %d must be between 1 and 1000", parsed),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
 			numNodes = parsed

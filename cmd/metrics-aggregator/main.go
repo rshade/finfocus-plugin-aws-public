@@ -15,22 +15,27 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var httpClient = &http.Client{
-	Timeout: 5 * time.Second,
-	Transport: &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-	},
-}
-
+// main starts the metrics aggregator HTTP server.
+// It registers an endpoint for Prometheus metrics ("/metrics") and an aggregated metrics endpoint ("/metrics/aggregated"),
+// begins listening on the configured address, and performs a graceful shutdown when SIGINT or SIGTERM is received using a 10-second timeout.
+// The function logs startup information and exits on unrecoverable server errors.
 func main() {
 	config := parseConfig()
+
+	// Create HTTP client with timeout from config
+	httpClient := &http.Client{
+		Timeout: config.Timeout,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 12,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/metrics/aggregated", func(w http.ResponseWriter, r *http.Request) {
-		aggregatedMetricsHandler(w, r, config)
+		aggregatedMetricsHandler(w, r, config, httpClient)
 	})
 
 	server := &http.Server{
@@ -60,26 +65,32 @@ func main() {
 	<-shutdownDone
 }
 
-func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Config) {
-	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+// aggregatedMetricsHandler collects Prometheus metrics from a range of local ports and writes the concatenated result to the HTTP response.
+//
+// aggregatedMetricsHandler creates a context with the timeout specified by config.Timeout, then iterates from config.StartPort to config.EndPort,
+// attempting to fetch /metrics from each localhost port. Metrics successfully retrieved are appended (separated by newlines) and served with
+// Content-Type "text/plain; charset=utf-8". If fetching metrics for a specific port fails, the error is logged and the handler continues with the next port.
+// If writing to the response fails, the error is logged and the handler returns.
+//
+// Parameters:
+//  - w: the http.ResponseWriter used to write the aggregated metrics response.
+//  - r: the incoming HTTP request (unused except for context lifecycle).
+//  - config: configuration specifying StartPort, EndPort, and Timeout used for collection.
+//  - httpClient: HTTP client with configured timeout for making requests.
+func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Config, httpClient *http.Client) {
+	ctx, cancel := context.WithTimeout(r.Context(), config.Timeout)
 	defer cancel()
 
 	var allMetrics strings.Builder
 
 	for port := config.StartPort; port <= config.EndPort; port++ {
-		metrics, err := fetchMetrics(ctx, port)
+		metrics, err := fetchMetrics(ctx, port, httpClient)
 		if err != nil {
 			log.Error().Err(err).Int("port", port).Msg("Failed to fetch metrics")
 			continue
 		}
-		if _, err := allMetrics.WriteString(metrics); err != nil {
-			log.Error().Err(err).Msg("Failed to append metrics")
-			return
-		}
-		if _, err := allMetrics.WriteString("\n"); err != nil {
-			log.Error().Err(err).Msg("Failed to append metrics newline")
-			return
-		}
+		allMetrics.WriteString(metrics)
+		allMetrics.WriteString("\n")
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -89,7 +100,14 @@ func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Co
 	}
 }
 
-func fetchMetrics(ctx context.Context, port int) (string, error) {
+// fetchMetrics fetches the Prometheus metrics text from the local /metrics endpoint on the given port.
+//
+// The ctx controls the request lifetime. The port selects the localhost TCP port to query.
+// The httpClient is used to perform the HTTP request.
+//
+// It returns the response body as a string containing the metrics exposition on success, or an error
+// if the request fails, the response status is not 200 OK, or the response body cannot be read.
+func fetchMetrics(ctx context.Context, port int, httpClient *http.Client) (string, error) {
 	url := fmt.Sprintf("http://localhost:%d/metrics", port)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)

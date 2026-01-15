@@ -67,7 +67,7 @@ func TestKubernetesDeploymentWithKind(t *testing.T) {
 
 PodReady:
 	for {
-		switch {
+		select {
 		case <-timeout:
 			t.Fatal("Timeout waiting for pod to be ready")
 		case <-ticker.C:
@@ -112,7 +112,8 @@ PodReady:
 
 	// Check health endpoint via kubectl port-forward
 	t.Log("Checking health via port forward...")
-	resp, err := http.Get("http://localhost:8001/healthz")
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	resp, err := httpClient.Get("http://localhost:8001/healthz")
 	if err != nil {
 		t.Fatalf("Health check failed: %v", err)
 	}

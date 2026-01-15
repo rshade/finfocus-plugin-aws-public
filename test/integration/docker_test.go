@@ -74,6 +74,7 @@ func TestDockerImageBuildAndVerification(t *testing.T) {
 	healthTicker := time.NewTicker(2 * time.Second)
 	defer healthTicker.Stop()
 
+healthLoop:
 	for {
 		select {
 		case <-healthTimeout:
@@ -85,16 +86,15 @@ func TestDockerImageBuildAndVerification(t *testing.T) {
 				continue
 			}
 			status := strings.TrimSpace(string(inspectOutput))
-			if status == "healthy" || status == "" {
-				if status == "" {
-					inspectCmd = exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
-					inspectOutput, err = inspectCmd.Output()
-					if err == nil && strings.TrimSpace(string(inspectOutput)) == "running" {
-						break
-					}
-					continue
+			if status == "healthy" {
+				break healthLoop
+			}
+			if status == "" {
+				inspectCmd = exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
+				inspectOutput, err = inspectCmd.Output()
+				if err == nil && strings.TrimSpace(string(inspectOutput)) == "running" {
+					break healthLoop
 				}
-				break
 			}
 		}
 	}
@@ -102,27 +102,27 @@ func TestDockerImageBuildAndVerification(t *testing.T) {
 	// Check health endpoint
 	t.Log("Checking health endpoint...")
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get("http://localhost:8001/healthz")
+	respHealth, err := client.Get("http://localhost:8001/healthz")
 	if err != nil {
 		t.Fatalf("Health check failed: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("Health check returned status %d", resp.StatusCode)
+	if respHealth.StatusCode != 200 {
+		t.Errorf("Health check returned status %d", respHealth.StatusCode)
 	}
+	respHealth.Body.Close()
 
 	// Check metrics endpoint
 	t.Log("Checking metrics endpoint...")
-	resp, err = client.Get("http://localhost:9090/metrics")
+	respMetrics, err := client.Get("http://localhost:9090/metrics")
 	if err != nil {
 		t.Fatalf("Metrics check failed: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Errorf("Metrics check returned status %d", resp.StatusCode)
+	defer respMetrics.Body.Close()
+	if respMetrics.StatusCode != 200 {
+		t.Errorf("Metrics check returned status %d", respMetrics.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(respMetrics.Body)
 	if err != nil {
 		t.Fatalf("Failed to read metrics response: %v", err)
 	}

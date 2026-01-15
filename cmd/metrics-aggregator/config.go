@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // Config holds settings for the metrics aggregator server.
@@ -15,6 +17,10 @@ type Config struct {
 	Timeout    time.Duration
 }
 
+// parseConfig constructs and returns a *Config populated from command-line flags.
+// Supported flags: -start-port (default 8001), -end-port (default 8012), -listen (default ":9090"), -timeout (default 5s).
+// The returned *Config contains the values parsed from those flags after flag.Parse().
+// Validates that start-port <= end-port and timeout > 0, exiting if invalid.
 func parseConfig() *Config {
 	config := &Config{}
 
@@ -24,6 +30,19 @@ func parseConfig() *Config {
 	flag.DurationVar(&config.Timeout, "timeout", 5*time.Second, "Timeout for scraping individual endpoints")
 
 	flag.Parse()
+
+	// Validate configuration
+	if config.EndPort < config.StartPort {
+		log.Fatal().
+			Int("startPort", config.StartPort).
+			Int("endPort", config.EndPort).
+			Msg("invalid configuration: end-port must be >= start-port")
+	}
+	if config.Timeout <= 0 {
+		log.Fatal().
+			Dur("timeout", config.Timeout).
+			Msg("invalid configuration: timeout must be positive")
+	}
 
 	return config
 }

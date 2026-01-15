@@ -8,35 +8,54 @@ set -e
 declare -a regions=("us-east-1" "us-west-2" "eu-west-1" "ap-southeast-1" "ap-southeast-2" "ap-northeast-1" "ap-south-1" "ca-central-1" "sa-east-1" "us-gov-west-1" "us-gov-east-1" "us-west-1")
 declare -a ports=(8001 8002 8003 8004 8005 8006 8007 8008 8009 8010 8011 8012)
 
-# Function to start a regional binary
+# start_binary starts the region-specific finfocus-plugin-aws-public binary in the background, prefixes non-JSON output with the region, injects a `"region"` field into JSON log lines, and writes the background PID to /tmp/pid_<region>.
 start_binary() {
     local region=$1
     local port=$2
     local binary="/usr/local/bin/finfocus-plugin-aws-public-${region}"
+    local fifo="/tmp/fifo_${region}"
 
     echo "Starting ${region} on port ${port}"
 
-    # Start binary in background, capturing both stdout and stderr
-    # Use sed to inject region field into JSON lines
+    # Create FIFO for binary output
+    rm -f "$fifo"
+    mkfifo "$fifo"
+
+    # Start FIFO reader in background BEFORE starting the binary to avoid race condition.
+    # This ensures the reader is waiting on the FIFO when the binary tries to write to it.
     (
-        export REGION="${region}"
-        export PORT="${port}"
-        exec "${binary}" 2>&1 | while IFS= read -r line; do
+        while IFS= read -r line; do
             # Try to inject region into JSON if it looks like JSON
             if [[ $line =~ ^\{.*\} ]]; then
                 # Insert region field after opening brace
-                line=${line/\{/{"region":"${region}",}}
-                echo "$line"
+                # Use printf to safely handle special characters in the region string
+                printf '{"region":"%s",%s\n' "$region" "${line:1}"
             else
                 # Prefix non-JSON lines
                 echo "[${region}] ${line}"
             fi
-        done
+        done < "$fifo"
     ) &
-    echo $! > "/tmp/pid_${region}"
+    local reader_pid=$!
+
+    # Now start the binary, which will connect to the waiting reader
+    export REGION="${region}"
+    export PORT="${port}"
+    "${binary}" > "$fifo" 2>&1 &
+    local binary_pid=$!
+    echo "$binary_pid" > "/tmp/pid_${region}"
+
+    # Clean up FIFO and wait for reader when binary exits
+    (
+        wait "$binary_pid" 2>/dev/null || true
+        wait "$reader_pid" 2>/dev/null || true
+        rm -f "$fifo"
+    ) &
 }
 
-# Function to stop all binaries
+# stop_binaries stops all regional binaries and the metrics aggregator, sending SIGTERM, waiting up to TERMINATION_GRACE_SECONDS (defaults to 30) for graceful exit, then sending SIGKILL to any remaining processes and removing their PID files.
+# 
+# It reads per-region PID files at /tmp/pid_<region> and /tmp/pid_metrics, attempts graceful termination, polls for exit within the grace period, force-kills lingering processes after the timeout, and cleans up the corresponding PID files.
 stop_binaries() {
     echo "Stopping all binaries..."
     local -a active_pids=()
@@ -64,7 +83,7 @@ stop_binaries() {
                     rm -f "$pid_file"
                 fi
             done
-            active_pids=(${active_pids[@]})
+            active_pids=("${active_pids[@]}")
             sleep 1
         done
 

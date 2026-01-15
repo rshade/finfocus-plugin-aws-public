@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: plugin
-          image: ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION} # Replace ${VERSION} with a release tag.
+          # Replace ${VERSION} with a concrete release tag (e.g., v0.1.0) or substitute using envsubst/your CI templating before kubectl apply.
+          image: ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION}
           securityContext:
             runAsUser: 65532
             runAsNonRoot: true
