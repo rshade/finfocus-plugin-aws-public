@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.0](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.0.17...v0.1.0) (2026-01-14)
+
+
+### Features
+
+* **config:** expose CORS and health settings via env vars ([#249](https://github.com/rshade/finfocus-plugin-aws-public/issues/249)) ([a73aaef](https://github.com/rshade/finfocus-plugin-aws-public/commit/a73aaef8ca95d6c56f632218711e5636d0885426)), closes [#243](https://github.com/rshade/finfocus-plugin-aws-public/issues/243)
+* **plugin:** rename project to finfocus-plugin-aws-public ([#246](https://github.com/rshade/finfocus-plugin-aws-public/issues/246)) ([e71cb7d](https://github.com/rshade/finfocus-plugin-aws-public/commit/e71cb7db35c4349633f67e2d3fbf256d88baeef6)), closes [#239](https://github.com/rshade/finfocus-plugin-aws-public/issues/239)
+* **rebrand:** complete migration to FinFocus branding ([#240](https://github.com/rshade/finfocus-plugin-aws-public/issues/240)) ([8b35440](https://github.com/rshade/finfocus-plugin-aws-public/commit/8b354404d76727618204f97fe1b591cbfde68db6)), closes [#233](https://github.com/rshade/finfocus-plugin-aws-public/issues/233)
+
+
+### Miscellaneous
+
+* release 0.1.0 ([#248](https://github.com/rshade/finfocus-plugin-aws-public/issues/248)) ([dce7d35](https://github.com/rshade/finfocus-plugin-aws-public/commit/dce7d357abb15f6e65da46b605ae00a01d98fd8f))
+
 ## [0.0.17](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.0.16...v0.0.17) (2026-01-12)
 
 
