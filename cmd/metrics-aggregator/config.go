@@ -12,6 +12,8 @@ type Config struct {
 	Timeout    time.Duration
 }
 
+// parseConfig parses command-line flags into a Config and returns the populated instance.
+// Recognized flags: -start-port (default 8001), -end-port (default 8012), -listen (default ":9090"), and -timeout (default 5s).
 func parseConfig() *Config {
 	config := &Config{}
 

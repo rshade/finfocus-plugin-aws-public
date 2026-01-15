@@ -11,6 +11,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// main starts the metrics aggregator HTTP server, registers the Prometheus handler at
+// /metrics and an aggregated metrics endpoint at /metrics/aggregated, and listens on the
+// port specified by the configuration.
 func main() {
 	config := parseConfig()
 
@@ -23,6 +26,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(config.ListenPort, nil))
 }
 
+// "text/plain; charset=utf-8".
 func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 	defer cancel()
@@ -43,6 +47,10 @@ func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Co
 	w.Write([]byte(allMetrics.String()))
 }
 
+// fetchMetrics fetches Prometheus metrics from the /metrics endpoint on localhost at the specified port.
+// It performs an HTTP GET using the provided context and returns the response body as a string.
+// ctx provides cancellation and deadline control for the request; port is the target TCP port.
+// The returned error indicates request creation or execution failure, a non-200 HTTP response status, or a response read error.
 func fetchMetrics(ctx context.Context, port int) (string, error) {
 	url := fmt.Sprintf("http://localhost:%d/metrics", port)
 

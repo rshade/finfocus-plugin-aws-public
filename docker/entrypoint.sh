@@ -8,7 +8,7 @@ set -e
 declare -a regions=("us-east-1" "us-west-2" "eu-west-1" "ap-southeast-1" "ap-southeast-2" "ap-northeast-1" "ap-south-1" "ca-central-1" "sa-east-1" "us-gov-west-1" "us-gov-east-1" "us-west-1")
 declare -a ports=(8001 8002 8003 8004 8005 8006 8007 8008 8009 8010 8011 8012)
 
-# Function to start a regional binary
+# start_binary starts the regional finfocus binary in the background, injects a "region" field into JSON output lines or prefixes non-JSON lines with the region tag, and records the child's PID to /tmp/pid_<region>.
 start_binary() {
     local region=$1
     local port=$2
@@ -35,7 +35,7 @@ start_binary() {
     echo $! > "/tmp/pid_${region}"
 }
 
-# Function to stop all binaries
+# stop_binaries stops all regional binaries and the metrics aggregator by sending SIGTERM and waiting up to 10 seconds for each to exit, sending SIGKILL if still running, and removing their PID files.
 stop_binaries() {
     echo "Stopping all binaries..."
     for region in "${regions[@]}"; do

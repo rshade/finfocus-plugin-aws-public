@@ -5,7 +5,7 @@ import "strings"
 // ElastiCacheEstimator estimates carbon footprint for ElastiCache clusters.
 type ElastiCacheEstimator struct{}
 
-// NewElastiCacheEstimator creates a new ElastiCache carbon estimator.
+// NewElastiCacheEstimator returns a pointer to a new ElastiCacheEstimator.
 func NewElastiCacheEstimator() *ElastiCacheEstimator {
 	return &ElastiCacheEstimator{}
 }
@@ -66,7 +66,9 @@ func (e *ElastiCacheEstimator) GetBillingDetail(config ElastiCacheConfig) string
 }
 
 // elasticacheToEC2InstanceType converts an ElastiCache node type to its EC2 equivalent.
-// Example: cache.m5.large -> m5.large
+// elasticacheToEC2InstanceType converts an ElastiCache node type to the equivalent EC2 instance type.
+// If the input begins with the "cache." prefix (for example, "cache.m5.large"), the prefix is removed;
+// otherwise the input is returned unchanged.
 func elasticacheToEC2InstanceType(nodeType string) string {
 	// Remove "cache." prefix if present
 	if strings.HasPrefix(nodeType, "cache.") {
