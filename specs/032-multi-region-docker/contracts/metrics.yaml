@@ -1,0 +1,21 @@
+openapi: 3.0.0
+info:
+  title: FinFocus AWS Plugin Metrics
+  version: 1.0.0
+paths:
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      description: Aggregated metrics for all 12 regional plugin instances.
+      responses:
+        '200':
+          description: Prometheus formatted metrics text
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP finfocus_plugin_up Status of regional plugin instance
+                  # TYPE finfocus_plugin_up gauge
+                  finfocus_plugin_up{region="us-east-1"} 1
+                  finfocus_plugin_up{region="us-west-2"} 1

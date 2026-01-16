@@ -199,6 +199,43 @@ carbonGrams = energyWithPUE × gridIntensity × 1,000,000
 
 Priority: `resource.utilization_percentage` > `request.utilization_percentage` > 0.5
 
+## Multi-Region Docker Image
+
+This repository includes a multi-region Docker image that bundles all 12 supported regional binaries into a single container image. This is ideal for Kubernetes deployments where you want a single artifact.
+
+### Build
+
+```bash
+docker build \
+  --build-arg VERSION=v0.1.0 \
+  -t finfocus-plugin-aws-public:latest \
+  -f docker/Dockerfile .
+```
+
+### Run
+
+```bash
+docker run -d \
+  --name finfocus-aws \
+  -p 8001-8012:8001-8012 \
+  -p 9090:9090 \
+  finfocus-plugin-aws-public:latest
+```
+
+### Verify
+
+- Health endpoint: `curl http://localhost:8001/healthz`
+- Metrics endpoint: `curl http://localhost:9090/metrics`
+- Logs should include JSON with a `region` field
+
+### Security Scan
+
+Run the included Trivy scan script:
+
+```bash
+./test/security/scan.sh finfocus-plugin-aws-public:latest
+```
+
 ## Installation & Setup
 
 ### ⚠️ IMPORTANT: Build Tags Required

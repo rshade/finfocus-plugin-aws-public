@@ -157,6 +157,57 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
 
+  - id: us-gov-west-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-gov-west-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_govw1
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+  - id: us-gov-east-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-gov-east-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_gove1
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+  - id: us-west-1
+    main: ./cmd/finfocus-plugin-aws-public
+    binary: finfocus-plugin-aws-public-us-west-1
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - region_usw1
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
 archives:
   - formats:
       - tar.gz
@@ -167,7 +218,8 @@ archives:
       {{ if eq .Arch "amd64" }}x86_64
       {{ else if eq .Arch "386" }}i386
       {{ else }}{{ .Arch }}{{ end }}
-      {{ if .Arm }}v{{ .Arm }}{{ end }}
+      {{ if .Arm }}v{{ .Arm }}{{ end }}_
+      {{ .ID }}
     format_overrides:
       - goos: windows
         formats:

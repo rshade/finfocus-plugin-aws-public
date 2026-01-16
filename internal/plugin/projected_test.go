@@ -4047,6 +4047,53 @@ func TestGetProjectedCost_ElastiCache_MissingNodeType(t *testing.T) {
 	}
 }
 
+// TestGetProjectedCost_ElastiCache_Carbon tests ElastiCache carbon footprint estimation.
+func TestGetProjectedCost_ElastiCache_Carbon(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.elasticachePrices["cache.m5.large:Redis"] = 0.156
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.m5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine":    "redis",
+				"num_nodes": "2",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Verify impact metrics exist
+	if len(resp.ImpactMetrics) == 0 {
+		t.Fatal("ImpactMetrics should not be empty")
+	}
+
+	foundCarbon := false
+	for _, m := range resp.ImpactMetrics {
+		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			foundCarbon = true
+			if m.Value <= 0 {
+				t.Errorf("Carbon footprint value %v should be positive", m.Value)
+			}
+			if m.Unit != "gCO2e" {
+				t.Errorf("Carbon footprint unit = %q, want %q", m.Unit, "gCO2e")
+			}
+		}
+	}
+
+	if !foundCarbon {
+		t.Error("Carbon footprint metric not found in ImpactMetrics")
+	}
+}
+
 // TestGetProjectedCost_ElastiCache_InvalidNodeCount tests error handling for invalid node count values.
 func TestGetProjectedCost_ElastiCache_InvalidNodeCount(t *testing.T) {
 	tests := []struct {

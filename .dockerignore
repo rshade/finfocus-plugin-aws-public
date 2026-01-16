@@ -1,0 +1,25 @@
+.git
+node_modules
+dist
+bin
+data/*.json
+!data/aws_pricing_fallback.json
+internal/carbon/data/*.json
+test
+docs
+specs
+*.md
+.github
+.coderabbit.yaml
+.goreleaser.yaml
+Makefile
+
+*.log*
+.env*
+coverage/
+
+# Keep go.mod and go.sum available for build-layer caching when copied separately
+
+# go.mod
+
+# go.sum

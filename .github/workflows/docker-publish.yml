@@ -1,0 +1,70 @@
+name: Docker Publish
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.5"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        run: |
+          VERSION=${{ github.event.release.tag_name || 'v0.1.0' }}
+          docker build \
+            --build-arg VERSION=${VERSION} \
+            -t ghcr.io/rshade/finfocus-plugin-aws-public:latest \
+            -t ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION} \
+            -f docker/Dockerfile .
+
+      - name: Check image size
+        run: |
+          IMAGE_SIZE=$(docker image inspect ghcr.io/rshade/finfocus-plugin-aws-public:latest --format='{{.Size}}')
+          # Set limit to 3GB to ensure images stay under typical registry/storage limits
+          # This accommodates: base image (~20MB) + 12 binaries (~20-25MB each) + dependencies (~100-150MB)
+          MAX_SIZE=$((3 * 1024 * 1024 * 1024))
+          if [ "$IMAGE_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "Image size exceeds limit: $IMAGE_SIZE bytes (max: $MAX_SIZE bytes)"
+            exit 1
+          fi
+          echo "Image size check passed: $IMAGE_SIZE bytes (max: $MAX_SIZE bytes)"
+
+      - name: Check binary sizes
+        run: |
+          trap 'docker rm -f temp-image >/dev/null 2>&1 || true; rm -rf ./tmp-binaries' EXIT
+          docker create --name temp-image ghcr.io/rshade/finfocus-plugin-aws-public:latest
+          docker cp temp-image:/usr/local/bin ./tmp-binaries
+          for binary in ./tmp-binaries/finfocus-plugin-aws-public-*; do
+            size=$(stat -c%s "$binary")
+            if [ "$size" -gt $((240 * 1024 * 1024)) ]; then
+              echo "Binary $binary exceeds size limit ($size bytes)"
+              exit 1
+            fi
+          done
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/rshade/finfocus-plugin-aws-public:latest
+          docker push ghcr.io/rshade/finfocus-plugin-aws-public:${{ github.event.release.tag_name || 'v0.1.0' }}

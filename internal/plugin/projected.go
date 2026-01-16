@@ -1559,9 +1559,9 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 					fmt.Sprintf("invalid value for 'custom_metrics': %q is not a valid number", val),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
-			if parsed < 0 {
+			if parsed < 0 || parsed > 1e6 {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
-					fmt.Sprintf("invalid value for 'custom_metrics': %.2f cannot be negative", parsed),
+					fmt.Sprintf("invalid value for 'custom_metrics': %g must be between 0 and 1000000", parsed),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
 			customMetrics = parsed
@@ -1704,9 +1704,9 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 					fmt.Sprintf("invalid value for node count: %q is not a valid integer", nodeCountStr),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
-			if parsed < 1 {
+			if parsed < 1 || parsed > 1000 {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
-					fmt.Sprintf("invalid value for node count: %d must be at least 1", parsed),
+					fmt.Sprintf("invalid value for node count: %d must be between 1 and 1000", parsed),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 			}
 			numNodes = parsed
@@ -1751,6 +1751,36 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+	}
+
+	// Carbon estimation for ElastiCache cluster
+	elasticacheEstimator := carbon.NewElastiCacheEstimator()
+	carbonGrams, carbonOK := elasticacheEstimator.EstimateCarbonGrams(carbon.ElastiCacheConfig{
+		NodeType:    nodeType,
+		Engine:      engine,
+		Nodes:       numNodes,
+		Region:      resource.Region,
+		Utilization: carbon.DefaultUtilization, // Use CCF default (50%)
+		Hours:       carbon.HoursPerMonth,
+	})
+
+	if carbonOK {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: carbonGrams,
+				Unit:  "gCO2e",
+			},
+		}
+
+		p.logger.Debug().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			Str("node_type", nodeType).
+			Int("num_nodes", numNodes).
+			Str("aws_region", resource.Region).
+			Float64("carbon_grams", carbonGrams).
+			Msg("ElastiCache carbon estimation successful")
 	}
 
 	// Apply growth hint enrichment

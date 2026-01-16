@@ -681,15 +681,15 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 		resourceType string
 		wantCarbon   bool
 	}{
-		{"ec2", true},                       // EC2 has carbon
+		{"ec2", true},                       // EC2 has carbon (compute + embodied)
 		{"aws:ec2/instance:Instance", true}, // Pulumi format
-		{"ebs", false},                      // EBS no carbon (v1)
-		{"eks", false},                      // EKS no carbon (v1)
+		{"ebs", false},                      // EBS no carbon (v1, #135)
+		{"eks", false},                      // EKS no carbon (v1, #136)
 		{"rds", false},                      // RDS no carbon (v1)
 		{"s3", false},                       // S3 no carbon (v1)
 		{"lambda", false},                   // Lambda no carbon (v1)
-		{"dynamodb", false},                 // DynamoDB no carbon (stub)
-		{"elasticache", false},              // ElastiCache no carbon (v1)
+		{"dynamodb", false},                 // DynamoDB no carbon (stub, #137)
+		{"elasticache", true},               // ElastiCache has carbon (v0.1.0+)
 	}
 
 	for _, tt := range tests {

@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finfocus-aws-plugin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finfocus-aws-plugin
+  template:
+    metadata:
+      labels:
+        app: finfocus-aws-plugin
+    spec:
+      containers:
+        - name: plugin
+          # Replace ${VERSION} with a concrete release tag (e.g., v0.1.0) or substitute using envsubst/your CI templating before kubectl apply.
+          image: ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION}
+          securityContext:
+            runAsUser: 65532
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          ports:
+            - containerPort: 8001
+              name: us-east-1
+            - containerPort: 8002
+              name: us-west-2
+            - containerPort: 8003
+              name: eu-west-1
+            - containerPort: 8004
+              name: ap-southeast-1
+            - containerPort: 8005
+              name: ap-southeast-2
+            - containerPort: 8006
+              name: ap-northeast-1
+            - containerPort: 8007
+              name: ap-south-1
+            - containerPort: 8008
+              name: ca-central-1
+            - containerPort: 8009
+              name: sa-east-1
+            - containerPort: 8010
+              name: us-gov-west-1
+            - containerPort: 8011
+              name: us-gov-east-1
+            - containerPort: 8012
+              name: us-west-1
+            - containerPort: 9090
+              name: metrics
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 10

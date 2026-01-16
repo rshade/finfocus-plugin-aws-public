@@ -149,3 +149,24 @@ type EKSClusterConfig struct {
 	// Region is the AWS region.
 	Region string
 }
+
+// ElastiCacheConfig contains configuration for ElastiCache carbon estimation.
+type ElastiCacheConfig struct {
+	// NodeType is the ElastiCache node type (EC2-equivalent, e.g., "cache.m5.large").
+	NodeType string
+
+	// Engine is the cache engine (redis, memcached, valkey).
+	Engine string
+
+	// Nodes is the number of cache nodes in the cluster.
+	Nodes int
+
+	// Region is the AWS region.
+	Region string
+
+	// Utilization is the CPU utilization (0.0 to 1.0, default: 0.50).
+	Utilization float64
+
+	// Hours is the operating hours.
+	Hours float64
+}

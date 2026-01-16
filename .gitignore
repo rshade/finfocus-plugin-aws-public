@@ -27,6 +27,7 @@ go.work.sum
 
 # env file
 .env
+.env*
 
 # Editor/IDE
 # .idea/
@@ -49,6 +50,7 @@ dist/
 COMMIT_MESSAGE.md
 PR_MESSAGE.md
 node_modules/
+build/
 CodeRabbitPrompt.md
 local_troubleshoot.log.json
 
