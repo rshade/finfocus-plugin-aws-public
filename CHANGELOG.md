@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.0...v0.1.1) (2026-01-16)
+
+
+### Features
+
+* **docker:** add multi-region Docker image and ElastiCache carbon su… ([#251](https://github.com/rshade/finfocus-plugin-aws-public/issues/251)) ([148f092](https://github.com/rshade/finfocus-plugin-aws-public/commit/148f092adf226a2f9d731b083fba129a10a9e789))
+
 ## [0.1.0](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.0.17...v0.1.0) (2026-01-14)
 
 
