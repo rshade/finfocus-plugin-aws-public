@@ -329,6 +329,53 @@ func TestSupports(t *testing.T) {
 	}
 }
 
+// TestSupports_ZeroCost_Resources tests that zero-cost resources are supported and have "zero-cost" type in logs.
+// Includes empty region case to verify fallback behavior consistent with ValidateProjectedCostRequest.
+func TestSupports_ZeroCost_Resources(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name         string
+		resourceType string
+		region       string
+	}{
+		{"vpc", "vpc", "us-east-1"},
+		{"securitygroup", "securitygroup", "us-east-1"},
+		{"subnet", "subnet", "us-east-1"},
+		{"vpc empty region", "vpc", ""},
+		{"securitygroup empty region", "securitygroup", ""},
+		{"subnet empty region", "subnet", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logBuf.Reset()
+
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       tt.region,
+				},
+			})
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+			if !resp.Supported {
+				t.Errorf("%s should be supported", tt.name)
+			}
+
+			// Verify logs contain "zero-cost"
+			if !strings.Contains(logBuf.String(), `"cost_type":"zero-cost"`) {
+				t.Errorf("Logs should contain cost_type:zero-cost, got: %s", logBuf.String())
+			}
+		})
+	}
+}
+
 // T028: Test Supports logs contain required structured fields
 func TestSupportsLogsContainRequiredFields(t *testing.T) {
 	var logBuf bytes.Buffer
@@ -642,8 +689,9 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 	}
 }
 
-// TestSupports_DynamoDB_NoSupportedMetrics tests that DynamoDB doesn't include carbon in supported_metrics (T027)
-func TestSupports_DynamoDB_NoSupportedMetrics(t *testing.T) {
+// TestSupports_DynamoDB_HasCarbonSupport tests that DynamoDB includes carbon in supported_metrics (T027)
+// DynamoDB carbon estimation uses storage-based calculation with SSD × 3× replication factor.
+func TestSupports_DynamoDB_HasCarbonSupport(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
@@ -660,18 +708,25 @@ func TestSupports_DynamoDB_NoSupportedMetrics(t *testing.T) {
 		t.Fatalf("Supports() returned error: %v", err)
 	}
 
-	// DynamoDB is stub-supported but should NOT have carbon metrics
 	if !resp.Supported {
-		t.Fatal("DynamoDB should be supported (with limited support)")
+		t.Fatal("DynamoDB should be supported")
 	}
 
-	// SupportedMetrics should be empty for DynamoDB (no carbon estimation)
-	if len(resp.SupportedMetrics) > 0 {
-		t.Errorf("SupportedMetrics should be empty for DynamoDB, got %v", resp.SupportedMetrics)
+	// DynamoDB has carbon estimation (storage-based, SSD × 3× replication)
+	hasCarbon := false
+	for _, m := range resp.SupportedMetrics {
+		if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			hasCarbon = true
+			break
+		}
+	}
+	if !hasCarbon {
+		t.Errorf("SupportedMetrics should include CARBON_FOOTPRINT for DynamoDB, got %v", resp.SupportedMetrics)
 	}
 }
 
-// TestSupports_AllResourceTypes_SupportedMetrics tests supported_metrics for all resource types
+// TestSupports_AllResourceTypes_SupportedMetrics tests supported_metrics for all resource types.
+// All services with carbon estimation implemented should advertise METRIC_KIND_CARBON_FOOTPRINT.
 func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -681,15 +736,18 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 		resourceType string
 		wantCarbon   bool
 	}{
-		{"ec2", true},                       // EC2 has carbon (compute + embodied)
+		{"ec2", true},                       // EC2 has carbon (CPU/GPU power × utilization × grid factor)
 		{"aws:ec2/instance:Instance", true}, // Pulumi format
-		{"ebs", false},                      // EBS no carbon (v1, #135)
-		{"eks", false},                      // EKS no carbon (v1, #136)
-		{"rds", false},                      // RDS no carbon (v1)
-		{"s3", false},                       // S3 no carbon (v1)
-		{"lambda", false},                   // Lambda no carbon (v1)
-		{"dynamodb", false},                 // DynamoDB no carbon (stub, #137)
-		{"elasticache", true},               // ElastiCache has carbon (v0.1.0+)
+		{"ebs", true},                       // EBS has carbon (storage energy × replication)
+		{"eks", true},                       // EKS has carbon (control plane returns 0)
+		{"rds", true},                       // RDS has carbon (compute + storage, Multi-AZ 2×)
+		{"s3", true},                        // S3 has carbon (storage × replication by class)
+		{"lambda", true},                    // Lambda has carbon (vCPU-equiv × duration)
+		{"dynamodb", true},                  // DynamoDB has carbon (storage × SSD × 3× replication)
+		{"elasticache", true},               // ElastiCache has carbon (EC2-equiv × nodes)
+		{"elb", false},                      // ELB no carbon yet
+		{"natgw", false},                    // NAT Gateway no carbon yet
+		{"cloudwatch", false},               // CloudWatch no carbon yet
 	}
 
 	for _, tt := range tests {
@@ -812,6 +870,84 @@ func TestSupports_APSoutheast1(t *testing.T) {
 
 			if tt.wantReasonSubstr == "" && resp.Reason != "" {
 				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			}
+		})
+	}
+}
+
+// TestSupports_ZeroCost_MixedCase tests that zero-cost resources are handled case-insensitively.
+// Resource types like "VPC", "SecurityGroup", and "Subnet" should be normalized to lowercase
+// and correctly identified as zero-cost resources.
+func TestSupports_ZeroCost_MixedCase(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name         string
+		resourceType string
+	}{
+		{"VPC uppercase", "VPC"},
+		{"Vpc titlecase", "Vpc"},
+		{"SecurityGroup mixed", "SecurityGroup"},
+		{"SECURITYGROUP uppercase", "SECURITYGROUP"},
+		{"Subnet titlecase", "Subnet"},
+		{"SUBNET uppercase", "SUBNET"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logBuf.Reset()
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			if !resp.Supported {
+				t.Errorf("%s should be supported (case-insensitive)", tt.resourceType)
+			}
+
+			if !strings.Contains(logBuf.String(), `"cost_type":"zero-cost"`) {
+				t.Errorf("Logs should contain cost_type:zero-cost for %s, got: %s", tt.resourceType, logBuf.String())
+			}
+		})
+	}
+}
+
+// TestSupports_ZeroCost_SupportedMetricsNil verifies that zero-cost resources return
+// nil for SupportedMetrics since they have no carbon footprint or other metrics.
+func TestSupports_ZeroCost_SupportedMetricsNil(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	var logBuf bytes.Buffer
+	logger := zerolog.New(&logBuf).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	zeroCostTypes := []string{"vpc", "securitygroup", "subnet"}
+
+	for _, rt := range zeroCostTypes {
+		t.Run(rt, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: rt,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			if resp.SupportedMetrics != nil {
+				t.Errorf("SupportedMetrics should be nil for zero-cost resource %s, got: %v", rt, resp.SupportedMetrics)
 			}
 		})
 	}

@@ -39,9 +39,15 @@ security overhead of cloud credentials.
   - Lambda functions (vCPU-equivalent + ARM64 efficiency adjustment)
   - DynamoDB tables (storage-based with 3× SSD replication)
   - EKS clusters (control plane guidance, worker nodes as EC2)
+  - ElastiCache nodes (EC2-equivalent mapping for cache node types)
   - Embodied carbon (server manufacturing amortization per CCF)
   - GPU-specific power specs for P/G series instances
   - Storage specs embedded from CCF cloud-carbon-coefficients
+- **Multi-Region Docker:** Single Docker image containing all 9 regional
+  binaries with tini init and Prometheus metrics aggregation.
+- **Zero-Cost Resource Handling:** Graceful handling for AWS resources
+  with no direct cost (VPC, Security Groups, Subnets) - return $0 estimates
+  instead of SKU errors (#237).
 
 ---
 
@@ -51,8 +57,6 @@ security overhead of cloud credentials.
   - **Route53:** Hosted zones and basic query volume estimation.
   - **CloudFront:** Basic data transfer and request pricing (based on regional
     estimates).
-- **[Planned] ElastiCache Carbon Estimation:** Extend CCF methodology to cache
-  node types for comprehensive carbon footprint coverage.
 
 ---
 
@@ -77,6 +81,13 @@ security overhead of cloud credentials.
   - **Lineage Metadata:** Populate `ParentResourceID` for dependent resources
     (e.g., EBS Volumes attached to Instances, NAT Gateways attached to VPCs) to
     support "Blast Radius" visualization.
+- **[Planned] Capability Discovery Enhancements:**
+  - **Dual-Layer Discovery:** Service-level and resource-level capability
+    introspection for richer client integration (#258).
+  - **Carbon Metrics Advertisement:** Update `getSupportedMetrics` to accurately
+    reflect carbon estimation availability per service (#257).
+- **[Planned] Multi-Region Router:** Single-port request routing for the Docker
+  image to simplify client integration (#245).
 
 ---
 

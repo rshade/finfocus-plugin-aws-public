@@ -28,18 +28,62 @@ func (p *AWSPublicPlugin) validateProvider(traceID string, provider string) erro
 	return nil
 }
 
+// isZeroCostResource checks if a resource type maps to a zero-cost resource.
+// Returns false for empty, malformed, or unrecognized resource types by design,
+// since normalizeResourceType() and detectService() will return empty strings
+// or the original input, which won't match any ZeroCostServices keys.
+//
+// Note: Zero-cost services are defined centrally in ZeroCostServices (constants.go).
+func isZeroCostResource(resourceType string) bool {
+	normalized := normalizeResourceType(resourceType)
+	service := detectService(normalized)
+	return IsZeroCostService(service)
+}
+
 // ValidateProjectedCostRequest validates the request using SDK helpers and custom region checks.
 // Returns the extracted resource descriptor if valid.
 func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.ResourceDescriptor, error) {
 	traceID := p.getTraceID(ctx)
 
-	// SDK validation (checks nil request, required fields)
+	// Basic nil checks before any validation
+	if req == nil || req.Resource == nil {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+
+	resource := req.Resource
+
+	// Check if this is a zero-cost resource BEFORE SDK validation.
+	// Zero-cost resources (VPC, Security Groups, Subnets) don't require a SKU
+	// since they always return $0 cost estimates.
+	// Note: isZeroCostResource() guarantees a non-empty, known type via
+	// normalizeResourceType() and detectService(), so no separate empty check needed.
+	if isZeroCostResource(resource.ResourceType) {
+		// Validate provider and region manually (skip SDK's SKU requirement)
+		if err := p.validateProvider(traceID, resource.Provider); err != nil {
+			return nil, err
+		}
+
+		// Region check for zero-cost resources
+		effectiveRegion := resource.Region
+		if effectiveRegion == "" {
+			// Zero-cost networking resources (VPC, SecurityGroup, Subnet) are technically regional,
+			// but since their cost is always $0 regardless of region, we can safely default to the
+			// plugin's current region to allow processing. This aligns with how we handle global
+			// services like S3 and IAM.
+			effectiveRegion = p.region
+		}
+		if effectiveRegion != p.region {
+			return nil, p.RegionMismatchError(traceID, effectiveRegion)
+		}
+
+		return resource, nil
+	}
+
+	// SDK validation (checks nil request, required fields including SKU)
 	if err := pluginsdk.ValidateProjectedCostRequest(req); err != nil {
 		// Map SDK error to gRPC status with ErrorDetail
 		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 	}
-
-	resource := req.Resource
 
 	// Comprehensive field validation (T011)
 	if err := p.validateProvider(traceID, resource.Provider); err != nil {
