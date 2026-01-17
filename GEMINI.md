@@ -165,6 +165,8 @@ When adding support for a new AWS service, follow these steps:
 
 ## Active Technologies
 - Go 1.25+ + gRPC (finfocus.v1), rs/zerolog, pluginsdk; embedded JSON pricing via `//go:embed` parsed into indexed maps
+- Markdown, JSON (Task Definition), HCL (Terraform example) + AWS ECS Fargate, Cloud Map, Docker (027-ecs-deployment)
+- N/A (Stateless) (027-ecs-deployment)
 
 ## Recent Changes
 

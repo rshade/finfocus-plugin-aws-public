@@ -22,9 +22,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 		projReq.Resource = req.Resource
 	}
 	if _, err := p.ValidateProjectedCostRequest(ctx, projReq); err != nil {
-		p.logger.Error().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetPricingSpec").
+		p.traceLogger(traceID, "GetPricingSpec").Error().
 			Err(err).
 			Msg("validation failed")
 		return nil, err
@@ -73,9 +71,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 		}
 	}
 
-	p.logger.Info().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetPricingSpec").
+	p.traceLogger(traceID, "GetPricingSpec").Info().
 		Str(pluginsdk.FieldResourceType, resource.ResourceType).
 		Str("aws_region", resource.Region).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).

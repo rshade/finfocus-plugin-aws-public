@@ -206,9 +206,7 @@ func sanitizeTagsForLogging(tags map[string]string) map[string]string {
 // Use this when you've already extracted the trace ID to ensure consistency
 // between error objects and log entries.
 func (p *AWSPublicPlugin) logErrorWithID(traceID, operation string, err error, code pbc.ErrorCode) {
-	p.logger.Error().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, operation).
+	p.traceLogger(traceID, operation).Error().
 		Str(pluginsdk.FieldErrorCode, code.String()).
 		Err(err).
 		Msg("request failed")
@@ -242,6 +240,17 @@ func (p *AWSPublicPlugin) newErrorWithID(traceID string, grpcCode codes.Code, ms
 	return stWithDetails.Err()
 }
 
+// traceLogger returns a logger with traceID and operation pre-filled.
+// This reduces code duplication for repeated logging patterns throughout the plugin.
+// Usage: p.traceLogger(traceID, "GetProjectedCost").Debug().Msg("message")
+func (p *AWSPublicPlugin) traceLogger(traceID string, operation string) *zerolog.Logger {
+	logger := p.logger.With().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str(pluginsdk.FieldOperation, operation).
+		Logger()
+	return &logger
+}
+
 // Name returns the plugin name identifier.
 func (p *AWSPublicPlugin) Name() string {
 	return "finfocus-plugin-aws-public"
@@ -251,9 +260,7 @@ func (p *AWSPublicPlugin) Name() string {
 func (p *AWSPublicPlugin) GetPluginInfo(ctx context.Context, _ *pbc.GetPluginInfoRequest) (*pbc.GetPluginInfoResponse, error) {
 	traceID := p.getTraceID(ctx)
 
-	p.logger.Info().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetPluginInfo").
+	p.traceLogger(traceID, "GetPluginInfo").Info().
 		Msg("providing plugin info")
 
 	return &pbc.GetPluginInfoResponse{
@@ -326,9 +333,7 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 		}
 		source := formatSourceWithConfidence(confidence, note)
 
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetActualCost").
+		p.traceLogger(traceID, "GetActualCost").Info().
 			Float64("cost_monthly", 0).
 			Float64("usage_amount", runtimeHours).
 			Str("usage_unit", "hours").
@@ -388,9 +393,7 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	// Combine: confidence prefix + billing detail
 	fullSource := sourceWithConfidence + " | " + billingDetail
 
-	p.logger.Info().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetActualCost").
+	p.traceLogger(traceID, "GetActualCost").Info().
 		Str(pluginsdk.FieldResourceType, resource.ResourceType).
 		Str("aws_service", resource.ResourceType).
 		Str("aws_region", resource.Region).

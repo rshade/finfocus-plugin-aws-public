@@ -24,7 +24,7 @@ func TestElastiCacheEstimator_EstimateCarbonGrams(t *testing.T) {
 				Nodes:       2,
 				Region:      "us-east-1",
 				Utilization: 0.5,
-				Hours:       730,
+				Hours:       HoursPerMonth,
 			},
 			wantOk:  true,
 			wantMin: 1000, // Roughly > 1kg CO2e for m5.large for 730h
@@ -37,7 +37,7 @@ func TestElastiCacheEstimator_EstimateCarbonGrams(t *testing.T) {
 				Nodes:       1,
 				Region:      "us-east-1",
 				Utilization: 0.1,
-				Hours:       730,
+				Hours:       HoursPerMonth,
 			},
 			wantOk:  true,
 			wantMin: 10, // Small but non-zero
@@ -74,7 +74,7 @@ func TestElastiCacheEstimator_GetBillingDetail(t *testing.T) {
 		Nodes:       3,
 		Region:      "us-east-1",
 		Utilization: 0.5,
-		Hours:       730,
+		Hours:       HoursPerMonth,
 	}
 
 	detail := estimator.GetBillingDetail(config)

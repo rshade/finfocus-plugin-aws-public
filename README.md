@@ -203,6 +203,8 @@ Priority: `resource.utilization_percentage` > `request.utilization_percentage` >
 
 This repository includes a multi-region Docker image that bundles all 12 supported regional binaries into a single container image. This is ideal for Kubernetes deployments where you want a single artifact.
 
+👉 **[Read the ECS Deployment Guide](docs/ecs-deployment.md)** for production deployment on Amazon ECS.
+
 ### Build
 
 ```bash
@@ -1079,4 +1081,5 @@ emission estimation.
 - [FinFocus Spec](https://github.com/rshade/finfocus-spec)
 - [AWS Pricing Documentation](https://aws.amazon.com/pricing/)
 - [API Documentation](docs/api.md)
+- [ECS Deployment Guide](docs/ecs-deployment.md)
 - [Code Documentation](https://pkg.go.dev/github.com/rshade/finfocus-plugin-aws-public)

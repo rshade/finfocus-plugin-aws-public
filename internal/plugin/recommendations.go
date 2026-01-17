@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -214,9 +215,7 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 	}
 
 	// FR-010: Summary logging (one line per batch, not per resource)
-	p.logger.Info().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetRecommendations").
+	p.traceLogger(traceID, "GetRecommendations").Info().
 		Int("total_resources", pctx.BatchStats.TotalResources).
 		Int("matched_resources", pctx.BatchStats.MatchedResources).
 		Int("recommendation_count", len(recommendations)).
@@ -818,8 +817,6 @@ func copyTags(tags map[string]string) map[string]string {
 		return nil
 	}
 	result := make(map[string]string, len(tags))
-	for k, v := range tags {
-		result[k] = v
-	}
+	maps.Copy(result, tags)
 	return result
 }

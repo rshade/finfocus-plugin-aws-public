@@ -87,9 +87,7 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 		costMonthly = 0
 	}
 
-	p.logger.Info().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "EstimateCost").
+	p.traceLogger(traceID, "EstimateCost").Info().
 		Str("pulumi_type", req.ResourceType).
 		Str("aws_region", region).
 		Float64(pluginsdk.FieldCostMonthly, costMonthly).
@@ -191,9 +189,7 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 	// Get instance type from attributes
 	instanceType, ok := getStringAttr(attrs, "instanceType")
 	if !ok || instanceType == "" {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "EstimateCost").
+		p.traceLogger(traceID, "EstimateCost").Debug().
 			Msg("EC2 instance missing instanceType attribute")
 		return 0
 	}
@@ -203,9 +199,7 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, ec2Attrs.OS, ec2Attrs.Tenancy)
 	if !found {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "EstimateCost").
+		p.traceLogger(traceID, "EstimateCost").Debug().
 			Str("instance_type", instanceType).
 			Msg("EC2 instance type not found in pricing data")
 		return 0
@@ -235,9 +229,7 @@ func (p *AWSPublicPlugin) estimateEBSFromAttrs(traceID, resourceName string, att
 
 	ratePerGBMonth, found := p.pricing.EBSPricePerGBMonth(volumeType)
 	if !found {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "EstimateCost").
+		p.traceLogger(traceID, "EstimateCost").Debug().
 			Str("volume_type", volumeType).
 			Msg("EBS volume type not found in pricing data")
 		return 0

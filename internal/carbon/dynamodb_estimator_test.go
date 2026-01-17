@@ -20,7 +20,7 @@ func TestDynamoDBEstimator_EstimateCarbonGrams(t *testing.T) {
 			config: DynamoDBTableConfig{
 				SizeGB: 50,
 				Region: "us-east-1",
-				Hours:  730,
+				Hours:  HoursPerMonth,
 			},
 			// Same as S3 Standard methodology (SSD, 3× replication)
 			minCarbonGrams: 40,
@@ -31,7 +31,7 @@ func TestDynamoDBEstimator_EstimateCarbonGrams(t *testing.T) {
 			config: DynamoDBTableConfig{
 				SizeGB: 100,
 				Region: "us-east-1",
-				Hours:  730,
+				Hours:  HoursPerMonth,
 			},
 			// Should be ~2× of 50GB
 			minCarbonGrams: 80,
@@ -42,7 +42,7 @@ func TestDynamoDBEstimator_EstimateCarbonGrams(t *testing.T) {
 			config: DynamoDBTableConfig{
 				SizeGB: 100,
 				Region: "eu-north-1",
-				Hours:  730,
+				Hours:  HoursPerMonth,
 			},
 			// Much lower due to clean grid
 			minCarbonGrams: 0.1,
@@ -53,7 +53,7 @@ func TestDynamoDBEstimator_EstimateCarbonGrams(t *testing.T) {
 			config: DynamoDBTableConfig{
 				SizeGB: 0,
 				Region: "us-east-1",
-				Hours:  730,
+				Hours:  HoursPerMonth,
 			},
 			minCarbonGrams: 0,
 			maxCarbonGrams: 0.001,
@@ -107,7 +107,7 @@ func TestDynamoDBEstimator_GetBillingDetail(t *testing.T) {
 	detail := e.GetBillingDetail(DynamoDBTableConfig{
 		SizeGB: 100,
 		Region: "us-east-1",
-		Hours:  730,
+		Hours:  HoursPerMonth,
 	})
 
 	assert.Contains(t, detail, "DynamoDB")

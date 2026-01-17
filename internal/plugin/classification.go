@@ -88,3 +88,10 @@ var serviceClassifications = map[string]ServiceClassification{
 		Relationship:      RelationshipWithin,
 	},
 }
+
+// GetServiceClassification retrieves the classification metadata for a service type.
+// Returns the ServiceClassification and a boolean indicating if the service was found.
+func GetServiceClassification(serviceType string) (ServiceClassification, bool) {
+	classification, ok := serviceClassifications[serviceType]
+	return classification, ok
+}

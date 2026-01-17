@@ -74,9 +74,10 @@ func run() error {
 				Str("deprecated_since", "v0.0.8").
 				Str("removal_version", "v0.1.0").
 				Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use FINFOCUS_PLUGIN_PORT instead.")
-			if parsed, err := strconv.Atoi(portStr); err == nil && parsed > 0 && parsed <= 65535 {
+			parsed, err := strconv.Atoi(portStr)
+			if err == nil && parsed > 0 && parsed <= 65535 {
 				port = parsed
-			} else if parsed, err := strconv.Atoi(portStr); err == nil {
+			} else if err == nil {
 				logger.Warn().
 					Int("port", parsed).
 					Msg("PORT environment variable value is out of valid range (1-65535), ignoring")

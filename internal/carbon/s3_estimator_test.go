@@ -22,7 +22,7 @@ func TestS3Estimator_EstimateCarbonGrams(t *testing.T) {
 				StorageClass: "STANDARD",
 				SizeGB:       100,
 				Region:       "us-east-1",
-				Hours:        730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 80,   // ~110 gCO2e expected (higher than EBS due to 3× replication)
@@ -34,7 +34,7 @@ func TestS3Estimator_EstimateCarbonGrams(t *testing.T) {
 				StorageClass: "STANDARD",
 				SizeGB:       1024,
 				Region:       "us-east-1",
-				Hours:        730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 800,  // ~1131 gCO2e expected
@@ -46,7 +46,7 @@ func TestS3Estimator_EstimateCarbonGrams(t *testing.T) {
 				StorageClass: "ONEZONE_IA",
 				SizeGB:       100,
 				Region:       "us-east-1",
-				Hours:        730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 20,  // Lower due to 1× replication
@@ -58,7 +58,7 @@ func TestS3Estimator_EstimateCarbonGrams(t *testing.T) {
 				StorageClass: "GLACIER",
 				SizeGB:       100,
 				Region:       "us-east-1",
-				Hours:        730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 30, // Lower due to HDD coefficient (0.65 vs 1.2)
@@ -70,7 +70,7 @@ func TestS3Estimator_EstimateCarbonGrams(t *testing.T) {
 				StorageClass: "UNKNOWN_CLASS",
 				SizeGB:       100,
 				Region:       "us-east-1",
-				Hours:        730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         false,
 			minCarbonGrams: 0,

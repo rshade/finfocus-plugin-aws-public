@@ -1,0 +1,151 @@
+name: finfocus-plugin-aws-public-ecs
+runtime: yaml
+description: Deploy FinFocus AWS Public Plugin to ECS Fargate using Pulumi YAML
+
+variables:
+  # Replace these with your actual VPC and Subnet IDs
+  vpcId:
+    fn::invoke:
+      function: aws:ec2:getVpc
+      arguments:
+        default: true
+  subnetIds:
+    fn::invoke:
+      function: aws:ec2:getSubnets
+      arguments:
+        filters:
+          - name: vpc-id
+            values:
+              - ${vpcId.id}
+
+resources:
+  # 1. Cloud Map Private DNS Namespace
+  namespace:
+    type: aws:servicediscovery:PrivateDnsNamespace
+    properties:
+      name: finfocus.local
+      description: Internal service discovery for FinFocus plugins
+      vpc: ${vpcId.id}
+
+  # 2. Cloud Map Service
+  discoveryService:
+    type: aws:servicediscovery:Service
+    properties:
+      name: aws-public
+      dnsConfig:
+        namespaceId: ${namespace.id}
+        dnsRecords:
+          - ttl: 60
+            type: A
+        routingPolicy: MULTIVALUE
+      healthCheckCustomConfig:
+        failureThreshold: 1
+
+  # 3. Security Group
+  pluginSg:
+    type: aws:ec2:SecurityGroup
+    properties:
+      description: Allow inbound traffic to FinFocus plugin regional ports
+      vpcId: ${vpcId.id}
+      ingress:
+        - protocol: tcp
+          fromPort: 8001
+          toPort: 8012
+          cidrBlocks: ["10.0.0.0/16"] # Replace with your actual VPC CIDR block (e.g., query vpcId.cidrBlock)
+        - protocol: tcp
+          fromPort: 9090
+          toPort: 9090
+          cidrBlocks: ["10.0.0.0/16"] # Replace with your actual VPC CIDR block for metrics endpoint
+
+  # 4. ECS Cluster
+  cluster:
+    type: aws:ecs:Cluster
+    properties:
+      name: finfocus-cluster
+
+  # 5. IAM Execution Role
+  executionRole:
+    type: aws:iam:Role
+    properties:
+      assumeRolePolicy:
+        fn::toJSON:
+          Version: "2012-10-17"
+          Statement:
+            - Action: "sts:AssumeRole"
+              Effect: "Allow"
+              Principal:
+                Service: "ecs-tasks.amazonaws.com"
+      managedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # 6. CloudWatch Log Group
+  logGroup:
+    type: aws:cloudwatch:LogGroup
+    properties:
+      name: /ecs/finfocus-plugin
+      retentionInDays: 7
+
+  # 7. ECS Task Definition
+  taskDefinition:
+    type: aws:ecs:TaskDefinition
+    properties:
+      family: finfocus-plugin-aws-public
+      cpu: "2048"
+      memory: "4096"
+      networkMode: awsvpc
+      requiresCompatibilities: ["FARGATE"]
+      executionRoleArn: ${executionRole.arn}
+      containerDefinitions:
+        fn::toJSON:
+          - name: plugin
+            image: ghcr.io/rshade/finfocus-plugin-aws-public:latest
+            essential: true
+            portMappings:
+              #  Regional ports 8001-8012 + Metrics 9090
+              - {containerPort: 8001, protocol: tcp}
+              - {containerPort: 8002, protocol: tcp}
+              - {containerPort: 8003, protocol: tcp}
+              - {containerPort: 8004, protocol: tcp}
+              - {containerPort: 8005, protocol: tcp}
+              - {containerPort: 8006, protocol: tcp}
+              - {containerPort: 8007, protocol: tcp}
+              - {containerPort: 8008, protocol: tcp}
+              - {containerPort: 8009, protocol: tcp}
+              - {containerPort: 8010, protocol: tcp}
+              - {containerPort: 8011, protocol: tcp}
+              - {containerPort: 8012, protocol: tcp}
+              - {containerPort: 9090, protocol: tcp}
+            healthCheck:
+              command: ["CMD-SHELL", "/healthcheck.sh"]
+              interval: 30
+              timeout: 5
+              retries: 3
+              startPeriod: 30
+            logConfiguration:
+              logDriver: awslogs
+              options:
+                awslogs-group: /ecs/finfocus-plugin
+                awslogs-region: us-east-1
+                awslogs-stream-prefix: ecs
+            environment:
+              - {name: FINFOCUS_PLUGIN_WEB_ENABLED, value: "true"}
+
+  # 8. ECS Service
+  service:
+    type: aws:ecs:Service
+    properties:
+      name: finfocus-plugin-aws-public
+      cluster: ${cluster.arn}
+      taskDefinition: ${taskDefinition.arn}
+      desiredCount: 1
+      launchType: FARGATE
+      networkConfiguration:
+        assignPublicIp: true  #  Set to false if using private subnets + NAT
+        subnets: ${subnetIds.ids}
+        securityGroups:
+          - ${pluginSg.id}
+      serviceRegistries:
+        registryArn: ${discoveryService.arn}
+
+outputs:
+  endpoint: http://aws-public.finfocus.local:8001

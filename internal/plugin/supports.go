@@ -15,9 +15,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	traceID := p.getTraceID(ctx)
 
 	if req == nil || req.Resource == nil {
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
+		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldErrorCode, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE.String()).
 			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 			Msg("resource support check")
@@ -39,9 +37,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	// Check provider
 	if resource.Provider != providerAWS {
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
+		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.ResourceType).
 			Str("aws_region", resource.Region).
 			Bool("supported", false).
@@ -61,9 +57,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	}
 
 	if effectiveRegion != p.region {
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
+		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.ResourceType).
 			Str("aws_region", resource.Region).
 			Bool("supported", false).
@@ -82,9 +76,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 		// These services support cost estimation
 		// EC2 also supports carbon footprint estimation
 		supportedMetrics := getSupportedMetrics(normalizedType)
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
+		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.ResourceType).
 			Str("aws_region", resource.Region).
 			Bool("supported", true).
@@ -100,9 +92,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	case "elb", "natgw", "cloudwatch":
 		// Supported but no carbon estimation yet
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
+		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.ResourceType).
 			Str("aws_region", resource.Region).
 			Bool("supported", true).
@@ -117,9 +107,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	default:
 		// Unknown resource type
-		p.logger.Info().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "Supports").
+		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.ResourceType).
 			Str("aws_region", resource.Region).
 			Bool("supported", false).

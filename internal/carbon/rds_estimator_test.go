@@ -25,7 +25,7 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "gp3",
 				StorageSizeGB: 100,
 				Utilization:   0.5,
-				Hours:         730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 3000,  // CCF: m5.large ~3.5kg CO2e/month
@@ -40,7 +40,7 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "gp3",
 				StorageSizeGB: 100,
 				Utilization:   0.5,
-				Hours:         730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 6000,  // 2× Single-AZ ~7kg CO2e/month
@@ -55,7 +55,7 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "io2",
 				StorageSizeGB: 500,
 				Utilization:   0.5,
-				Hours:         730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 10000, // r5.xlarge 4vCPU + 500GB storage
@@ -70,7 +70,7 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "gp3",
 				StorageSizeGB: 100,
 				Utilization:   0.5,
-				Hours:         730,
+				Hours: HoursPerMonth,
 			},
 			wantOK:         false,
 			minCarbonGrams: 0,
@@ -107,7 +107,7 @@ func TestRDSEstimator_MultiAZDoubles(t *testing.T) {
 		StorageType:   "gp3",
 		StorageSizeGB: 100,
 		Utilization:   0.5,
-		Hours:         730,
+		Hours: HoursPerMonth,
 	}
 
 	configMultiAZ := configSingleAZ
@@ -135,7 +135,7 @@ func TestRDSEstimator_Breakdown(t *testing.T) {
 		StorageType:   "gp3",
 		StorageSizeGB: 100,
 		Utilization:   0.5,
-		Hours:         730,
+		Hours: HoursPerMonth,
 	}
 
 	computeCarbon, storageCarbon, ok := e.EstimateCarbonGramsWithBreakdown(config)

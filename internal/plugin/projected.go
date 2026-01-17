@@ -20,7 +20,6 @@ const (
 	defaultRDSEngine  = "mysql"
 	defaultRDSStorage = "gp2"
 	defaultRDSSizeGB  = 20
-	hoursPerMonth     = 730
 )
 
 // normalizeResourceType converts various resource type formats to a canonical form.
@@ -190,9 +189,7 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	}
 
 	// Log successful completion with all required fields
-	p.logger.Info().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
+	p.traceLogger(traceID, "GetProjectedCost").Info().
 		Str(pluginsdk.FieldResourceType, resource.ResourceType).
 		Str("aws_service", resource.ResourceType).
 		Str("aws_region", resource.Region).
@@ -220,9 +217,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, ec2Attrs.OS, ec2Attrs.Tenancy)
 	if !found {
 		// FR-035: Unknown instance types return $0 with explanation
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("instance_type", instanceType).
 			Str("aws_region", p.region).
 			Str("pricing_source", "embedded").
@@ -238,8 +233,6 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 
 	// Debug log successful lookup
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("instance_type", instanceType).
 		Str("aws_region", p.region).
 		Str("pricing_source", "embedded").
@@ -272,9 +265,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("instance_type", instanceType).
 			Str("aws_region", resource.Region).
 			Float64("utilization", utilization).
@@ -282,9 +273,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 			Msg("Carbon estimation successful")
 	} else {
 		// Unknown instance type for carbon - log warning but continue with financial cost
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("instance_type", instanceType).
 			Msg("Carbon estimation skipped - instance type not in CCF data")
 	}
@@ -326,9 +315,7 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 	ratePerGBMonth, found := p.pricing.EBSPricePerGBMonth(volumeType)
 	if !found {
 		// Unknown volume type - return $0 with explanation
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("storage_type", volumeType).
 			Str("aws_region", p.region).
 			Str("pricing_source", "embedded").
@@ -344,8 +331,6 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 
 	// Debug log successful lookup
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("storage_type", volumeType).
 		Str("aws_region", p.region).
 		Str("pricing_source", "embedded").
@@ -377,7 +362,7 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 		VolumeType: volumeType,
 		SizeGB:     float64(sizeGB),
 		Region:     resource.Region,
-		Hours:      hoursPerMonth,
+		Hours:      HoursPerMonthProd,
 	})
 
 	if carbonOK {
@@ -389,9 +374,7 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("volume_type", volumeType).
 			Int("size_gb", sizeGB).
 			Str("aws_region", resource.Region).
@@ -426,9 +409,7 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 	ratePerGBMonth, found := p.pricing.S3PricePerGBMonth(storageClass)
 	if !found {
 		// Unknown storage class - return $0 with explanation
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("storage_class", storageClass).
 			Str("aws_region", p.region).
 			Str("pricing_source", "embedded").
@@ -444,8 +425,6 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 
 	// Debug log successful lookup
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("storage_class", storageClass).
 		Str("aws_region", p.region).
 		Str("pricing_source", "embedded").
@@ -476,7 +455,7 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 		StorageClass: storageClass,
 		SizeGB:       sizeGB,
 		Region:       resource.Region,
-		Hours:        hoursPerMonth,
+		Hours:        HoursPerMonthProd,
 	})
 
 	if carbonOK {
@@ -488,9 +467,7 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("storage_class", storageClass).
 			Float64("size_gb", sizeGB).
 			Str("aws_region", resource.Region).
@@ -626,9 +603,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 			billingDetail += " (missing or zero usage inputs)"
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("capacity_mode", "provisioned").
 			Int64("rcu", readUnits).
 			Int64("wcu", writeUnits).
@@ -647,7 +622,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 		carbonGrams, carbonOK := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
 			SizeGB: storageGB,
 			Region: resource.Region,
-			Hours:  hoursPerMonth,
+			Hours:  HoursPerMonthProd,
 		})
 
 		if carbonOK && storageGB > 0 {
@@ -659,9 +634,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 				},
 			}
 
-			p.logger.Debug().
-				Str(pluginsdk.FieldTraceID, traceID).
-				Str(pluginsdk.FieldOperation, "GetProjectedCost").
+			p.traceLogger(traceID, "GetProjectedCost").Debug().
 				Float64("storage_gb", storageGB).
 				Str("aws_region", resource.Region).
 				Float64("carbon_grams", carbonGrams).
@@ -723,8 +696,6 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	}
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("capacity_mode", "on-demand").
 		Int64("read_units", readUnits).
 		Int64("write_units", writeUnits).
@@ -743,7 +714,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	carbonGrams, carbonOK := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
 		SizeGB: storageGB,
 		Region: resource.Region,
-		Hours:  hoursPerMonth,
+		Hours:  HoursPerMonthProd,
 	})
 
 	if carbonOK && storageGB > 0 {
@@ -755,9 +726,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Float64("storage_gb", storageGB).
 			Str("aws_region", resource.Region).
 			Float64("carbon_grams", carbonGrams).
@@ -839,9 +808,7 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 	}
 
 	if !fixedFound || !cuFound {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("lb_type", lbType).
 			Str("aws_region", p.region).
 			Msg("ELB pricing data not found")
@@ -864,8 +831,6 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 		strings.ToUpper(lbType), capacityUnits, cuMetricName)
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("lb_type", lbType).
 		Float64("capacity_units", capacityUnits).
 		Str("aws_region", p.region).
@@ -965,9 +930,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 	hourlyRate, found := p.pricing.RDSOnDemandPricePerHour(instanceType, normalizedEngine)
 	if !found {
 		// Unknown instance type - return $0 with explanation
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("instance_type", instanceType).
 			Str("engine", normalizedEngine).
 			Str("aws_region", p.region).
@@ -991,8 +954,6 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 
 	// Debug log successful lookup
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("instance_type", instanceType).
 		Str("engine", normalizedEngine).
 		Str("storage_type", storageType).
@@ -1045,7 +1006,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 		StorageType:   storageType,
 		StorageSizeGB: float64(storageSizeGB),
 		Utilization:   carbon.DefaultUtilization, // Use CCF default (50%)
-		Hours:         hoursPerMonth,
+		Hours:         HoursPerMonthProd,
 	})
 
 	if carbonOK {
@@ -1057,9 +1018,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("instance_type", instanceType).
 			Int("storage_size_gb", storageSizeGB).
 			Bool("multi_az", multiAZ).
@@ -1138,9 +1097,7 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 	// Look up EKS pricing based on support type
 	hourlyRate, found := p.pricing.EKSClusterPricePerHour(extendedSupport)
 	if !found {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("aws_region", p.region).
 			Bool("extended_support", extendedSupport).
 			Msg("EKS pricing data not found")
@@ -1155,8 +1112,6 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 
 	// Debug log successful lookup
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("aws_region", p.region).
 		Bool("extended_support", extendedSupport).
 		Float64("hourly_rate", hourlyRate).
@@ -1196,8 +1151,6 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 	}
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("aws_region", resource.Region).
 		Float64("carbon_grams", carbonGrams).
 		Msg("EKS carbon estimation: control plane is shared infrastructure (0 gCO2e)")
@@ -1260,9 +1213,7 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 	gbSecPrice, gbSecFound := p.pricing.LambdaPricePerGBSecond(architecture)
 
 	if !reqFound || !gbSecFound {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("aws_region", p.region).
 			Str("architecture", architecture).
 			Msg("Lambda pricing data not found")
@@ -1319,8 +1270,6 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 	detail += fmt.Sprintf(", %.0f GB-seconds", totalGBSec)
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Int("memory_mb", memoryMB).
 		Str("architecture", archDisplay).
 		Int64("requests", requestsPerMonth).
@@ -1355,9 +1304,7 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Int("memory_mb", memoryMB).
 			Str("architecture", archDisplay).
 			Int64("invocations", requestsPerMonth).
@@ -1378,9 +1325,7 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 	// 1. Lookup Pricing
 	pricing, found := p.pricing.NATGatewayPrice()
 	if !found {
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("aws_region", p.region).
 			Msg("NAT Gateway pricing data not found")
 
@@ -1428,8 +1373,6 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 	}
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Float64("hourly_rate", pricing.HourlyRate).
 		Float64("data_rate", pricing.DataProcessingRate).
 		Float64("data_gb", dataProcessedGB).
@@ -1629,8 +1572,6 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 	}
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("sku", sku).
 		Float64("log_ingestion_gb", logIngestionGB).
 		Float64("log_storage_gb", logStorageGB).
@@ -1737,8 +1678,6 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 	}
 
 	p.logger.Debug().
-		Str(pluginsdk.FieldTraceID, traceID).
-		Str(pluginsdk.FieldOperation, "GetProjectedCost").
 		Str("node_type", nodeType).
 		Str("engine", engine).
 		Int("num_nodes", numNodes).
@@ -1773,9 +1712,7 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 			},
 		}
 
-		p.logger.Debug().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Str(pluginsdk.FieldOperation, "GetProjectedCost").
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("node_type", nodeType).
 			Int("num_nodes", numNodes).
 			Str("aws_region", resource.Region).

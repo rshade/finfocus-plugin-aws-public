@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -65,7 +66,13 @@ func TestWebServer(t *testing.T) {
 	defer func() {
 		stdoutW.Close()
 		stderrW.Close()
+		// Attempt graceful shutdown with SIGTERM, then force kill if needed
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+		// Give process time to exit gracefully
+		time.Sleep(100 * time.Millisecond)
+		// Force kill and wait for process to be reaped
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 	}()
 
 	// Wait for port
