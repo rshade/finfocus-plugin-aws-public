@@ -26,6 +26,7 @@ const (
 // Examples:
 //   - "aws:ec2/instance:Instance" -> "ec2"
 //   - "aws:ebs:Volume" -> "ebs"
+//   - "aws:ec2/vpc:Vpc" -> "vpc"
 //   - "ec2" -> "ec2"
 func normalizeResourceType(resourceType string) string {
 	rt := strings.ToLower(resourceType)
@@ -35,6 +36,19 @@ func normalizeResourceType(resourceType string) string {
 		// Special case: aws:ec2/volume is EBS
 		if strings.Contains(rt, "ec2/volume") {
 			return "ebs"
+		}
+
+		// Zero-cost EC2 networking resources (centralized in ZeroCostPulumiPatterns)
+		// Use token-aware matching to avoid false positives (e.g., "ec2/vpc" matching "ec2/vpcEndpoint")
+		awsSuffix := rt[4:] // Remove "aws:" prefix (already verified above)
+		for pattern, service := range ZeroCostPulumiPatterns {
+			// Pattern must be a complete path segment, followed by ":" (Pulumi type separator) or end of string
+			if strings.HasPrefix(awsSuffix, pattern) {
+				remaining := awsSuffix[len(pattern):]
+				if remaining == "" || remaining[0] == ':' {
+					return service
+				}
+			}
 		}
 
 		parts := strings.Split(rt[4:], "/")
@@ -162,6 +176,9 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateCloudWatch(traceID, resource)
 	case "elasticache":
 		resp, err = p.estimateElastiCache(traceID, resource)
+	case "vpc", "securitygroup", "subnet":
+		// Zero-cost AWS networking resources - no direct charges
+		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
@@ -1044,6 +1061,12 @@ func detectService(resourceType string) string {
 		return "elb"
 	}
 
+	// Zero-cost networking resources (no direct AWS charges)
+	// Defined centrally in ZeroCostServices (constants.go)
+	if IsZeroCostService(resourceType) {
+		return resourceType
+	}
+
 	// Fallback for legacy patterns if normalization didn't catch them
 	resourceTypeLower := strings.ToLower(resourceType)
 
@@ -1724,4 +1747,39 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:elasticache:cluster", resp)
 
 	return resp, nil
+}
+
+// zeroCostResourceDescriptions provides billing detail messages for resources with no direct AWS charges.
+var zeroCostResourceDescriptions = map[string]string{
+	"vpc":           "VPC has no direct hourly or monthly charge. Costs may apply for associated resources (NAT Gateway, VPN, etc.)",
+	"securitygroup": "Security Groups have no direct charge. They are a free networking feature.",
+	"subnet":        "Subnets have no direct charge. Costs may apply for data transfer between AZs.",
+}
+
+// estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.
+// These include VPC, Security Groups, and Subnets - fundamental networking resources that are
+// free to create but may have associated costs from other resources.
+func (p *AWSPublicPlugin) estimateZeroCostResource(traceID string, resource *pbc.ResourceDescriptor, serviceType string) *pbc.GetProjectedCostResponse {
+	description, ok := zeroCostResourceDescriptions[serviceType]
+	if !ok {
+		description = fmt.Sprintf("%s has no direct AWS charge", serviceType)
+	}
+
+	p.logger.Debug().
+		Str(pluginsdk.FieldTraceID, traceID).
+		Str("service_type", serviceType).
+		Str("original_resource_type", resource.ResourceType).
+		Msg("Zero-cost resource estimated")
+
+	resp := &pbc.GetProjectedCostResponse{
+		CostPerMonth:  0,
+		UnitPrice:     0,
+		Currency:      "USD",
+		BillingDetail: description,
+	}
+
+	// Apply growth hint enrichment (static for networking resources)
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), resource.ResourceType, resp)
+
+	return resp
 }

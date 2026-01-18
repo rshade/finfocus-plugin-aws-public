@@ -420,3 +420,90 @@ func TestRegionFallbackGlobalServices(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateProjectedCostRequest_ZeroCostResource_NoSKURequired verifies that
+// zero-cost resources pass validation even without a SKU.
+func TestValidateProjectedCostRequest_ZeroCostResource_NoSKURequired(t *testing.T) {
+	logger := zerolog.Nop()
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
+	ctx := context.Background()
+
+	tests := []struct {
+		name         string
+		resourceType string
+	}{
+		{"VPC", "vpc"},
+		{"SecurityGroup", "securitygroup"},
+		{"Subnet", "subnet"},
+		{"VPC (Pulumi)", "aws:ec2/vpc:Vpc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+					Sku:          "", // No SKU provided
+				},
+			}
+
+			res, err := p.ValidateProjectedCostRequest(ctx, req)
+			require.NoError(t, err)
+			assert.Equal(t, tt.resourceType, res.ResourceType)
+		})
+	}
+}
+
+// TestValidateProjectedCostRequest_ZeroCostResource_RegionMismatch verifies that
+// region validation still applies to zero-cost resources, but defaulting works for empty region.
+func TestValidateProjectedCostRequest_ZeroCostResource_RegionValidation(t *testing.T) {
+	logger := zerolog.Nop()
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
+	ctx := context.Background()
+
+	tests := []struct {
+		name      string
+		region    string
+		wantError bool
+	}{
+		{
+			name:      "Correct Region",
+			region:    "us-east-1",
+			wantError: false,
+		},
+		{
+			name:      "Empty Region (Defaults)",
+			region:    "",
+			wantError: false,
+		},
+		{
+			name:      "Wrong Region",
+			region:    "us-west-2",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "vpc",
+					Region:       tt.region,
+				},
+			}
+
+			_, err := p.ValidateProjectedCostRequest(ctx, req)
+			if tt.wantError {
+				require.Error(t, err)
+				st, ok := status.FromError(err)
+				require.True(t, ok)
+				assert.Equal(t, codes.FailedPrecondition, st.Code())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

@@ -1298,6 +1298,21 @@ func TestDetectService(t *testing.T) {
 		{"s3 bucket", "aws:s3/bucket:Bucket", "s3"},
 		{"lambda function", "aws:lambda/function:Function", "lambda"},
 
+		// Zero-cost networking resources
+		{"vpc pulumi format", "aws:ec2/vpc:Vpc", "vpc"},
+		{"security group pulumi format", "aws:ec2/securityGroup:SecurityGroup", "securitygroup"},
+		{"subnet pulumi format", "aws:ec2/subnet:Subnet", "subnet"},
+
+		// Resources that should NOT match zero-cost patterns (false positive prevention)
+		// These are EC2/ElastiCache resources that happen to contain "vpc"/"subnet"/"securitygroup" as a prefix,
+		// but they should NOT be classified as zero-cost services. Instead, they get classified by their
+		// parent service (ec2 or elasticache).
+		{"vpcEndpoint should not match vpc", "aws:ec2/vpcEndpoint:VpcEndpoint", "ec2"},
+		{"vpcEndpointService should not match vpc", "aws:ec2/vpcEndpointService:VpcEndpointService", "ec2"},
+		{"vpcPeeringConnection should not match vpc", "aws:ec2/vpcPeeringConnection:VpcPeeringConnection", "ec2"},
+		{"subnetGroup should not match subnet", "aws:elasticache/subnetGroup:SubnetGroup", "elasticache"},
+		{"securityGroupRule should not match securitygroup", "aws:ec2/securityGroupRule:SecurityGroupRule", "ec2"},
+
 		// Unsupported - should return input as-is
 		{"unsupported service", "aws:unknown:Service", "aws:unknown:Service"},
 		{"completely unknown", "foobar", "foobar"},
@@ -4158,6 +4173,127 @@ func TestGetProjectedCost_ElastiCache_InvalidNodeCount(t *testing.T) {
 				if st.Code() != codes.InvalidArgument {
 					t.Errorf("Expected InvalidArgument, got: %v", st.Code())
 				}
+			}
+		})
+	}
+}
+
+// TestEstimateZeroCostResource_VPC tests that VPC resources return $0 cost.
+func TestEstimateZeroCostResource_VPC(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "vpc",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "VPC has no direct hourly or monthly charge") {
+		t.Errorf("BillingDetail should mention VPC no charge, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestEstimateZeroCostResource_SecurityGroup tests that SecurityGroup resources return $0 cost.
+func TestEstimateZeroCostResource_SecurityGroup(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "securitygroup",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "Security Groups have no direct charge") {
+		t.Errorf("BillingDetail should mention Security Group no charge, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestEstimateZeroCostResource_Subnet tests that Subnet resources return $0 cost.
+func TestEstimateZeroCostResource_Subnet(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "subnet",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	}
+
+	if !strings.Contains(resp.BillingDetail, "Subnets have no direct charge") {
+		t.Errorf("BillingDetail should mention Subnet no charge, got: %s", resp.BillingDetail)
+	}
+}
+
+// TestEstimateZeroCostResource_PulumiFormat tests zero-cost resources with Pulumi format.
+func TestEstimateZeroCostResource_PulumiFormat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	tests := []struct {
+		resourceType string
+		expectText   string
+	}{
+		{"aws:ec2/vpc:Vpc", "VPC"},
+		{"aws:ec2/securityGroup:SecurityGroup", "Security Groups"},
+		{"aws:ec2/subnet:Subnet", "Subnets"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.resourceType, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			if resp.CostPerMonth != 0 {
+				t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+			}
+
+			if !strings.Contains(resp.BillingDetail, tt.expectText) {
+				t.Errorf("BillingDetail should contain %q, got: %s", tt.expectText, resp.BillingDetail)
 			}
 		})
 	}

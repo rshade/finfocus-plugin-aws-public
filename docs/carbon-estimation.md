@@ -19,6 +19,7 @@ methodology to calculate operational carbon emissions (gCO2e) for AWS resources.
 | Lambda | ✅ Full | vCPU equivalent × duration × grid factor |
 | RDS | ✅ Full | Compute + storage carbon |
 | DynamoDB | ✅ Full | Storage-based (SSD × 3× replication) |
+| ElastiCache | ✅ Full | EC2-equivalent node carbon × cluster size |
 | EKS | ⚠️ Control plane only | Returns 0 (shared infrastructure) |
 
 ## Carbon Formula
@@ -217,8 +218,8 @@ generation mixes:
 | ap-southeast-1 (Singapore) | 0.000408 | Above average |
 | ap-south-1 (Mumbai) | 0.000708 | High (coal) |
 
-**Implication:** Running the same workload in eu-north-1 vs ap-south-1 can result
-in **80× less carbon emissions**.
+**Implication:** Running the same workload in eu-north-1 (~0.0000088 tCO2e/kWh, hydro)
+vs ap-south-1 (~0.000708 tCO2e/kWh, coal) can result in **80× less carbon emissions**.
 
 ## Utilization
 
@@ -283,6 +284,12 @@ monthlyEmbodiedCarbon = (1000 kgCO2e / 48 months) × (instanceVCPUs / maxFamilyV
 
 The vCPU scaling factor accounts for shared server resources—a smaller instance
 consumes a proportionally smaller share of the server's embodied carbon.
+
+**API Note:** The `EC2InstanceConfig` struct has a top-level `IncludeEmbodiedCarbon`
+boolean for convenience. When `true`, the `EmbodiedConfig.Enabled` field is
+automatically honored. Use `IncludeEmbodiedCarbon: true` as the primary toggle;
+the nested `EmbodiedConfig` struct allows overriding default values (lifespan,
+carbon per server) when needed.
 
 ## Limitations
 

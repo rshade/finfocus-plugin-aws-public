@@ -32,3 +32,30 @@ const RelationshipWithin = "within"
 
 // RelationshipManagedBy represents a management relationship (ELB → EC2).
 const RelationshipManagedBy = "managed_by"
+
+// ZeroCostServices is the canonical set of AWS resource types that have no direct charges.
+// These resources (VPC, Security Groups, Subnets) are "free tier" networking infrastructure.
+// Use IsZeroCostService() for membership checks.
+//
+// When adding new zero-cost resources:
+// 1. Add the canonical service name here
+// 2. Add the Pulumi pattern to ZeroCostPulumiPatterns below
+var ZeroCostServices = map[string]bool{
+	"vpc":           true,
+	"securitygroup": true,
+	"subnet":        true,
+}
+
+// ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
+// Used by normalizeResourceType() to detect zero-cost resources from Pulumi format.
+// Example: "ec2/vpc" in "aws:ec2/vpc:Vpc" maps to "vpc"
+var ZeroCostPulumiPatterns = map[string]string{
+	"ec2/vpc":           "vpc",
+	"ec2/securitygroup": "securitygroup",
+	"ec2/subnet":        "subnet",
+}
+
+// IsZeroCostService returns true if the canonical service name has no direct AWS charges.
+func IsZeroCostService(service string) bool {
+	return ZeroCostServices[service]
+}
