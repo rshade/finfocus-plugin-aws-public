@@ -6,11 +6,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is `finfocus-plugin-aws-public`, a fallback FinFocus plugin that estimates AWS resource costs using public AWS on-demand pricing data, without requiring CUR/Cost Explorer/Vantage data access. The plugin implements the gRPC CostSourceService protocol and is invoked as a separate process by FinFocus core.
 
+## Quick Reference (Most Used Commands)
+
+```bash
+# Initial setup (REQUIRED before first build)
+make develop                    # Install deps + generate pricing + carbon data
+
+# Daily development
+make build-default-region       # Build us-east-1 with real pricing (RECOMMENDED)
+make test                       # Run all unit tests
+make lint                       # Run linter (includes embed verification)
+
+# Single test
+go test -v ./internal/plugin/... -run TestMyFunction
+
+# Build verification (single region is sufficient)
+go build -tags region_use1 ./cmd/finfocus-plugin-aws-public
+
+# Integration tests
+go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDPropagation
+```
+
+⚠️ **NEVER use `make build` for releases** - it uses fallback pricing and all costs return $0.
+
 ## Code Style
 
 Go 1.25+: Follow standard conventions
 - **No Dummy Data:** Do not create dummy, fake, or hardcoded placeholder data for core functionality (especially pricing). Always implement fetchers for real authoritative data sources (e.g., AWS Price List API).
 - **Validation Pattern:** For parsing numeric tags with bounds checking, use validation helper methods that return validated values and log warnings for invalid inputs. Example: `validateNonNegativeFloat64(traceID, "tag_name", value)` returns 0 and logs warning if value is negative or unparseable. This ensures consistent error handling across all tag parsing.
+- **Zero-Cost Resources:** AWS resources with no direct cost (VPC, Security Groups, Subnets) return $0 estimates gracefully instead of SKU errors.
 
 ## Roadmap
 **Important** Keep Roadmap up to date with every PR
@@ -381,140 +405,6 @@ go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/...
 go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v
 ```
 
-## Common Commands
-
-> **⚠️ IMPORTANT:** Before building, run `make generate-carbon-data` to
-> generate the CCF instance specs CSV. This file is in `.gitignore` and
-> required for carbon estimation. The build will panic at startup if missing.
-> Use `make develop` to set up the complete development environment.
-
-### Building
-```bash
-# Standard build (no region tags, uses default fallback)
-go build ./...
-
-# Build with specific region tag
-go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 ./cmd/finfocus-plugin-aws-public
-
-# Build all region binaries using GoReleaser
-goreleaser build --snapshot --clean
-```
-
-**Build Verification Tip:** When verifying that code compiles correctly with
-region build tags, building a single region is sufficient. Don't wait for all
-54 builds (9 regions × 6 architectures). Use a single-region build instead:
-
-```bash
-go build -tags region_use1 ./cmd/finfocus-plugin-aws-public
-```
-
-### Testing
-```bash
-# Run all unit tests (preferred)
-make test
-
-# Run tests for specific package
-go test ./internal/plugin
-go test ./internal/pricing
-
-# Run integration tests (requires building binaries)
-go test -tags=integration ./internal/plugin/...
-
-# Run specific integration test
-go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDPropagation
-
-# Test gRPC service manually (requires grpcurl or similar)
-# 1. Start plugin: ./finfocus-plugin-aws-public-us-east-1
-# 2. Capture PORT from stdout
-# 3. Call RPCs: grpcurl -plaintext -d '{"resource": {...}}' localhost:<port> finfocus.v1.CostSourceService/GetProjectedCost
-```
-
-### Test Cleanup
-- **Cleanup Temporary Files:** Ensure all tests and build scripts remove any temporary files (e.g., `sample_ec2.json`, generated binaries, temporary output logs) created during execution. Do not leave artifacts cluttering the workspace.
-
-### Generating Pricing Data
-
-**For Development/Testing (Recommended):**
-```bash
-# Generate pricing data for single region only (saves space, tests all logic)
-go run ./tools/generate-pricing --regions us-east-1 --out-dir ./data
-
-# Clean up old region data first if switching regions
-rm -f ./data/aws_pricing_*.json
-```
-
-**For Regional Verification (Before Release):**
-```bash
-# Generate pricing data for all supported regions
-# This is ONLY needed to verify regional binary embedding works correctly
-rm -f ./data/aws_pricing_*.json  # Clean old data first
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1,ca-central-1,sa-east-1,ap-southeast-1,ap-southeast-2,ap-northeast-1,ap-south-1 --out-dir ./data
-
-# Then build all regional binaries
-goreleaser build --snapshot --clean
-```
-
-**Why Single-Region Testing is Sufficient:**
-- Pricing parser logic is region-agnostic; testing with us-east-1 verifies all parsing logic works
-- ELB estimation code is independent of region (uses pricing client interface)
-- Build-tag system is verified by compiling one region successfully
-- SC-003 (regional support) is validated by pricing client tests, not by building all regions
-
-### Generating Carbon Data
-```bash
-# Fetch CCF instance specs for carbon estimation (from cloud-carbon-coefficients repo)
-go run ./tools/generate-carbon-data --out-dir ./internal/carbon/data
-
-# Or use make target
-make generate-carbon-data
-```
-
-The tool downloads AWS instance power specifications from the
-[cloud-carbon-coefficients](https://github.com/cloud-carbon-footprint/cloud-carbon-coefficients)
-repository (Apache 2.0 license). The CSV is embedded at build time via `//go:embed`.
-
-**Note:** This file is in `.gitignore` and must be generated before building.
-Run `make develop` to set up the complete development environment.
-
-### Running the Plugin
-```bash
-# Start the plugin (it will announce its PORT)
-./finfocus-plugin-aws-public-us-east-1
-# Output: PORT=12345
-# Then serves gRPC on 127.0.0.1:12345
-
-# With PORT env variable
-PORT=9000 ./finfocus-plugin-aws-public-us-east-1
-# Output: PORT=9000
-```
-
-### Key Proto Types
-
-### ResourceDescriptor
-From `finfocus.v1.ResourceDescriptor`:
-- `provider`: "aws"
-- `resource_type`: "ec2", "ebs", "s3", "lambda", "rds", "dynamodb", "elasticache"
-- `sku`: Instance type for EC2 (e.g., "t3.micro"), volume type for EBS (e.g., "gp3"), node type for ElastiCache (e.g., "cache.t3.micro")
-- `region`: AWS region (e.g., "us-east-1")
-- `tags`: Key-value pairs; for EBS, may contain "size" or "volume_size"; for ElastiCache, may contain "engine" and "num_nodes"
-
-### Supported Resource Type Formats
-
-The plugin accepts multiple resource type formats:
-
-1. **Simple identifiers** (legacy): `ec2`, `ebs`, `rds`
-2. **Pulumi format** (preferred): `aws:ec2/instance:Instance`, `aws:ebs/volume:Volume`
-3. **Short Pulumi format**: `aws:ec2:Instance`
-
-All formats are normalized internally via the `detectService()` function in `internal/plugin/projected.go`.
-
-### ErrorCode Enum
-From `finfocus.v1.ErrorCode`:
-- `ERROR_CODE_UNSUPPORTED_REGION` (9): Region not supported by this binary
-- `ERROR_CODE_INVALID_RESOURCE` (6): Missing required fields in ResourceDescriptor
-- `ERROR_CODE_DATA_CORRUPTION` (11): Embedded pricing data is corrupt
-- See full list in `../finfocus-spec/proto/finfocus/v1/costsource.proto`
-
 ## Estimation Logic
 
 ### EC2 Instances
@@ -562,26 +452,6 @@ From `finfocus.v1.ErrorCode`:
 - `cost_per_month`: (fixed_rate × 730) + (capacity_units × cu_rate × 730)
 - `billing_detail`: "<ALB|NLB>, 730 hrs/month, <capacity_units> <LCU|NLCU> avg/hr"
 
-#### Capacity Unit Estimation Resources
-
-**ALB (LCU - Load Balancer Capacity Units):**
-- [AWS ALB Pricing Page](https://aws.amazon.com/elasticloadbalancing/pricing/)
-- [Understanding LCU Dimensions](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-capacity-units.html)
-- LCU = max of (new connections/sec, active connections, processed bytes, rule evaluations)
-
-**NLB (NLCU - Network Load Balancer Capacity Units):**
-- [AWS NLB Pricing Page](https://aws.amazon.com/elasticloadbalancing/pricing/)
-- [Understanding NLCU Dimensions](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancer-capacity-units.html)
-- NLCU = max of (new connections/sec, active connections, processed bytes)
-
-**Quick Reference:**
-| Workload Type | Typical ALB LCU | Typical NLB NLCU |
-|---------------|-----------------|------------------|
-| Low traffic API | 0.5-2 | 0.5-1 |
-| Medium web app | 5-20 | 3-10 |
-| High traffic | 50-200 | 25-100 |
-| Very high | 200+ | 100+ |
-
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
@@ -594,230 +464,68 @@ and excluded helps users accurately estimate total infrastructure costs.
 
 | Service | Included | Excluded | Carbon |
 |---------|----------|----------|--------|
-| EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e |
-| EBS | Storage GB-month | IOPS, throughput, snapshots | ❌ [#135](https://github.com/rshade/finfocus-plugin-aws-public/issues/135) |
-| EKS | Control plane hours | Worker nodes, add-ons, data transfer | ❌ [#136](https://github.com/rshade/finfocus-plugin-aws-public/issues/136) |
-| ElastiCache | On-demand node hours (Redis/Memcached/Valkey) | Reserved nodes, data transfer, snapshots | N/A |
+| EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e (CPU/GPU) |
+| EBS | Storage GB-month | IOPS, throughput, snapshots | ✅ gCO2e (SSD/HDD) |
+| EKS | Control plane hours | Worker nodes, add-ons, data transfer | ✅ (guidance only) |
+| ElastiCache | On-demand node hours (Redis/Memcached/Valkey) | Reserved nodes, data transfer, snapshots | ✅ gCO2e |
 | ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
 | NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
 | CloudWatch | Logs ingestion (tiered), storage, custom metrics (tiered) | Dashboards, alarms, contributor insights, cross-account | N/A |
-| RDS | Instance hours + storage (gp2/gp3/io1), Multi-engine | Multi-AZ, read replicas, backups, IOPS | N/A |
-| S3 | Storage per GB-month by storage class | Requests, data transfer, lifecycle | N/A |
-| Lambda | Requests + compute (GB-seconds), x86_64/arm64 | Provisioned concurrency, Lambda@Edge | N/A |
-| DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ❌ [#137](https://github.com/rshade/finfocus-plugin-aws-public/issues/137) |
+| RDS | Instance hours + storage (gp2/gp3/io1), Multi-engine | Multi-AZ, read replicas, backups, IOPS | ✅ gCO2e |
+| S3 | Storage per GB-month by storage class | Requests, data transfer, lifecycle | ✅ gCO2e |
+| Lambda | Requests + compute (GB-seconds), x86_64/arm64 | Provisioned concurrency, Lambda@Edge | ✅ gCO2e |
+| DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ✅ gCO2e |
 
-### EKS Clusters
-
-EKS cost estimation covers **control plane only**:
-
-- **Included:** Hourly cluster management fee ($0.10/hr standard, $0.50/hr extended support)
-- **Excluded:**
-  - Worker node EC2 instances (estimate separately as EC2)
-  - Data transfer costs
-  - EKS add-ons (EBS CSI driver, CoreDNS, kube-proxy, etc.)
-  - Load balancer costs (ALB/NLB)
-  - Fargate pod costs
-
-To estimate total EKS cluster cost, sum:
-
-1. EKS control plane (this estimate)
-2. EC2 instances for worker nodes (estimate each as EC2)
-3. EBS volumes for persistent storage (estimate each as EBS)
-
-### EC2 Instances
-
-- **Included:** On-demand hourly instance cost for Linux, shared tenancy
-- **Excluded:**
-  - Spot instance pricing
-  - Reserved instance pricing
-  - Savings Plans pricing
-  - Data transfer costs
-  - EBS volumes (estimate separately)
-  - Elastic IP costs
-
-### EBS Volumes
-
-- **Included:** Storage cost per GB-month
-- **Excluded:**
-  - Provisioned IOPS (io1/io2)
-  - Provisioned throughput (gp3)
-  - Snapshot storage costs
-  - Data transfer costs
+**Note:** EKS estimates control plane only ($0.10/hr standard, $0.50/hr extended). Estimate worker nodes separately as EC2.
 
 ### NAT Gateway
 
 - `resource_type`: "natgw", "nat_gateway", "nat-gateway", or "aws:ec2/natGateway:NatGateway"
-- `sku`: Not used
-- Data processing: Read from `tags["data_processed_gb"]`, defaults to 0 if missing
-- Pricing: Fixed hourly rate + data processing per GB
-  - Hourly: ~$0.045/hour (varies by region)
-  - Data processing: ~$0.045/GB (varies by region)
-- Assumptions (hardcoded for v1):
-  - `hoursPerMonth = 730` (24×7 on-demand)
-- `unit_price`: Hourly rate from pricing data
+- **Tags:** `data_processed_gb` (defaults to 0)
 - `cost_per_month`: (hourly_rate × 730) + (data_gb × data_rate)
-- `billing_detail`: "NAT Gateway, 730 hrs/month ($X.XXX/hr) + Y.YY GB data processed ($X.XXX/GB)"
-
-**Excluded:**
-- Data transfer OUT to the internet (charged separately by AWS)
-- Data transfer via VPC peering or Transit Gateway (charged separately)
-- Cross-AZ data transfer costs
 
 ### CloudWatch
 
-CloudWatch cost estimation supports logs ingestion, logs storage, and custom metrics.
-
-- `resource_type`: "cloudwatch", "aws:cloudwatch/logGroup:LogGroup", "aws:cloudwatch/logStream:LogStream"
+- `resource_type`: "cloudwatch", "aws:cloudwatch/logGroup:LogGroup"
 - `sku`: "logs", "metrics", or "combined"
-  - `logs`: Estimates log ingestion + storage costs
-  - `metrics`: Estimates custom metrics costs
-  - `combined`: Estimates both logs and metrics together
-
-**Logs Estimation (sku: "logs" or "combined"):**
-- **Included:**
-  - Log ingestion (tiered pricing per GB)
-  - Log storage per GB-month
-- **Tags:**
-  - `log_ingestion_gb`: GB of logs ingested per month
-  - `log_storage_gb`: GB of logs stored
-- **Tiered pricing:** AWS uses volume-based tiers for ingestion:
-  - First 10 TB at ~$0.50/GB
-  - Next 20 TB at ~$0.25/GB
-  - Beyond 30 TB at ~$0.10/GB
-  - (Rates vary by region)
-
-**Metrics Estimation (sku: "metrics" or "combined"):**
-- **Included:**
-  - Custom metrics (tiered pricing per metric)
-- **Tags:**
-  - `custom_metrics`: Number of custom metrics
-- **Tiered pricing:** AWS uses volume-based tiers:
-  - First 10,000 metrics at ~$0.30/metric
-  - Next 240,000 metrics at ~$0.10/metric
-  - Beyond 250,000 at ~$0.05/metric
-  - (Rates vary by region)
-
-**Examples:**
-
-*Logs Estimation:*
-```json
-{
-  "resource_type": "cloudwatch",
-  "sku": "logs",
-  "tags": { "log_ingestion_gb": "100", "log_storage_gb": "500" }
-}
-```
-
-*Metrics Estimation:*
-```json
-{
-  "resource_type": "cloudwatch",
-  "sku": "metrics",
-  "tags": { "custom_metrics": "5000" }
-}
-```
-
-*Combined:*
-```json
-{
-  "resource_type": "cloudwatch",
-  "sku": "combined",
-  "tags": { "log_ingestion_gb": "100", "custom_metrics": "5000" }
-}
-```
-
-**Excluded:**
-
-- CloudWatch Dashboards
-- CloudWatch Alarms
-- CloudWatch Contributor Insights
-- CloudWatch Logs Insights queries
-- Cross-account log data sharing
-- Metric Streams
-- CloudWatch Synthetics
+- **Tags:** `log_ingestion_gb`, `log_storage_gb`, `custom_metrics`
+- **Tiered pricing:** Both logs ingestion and metrics use volume-based tiers
+- **Excluded:** Dashboards, Alarms, Contributor Insights, Logs Insights queries
 
 ### ElastiCache Clusters
 
-ElastiCache cost estimation supports Redis, Memcached, and Valkey engines.
-
-- `resource_type`: "elasticache", "aws:elasticache/cluster:Cluster", or "aws:elasticache/replicationGroup:ReplicationGroup"
+- `resource_type`: "elasticache", "aws:elasticache/cluster:Cluster"
 - `sku`: Node type (e.g., "cache.t3.micro", "cache.m5.large")
-- Engine: Read from `tags["engine"]`, defaults to "redis" (case-insensitive)
-- Node count: Read from `tags["num_nodes"]` or `tags["num_cache_nodes"]`, defaults to 1
-- Pricing: On-demand hourly rate per node
-- Assumptions (hardcoded for v1):
-  - `hoursPerMonth = 730` (24×7 on-demand)
-- `unit_price`: Hourly rate from pricing data
+- **Tags:** `engine` (redis/memcached/valkey, defaults to redis), `num_nodes` (defaults to 1)
 - `cost_per_month`: hourly_rate × num_nodes × 730
-- `billing_detail`: "ElastiCache <node_type> (<engine>), <num_nodes> node(s), 730 hrs/month"
-
-**Supported Engines:**
-- **Redis**: Primary use case for caching and session storage
-- **Memcached**: Simple, high-performance caching
-- **Valkey**: Open-source Redis-compatible alternative
-
-**Tag Examples:**
-
-```json
-{
-  "resource_type": "elasticache",
-  "sku": "cache.m5.large",
-  "region": "us-east-1",
-  "tags": {
-    "engine": "redis",
-    "num_nodes": "3"
-  }
-}
-```
-
-**Excluded:**
-- Reserved node pricing
-- Data transfer costs
-- Backup and snapshot storage
-- Global Datastore for Redis
+- **Excluded:** Reserved nodes, data transfer, snapshots
 
 ### DynamoDB Tables
 
-DynamoDB cost estimation supports both capacity modes:
+- `sku`: "on-demand" or "provisioned" (required)
+- **On-Demand tags:** `read_requests_per_month`, `write_requests_per_month`, `storage_gb`
+- **Provisioned tags:** `read_capacity_units`, `write_capacity_units`, `storage_gb`
+- **Unit Price:** Provisioned = RCU hourly rate; On-Demand = Storage GB-month rate (informational only, use `cost_per_month` for accuracy)
+- **Excluded:** Global tables, Streams, DAX, backups, PITR
 
-**On-Demand Mode:**
-- **Included:**
-  - Read request units ($0.25 per million in us-east-1)
-  - Write request units ($1.25 per million in us-east-1)
-  - Storage per GB-month ($0.25/GB)
-- **Required tags:** `read_requests_per_month`, `write_requests_per_month`, `storage_gb`
-
-**Provisioned Mode:**
-- **Included:**
-  - Read Capacity Units (RCU) per hour
-  - Write Capacity Units (WCU) per hour
-  - Storage per GB-month
-- **Required tags:** `read_capacity_units`, `write_capacity_units`, `storage_gb`
-
-**Excluded (both modes):**
-- Global tables replication costs
-- DynamoDB Streams
-- DynamoDB Accelerator (DAX)
-- On-demand backup and restore
-- Point-in-time recovery
-- Data transfer costs
-
-**SKU behavior:**
-- `sku: "on-demand"` - Use on-demand pricing (case-insensitive)
-- `sku: "provisioned"` - Use provisioned capacity pricing (case-insensitive)
-- SKU is required by the SDK validation
-
-**Unit Price Semantics:**
-DynamoDB is a multi-component service (RCU/WCU/Storage or Read/Write/Storage). The `unit_price` field in the response is selected for informational purposes only:
-- **Provisioned:** `unit_price` = RCU hourly rate (primary capacity driver)
-- **On-Demand:** `unit_price` = Storage GB-month rate (primary scaling factor)
-- **Actual Cost:** Always calculated as sum of *all* components. Users should rely on `cost_per_month` and `billing_detail` for accuracy.
-
-### Carbon Estimation (EC2 Only)
+### Carbon Estimation (Comprehensive)
 
 Carbon footprint estimation uses the Cloud Carbon Footprint (CCF) methodology.
 
-**Formula:**
+**Supported Services:**
+
+| Service | Carbon Method |
+|---------|---------------|
+| EC2 | CPU/GPU power × utilization × grid factor |
+| EBS | Storage energy × SSD/HDD coefficient × replication |
+| S3 | Storage energy × storage class coefficient × replication |
+| Lambda | vCPU equivalent × duration × grid factor |
+| RDS | Compute + storage carbon (Multi-AZ 2× multiplier) |
+| DynamoDB | Storage-based (SSD × 3× replication) |
+| EKS | Control plane guidance (worker nodes as EC2) |
+| ElastiCache | EC2-equivalent mapping for cache node types |
+
+**EC2 Formula:**
 ```text
 avgWatts = minWatts + (utilization × (maxWatts - minWatts))
 energyKWh = (avgWatts × vCPUs × hours) / 1000
@@ -828,20 +536,18 @@ carbonGrams = energyWithPUE × gridIntensity × 1,000,000
 **Data Sources:**
 - Instance power specs: [cloud-carbon-coefficients](https://github.com/cloud-carbon-footprint/cloud-carbon-coefficients) (Apache 2.0)
 - Grid emission factors: 12 AWS regions (metric tons CO2eq/kWh)
+- GPU-specific power specs for P/G series instances
+- Storage specs embedded from CCF cloud-carbon-coefficients
 
 **Supported Metrics:**
 - `METRIC_KIND_CARBON_FOOTPRINT` in `ImpactMetrics`
 - Unit: gCO2e (grams CO2 equivalent)
+- Includes embodied carbon (server manufacturing amortization per CCF)
 
 **Utilization Priority:**
 1. Per-resource: `ResourceDescriptor.UtilizationPercentage`
 2. Request-level: `GetProjectedCostRequest.UtilizationPercentage`
 3. Default: 50%
-
-**Limitations (v1):**
-- GPU power consumption not included
-- Only EC2 instances (not EBS, EKS, etc.)
-- Embodied carbon not calculated
 
 **Files:**
 - `internal/carbon/` - Carbon estimation module
@@ -952,48 +658,6 @@ call while all other code paths had been updated.
 
 ## Development Notes
 
-### Implementing the Plugin Interface
-From `finfocus-spec/sdk/go/pluginsdk`:
-```go
-type Plugin interface {
-    Name() string
-    GetProjectedCost(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.GetProjectedCostResponse, error)
-    GetActualCost(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.GetActualCostResponse, error)
-}
-```
-
-Your plugin struct should implement this interface. For aws-public:
-- `Name()` returns "aws-public"
-- `GetProjectedCost()` implements EC2/EBS/stub logic
-- `GetActualCost()` returns an error (not applicable for public pricing)
-
-Additionally, implement Supports() via the gRPC server (not in Plugin interface but in the service):
-```go
-func (s *Server) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error)
-```
-
-### Using pluginsdk.Serve()
-In `cmd/finfocus-plugin-aws-public/main.go`:
-```go
-import (
-    "context"
-    "github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
-    "github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
-)
-
-func main() {
-    ctx := context.Background()
-    p := plugin.NewAWSPublicPlugin()  // Your implementation
-    err := pluginsdk.Serve(ctx, pluginsdk.ServeConfig{
-        Plugin: p,
-        Port:   0,  // 0 = use PORT env or ephemeral
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
-}
-```
-
 ### Adding New AWS Services
 
 > ⚠️ **EMBED FILE SYNC IS CRITICAL** ⚠️
@@ -1044,71 +708,6 @@ func main() {
 - Pricing lookups must be thread-safe (concurrent RPC calls)
 - Use sync.RWMutex or sync.Once for initialization
 - Avoid global mutable state
-
-## Release Process
-
-### Using GoReleaser
-```bash
-# Test release build locally
-goreleaser build --snapshot --clean
-
-# Create actual release
-goreleaser release --clean
-```
-
-### Before Hooks
-The `.goreleaser.yaml` runs:
-```bash
-go run ./tools/generate-pricing --regions us-east-1,us-west-2,eu-west-1 --out-dir ./data
-```
-
-This fetches real AWS pricing data and ensures pricing files exist before embedding.
-
-## Configuration (v1)
-
-### Environment Variables for Configuration
-
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `FINFOCUS_PLUGIN_PORT` | int | ephemeral | Port to serve gRPC/Web (replaces `PORT`) |
-| `FINFOCUS_LOG_LEVEL` | string | "info" | Log level (debug, info, warn, error, fatal) |
-| `FINFOCUS_PLUGIN_WEB_ENABLED` | bool | false | Enable HTTP/Web serving (Connect/gRPC-Web) |
-| `FINFOCUS_CORS_ALLOWED_ORIGINS` | string | "" | Comma-separated list of allowed CORS origins (e.g., `*` or `http://localhost:3000`). Empty/unset disables CORS headers. |
-| `FINFOCUS_CORS_ALLOW_CREDENTIALS` | bool | false | Allow credentials in CORS requests (cannot be true if origin is `*`) |
-| `FINFOCUS_CORS_MAX_AGE` | int | 86400 | Max age for CORS preflight cache (seconds). Invalid or negative values fall back to default. |
-| `FINFOCUS_PLUGIN_HEALTH_ENDPOINT` | bool | false | Enable `/healthz` HTTP endpoint (returns 200 OK) |
-
-**Usage Example:**
-```bash
-# Typical configuration for local development with a frontend
-export FINFOCUS_PLUGIN_WEB_ENABLED=true
-export FINFOCUS_CORS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-export FINFOCUS_CORS_ALLOW_CREDENTIALS=true
-export FINFOCUS_PLUGIN_HEALTH_ENDPOINT=true
-./finfocus-plugin-aws-public-us-east-1
-```
-
-Current configuration is minimal:
-- Currency: `USD` (hardcoded default)
-- Account discount factor: `1.0` (no discount)
-- PORT: From environment variable or ephemeral (managed by pluginsdk)
-
-Future versions will support:
-- Environment variables or flags for additional configuration
-- Custom discount rates
-- Different EC2 tenancy models
-- Spot/Reserved instance pricing
-
-## Proto Dependencies
-
-This plugin depends on proto definitions from:
-- `github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1`
-  - `CostSourceService` gRPC service
-  - `ResourceDescriptor`, `GetProjectedCostRequest/Response`
-  - `SupportsRequest/Response`, `PricingSpec`
-  - `ErrorCode` enum, `ErrorDetail` message
-
-Always refer to the proto files in `../finfocus-spec/proto/` for the authoritative API contract.
 
 ## Critical Protocol Notes
 
