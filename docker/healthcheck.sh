@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Health check script for finfocus-plugin-aws-public multi-region container
-# Verifies that all 9 regional HTTP endpoints are responding
+# Verifies that all 10 regional HTTP endpoints are responding
 #
 # Optional environment variables:
 #   QUIET_HEALTHCHECK - When set to 1/true, suppresses verbose output
@@ -11,8 +11,10 @@
 
 set -e
 
-# Define ports (must match available release assets: 9 regions)
-declare -a ports=(8001 8002 8003 8004 8005 8006 8007 8008 8009)
+# Define ports (must match available release assets: 10 regions)
+# Note: Port order here differs from entrypoint.sh region-port mapping.
+# Healthcheck only needs to verify all ports are responsive, order is irrelevant.
+declare -a ports=(8001 8002 8003 8004 8005 8006 8007 8008 8009 8010)
 
 # Check quiet mode
 quiet="${QUIET_HEALTHCHECK:-0}"

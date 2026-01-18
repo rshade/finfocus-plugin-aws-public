@@ -2,11 +2,11 @@
 set -e
 
 # Entrypoint script for finfocus-plugin-aws-public multi-region container
-# Starts all 9 regional binaries and manages their lifecycle
+# Starts all 10 regional binaries and manages their lifecycle
 
 # Define regions and ports (must match available release assets)
-declare -a regions=("us-east-1" "us-west-2" "eu-west-1" "ap-southeast-1" "ap-southeast-2" "ap-northeast-1" "ap-south-1" "ca-central-1" "sa-east-1")
-declare -a ports=(8001 8002 8003 8004 8005 8006 8007 8008 8009)
+declare -a regions=("us-east-1" "us-west-1" "us-west-2" "eu-west-1" "ap-southeast-1" "ap-southeast-2" "ap-northeast-1" "ap-south-1" "ca-central-1" "sa-east-1")
+declare -a ports=(8001 8010 8002 8003 8004 8005 8006 8007 8008 8009)
 
 # start_binary starts the region-specific finfocus-plugin-aws-public binary in the background, prefixes non-JSON output with the region, injects a `"region"` field into JSON log lines, and writes the background PID to /tmp/pid_<region>.
 start_binary() {

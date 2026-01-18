@@ -26,3 +26,6 @@ regions:
   - id: sae1
     name: sa-east-1
     tag: region_sae1
+  - id: usw1
+    name: us-west-1
+    tag: region_usw1

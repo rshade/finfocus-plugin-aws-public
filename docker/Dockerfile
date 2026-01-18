@@ -14,7 +14,7 @@ WORKDIR /tmp
 ARG VERSION=v0.1.0
 
 # Define regions (must match available release assets)
-ENV REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1"
+ENV REGIONS="us-east-1 us-west-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1"
 
 # Download checksums and regional binaries with verification
 # Note: VERSION arg includes 'v' prefix (e.g., "v0.1.2") but tarball names don't (e.g., "0.1.2")
@@ -91,7 +91,7 @@ RUN chmod +x /entrypoint.sh /healthcheck.sh
 
 # Verify all regional binaries exist
 RUN set -ex; \
-    for region in us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1; do \
+    for region in us-east-1 us-west-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1; do \
         if [ ! -f "/usr/local/bin/finfocus-plugin-aws-public-${region}" ]; then \
             echo "ERROR: Binary for ${region} not found in final image"; \
             exit 1; \
@@ -103,15 +103,15 @@ RUN set -ex; \
 RUN addgroup -g 65532 -S plugin && \
     adduser -u 65532 -S plugin -G plugin
 
-# Expose ports (9 regional endpoints + metrics)
-EXPOSE 8001 8002 8003 8004 8005 8006 8007 8008 8009 9090
+# Expose ports (10 regional endpoints + metrics)
+EXPOSE 8001 8002 8003 8004 8005 8006 8007 8008 8009 8010 9090
 
 # Set default environment variables
 ENV FINFOCUS_PLUGIN_WEB_ENABLED=true
 ENV FINFOCUS_PLUGIN_HEALTH_ENDPOINT=true
 
 # Health check
-# Verifies all 9 regional endpoints respond within 10s.
+# Verifies all 10 regional endpoints respond within 10s.
 # Total time to mark unhealthy: 30s (start-period) + 3×30s (interval×retries) = ~120s (2 minutes)
 # This allows time for slow region startups while still detecting failures reasonably quickly.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

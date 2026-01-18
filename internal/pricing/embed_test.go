@@ -12,32 +12,36 @@ import (
 //
 // These thresholds prevent the v0.0.10/v0.0.11 regression where filtering
 // stripped pricing data, causing $0 estimates. Each service has a minimum
-// size based on actual AWS pricing data (December 2024, OnDemand terms only).
+// size based on actual AWS pricing data (January 2026, OnDemand terms only).
 //
-// Actual sizes from us-east-1 (December 2024):
-//   EC2: 153.7 MB, RDS: 6.8 MB, EKS: 772 KB, Lambda: 445 KB
-//   S3: 306 KB, DynamoDB: 22 KB, ELB: 13 KB
+// Thresholds are set to support ALL regions, including smaller regions like
+// us-west-1 (N. California) and sa-east-1 (São Paulo). The minimum viable
+// data sizes are based on the smallest supported region.
+//
+// Reference sizes (January 2026):
+//   us-east-1 (largest): EC2: 151 MB, RDS: 6.8 MB, Lambda: 445 KB
+//   us-west-1 (smaller): EC2:  87 MB, RDS: 4.4 MB, Lambda:  27 KB
 //
 // DO NOT reduce these thresholds without explicit approval.
 const (
 	// EC2: Largest service, contains compute instances + EBS storage
-	// Full us-east-1 with OnDemand only: ~154MB
-	minEC2Size = 100_000_000 // 100MB minimum (T035)
+	// us-east-1: ~154MB, us-west-1: ~87MB (smallest region)
+	minEC2Size = 80_000_000 // 80MB minimum (T035) - supports smaller regions
 
 	// RDS: Database instances and storage
-	// Full us-east-1 with OnDemand only: ~7MB
-	minRDSSize = 5_000_000 // 5MB minimum (T036)
+	// us-east-1: ~7MB, us-west-1: ~4.4MB (smallest region)
+	minRDSSize = 4_000_000 // 4MB minimum (T036) - supports smaller regions
 
 	// EKS: Cluster management fees
-	// Full us-east-1: ~772KB
-	minEKSSize = 500_000 // 500KB minimum (T037)
+	// Full us-east-1: ~772KB, us-west-1: ~515KB
+	minEKSSize = 400_000 // 400KB minimum (T037) - supports smaller regions
 
 	// Lambda: Serverless compute pricing
-	// Full us-east-1: ~445KB
-	minLambdaSize = 300_000 // 300KB minimum (T038)
+	// us-east-1: ~445KB, us-west-1: ~27KB (much smaller, fewer configurations)
+	minLambdaSize = 20_000 // 20KB minimum (T038) - supports smaller regions
 
 	// S3: Storage classes and tiers
-	// Full us-east-1: ~306KB
+	// Full us-east-1: ~306KB, consistent across regions
 	minS3Size = 200_000 // 200KB minimum (T039)
 
 	// DynamoDB: NoSQL throughput and storage

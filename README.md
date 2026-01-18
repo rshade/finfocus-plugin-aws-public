@@ -85,6 +85,7 @@ Each region has its own binary to minimize size and ensure accurate pricing:
 **US Regions:**
 
 - `finfocus-plugin-aws-public-us-east-1` (US East - N. Virginia)
+- `finfocus-plugin-aws-public-us-west-1` (US West - N. California)
 - `finfocus-plugin-aws-public-us-west-2` (US West - Oregon)
 
 **Europe Regions:**
@@ -219,7 +220,7 @@ docker build \
 ```bash
 docker run -d \
   --name finfocus-aws \
-  -p 8001-8012:8001-8012 \
+  -p 8001-8010:8001-8010 \
   -p 9090:9090 \
   finfocus-plugin-aws-public:latest
 ```
@@ -281,20 +282,23 @@ go build -tags region_use1 -o finfocus-plugin-aws-public-us-east-1 \
 ### Using GoReleaser
 
 ```bash
-# Generate pricing data for all supported regions (9 regions)
+# Generate pricing data for all supported regions (10 regions)
 go run ./tools/generate-pricing \
-  --regions us-east-1,us-west-2,eu-west-1,\
+  --regions us-east-1,us-west-1,us-west-2,eu-west-1,\
 ap-southeast-1,ap-southeast-2,ap-northeast-1,\
 ap-south-1,ca-central-1,sa-east-1 \
   --out-dir ./internal/pricing/data
 
-# Build all region binaries (9 regions × 3 OS × 2 architectures)
+# Build all region binaries (10 regions × 3 OS × 2 architectures)
 goreleaser build --snapshot --clean
 ```
 
 ### Building Individual Region Binaries
 
 ```bash
+# N. California (us-west-1)
+go build -tags region_usw1 -o finfocus-plugin-aws-public-us-west-1 ./cmd/finfocus-plugin-aws-public
+
 # Singapore (ap-southeast-1)
 go build -tags region_apse1 -o finfocus-plugin-aws-public-ap-southeast-1 ./cmd/finfocus-plugin-aws-public
 

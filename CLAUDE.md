@@ -157,14 +157,19 @@ The plugin initialization (`internal/pricing/client.go`) handles pricing data lo
 - **One binary per AWS region** using GoReleaser with build tags
 - Binary naming: `finfocus-plugin-aws-public-<region>` (e.g., `finfocus-plugin-aws-public-us-east-1`)
 - Each binary embeds only its region's pricing data via `//go:embed`
-- Build tag mapping:
+- Build tag mapping (12 regions):
   - `us-east-1` → `region_use1`
+  - `us-west-1` → `region_usw1` (N. California)
   - `us-west-2` → `region_usw2`
+  - `ca-central-1` → `region_cac1`
   - `eu-west-1` → `region_euw1`
   - `ap-southeast-1` → `region_apse1` (Singapore)
   - `ap-southeast-2` → `region_apse2` (Sydney)
   - `ap-northeast-1` → `region_apne1` (Tokyo)
   - `ap-south-1` → `region_aps1` (Mumbai)
+  - `sa-east-1` → `region_sae1` (São Paulo)
+  - `us-gov-west-1` → `region_govw1` (GovCloud)
+  - `us-gov-east-1` → `region_gove1` (GovCloud)
 
 ### Embedded Pricing Data
 

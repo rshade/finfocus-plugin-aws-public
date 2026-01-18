@@ -131,6 +131,26 @@ func TestGridEmissionFactors_UnitsAreMetricTons(t *testing.T) {
 	}
 }
 
+// TestGetGridFactor_USWest1 validates that us-west-1 returns the WECC grid factor.
+// FR-004: System MUST use the correct grid emission factor (CAISO/WECC) for carbon estimation in us-west-1.
+// The WECC (Western Electricity Coordinating Council) factor of 0.000322 metric tons CO2e/kWh
+// is used for both us-west-1 (N. California) and us-west-2 (Oregon) as they share the same grid.
+func TestGetGridFactor_USWest1(t *testing.T) {
+	expectedWECC := 0.000322
+
+	usWest1Factor := GetGridFactor("us-west-1")
+	assert.Equal(t, expectedWECC, usWest1Factor,
+		"us-west-1 should use WECC grid factor")
+
+	usWest2Factor := GetGridFactor("us-west-2")
+	assert.Equal(t, expectedWECC, usWest2Factor,
+		"us-west-2 should use WECC grid factor")
+
+	// Both western US regions should have the same factor (same WECC grid)
+	assert.Equal(t, usWest1Factor, usWest2Factor,
+		"us-west-1 and us-west-2 should have the same WECC grid factor")
+}
+
 // TestGetGridFactor_KnownRegions validates that GetGridFactor returns expected values
 // for known regions.
 func TestGetGridFactor_KnownRegions(t *testing.T) {
@@ -139,6 +159,8 @@ func TestGetGridFactor_KnownRegions(t *testing.T) {
 		expectedFactor float64
 	}{
 		{"us-east-1", 0.000379},
+		{"us-west-1", 0.000322}, // WECC grid
+		{"us-west-2", 0.000322}, // WECC grid
 		{"eu-north-1", 0.0000088},
 		{"ap-south-1", 0.000708},
 		{"ca-central-1", 0.00012},

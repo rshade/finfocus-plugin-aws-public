@@ -48,3 +48,9 @@ AWS credentials or network access at runtime.
   `stderr` to avoid corrupting the port discovery channel.
 - **Input:** Receives `ResourceDescriptor` objects containing provider, type,
   SKU, region, and tags.
+
+## Repository Management
+
+- **Dependency Dashboard (#13):** The Renovate dependency dashboard issue should
+  always remain open. It is auto-managed by Renovate bot and provides visibility
+  into pending dependency updates.

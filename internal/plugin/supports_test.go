@@ -922,6 +922,186 @@ func TestSupports_ZeroCost_MixedCase(t *testing.T) {
 	}
 }
 
+// TestSupports_USWest1_UnsupportedResourceType tests FR-007 behavior.
+// When a resource type is not supported in us-west-1, Supports() returns supported=false
+// with a reason indicating the resource type is not supported.
+func TestSupports_USWest1_UnsupportedResourceType(t *testing.T) {
+	mock := newMockPricingClient("us-west-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-west-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name         string
+		resourceType string
+		wantSupport  bool
+		wantReason   string
+	}{
+		{
+			name:         "cloudfront not implemented",
+			resourceType: "cloudfront",
+			wantSupport:  false,
+			wantReason:   "not supported",
+		},
+		{
+			name:         "route53 not implemented",
+			resourceType: "route53",
+			wantSupport:  false,
+			wantReason:   "not supported",
+		},
+		{
+			name:         "unknown aws service",
+			resourceType: "aws:unknown/service:Service",
+			wantSupport:  false,
+			wantReason:   "not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-west-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Supports() returned unexpected error: %v", err)
+			}
+
+			if resp.Supported != tt.wantSupport {
+				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupport)
+			}
+
+			if !strings.Contains(resp.Reason, tt.wantReason) {
+				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReason)
+			}
+		})
+	}
+}
+
+// TestSupports_USWest1 tests support for us-west-1 (N. California) region binary.
+// FR-001: System MUST support us-west-1 as a valid region identifier.
+func TestSupports_USWest1(t *testing.T) {
+	mock := newMockPricingClient("us-west-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-west-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name             string
+		req              *pb.SupportsRequest
+		wantSupported    bool
+		wantReasonSubstr string
+	}{
+		{
+			name: "EC2 in us-west-1",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "us-west-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "EBS in us-west-1",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ebs",
+					Region:       "us-west-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "RDS in us-west-1",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "rds",
+					Region:       "us-west-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "S3 in us-west-1",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "s3",
+					Region:       "us-west-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "Lambda in us-west-1",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "lambda",
+					Region:       "us-west-1",
+				},
+			},
+			wantSupported:    true,
+			wantReasonSubstr: "",
+		},
+		{
+			name: "EC2 in us-east-1 (wrong for us-west-1 binary)",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "us-east-1",
+				},
+			},
+			wantSupported:    false,
+			wantReasonSubstr: "Region not supported",
+		},
+		{
+			name: "EC2 in us-west-2 (different US west region)",
+			req: &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Region:       "us-west-2",
+				},
+			},
+			wantSupported:    false,
+			wantReasonSubstr: "Region not supported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), tt.req)
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			if resp.Supported != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			}
+
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			}
+
+			if tt.wantReasonSubstr == "" && resp.Reason != "" {
+				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			}
+		})
+	}
+}
+
 // TestSupports_ZeroCost_SupportedMetricsNil verifies that zero-cost resources return
 // nil for SupportedMetrics since they have no carbon footprint or other metrics.
 func TestSupports_ZeroCost_SupportedMetricsNil(t *testing.T) {

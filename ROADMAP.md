@@ -48,6 +48,8 @@ security overhead of cloud credentials.
 - **Zero-Cost Resource Handling:** Graceful handling for AWS resources
   with no direct cost (VPC, Security Groups, Subnets) - return $0 estimates
   instead of SKU errors (#237).
+- **Carbon Metrics Advertisement:** `getSupportedMetrics` now accurately
+  reflects carbon estimation availability per service (#257).
 
 ---
 
@@ -71,9 +73,10 @@ security overhead of cloud credentials.
 - **[Researching] Cross-Service Recommendations:** Static lookup logic to
   suggest move-to-managed alternatives (e.g., self-managed DB on EC2 -> RDS)
   based on Resource Tags.
-- **[Planned] Additional Regions:** Expansion to specialized regions (e.g.,
-  Beijing/Ningxia, EU-North-1) as public pricing data parity allows. GovCloud
-  (US-West/East) already supported.
+- **[Planned] Additional Regions:** Expansion to include us-west-1, GovCloud
+  (us-gov-west-1, us-gov-east-1), and specialized regions (Beijing/Ningxia,
+  EU-North-1) as public pricing data parity allows. Infrastructure exists but
+  regions.yaml catalog incomplete (#271, #272, #273).
 - **[Planned] Forecasting Intelligence:**
   - **Growth Hints:** Implement logic to return `GrowthType` (Linear) for
     accumulation-based resources (S3, ECR, Backup) to support Core forecasting.
@@ -84,8 +87,6 @@ security overhead of cloud credentials.
 - **[Planned] Capability Discovery Enhancements:**
   - **Dual-Layer Discovery:** Service-level and resource-level capability
     introspection for richer client integration (#258).
-  - **Carbon Metrics Advertisement:** Update `getSupportedMetrics` to accurately
-    reflect carbon estimation availability per service (#257).
 - **[Planned] Multi-Region Router:** Single-port request routing for the Docker
   image to simplify client integration (#245).
 
