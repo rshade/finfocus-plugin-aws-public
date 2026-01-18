@@ -1,17 +1,60 @@
 name: Docker Publish
 
 on:
-  release:
-    types: [created]
+  workflow_run:
+    workflows: ["GoReleaser"]
+    types: [completed]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g., v0.1.0)'
+        required: true
+        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Only run if GoReleaser succeeded (or if manually triggered)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      # Determine version FIRST, before checkout (needed for ref)
+      - name: Determine version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Priority: workflow_dispatch input > latest release tag > fallback
+          #
+          # IMPORTANT: For workflow_run events, github.event.workflow_run.head_branch
+          # contains the BRANCH name (e.g., "main"), NOT the release tag!
+          # We must query the GitHub API to get the actual release tag.
+          if [ -n "${{ inputs.tag }}" ]; then
+            VERSION="${{ inputs.tag }}"
+            echo "Version from workflow_dispatch input: ${VERSION}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # GoReleaser is triggered by release:created, so the most recent release
+            # is the one that triggered this workflow. Query the API to get its tag.
+            echo "Querying GitHub API for latest release tag..."
+            VERSION=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name' 2>/dev/null || echo "")
+            if [ -z "$VERSION" ]; then
+              echo "::error::Failed to determine release tag from GitHub API"
+              exit 1
+            fi
+            echo "Version from latest release: ${VERSION}"
+          else
+            echo "::error::Unknown event type, cannot determine version"
+            exit 1
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Final version: ${VERSION}"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # For workflow_run: use head_sha to checkout the exact commit that was released
+          # For workflow_dispatch: use the tag directly
+          ref: ${{ inputs.tag || github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -25,13 +68,81 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
+      - name: Verify release assets available
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          VERSION=${{ github.event.release.tag_name || 'v0.1.0' }}
+          # Wait for release assets to be available (GoReleaser may still be uploading)
+          # Required assets: checksums.txt + at least one regional tarball
+          REQUIRED_REGIONS="us-east-1 us-west-2 eu-west-1 ap-southeast-1 ap-southeast-2 ap-northeast-1 ap-south-1 ca-central-1 sa-east-1"
+          MAX_RETRIES=10
+          RETRY_DELAY=30
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $attempt/$MAX_RETRIES: Checking release assets for ${VERSION}..."
+
+            # Get list of assets
+            ASSETS=$(gh api "repos/${{ github.repository }}/releases/tags/${VERSION}" --jq '.assets[].name' 2>/dev/null || echo "")
+
+            if [ -z "$ASSETS" ]; then
+              echo "Release not found or no assets yet"
+              if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+                echo "Waiting ${RETRY_DELAY}s before retry..."
+                sleep $RETRY_DELAY
+                continue
+              fi
+              echo "::error::Release ${VERSION} not found after $MAX_RETRIES attempts"
+              exit 1
+            fi
+
+            # Check for checksums.txt
+            if ! echo "$ASSETS" | grep -q "checksums.txt"; then
+              echo "checksums.txt not yet available"
+              if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+                echo "Waiting ${RETRY_DELAY}s before retry..."
+                sleep $RETRY_DELAY
+                continue
+              fi
+              echo "::error::checksums.txt not found after $MAX_RETRIES attempts"
+              exit 1
+            fi
+
+            # Check for all regional tarballs (Linux x86_64)
+            VERSION_NO_V=$(echo "${VERSION}" | sed 's/^v//')
+            MISSING_REGIONS=""
+            for region in $REQUIRED_REGIONS; do
+              TARBALL="finfocus-plugin-aws-public_${VERSION_NO_V}_Linux_x86_64_${region}.tar.gz"
+              if ! echo "$ASSETS" | grep -q "$TARBALL"; then
+                MISSING_REGIONS="$MISSING_REGIONS $region"
+              fi
+            done
+
+            if [ -n "$MISSING_REGIONS" ]; then
+              echo "Missing regional tarballs:$MISSING_REGIONS"
+              if [ "$attempt" -lt "$MAX_RETRIES" ]; then
+                echo "Waiting ${RETRY_DELAY}s before retry..."
+                sleep $RETRY_DELAY
+                continue
+              fi
+              echo "::error::Missing regional tarballs after $MAX_RETRIES attempts:$MISSING_REGIONS"
+              exit 1
+            fi
+
+            echo "✅ All required release assets are available"
+            echo "Found assets:"
+            echo "$ASSETS" | head -20
+            exit 0
+          done
+
+      - name: Build Docker image
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
           docker build \
-            --build-arg VERSION=${VERSION} \
+            --build-arg VERSION="${VERSION}" \
             -t ghcr.io/rshade/finfocus-plugin-aws-public:latest \
-            -t ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION} \
+            -t "ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION}" \
             -f docker/Dockerfile .
 
       - name: Check image size
@@ -60,6 +171,8 @@ jobs:
           done
 
       - name: Push Docker image
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           docker push ghcr.io/rshade/finfocus-plugin-aws-public:latest
-          docker push ghcr.io/rshade/finfocus-plugin-aws-public:${{ github.event.release.tag_name || 'v0.1.0' }}
+          docker push "ghcr.io/rshade/finfocus-plugin-aws-public:${VERSION}"
