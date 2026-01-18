@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.2...v0.1.3) (2026-01-18)
+
+
+### Features
+
+* **plugin:** add zero-cost resource handling and expand carbon metrics advertisement ([#270](https://github.com/rshade/finfocus-plugin-aws-public/issues/270)) ([114d3a9](https://github.com/rshade/finfocus-plugin-aws-public/commit/114d3a91ef69d4687403fe873d9f83e96bb85e41)), closes [#237](https://github.com/rshade/finfocus-plugin-aws-public/issues/237) [#257](https://github.com/rshade/finfocus-plugin-aws-public/issues/257)
+
 ## [0.1.2](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.1...v0.1.2) (2026-01-17)
 
 
