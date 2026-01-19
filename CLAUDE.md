@@ -661,6 +661,47 @@ costs for the same Pulumi-format resource types like `aws:eks/cluster:Cluster`.
 This pattern was added after a code review found that `actual.go` was missing the `normalizeResourceType()`
 call while all other code paths had been updated.
 
+### Dual-Path Test Coverage (PR #281 Learning)
+
+When a helper function is used by multiple callers, test ALL callers - not just one path.
+
+**Example:** `normalizePlatform()` is called by both:
+- `ExtractEC2AttributesFromTags()` - tag-based extraction
+- `ExtractEC2AttributesFromStruct()` - protobuf struct extraction
+
+If you add new values (like RHEL, SUSE), add test cases to BOTH:
+- `TestExtractEC2AttributesFromTags_PlatformNormalization`
+- `TestExtractEC2AttributesFromStruct_PlatformNormalization`
+
+**Pattern:** Search for all callers of a modified function and ensure test coverage for each path.
+
+### Enum Value Documentation Sync
+
+When adding new enum/constant values, update ALL documentation that enumerates them:
+
+1. **Struct field comments:** `OS string // "Linux", "Windows", "RHEL", or "SUSE"`
+2. **Function docstrings:** Platform normalization sections in ExtractEC2AttributesFromTags/Struct
+3. **Package-level docs:** Any overview documentation listing valid values
+
+**Checklist when adding enum values:**
+```bash
+# Find all places that enumerate the values
+grep -rn '"Linux".*"Windows"' internal/plugin/
+grep -rn 'Platform normalization' internal/plugin/
+```
+
+### Integration Test Timeouts
+
+Use reasonable timeouts for integration tests:
+
+| Test Type | Recommended Timeout | Rationale |
+|-----------|---------------------|-----------|
+| Binary startup + single RPC | 30 seconds | Plugin starts < 1s, RPC < 100ms |
+| Multi-RPC test suite | 2-3 minutes | Allows for build time + multiple calls |
+| **Avoid** | 10 minutes | Masks performance regressions |
+
+Per CLAUDE.md performance goals: "startup < 1s, PORT < 1s, GetProjectedCost < 100ms"
+
 ## Development Notes
 
 ### Adding New AWS Services
