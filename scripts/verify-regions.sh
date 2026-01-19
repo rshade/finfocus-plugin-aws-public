@@ -157,8 +157,8 @@ for i in "${!region_array[@]}"; do
 done
 
 # Check per-service pricing data files exist (v0.0.12+ format)
-# Services: ec2, s3, rds, eks, lambda, dynamodb, elb
-SERVICES=("ec2" "s3" "rds" "eks" "lambda" "dynamodb" "elb")
+# Services: ec2, s3, rds, eks, lambda, dynamodb, elb, vpc, cloudwatch, elasticache
+SERVICES=("ec2" "s3" "rds" "eks" "lambda" "dynamodb" "elb" "vpc" "cloudwatch" "elasticache")
 for region in "${region_array[@]}"; do
     for service in "${SERVICES[@]}"; do
         pricing_file="$PRICING_DIR/data/${service}_$region.json"
