@@ -289,6 +289,31 @@ func TestExtractEC2AttributesFromStruct_PlatformNormalization(t *testing.T) {
 			wantOS: "Linux",
 		},
 		{
+			name:   "rhel lowercase",
+			attrs:  mustStruct(map[string]interface{}{"platform": "rhel"}),
+			wantOS: "RHEL",
+		},
+		{
+			name:   "rhel with version",
+			attrs:  mustStruct(map[string]interface{}{"platform": "RHEL-8"}),
+			wantOS: "RHEL",
+		},
+		{
+			name:   "red hat enterprise linux",
+			attrs:  mustStruct(map[string]interface{}{"platform": "Red Hat Enterprise Linux"}),
+			wantOS: "RHEL",
+		},
+		{
+			name:   "suse lowercase",
+			attrs:  mustStruct(map[string]interface{}{"platform": "suse"}),
+			wantOS: "SUSE",
+		},
+		{
+			name:   "suse linux enterprise server",
+			attrs:  mustStruct(map[string]interface{}{"platform": "SUSE Linux Enterprise Server"}),
+			wantOS: "SUSE",
+		},
+		{
 			name:   "empty platform",
 			attrs:  mustStruct(map[string]interface{}{"platform": ""}),
 			wantOS: "Linux",
