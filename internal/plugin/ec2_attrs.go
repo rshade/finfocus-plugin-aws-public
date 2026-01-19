@@ -7,10 +7,10 @@ import (
 )
 
 // EC2Attributes contains extracted EC2 configuration for pricing lookups.
-// OS is normalized to "Linux" or "Windows".
+// OS is normalized to "Linux", "Windows", "RHEL", or "SUSE".
 // Tenancy is normalized to "Shared", "Dedicated", or "Host".
 type EC2Attributes struct {
-	OS      string // "Linux" or "Windows"
+	OS      string // "Linux", "Windows", "RHEL", or "SUSE"
 	Tenancy string // "Shared", "Dedicated", or "Host"
 }
 
@@ -30,6 +30,8 @@ func DefaultEC2Attributes() EC2Attributes {
 //
 // Platform normalization:
 //   - "windows" (case-insensitive) → "Windows"
+//   - "rhel", "redhat", "red hat" (case-insensitive) → "RHEL"
+//   - "suse" (case-insensitive) → "SUSE"
 //   - Any other value or missing → "Linux"
 //
 // Tenancy normalization:
@@ -62,6 +64,8 @@ func ExtractEC2AttributesFromTags(tags map[string]string) EC2Attributes {
 //
 // Platform normalization:
 //   - "windows" (case-insensitive) → "Windows"
+//   - "rhel", "redhat", "red hat" (case-insensitive) → "RHEL"
+//   - "suse" (case-insensitive) → "SUSE"
 //   - Any other value or missing → "Linux"
 //
 // Tenancy normalization:
@@ -92,13 +96,23 @@ func ExtractEC2AttributesFromStruct(attrs *structpb.Struct) EC2Attributes {
 	return result
 }
 
-// normalizePlatform normalizes a platform string to "Linux" or "Windows".
-// Only "windows" (case-insensitive) maps to "Windows"; all others map to "Linux".
+// normalizePlatform normalizes a platform string to canonical AWS pricing identifiers.
+// - "windows" -> "Windows"
+// - "rhel" -> "RHEL"
+// - "suse" -> "SUSE"
+// - All others -> "Linux"
 func normalizePlatform(platform string) string {
-	if strings.EqualFold(platform, "windows") {
+	p := strings.ToLower(platform)
+	switch {
+	case strings.Contains(p, "windows"):
 		return "Windows"
+	case strings.Contains(p, "rhel") || strings.Contains(p, "redhat") || strings.Contains(p, "red hat"):
+		return "RHEL"
+	case strings.Contains(p, "suse"):
+		return "SUSE"
+	default:
+		return "Linux"
 	}
-	return "Linux"
 }
 
 // normalizeTenancy normalizes a tenancy string to "Shared", "Dedicated", or "Host".

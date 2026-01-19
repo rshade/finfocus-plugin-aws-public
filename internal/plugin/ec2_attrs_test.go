@@ -22,9 +22,9 @@ func TestDefaultEC2Attributes(t *testing.T) {
 // from tags with various case combinations.
 func TestExtractEC2AttributesFromTags_PlatformNormalization(t *testing.T) {
 	tests := []struct {
-		name     string
-		tags     map[string]string
-		wantOS   string
+		name   string
+		tags   map[string]string
+		wantOS string
 	}{
 		{
 			name:   "windows lowercase",
@@ -59,7 +59,32 @@ func TestExtractEC2AttributesFromTags_PlatformNormalization(t *testing.T) {
 		{
 			name:   "rhel",
 			tags:   map[string]string{"platform": "rhel"},
-			wantOS: "Linux",
+			wantOS: "RHEL",
+		},
+		{
+			name:   "suse",
+			tags:   map[string]string{"platform": "suse"},
+			wantOS: "SUSE",
+		},
+		{
+			name:   "windows server 2019",
+			tags:   map[string]string{"platform": "Windows Server 2019"},
+			wantOS: "Windows",
+		},
+		{
+			name:   "rhel-8",
+			tags:   map[string]string{"platform": "RHEL-8"},
+			wantOS: "RHEL",
+		},
+		{
+			name:   "red hat enterprise linux",
+			tags:   map[string]string{"platform": "Red Hat Enterprise Linux"},
+			wantOS: "RHEL",
+		},
+		{
+			name:   "suse linux enterprise server",
+			tags:   map[string]string{"platform": "SUSE Linux Enterprise Server"},
+			wantOS: "SUSE",
 		},
 		{
 			name:   "empty platform",
