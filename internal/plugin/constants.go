@@ -39,11 +39,12 @@ const RelationshipManagedBy = "managed_by"
 //
 // When adding new zero-cost resources:
 // 1. Add the canonical service name here
-// 2. Add the Pulumi pattern to ZeroCostPulumiPatterns below
+// 2. Add the Pulumi pattern to ZeroCostPulumiPatterns below, OR implement dedicated prefix matching in normalizeResourceType()
 var ZeroCostServices = map[string]bool{
 	"vpc":           true,
 	"securitygroup": true,
 	"subnet":        true,
+	"iam":           true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.

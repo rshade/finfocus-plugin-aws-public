@@ -4298,3 +4298,73 @@ func TestEstimateZeroCostResource_PulumiFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizeResourceType_IAM(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceType string
+		want         string
+	}{
+		{"User", "aws:iam/user:User", "iam"},
+		{"Role", "aws:iam/role:Role", "iam"},
+		{"Policy", "aws:iam/policy:Policy", "iam"},
+		{"Group", "aws:iam/group:Group", "iam"},
+		{"InstanceProfile", "aws:iam/instanceProfile:InstanceProfile", "iam"},
+		{"AccessKey", "aws:iam/accessKey:AccessKey", "iam"},
+		{"Uppercase", "AWS:IAM/USER:USER", "iam"},
+		{"MixedCase", "aws:iam/User:User", "iam"},
+		{"PartialPrefix_ShouldNotMatch", "aws:iam-something", "aws:iam-something"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeResourceType(tt.resourceType)
+			if got != tt.want {
+				t.Errorf("normalizeResourceType(%q) = %q, want %q", tt.resourceType, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetProjectedCost_IAM(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name         string
+		resourceType string
+	}{
+		{"User", "aws:iam/user:User"},
+		{"Role", "aws:iam/role:Role"},
+		{"IAM Canonical", "iam"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			if resp.CostPerMonth != 0 {
+				t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+			}
+
+			if !strings.Contains(resp.BillingDetail, "IAM") {
+				t.Errorf("BillingDetail %q does not contain \"IAM\"", resp.BillingDetail)
+			}
+
+			if len(resp.ImpactMetrics) > 0 {
+				t.Errorf("ImpactMetrics = %v, want empty for IAM", resp.ImpactMetrics)
+			}
+		})
+	}
+}

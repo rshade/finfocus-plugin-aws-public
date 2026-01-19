@@ -1132,3 +1132,40 @@ func TestSupports_ZeroCost_SupportedMetricsNil(t *testing.T) {
 		})
 	}
 }
+
+func TestSupports_IAM(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name         string
+		resourceType string
+		want         bool
+	}{
+		{"IAM User", "aws:iam/user:User", true},
+		{"IAM Role", "aws:iam/role:Role", true},
+		{"IAM Canonical", "iam", true},
+		{"IAM Mixed Case", "AWS:IAM/USER:USER", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+
+			if resp.Supported != tt.want {
+				t.Errorf("Supported = %v, want %v", resp.Supported, tt.want)
+			}
+		})
+	}
+}

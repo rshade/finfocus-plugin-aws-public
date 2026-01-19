@@ -38,6 +38,11 @@ func normalizeResourceType(resourceType string) string {
 			return "ebs"
 		}
 
+		// IAM resources (prefix match)
+		if strings.HasPrefix(rt, "aws:iam/") {
+			return "iam"
+		}
+
 		// Zero-cost EC2 networking resources (centralized in ZeroCostPulumiPatterns)
 		// Use token-aware matching to avoid false positives (e.g., "ec2/vpc" matching "ec2/vpcEndpoint")
 		awsSuffix := rt[4:] // Remove "aws:" prefix (already verified above)
@@ -176,8 +181,8 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 		resp, err = p.estimateCloudWatch(traceID, resource)
 	case "elasticache":
 		resp, err = p.estimateElastiCache(traceID, resource)
-	case "vpc", "securitygroup", "subnet":
-		// Zero-cost AWS networking resources - no direct charges
+	case "vpc", "securitygroup", "subnet", "iam":
+		// Zero-cost AWS networking and IAM resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
 		// Unknown resource type - return $0 with explanation
@@ -1104,6 +1109,9 @@ func detectService(resourceType string) string {
 	if strings.Contains(resourceTypeLower, "elasticache/") {
 		return "elasticache"
 	}
+	if strings.Contains(resourceTypeLower, "iam/") {
+		return "iam"
+	}
 
 	return resourceType
 }
@@ -1754,6 +1762,7 @@ var zeroCostResourceDescriptions = map[string]string{
 	"vpc":           "VPC has no direct hourly or monthly charge. Costs may apply for associated resources (NAT Gateway, VPN, etc.)",
 	"securitygroup": "Security Groups have no direct charge. They are a free networking feature.",
 	"subnet":        "Subnets have no direct charge. Costs may apply for data transfer between AZs.",
+	"iam":           "IAM resources (users, roles, policies) have no direct charge. They are a free AWS feature.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.

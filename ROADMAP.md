@@ -43,8 +43,10 @@ security overhead of cloud credentials.
   - Embodied carbon (server manufacturing amortization per CCF)
   - GPU-specific power specs for P/G series instances
   - Storage specs embedded from CCF cloud-carbon-coefficients
-- **Multi-Region Docker:** Single Docker image containing all 9 regional
+- **Multi-Region Docker:** Single Docker image containing all regional
   binaries with tini init and Prometheus metrics aggregation.
+- **us-west-1 Region Support:** Added N. California region to the supported
+  region matrix (#273).
 - **Zero-Cost Resource Handling:** Graceful handling for AWS resources
   with no direct cost (VPC, Security Groups, Subnets) - return $0 estimates
   instead of SKU errors (#237).
@@ -55,6 +57,9 @@ security overhead of cloud credentials.
 
 ## Immediate Focus [In Progress / Planned]
 
+- **[In Progress] Zero-Cost Resource Expansion:**
+  - **IAM Resources:** Add IAM users, roles, policies, groups, and instance
+    profiles to zero-cost handling (#274).
 - **[Planned] Service Breadth Expansion:**
   - **Route53:** Hosted zones and basic query volume estimation.
   - **CloudFront:** Basic data transfer and request pricing (based on regional
@@ -73,10 +78,10 @@ security overhead of cloud credentials.
 - **[Researching] Cross-Service Recommendations:** Static lookup logic to
   suggest move-to-managed alternatives (e.g., self-managed DB on EC2 -> RDS)
   based on Resource Tags.
-- **[Planned] Additional Regions:** Expansion to include us-west-1, GovCloud
-  (us-gov-west-1, us-gov-east-1), and specialized regions (Beijing/Ningxia,
+- **[Planned] Additional Regions:** Expansion to include GovCloud
+  (us-gov-west-1, us-gov-east-1) and specialized regions (Beijing/Ningxia,
   EU-North-1) as public pricing data parity allows. Infrastructure exists but
-  regions.yaml catalog incomplete (#271, #272, #273).
+  regions.yaml catalog incomplete (#271, #272).
 - **[Planned] Forecasting Intelligence:**
   - **Growth Hints:** Implement logic to return `GrowthType` (Linear) for
     accumulation-based resources (S3, ECR, Backup) to support Core forecasting.
