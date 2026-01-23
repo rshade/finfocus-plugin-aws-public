@@ -23,6 +23,7 @@ fi
 # Map region to build tag
 declare -A REGION_TAGS=(
     ["us-east-1"]="region_use1"
+    ["us-west-1"]="region_usw1"
     ["us-west-2"]="region_usw2"
     ["eu-west-1"]="region_euw1"
     ["ap-southeast-1"]="region_apse1"
