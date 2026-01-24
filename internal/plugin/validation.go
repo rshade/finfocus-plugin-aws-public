@@ -40,6 +40,12 @@ func isZeroCostResource(resourceType string) bool {
 	return IsZeroCostService(service)
 }
 
+// isZeroCostResourceWithResolver checks if a resource type maps to a zero-cost resource
+// using a pre-computed serviceResolver. This avoids redundant normalization and detection.
+func isZeroCostResourceWithResolver(resolver *serviceResolver) bool {
+	return IsZeroCostService(resolver.ServiceType())
+}
+
 // ValidateProjectedCostRequest validates the request using SDK helpers and custom region checks.
 // Returns the extracted resource descriptor if valid.
 func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.ResourceDescriptor, error) {
@@ -103,6 +109,73 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req 
 		effectiveRegion = p.region
 		// Note: We do not mutate the incoming request. The effective region is used
 		// only for validation, not returned to the caller.
+	}
+
+	if effectiveRegion != p.region {
+		return nil, p.RegionMismatchError(traceID, effectiveRegion)
+	}
+
+	return resource, nil
+}
+
+// validateProjectedCostRequestWithResolver validates the request using a pre-computed serviceResolver.
+// This variant avoids redundant normalizeResourceType() and detectService() calls when the caller
+// has already created a resolver for other purposes (e.g., cost routing).
+//
+// The resolver parameter must be created from resource.ResourceType before calling this function.
+// This is an optimization for SC-002: single detectService call per request.
+func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(ctx context.Context, req *pbc.GetProjectedCostRequest, resolver *serviceResolver) (*pbc.ResourceDescriptor, error) {
+	traceID := p.getTraceID(ctx)
+
+	// Basic nil checks before any validation
+	// Note: The caller should have already validated req and req.Resource before creating the resolver,
+	// but we keep this check for safety.
+	if req == nil || req.Resource == nil {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+
+	resource := req.Resource
+
+	// Check if this is a zero-cost resource BEFORE SDK validation.
+	// Use resolver to avoid redundant detectService() calls.
+	if isZeroCostResourceWithResolver(resolver) {
+		// Validate provider and region manually (skip SDK's SKU requirement)
+		if err := p.validateProvider(traceID, resource.Provider); err != nil {
+			return nil, err
+		}
+
+		// Region check for zero-cost resources
+		effectiveRegion := resource.Region
+		if effectiveRegion == "" {
+			effectiveRegion = p.region
+		}
+		if effectiveRegion != p.region {
+			return nil, p.RegionMismatchError(traceID, effectiveRegion)
+		}
+
+		return resource, nil
+	}
+
+	// SDK validation (checks nil request, required fields including SKU)
+	if err := pluginsdk.ValidateProjectedCostRequest(req); err != nil {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+
+	// Comprehensive field validation
+	if err := p.validateProvider(traceID, resource.Provider); err != nil {
+		return nil, err
+	}
+	if resource.ResourceType == "" {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "resource_type is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
+
+	// Custom region check using cached service type from resolver
+	effectiveRegion := resource.Region
+	service := resolver.ServiceType()
+
+	// For global services with empty region, use the plugin's region
+	if effectiveRegion == "" && (service == "s3" || service == "iam") {
+		effectiveRegion = p.region
 	}
 
 	if effectiveRegion != p.region {

@@ -224,16 +224,20 @@ func calculateRuntimeHours(from, to time.Time) (float64, error) {
 //
 // PRECONDITION: resource must be non-nil and already validated by caller.
 // This function is called internally after validation in GetActualCost.
-func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+//
+// The resolver parameter is optional. If provided, it's used to get the cached
+// service type. If nil, a new resolver is created internally (for backward compatibility).
+func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.ResourceDescriptor, resolver *serviceResolver) (*pbc.GetProjectedCostResponse, error) {
 	// Defensive nil check - callers should validate, but be safe
 	if resource == nil {
 		return nil, fmt.Errorf("resource descriptor is nil (caller must validate)")
 	}
 
-	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
-	// Issue #124: Use two-step normalization consistent with GetProjectedCost()
-	normalizedType := normalizeResourceType(resource.ResourceType)
-	serviceType := detectService(normalizedType)
+	// Use provided resolver or create one if not provided (backward compatibility)
+	if resolver == nil {
+		resolver = newServiceResolver(resource.ResourceType)
+	}
+	serviceType := resolver.ServiceType()
 
 	// Route to appropriate estimator based on normalized resource type.
 	// For GetActualCost, we construct a minimal request with just the resource.

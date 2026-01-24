@@ -776,3 +776,12 @@ Per CLAUDE.md performance goals: "startup < 1s, PORT < 1s, GetProjectedCost < 10
 - **finfocus-spec** protos for CostSourceService API
 - **zerolog** for structured JSON logging (stderr only)
 - **Embedded JSON** pricing data via `//go:embed` (no external storage)
+
+## Active Technologies
+
+- Go 1.25+ + gRPC (finfocus-spec/sdk/go/pluginsdk), zerolog (001-cache-service-type)
+- N/A (pure in-memory optimization, no persistence) (001-cache-service-type)
+
+## Recent Changes
+
+- 001-cache-service-type: Added Go 1.25+ + gRPC (finfocus-spec/sdk/go/pluginsdk), zerolog

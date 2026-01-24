@@ -294,6 +294,10 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 		return nil, err
 	}
 
+	// Create resolver after validation to cache service type across FOCUS record and routing.
+	// This ensures detectService() is called exactly once per request (SC-002).
+	resolver := newServiceResolver(resource.ResourceType)
+
 	// Determine confidence level from resolution (Feature 016)
 	confidence := determineConfidence(resolution)
 
@@ -320,9 +324,8 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 			Msg("Test mode: GetActualCost request details")
 	}
 
-	// Determine service type once for FOCUS record (used in both branches)
-	normalizedType := normalizeResourceType(resource.ResourceType)
-	serviceType := detectService(normalizedType)
+	// Use cached service type from resolver for FOCUS record (optimization: SC-002)
+	serviceType := resolver.ServiceType()
 
 	// Handle zero duration - return $0 with single result
 	if runtimeHours == 0 {
@@ -360,8 +363,8 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 		}, nil
 	}
 
-	// Get projected monthly cost using helper
-	projectedResp, err := p.getProjectedForResource(traceID, resource)
+	// Get projected monthly cost using helper (pass resolver to reuse cached service type)
+	projectedResp, err := p.getProjectedForResource(traceID, resource, resolver)
 	if err != nil {
 		// Extract error code from gRPC status to preserve context
 		errCode := extractErrorCode(err)
