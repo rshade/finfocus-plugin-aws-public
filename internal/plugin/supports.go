@@ -28,12 +28,10 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	resource := req.Resource
 
-	// Normalize resource type (handles Pulumi formats like aws:eks/cluster:Cluster)
-	// Note: detectService() is called multiple times across validation and support checks.
-	// For optimization opportunity: consider caching normalized service types per resource_type
-	// to avoid repeated string parsing if high-frequency batches of identical resource types occur.
-	normalizedResourceType := normalizeResourceType(resource.ResourceType)
-	normalizedType := detectService(normalizedResourceType)
+	// Use serviceResolver for consistent normalization and service detection.
+	// This caches the computation within this request (optimization implemented per T019).
+	resolver := newServiceResolver(resource.ResourceType)
+	serviceType := resolver.ServiceType()
 
 	// Check provider
 	if resource.Provider != providerAWS {
@@ -54,7 +52,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	// For global services (S3, IAM) and zero-cost resources (VPC, SecurityGroup, Subnet),
 	// allow empty region and default to plugin region.
 	effectiveRegion := resource.Region
-	if effectiveRegion == "" && (normalizedType == "s3" || normalizedType == "iam" || IsZeroCostService(normalizedType)) {
+	if effectiveRegion == "" && (serviceType == "s3" || serviceType == "iam" || IsZeroCostService(serviceType)) {
 		effectiveRegion = p.region
 	}
 
@@ -73,11 +71,11 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 	}
 
 	// Check resource type
-	switch normalizedType {
+	switch serviceType {
 	case "ec2", "rds", "lambda", "s3", "ebs", "eks", "dynamodb", "elasticache":
 		// These services support cost estimation
 		// EC2 also supports carbon footprint estimation
-		supportedMetrics := getSupportedMetrics(normalizedType)
+		supportedMetrics := getSupportedMetrics(serviceType)
 		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.ResourceType).
 			Str("aws_region", resource.Region).
@@ -109,7 +107,7 @@ func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest
 
 	default:
 		// Check for zero-cost resources using centralized ZeroCostServices map
-		if IsZeroCostService(normalizedType) {
+		if IsZeroCostService(serviceType) {
 			p.traceLogger(traceID, "Supports").Info().
 				Str(pluginsdk.FieldResourceType, resource.ResourceType).
 				Str("aws_region", effectiveRegion).

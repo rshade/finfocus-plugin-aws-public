@@ -138,8 +138,10 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 			region = p.region
 		}
 
-		// Generate recommendations based on resource type
-		service := detectService(resource.ResourceType)
+		// Generate recommendations based on resource type.
+		// Use serviceResolver to cache normalized type (optimization: compute once per resource)
+		resolver := newServiceResolver(resource.ResourceType)
+		service := resolver.ServiceType()
 		var recs []*pbc.Recommendation
 
 		switch service {

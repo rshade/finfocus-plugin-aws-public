@@ -130,15 +130,26 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
+	// Early nil check to create serviceResolver (optimization: compute once per request)
+	if req == nil || req.Resource == nil {
+		err := p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, err
+	}
+
+	resource := req.Resource
+
+	// Create resolver early to cache normalized type across validation and routing.
+	// This ensures detectService() is called exactly once per request (SC-002).
+	resolver := newServiceResolver(resource.ResourceType)
+
 	// FR-009, FR-010: Use SDK validation + custom region check (US2)
-	if _, err := p.ValidateProjectedCostRequest(ctx, req); err != nil {
+	if _, err := p.validateProjectedCostRequestWithResolver(ctx, req, resolver); err != nil {
 		// Extract error code from error details for proper logging
 		errCode := extractErrorCode(err)
 		p.logErrorWithID(traceID, "GetProjectedCost", err, errCode)
 		return nil, err
 	}
-
-	resource := req.Resource
 
 	// Test mode: Enhanced logging for request details (US3)
 	if p.testMode {
@@ -155,9 +166,8 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	var resp *pbc.GetProjectedCostResponse
 	var err error
 
-	// Normalize resource type first (T006, Issue #124)
-	normalizedType := normalizeResourceType(resource.ResourceType)
-	serviceType := detectService(normalizedType)
+	// Use cached service type from resolver (optimization: SC-002)
+	serviceType := resolver.ServiceType()
 	switch serviceType {
 	case "ec2":
 		resp, err = p.estimateEC2(traceID, resource, req)

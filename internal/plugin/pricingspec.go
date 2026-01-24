@@ -30,9 +30,9 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 
 	resource := req.Resource
 
-	// Normalize resource type (handles Pulumi formats like aws:ec2/instance:Instance)
-	normalizedResourceType := normalizeResourceType(resource.ResourceType)
-	serviceType := detectService(normalizedResourceType)
+	// Use serviceResolver for consistent normalization (optimization: compute once per request)
+	resolver := newServiceResolver(resource.ResourceType)
+	serviceType := resolver.ServiceType()
 
 	var spec *pbc.PricingSpec
 

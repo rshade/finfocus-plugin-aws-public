@@ -52,18 +52,21 @@ security overhead of cloud credentials.
   instead of SKU errors (#237).
 - **Carbon Metrics Advertisement:** `getSupportedMetrics` now accurately
   reflects carbon estimation availability per service (#257).
+- **IAM Zero-Cost Resources:** Added IAM users, roles, policies, groups, and
+  instance profiles to zero-cost handling (#274).
 
 ---
 
 ## Immediate Focus [In Progress / Planned]
 
-- **[In Progress] Zero-Cost Resource Expansion:**
-  - **IAM Resources:** Add IAM users, roles, policies, groups, and instance
-    profiles to zero-cost handling (#274).
 - **[Planned] Service Breadth Expansion:**
   - **Route53:** Hosted zones and basic query volume estimation.
   - **CloudFront:** Basic data transfer and request pricing (based on regional
     estimates).
+- **[Planned] Build Infrastructure:**
+  - **Region Mapping Consolidation:** Consolidate all region-to-tag mappings
+    to use `regions.yaml` as single source of truth, eliminating hardcoded
+    duplicates in shell scripts (#287).
 
 ---
 
