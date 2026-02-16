@@ -168,6 +168,7 @@ When adding support for a new AWS service, follow these steps:
 - Markdown, JSON (Task Definition), HCL (Terraform example) + AWS ECS Fargate, Cloud Map, Docker (027-ecs-deployment)
 - N/A (Stateless) (027-ecs-deployment)
 - N/A (Embedded pricing data) (034-test-windows-pricing)
+- Go 1.25+ + gRPC, finfocus-spec/sdk/go/pluginsdk (001-fix-port-contract-bugs)
 
 ## Recent Changes
 

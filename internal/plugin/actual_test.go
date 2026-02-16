@@ -712,49 +712,6 @@ func TestGetActualCostZeroDuration(t *testing.T) {
 	}
 }
 
-// TestGetActualCostStubServices tests stub service responses.
-func TestGetActualCostStubServices(t *testing.T) {
-	plugin := newTestPluginForActual()
-	ctx := context.Background()
-
-	stubServices := []string{"s3", "lambda", "dynamodb"}
-
-	for _, service := range stubServices {
-		t.Run(service, func(t *testing.T) {
-			from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-			to := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
-
-			req := &pbc.GetActualCostRequest{
-				ResourceId: makeResourceJSON("aws", service, "test-sku", "us-east-1", nil),
-				Start:      timestamppb.New(from),
-				End:        timestamppb.New(to),
-			}
-
-			resp, err := plugin.GetActualCost(ctx, req)
-			if err != nil {
-				t.Errorf("GetActualCost() unexpected error for %s: %v", service, err)
-				return
-			}
-			if resp == nil {
-				t.Errorf("GetActualCost() returned nil response for %s", service)
-				return
-			}
-			if len(resp.Results) == 0 {
-				t.Errorf("GetActualCost() returned empty results for %s", service)
-				return
-			}
-
-			result := resp.Results[0]
-			if result.Cost != 0 {
-				t.Errorf("GetActualCost() cost = %v, want 0 for stub service %s", result.Cost, service)
-			}
-			if result.Source == "" {
-				t.Errorf("GetActualCost() source (billing_detail) is empty for %s", service)
-			}
-		})
-	}
-}
-
 // BenchmarkGetActualCost benchmarks the GetActualCost method to verify SC-003.
 // Target: < 10ms per request.
 func BenchmarkGetActualCost(b *testing.B) {
@@ -1453,58 +1410,161 @@ func TestGetActualCost_ExplicitOverridesPulumiCreated(t *testing.T) {
 	}
 }
 
-// TestFormatSourceWithConfidence tests the formatSourceWithConfidence helper function.
-// This validates the semantic encoding format in the source field.
-func TestFormatSourceWithConfidence(t *testing.T) {
+// TestGetActualCost_PricingUnavailable tests that GetActualCost returns empty results
+// when pricing data is unavailable, enabling Core fallback.
+func TestGetActualCost_PricingUnavailable(t *testing.T) {
+	plugin := newTestPluginForActual()
+	ctx := context.Background()
+
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
+	// Instance type "z9.superlarge" is NOT in the mock pricing client
+	req := &pbc.GetActualCostRequest{
+		ResourceId: makeResourceJSON("aws", "ec2", "z9.superlarge", "us-east-1", nil),
+		Start:      timestamppb.New(from),
+		End:        timestamppb.New(to),
+	}
+
+	resp, err := plugin.GetActualCost(ctx, req)
+	if err != nil {
+		t.Fatalf("GetActualCost() unexpected error: %v", err)
+	}
+
+	if resp == nil {
+		t.Fatal("GetActualCost() returned nil response")
+	}
+
+	// FR-004: MUST contain 0 results for missing pricing
+	if len(resp.Results) != 0 {
+		t.Errorf("GetActualCost() results = %d, want 0 for unavailable pricing", len(resp.Results))
+	}
+}
+
+// TestGetActualCost_ZeroCostResource tests that VPC/IAM return $0 as expected.
+func TestGetActualCost_ZeroCostResource(t *testing.T) {
+	plugin := newTestPluginForActual()
+	ctx := context.Background()
+
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
+	zeroCostTypes := []string{"vpc", "securitygroup", "subnet", "iam"}
+
+	for _, rt := range zeroCostTypes {
+		t.Run(rt, func(t *testing.T) {
+			req := &pbc.GetActualCostRequest{
+				ResourceId: makeResourceJSON("aws", rt, "none", "us-east-1", nil),
+				Start:      timestamppb.New(from),
+				End:        timestamppb.New(to),
+			}
+
+			resp, err := plugin.GetActualCost(ctx, req)
+			if err != nil {
+				t.Fatalf("GetActualCost() unexpected error for %s: %v", rt, err)
+			}
+
+			if len(resp.Results) == 0 {
+				t.Fatalf("GetActualCost() returned 0 results for %s", rt)
+			}
+
+			if resp.Results[0].Cost != 0 {
+				t.Errorf("GetActualCost() cost = %v, want 0 for zero-cost resource %s", resp.Results[0].Cost, rt)
+			}
+
+			if !strings.Contains(resp.Results[0].Source, "no direct") && !strings.Contains(resp.Results[0].Source, "free") {
+				t.Errorf("GetActualCost() source = %q, want explanation for zero-cost resource %s", resp.Results[0].Source, rt)
+			}
+		})
+	}
+}
+
+// TestGetActualCost_RoutingFix tests that S3/Lambda now use real estimators in Actual Cost mode.
+func TestGetActualCost_RoutingFix(t *testing.T) {
+	plugin := newTestPluginForActual()
+	// Configure mock pricing for S3/Lambda
+	plugin.pricing.(*mockPricingClientActual).s3Prices = map[string]float64{"Standard": 0.023}
+	plugin.pricing.(*mockPricingClientActual).lambdaPrices = map[string]float64{
+		"request":   0.0000002,
+		"gb-second": 0.0000166667,
+	}
+
+	ctx := context.Background()
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(730 * time.Hour) // Full month
+
+	t.Run("S3 Bucket", func(t *testing.T) {
+		req := &pbc.GetActualCostRequest{
+			ResourceId: makeResourceJSON("aws", "s3", "Standard", "us-east-1", map[string]string{"size": "100"}),
+			Start:      timestamppb.New(from),
+			End:        timestamppb.New(to),
+		}
+		resp, err := plugin.GetActualCost(ctx, req)
+		if err != nil {
+			t.Fatalf("GetActualCost(S3) failed: %v", err)
+		}
+		// $0.023/GB * 100GB = $2.30
+		if resp.Results[0].Cost != 2.30 {
+			t.Errorf("S3 cost = %v, want 2.30", resp.Results[0].Cost)
+		}
+	})
+
+	t.Run("Lambda Function", func(t *testing.T) {
+		req := &pbc.GetActualCostRequest{
+			ResourceId: makeResourceJSON("aws", "lambda", "128", "us-east-1", map[string]string{
+				"requests_per_month": "1000000",
+				"avg_duration_ms":    "100",
+			}),
+			Start: timestamppb.New(from),
+			End:   timestamppb.New(to),
+		}
+		resp, err := plugin.GetActualCost(ctx, req)
+		if err != nil {
+			t.Fatalf("GetActualCost(Lambda) failed: %v", err)
+		}
+		// Requests: 1M * $0.0000002 = $0.20
+		// Compute: (128/1024) * 0.1s * 1M * $0.0000166667 = $0.2083
+		// Total: $0.4083
+		expected := 0.40833375
+		if diff := resp.Results[0].Cost - expected; diff > 0.0001 || diff < -0.0001 {
+			t.Errorf("Lambda cost = %v, want %v", resp.Results[0].Cost, expected)
+		}
+	})
+}
+
+// TestGetActualCost_MixedBatch tests that in a batch request, resources with missing
+// pricing return no results, while those with pricing return results.
+// Note: Current GetActualCost proto only supports single resource per RPC.
+// This test validates that multiple sequential calls handle their pricing independently.
+func TestGetActualCost_MixedBatch(t *testing.T) {
+	plugin := newTestPluginForActual()
+	ctx := context.Background()
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
 	tests := []struct {
-		name       string
-		confidence ConfidenceLevel
-		note       string
-		want       string
+		name    string
+		sku     string
+		wantRes int
 	}{
-		{
-			name:       "HIGH confidence no note",
-			confidence: ConfidenceHigh,
-			note:       "",
-			want:       "aws-public-fallback[confidence:HIGH]",
-		},
-		{
-			name:       "MEDIUM confidence no note",
-			confidence: ConfidenceMedium,
-			note:       "",
-			want:       "aws-public-fallback[confidence:MEDIUM]",
-		},
-		{
-			name:       "LOW confidence no note",
-			confidence: ConfidenceLow,
-			note:       "",
-			want:       "aws-public-fallback[confidence:LOW]",
-		},
-		{
-			name:       "HIGH confidence with note",
-			confidence: ConfidenceHigh,
-			note:       "explicit timestamps",
-			want:       "aws-public-fallback[confidence:HIGH] explicit timestamps",
-		},
-		{
-			name:       "MEDIUM confidence with imported note",
-			confidence: ConfidenceMedium,
-			note:       "imported resource",
-			want:       "aws-public-fallback[confidence:MEDIUM] imported resource",
-		},
-		{
-			name:       "LOW confidence with explanation",
-			confidence: ConfidenceLow,
-			note:       "unsupported resource type",
-			want:       "aws-public-fallback[confidence:LOW] unsupported resource type",
-		},
+		{"Found pricing", "t3.micro", 1},
+		{"Missing pricing", "z9.superlarge", 0},
+		{"Another found", "m5.large", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatSourceWithConfidence(tt.confidence, tt.note)
-			if got != tt.want {
-				t.Errorf("formatSourceWithConfidence() = %q, want %q", got, tt.want)
+			req := &pbc.GetActualCostRequest{
+				ResourceId: makeResourceJSON("aws", "ec2", tt.sku, "us-east-1", nil),
+				Start:      timestamppb.New(from),
+				End:        timestamppb.New(to),
+			}
+			resp, err := plugin.GetActualCost(ctx, req)
+			if err != nil {
+				t.Fatalf("GetActualCost failed: %v", err)
+			}
+			if len(resp.Results) != tt.wantRes {
+				t.Errorf("sku %s: got %d results, want %d", tt.sku, len(resp.Results), tt.wantRes)
 			}
 		})
 	}

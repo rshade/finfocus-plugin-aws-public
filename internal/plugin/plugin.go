@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -296,15 +297,15 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 
 	// Create resolver after validation to cache service type across FOCUS record and routing.
 	// This ensures detectService() is called exactly once per request (SC-002).
-	resolver := newServiceResolver(resource.ResourceType)
+	resolver := newServiceResolver(resource.GetResourceType())
 
 	// Determine confidence level from resolution (Feature 016)
 	confidence := determineConfidence(resolution)
 
 	// Parse timestamps and calculate runtime hours
 	// Note: req.Start and req.End are guaranteed non-nil by ValidateActualCostRequest
-	fromTime := req.Start.AsTime()
-	toTime := req.End.AsTime()
+	fromTime := req.GetStart().AsTime()
+	toTime := req.GetEnd().AsTime()
 
 	runtimeHours, err := calculateRuntimeHours(fromTime, toTime)
 	if err != nil {
@@ -317,9 +318,9 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	if p.testMode {
 		p.logger.Debug().
 			Str(pluginsdk.FieldTraceID, traceID).
-			Str("resource_type", resource.ResourceType).
-			Str("sku", resource.Sku).
-			Str("region", resource.Region).
+			Str("resource_type", resource.GetResourceType()).
+			Str("sku", resource.GetSku()).
+			Str("region", resource.GetRegion()).
 			Float64("runtime_hours", runtimeHours).
 			Msg("Test mode: GetActualCost request details")
 	}
@@ -346,18 +347,18 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 
 		return &pbc.GetActualCostResponse{
 			Results: []*pbc.ActualCostResult{{
-				Timestamp: req.Start,
+				Timestamp: req.GetStart(),
 				Cost:      0,
 				Source:    source,
 				// FOCUS 1.2 record for FinOps reporting
 				FocusRecord: buildFocusRecord(
 					serviceType,
-					resource.ResourceType,
-					resource.Region,
+					resource.GetResourceType(),
+					resource.GetRegion(),
 					0, 0, // cost and unit price are 0 for zero duration
 					getPricingUnitForService(serviceType),
 					fromTime, toTime,
-					resource.Sku,
+					resource.GetSku(),
 				),
 			}},
 		}, nil
@@ -366,6 +367,16 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	// Get projected monthly cost using helper (pass resolver to reuse cached service type)
 	projectedResp, err := p.getProjectedForResource(traceID, resource, resolver)
 	if err != nil {
+		var pue *PricingUnavailableError
+		if errors.As(err, &pue) {
+			// FR-004: Empty results signals to Core that pricing is unavailable for fallback
+			p.traceLogger(traceID, "GetActualCost").Info().
+				Str("service", pue.Service).
+				Str("sku", pue.SKU).
+				Msg("pricing unavailable, returning empty results for fallback")
+			return &pbc.GetActualCostResponse{Results: []*pbc.ActualCostResult{}}, nil
+		}
+
 		// Extract error code from gRPC status to preserve context
 		errCode := extractErrorCode(err)
 		p.logErrorWithID(traceID, "GetActualCost", err, errCode)
@@ -373,13 +384,13 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 	}
 
 	// Apply formula: actual_cost = projected_monthly_cost × (runtime_hours / 730)
-	actualCost := projectedResp.CostPerMonth * (runtimeHours / carbon.HoursPerMonth)
+	actualCost := projectedResp.GetCostPerMonth() * (runtimeHours / carbon.HoursPerMonth)
 
 	// Test mode: Enhanced logging for calculation result (US3)
 	if p.testMode {
 		p.logger.Debug().
 			Str(pluginsdk.FieldTraceID, traceID).
-			Float64("projected_monthly", projectedResp.CostPerMonth).
+			Float64("projected_monthly", projectedResp.GetCostPerMonth()).
 			Float64("runtime_hours", runtimeHours).
 			Float64("actual_cost", actualCost).
 			Str("formula", "projected_monthly × (runtime_hours / 730)").
@@ -392,15 +403,15 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 		note = "imported resource"
 	}
 	sourceWithConfidence := formatSourceWithConfidence(confidence, note)
-	billingDetail := formatActualBillingDetail(projectedResp.BillingDetail, runtimeHours, actualCost)
+	billingDetail := formatActualBillingDetail(projectedResp.GetBillingDetail(), runtimeHours, actualCost)
 	// Combine: confidence prefix + billing detail
 	fullSource := sourceWithConfidence + " | " + billingDetail
 
 	p.traceLogger(traceID, "GetActualCost").Info().
-		Str(pluginsdk.FieldResourceType, resource.ResourceType).
-		Str("aws_service", resource.ResourceType).
-		Str("aws_region", resource.Region).
-		Interface("tags", sanitizeTagsForLogging(resource.Tags)).
+		Str(pluginsdk.FieldResourceType, resource.GetResourceType()).
+		Str("aws_service", resource.GetResourceType()).
+		Str("aws_region", resource.GetRegion()).
+		Interface("tags", sanitizeTagsForLogging(resource.GetTags())).
 		Float64("cost_monthly", actualCost).
 		Float64("usage_amount", runtimeHours).
 		Str("usage_unit", "hours").
@@ -411,7 +422,7 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 
 	return &pbc.GetActualCostResponse{
 		Results: []*pbc.ActualCostResult{{
-			Timestamp:   req.Start,
+			Timestamp:   req.GetStart(),
 			Cost:        actualCost,
 			UsageAmount: runtimeHours,
 			UsageUnit:   "hours",
@@ -419,13 +430,13 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 			// FOCUS 1.2 record for FinOps reporting
 			FocusRecord: buildFocusRecord(
 				serviceType,
-				resource.ResourceType,
-				resource.Region,
+				resource.GetResourceType(),
+				resource.GetRegion(),
 				actualCost,
-				projectedResp.UnitPrice, // Hourly rate from projected cost
+				projectedResp.GetUnitPrice(), // Hourly rate from projected cost
 				"Hours",
 				fromTime, toTime,
-				resource.Sku,
+				resource.GetSku(),
 			),
 		}},
 	}, nil
@@ -448,16 +459,16 @@ func extractErrorCode(err error) pbc.ErrorCode {
 // It first tries to parse ResourceId as JSON, then falls back to Tags.
 func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest) (*pbc.ResourceDescriptor, error) {
 	// Try parsing ResourceId as JSON-encoded ResourceDescriptor
-	if req.ResourceId != "" {
+	if req.GetResourceId() != "" {
 		var resource pbc.ResourceDescriptor
-		if err := json.Unmarshal([]byte(req.ResourceId), &resource); err == nil {
+		if err := json.Unmarshal([]byte(req.GetResourceId()), &resource); err == nil {
 			return &resource, nil
 		}
 		// If JSON parsing fails, treat ResourceId as a simple ID and use Tags
 	}
 
 	// Fall back to extracting from Tags
-	tags := req.Tags
+	tags := req.GetTags()
 	if tags == nil {
 		return nil, status.Error(codes.InvalidArgument, "missing resource information: provide ResourceId as JSON or use Tags")
 	}
@@ -487,7 +498,7 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	}
 
 	// Validate required fields
-	if resource.Provider == "" || resource.ResourceType == "" || resource.Sku == "" || resource.Region == "" {
+	if resource.GetProvider() == "" || resource.GetResourceType() == "" || resource.GetSku() == "" || resource.GetRegion() == "" {
 		return nil, status.Error(codes.InvalidArgument, "resource information incomplete: need provider, resource_type, sku, region in ResourceId or Tags")
 	}
 

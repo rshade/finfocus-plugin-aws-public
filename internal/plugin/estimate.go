@@ -27,18 +27,18 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 		return nil, err
 	}
 
-	if req.ResourceType == "" {
+	if req.GetResourceType() == "" {
 		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing resource_type", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		p.logErrorWithID(traceID, "EstimateCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
 
 	// Parse Pulumi resource type (e.g., "aws:ec2/instance:Instance")
-	resourceInfo, err := parsePulumiResourceType(req.ResourceType)
+	resourceInfo, err := parsePulumiResourceType(req.GetResourceType())
 	if err != nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid resource_type format: %v", err), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		p.logErrorWithID(traceID, "EstimateCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
-		return nil, err
+		statusErr := p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid resource_type format: %v", err), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		p.logErrorWithID(traceID, "EstimateCost", statusErr, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, statusErr
 	}
 
 	// Only support AWS resources
@@ -50,7 +50,7 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 	}
 
 	// Extract attributes
-	attrs := req.Attributes
+	attrs := req.GetAttributes()
 	if attrs == nil {
 		attrs = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
 	}
@@ -88,7 +88,7 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 	}
 
 	p.traceLogger(traceID, "EstimateCost").Info().
-		Str("pulumi_type", req.ResourceType).
+		Str("pulumi_type", req.GetResourceType()).
 		Str("aws_region", region).
 		Float64(pluginsdk.FieldCostMonthly, costMonthly).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).

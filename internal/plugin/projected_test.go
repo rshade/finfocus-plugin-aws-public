@@ -4368,3 +4368,35 @@ func TestGetProjectedCost_IAM(t *testing.T) {
 		})
 	}
 }
+
+// TestGetProjectedCost_PricingUnavailable tests that GetProjectedCost returns $0 with
+// a descriptive BillingDetail for backward compatibility when pricing is missing.
+func TestGetProjectedCost_PricingUnavailable(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// No pricing data added to mock
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "z9.superlarge",
+			Region:       "us-east-1",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// FR-005: MUST return $0 for backward compatibility
+	if resp.CostPerMonth != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for unavailable pricing", resp.CostPerMonth)
+	}
+
+	// MUST explain why pricing is unavailable
+	if !strings.Contains(resp.BillingDetail, "not found") && !strings.Contains(resp.BillingDetail, "not available") {
+		t.Errorf("BillingDetail should explain missing pricing, got: %s", resp.BillingDetail)
+	}
+}

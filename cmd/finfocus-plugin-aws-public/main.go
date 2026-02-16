@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 	"os/signal"
 	"strconv"
@@ -32,6 +33,9 @@ func main() {
 // logs the AWS region returned by the pricing client, and performs a graceful shutdown on
 // os.Interrupt or syscall.SIGTERM.
 func run() error {
+	// Parse CLI flags (registers SDK's --port flag and populates it)
+	flag.Parse()
+
 	// Parse log level from environment using SDK (FINFOCUS_LOG_LEVEL > LOG_LEVEL > info)
 	level := zerolog.InfoLevel
 	if lvl := pluginsdk.GetLogLevel(); lvl != "" {
@@ -59,14 +63,17 @@ func run() error {
 		Str("aws_region", region).
 		Msg("plugin started")
 
-	// Determine port with SDK fallback (FINFOCUS_PLUGIN_PORT > PORT > ephemeral)
-	// Note: pluginsdk.GetPort() only checks FINFOCUS_PLUGIN_PORT. We maintain
-	// backward compatibility with the generic PORT env var for earlier plugin
-	// versions and common deployment patterns (e.g., container platforms that
-	// inject PORT). This is intentional and should not be removed.
-	port := pluginsdk.GetPort()
+	// Determine port with SDK fallback (CLI --port > FINFOCUS_PLUGIN_PORT > PORT > ephemeral)
+	// Priority 1: --port CLI flag
+	port := pluginsdk.ParsePortFlag()
+
 	if port == 0 {
-		// Backward compatibility: check generic PORT env var
+		// Priority 2: FINFOCUS_PLUGIN_PORT environment variable
+		port = pluginsdk.GetPort()
+	}
+
+	if port == 0 {
+		// Priority 3: Backward compatibility Generic PORT environment variable
 		if portStr := os.Getenv("PORT"); portStr != "" {
 			logger.Warn().
 				Str("env_var", "PORT").
@@ -74,12 +81,13 @@ func run() error {
 				Str("deprecated_since", "v0.0.8").
 				Str("removal_version", "v0.1.0").
 				Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use FINFOCUS_PLUGIN_PORT instead.")
-			parsed, err := strconv.Atoi(portStr)
-			if err == nil && parsed > 0 && parsed <= 65535 {
-				port = parsed
+			var portVal int
+			portVal, err = strconv.Atoi(portStr)
+			if err == nil && portVal > 0 && portVal <= 65535 {
+				port = portVal
 			} else if err == nil {
 				logger.Warn().
-					Int("port", parsed).
+					Int("port", portVal).
 					Msg("PORT environment variable value is out of valid range (1-65535), ignoring")
 			}
 		}
@@ -137,7 +145,8 @@ func run() error {
 		config.Web = webConfig
 		logger.Info().Msg("web serving enabled with multi-protocol support")
 	}
-	if err := pluginsdk.Serve(ctx, config); err != nil {
+	err = pluginsdk.Serve(ctx, config)
+	if err != nil {
 		logger.Error().Err(err).Msg("server error")
 		return err
 	}

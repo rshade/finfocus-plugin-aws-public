@@ -75,19 +75,19 @@ func ExtractEC2AttributesFromTags(tags map[string]string) EC2Attributes {
 func ExtractEC2AttributesFromStruct(attrs *structpb.Struct) EC2Attributes {
 	result := DefaultEC2Attributes()
 
-	if attrs == nil || attrs.Fields == nil {
+	if attrs == nil || attrs.GetFields() == nil {
 		return result
 	}
 
 	// Extract OS from platform attribute
-	if val, ok := attrs.Fields["platform"]; ok {
+	if val, ok := attrs.GetFields()["platform"]; ok {
 		if strVal := val.GetStringValue(); strVal != "" {
 			result.OS = normalizePlatform(strVal)
 		}
 	}
 
 	// Extract tenancy from tenancy attribute
-	if val, ok := attrs.Fields["tenancy"]; ok {
+	if val, ok := attrs.GetFields()["tenancy"]; ok {
 		if strVal := val.GetStringValue(); strVal != "" {
 			result.Tenancy = normalizeTenancy(strVal)
 		}

@@ -157,40 +157,6 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
 
-  - id: us-gov-west-1
-    main: ./cmd/finfocus-plugin-aws-public
-    binary: finfocus-plugin-aws-public-us-gov-west-1
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-    tags:
-      - region_govw1
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
-  - id: us-gov-east-1
-    main: ./cmd/finfocus-plugin-aws-public
-    binary: finfocus-plugin-aws-public-us-gov-east-1
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-      - windows
-    goarch:
-      - amd64
-      - arm64
-    tags:
-      - region_gove1
-    ldflags:
-      - -s -w -X main.version={{ .Version }}
-
   - id: us-west-1
     main: ./cmd/finfocus-plugin-aws-public
     binary: finfocus-plugin-aws-public-us-west-1
@@ -208,8 +174,35 @@ builds:
     ldflags:
       - -s -w -X main.version={{ .Version }}
 
+  - id: router
+    main: ./cmd/finfocus-plugin-aws-public-router
+    binary: finfocus-plugin-aws-public
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
 archives:
-  - formats:
+  - id: region-archives
+    builds:
+      - us-east-1
+      - us-west-2
+      - eu-west-1
+      - ap-southeast-1
+      - ap-southeast-2
+      - ap-northeast-1
+      - ap-south-1
+      - ca-central-1
+      - sa-east-1
+      - us-west-1
+    formats:
       - tar.gz
     name_template: >-
       {{ .ProjectName }}_
@@ -220,6 +213,23 @@ archives:
       {{ else }}{{ .Arch }}{{ end }}
       {{ if .Arm }}v{{ .Arm }}{{ end }}_
       {{ .ID }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+  - id: router-archive
+    builds:
+      - router
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{ .Version }}_
+      {{ title .Os }}_
+      {{ if eq .Arch "amd64" }}x86_64
+      {{ else if eq .Arch "386" }}i386
+      {{ else }}{{ .Arch }}{{ end }}
+      {{ if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
         formats:
