@@ -384,9 +384,13 @@ func (r *Plugin) getTraceID(ctx context.Context) string {
 
 // propagateTraceID creates a new context with the trace_id set as outgoing gRPC metadata.
 func propagateTraceID(ctx context.Context, traceID string) context.Context {
-	md := metadata.New(map[string]string{
-		pluginsdk.TraceIDMetadataKey: traceID,
-	})
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok || md == nil {
+		md = metadata.MD{}
+	} else {
+		md = md.Copy()
+	}
+	md.Set(pluginsdk.TraceIDMetadataKey, traceID)
 	return metadata.NewOutgoingContext(ctx, md)
 }
 
