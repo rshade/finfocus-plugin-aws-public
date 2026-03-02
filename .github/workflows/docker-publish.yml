@@ -54,7 +54,7 @@ jobs:
           echo "Final version: ${VERSION}"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # For workflow_run: use head_sha to checkout the exact commit that was released
           # For workflow_dispatch: use the tag directly
