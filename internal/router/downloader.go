@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -44,17 +45,23 @@ type Downloader struct {
 // NewDownloader creates a new Downloader for the given version.
 func NewDownloader(version, targetDir string, logger zerolog.Logger) *Downloader {
 	return &Downloader{
-		version:    version,
-		baseURL:    defaultBaseURL,
-		targetDir:  targetDir,
-		httpClient: &http.Client{},
-		logger:     logger.With().Str("component", "downloader").Logger(),
+		version:   version,
+		baseURL:   defaultBaseURL,
+		targetDir: targetDir,
+		httpClient: &http.Client{
+			Timeout: 5 * time.Minute,
+		},
+		logger: logger.With().Str("component", "downloader").Logger(),
 	}
 }
 
 // Download downloads, verifies, and extracts a region binary.
 // It returns the absolute path to the extracted binary.
 func (d *Downloader) Download(ctx context.Context, region string) (string, error) {
+	if err := validateRegion(region); err != nil {
+		return "", err
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -214,8 +221,21 @@ func (d *Downloader) downloadFile(ctx context.Context, url, destPath string) err
 	}
 	defer out.Close()
 
-	if _, copyErr := io.Copy(out, resp.Body); copyErr != nil {
+	if resp.ContentLength > maxBinarySize {
+		return fmt.Errorf("download too large: %d bytes", resp.ContentLength)
+	}
+
+	limited := io.LimitReader(resp.Body, maxBinarySize+1)
+	written, copyErr := io.Copy(out, limited)
+	if copyErr != nil {
+		_ = out.Close()
+		_ = os.Remove(destPath)
 		return fmt.Errorf("failed to write file: %w", copyErr)
+	}
+	if written > maxBinarySize {
+		_ = out.Close()
+		_ = os.Remove(destPath)
+		return fmt.Errorf("download exceeded maximum allowed size")
 	}
 
 	return nil
@@ -252,14 +272,18 @@ func (d *Downloader) extractBinary(tarballPath, region string) (string, error) {
 			continue
 		}
 
-		return d.extractTarEntry(tr, baseName)
+		return d.extractTarEntry(tr, baseName, header.Size)
 	}
 
 	return "", fmt.Errorf("binary %s not found in archive", expectedBinaryName)
 }
 
 // extractTarEntry writes a single tar entry to the target directory with size limits.
-func (d *Downloader) extractTarEntry(r io.Reader, baseName string) (string, error) {
+func (d *Downloader) extractTarEntry(r io.Reader, baseName string, size int64) (string, error) {
+	if size > maxBinarySize {
+		return "", fmt.Errorf("binary %s is too large: %d bytes", baseName, size)
+	}
+
 	destPath := filepath.Join(d.targetDir, baseName)
 	out, createErr := os.Create(destPath)
 	if createErr != nil {
@@ -269,12 +293,12 @@ func (d *Downloader) extractTarEntry(r io.Reader, baseName string) (string, erro
 	// Limit extraction size to prevent decompression bombs
 	limitedReader := io.LimitReader(r, maxBinarySize)
 	if _, copyErr := io.Copy(out, limitedReader); copyErr != nil {
-		if closeErr := out.Close(); closeErr != nil {
-			d.logger.Warn().Err(closeErr).Msg("failed to close file after copy error")
-		}
+		_ = out.Close()
+		_ = os.Remove(destPath)
 		return "", fmt.Errorf("failed to extract binary: %w", copyErr)
 	}
 	if closeErr := out.Close(); closeErr != nil {
+		_ = os.Remove(destPath)
 		return "", fmt.Errorf("failed to close extracted binary: %w", closeErr)
 	}
 

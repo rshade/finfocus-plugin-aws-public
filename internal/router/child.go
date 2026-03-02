@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -117,19 +118,21 @@ func (c *ChildProcess) Launch(ctx context.Context) error {
 	env := os.Environ()
 	env = append(env, "FINFOCUS_PLUGIN_WEB_ENABLED=true", "PORT=0")
 
+	// Use a long-lived context for the process lifetime; the request ctx is only used
+	// to bound the startup wait.
 	//nolint:gosec // G204: binaryPath is from trusted discovery, not user input
-	cmd := exec.CommandContext(ctx, c.binaryPath)
+	cmd := exec.CommandContext(context.Background(), c.binaryPath)
 	cmd.Env = env
 	cmd.Stderr = os.Stderr // Inherit stderr for child logging
 
 	stdout, pipeErr := cmd.StdoutPipe()
 	if pipeErr != nil {
-		c.setStateFailed(pipeErr)
+		c.setStateUnhealthy(pipeErr)
 		return fmt.Errorf("failed to create stdout pipe: %w", pipeErr)
 	}
 
 	if startErr := cmd.Start(); startErr != nil {
-		c.setStateFailed(startErr)
+		c.setStateUnhealthy(startErr)
 		return fmt.Errorf("failed to start child: %w", startErr)
 	}
 
@@ -145,6 +148,7 @@ func (c *ChildProcess) Launch(ctx context.Context) error {
 				port, parseErr := strconv.Atoi(matches[1])
 				if parseErr == nil && port > 0 {
 					portChan <- port
+					_, _ = io.Copy(io.Discard, stdout)
 					return
 				}
 			}
@@ -170,18 +174,21 @@ func (c *ChildProcess) Launch(ctx context.Context) error {
 
 	case childErr := <-errChan:
 		_ = cmd.Process.Kill()
-		c.setStateFailed(childErr)
+		_ = cmd.Wait()
+		c.setStateUnhealthy(childErr)
 		return fmt.Errorf("child startup failed: %w", childErr)
 
 	case <-time.After(childStartTimeout):
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 		timeoutErr := fmt.Errorf("child failed to announce PORT within %s", childStartTimeout)
-		c.setStateFailed(timeoutErr)
+		c.setStateUnhealthy(timeoutErr)
 		return timeoutErr
 
 	case <-ctx.Done():
 		_ = cmd.Process.Kill()
-		c.setStateFailed(ctx.Err())
+		_ = cmd.Wait()
+		c.setStateUnhealthy(ctx.Err())
 		return fmt.Errorf("context cancelled during child startup: %w", ctx.Err())
 	}
 }
@@ -256,6 +263,7 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 		// Force kill if context expires
 		c.logger.Warn().Msg("forcing child process kill")
 		_ = cmd.Process.Kill()
+		<-done
 		return nil
 	}
 }
@@ -268,8 +276,8 @@ func (c *ChildProcess) markUnhealthy() {
 	c.logger.Warn().Msg("child marked unhealthy")
 }
 
-// setStateFailed kills any running process and marks the child as failed.
-func (c *ChildProcess) setStateFailed(err error) {
+// setStateUnhealthy marks the child as unhealthy after a launch failure.
+func (c *ChildProcess) setStateUnhealthy(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.state = ChildStateUnhealthy

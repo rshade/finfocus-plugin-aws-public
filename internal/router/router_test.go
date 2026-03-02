@@ -329,15 +329,20 @@ func TestGetTraceID_GeneratesUUID(t *testing.T) {
 	assert.Len(t, traceID, 36) // UUID format: 8-4-4-4-12
 }
 
-// TestPropagateTraceID verifies that trace_id is set in outgoing gRPC metadata.
+// TestPropagateTraceID verifies that trace_id is set in outgoing gRPC metadata
+// without dropping any existing outgoing metadata.
 func TestPropagateTraceID(t *testing.T) {
-	ctx := propagateTraceID(context.Background(), "my-trace-id")
+	base := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-existing", "1"))
+	ctx := propagateTraceID(base, "my-trace-id")
 
 	md, ok := metadata.FromOutgoingContext(ctx)
 	require.True(t, ok)
+
 	values := md.Get(pluginsdk.TraceIDMetadataKey)
 	require.Len(t, values, 1)
 	assert.Equal(t, "my-trace-id", values[0])
+
+	assert.Equal(t, []string{"1"}, md.Get("x-existing"))
 }
 
 // TestNewInvalidRegionError verifies the error structure for missing region.
