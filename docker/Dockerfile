@@ -1,6 +1,6 @@
 # Multi-Region Docker Image for finfocus-plugin-aws-public
 # Stage 1: Download and prepare regional binaries
-FROM alpine:3.19 AS downloader
+FROM alpine:3.23 AS downloader
 
 # Install dependencies (no version pinning for security packages)
 RUN apk add --no-cache \
@@ -66,7 +66,7 @@ COPY cmd/metrics-aggregator/ cmd/metrics-aggregator/
 RUN go build -o /tmp/metrics-aggregator ./cmd/metrics-aggregator
 
 # Stage 3: Final runtime image
-FROM alpine:3.19
+FROM alpine:3.23
 
 # Install runtime dependencies (no version pinning for security packages)
 RUN apk add --no-cache \
