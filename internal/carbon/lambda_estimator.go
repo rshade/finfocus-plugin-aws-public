@@ -61,7 +61,11 @@ func (e *LambdaEstimator) EstimateCarbonGrams(config LambdaFunctionConfig) (floa
 }
 
 // EstimateCarbonGramsSimple is a convenience method that takes individual parameters.
-func (e *LambdaEstimator) EstimateCarbonGramsSimple(memoryMB, durationMs int, invocations int64, architecture, region string) (float64, bool) {
+func (e *LambdaEstimator) EstimateCarbonGramsSimple(
+	memoryMB, durationMs int,
+	invocations int64,
+	architecture, region string,
+) (float64, bool) {
 	return e.EstimateCarbonGrams(LambdaFunctionConfig{
 		MemoryMB:     memoryMB,
 		DurationMs:   durationMs,

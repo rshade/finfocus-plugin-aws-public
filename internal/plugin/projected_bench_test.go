@@ -44,9 +44,9 @@ func BenchmarkDetectService_Baseline(b *testing.B) {
 		for _, resourceType := range testCases {
 			// Simulate the current behavior: multiple calls per request
 			normalized := normalizeResourceType(resourceType)
-			_ = detectService(normalized)           // call 1: validation
-			_ = detectService(normalized)           // call 2: supports check
-			_ = detectService(normalized)           // call 3: cost routing
+			_ = detectService(normalized) // call 1: validation
+			_ = detectService(normalized) // call 2: supports check
+			_ = detectService(normalized) // call 3: cost routing
 		}
 	}
 }

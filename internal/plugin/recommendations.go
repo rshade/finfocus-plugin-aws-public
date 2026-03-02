@@ -31,21 +31,21 @@ const (
 	modTypeVolumeUpgrade = "volume_type_upgrade"
 	// defaultEBSVolumeGB is the default volume size when not specified in tags.
 	defaultEBSVolumeGB = 100
-	// defaultMaxBatchSize is the default maximum number of resources to process in GetRecommendations
+	// defaultMaxBatchSize is the default maximum number of resources to process in GetRecommendations.
 	defaultMaxBatchSize = 100
-	// maxMaxBatchSize is the absolute maximum allowed batch size to prevent OOM/abuse
+	// maxMaxBatchSize is the absolute maximum allowed batch size to prevent OOM/abuse.
 	maxMaxBatchSize = 500
-	// EnvMaxBatchSize is the environment variable to override defaultMaxBatchSize
+	// EnvMaxBatchSize is the environment variable to override defaultMaxBatchSize.
 	EnvMaxBatchSize = "FINFOCUS_MAX_BATCH_SIZE"
-	// EnvMaxBatchSizeDeprecated is the deprecated environment variable for backward compatibility
+	// EnvMaxBatchSizeDeprecated is the deprecated environment variable for backward compatibility.
 	EnvMaxBatchSizeDeprecated = "PULUMICOST_MAX_BATCH_SIZE"
-	// EnvMaxBatchSizeLegacy is the legacy environment variable for additional backward compatibility
+	// EnvMaxBatchSizeLegacy is the legacy environment variable for additional backward compatibility.
 	EnvMaxBatchSizeLegacy = "MAX_BATCH_SIZE"
-	// EnvStrictValidation is the environment variable to enable fail-fast validation
+	// EnvStrictValidation is the environment variable to enable fail-fast validation.
 	EnvStrictValidation = "FINFOCUS_STRICT_VALIDATION"
-	// EnvStrictValidationDeprecated is the deprecated environment variable for backward compatibility
+	// EnvStrictValidationDeprecated is the deprecated environment variable for backward compatibility.
 	EnvStrictValidationDeprecated = "PULUMICOST_STRICT_VALIDATION"
-	// EnvStrictValidationLegacy is the legacy environment variable for additional backward compatibility
+	// EnvStrictValidationLegacy is the legacy environment variable for additional backward compatibility.
 	EnvStrictValidationLegacy = "STRICT_VALIDATION"
 )
 
@@ -71,7 +71,10 @@ type BatchStats struct {
 // For each matching resource, it populates correlation info (Id and Name) in the recommendation
 // object by extracting the "resource_id" and "name" tags from the input ResourceDescriptor.
 // This allows the caller to correlate recommendations back to their infrastructure definitions.
-func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRecommendationsRequest) (*pbc.GetRecommendationsResponse, error) {
+func (p *AWSPublicPlugin) GetRecommendations(
+	ctx context.Context,
+	req *pbc.GetRecommendationsRequest,
+) (*pbc.GetRecommendationsResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
@@ -84,9 +87,9 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 	}
 
 	// Validate batch size (max 100 resources per request)
-	if len(req.TargetResources) > p.maxBatchSize {
+	if len(req.GetTargetResources()) > p.maxBatchSize {
 		err := p.newErrorWithID(traceID, codes.InvalidArgument,
-			fmt.Sprintf("batch size %d exceeds maximum of %d", len(req.TargetResources), p.maxBatchSize),
+			fmt.Sprintf("batch size %d exceeds maximum of %d", len(req.GetTargetResources()), p.maxBatchSize),
 			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		p.logErrorWithID(traceID, "GetRecommendations", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
@@ -100,18 +103,18 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 	var skippedCount int
 	for _, resource := range pctx.Scope {
 		// Provider check: only process AWS resources (T011)
-		if resource.Provider != "" && resource.Provider != providerAWS {
+		if resource.GetProvider() != "" && resource.GetProvider() != providerAWS {
 			skippedCount++
 			p.logger.Debug().
 				Str("trace_id", traceID).
-				Str("provider", resource.Provider).
-				Str("resource_type", resource.ResourceType).
+				Str("provider", resource.GetProvider()).
+				Str("resource_type", resource.GetResourceType()).
 				Str("reason", "non-AWS provider").
 				Msg("skipping resource in recommendations batch")
 			if p.strictValidation {
 				err := p.newErrorWithID(traceID, codes.InvalidArgument,
 					fmt.Sprintf("strict validation: unsupported provider %q (only %q supported)",
-						resource.Provider, providerAWS),
+						resource.GetProvider(), providerAWS),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 				return nil, err
 			}
@@ -123,8 +126,8 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 			skippedCount++
 			p.logger.Debug().
 				Str("trace_id", traceID).
-				Str("resource_type", resource.ResourceType).
-				Str("sku", resource.Sku).
+				Str("resource_type", resource.GetResourceType()).
+				Str("sku", resource.GetSku()).
 				Str("reason", "filter mismatch").
 				Msg("skipping resource in recommendations batch")
 			continue
@@ -133,37 +136,37 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 		pctx.BatchStats.MatchedResources++
 
 		// Determine region (default to plugin's region if not specified)
-		region := resource.Region
+		region := resource.GetRegion()
 		if region == "" {
 			region = p.region
 		}
 
 		// Generate recommendations based on resource type.
 		// Use serviceResolver to cache normalized type (optimization: compute once per resource)
-		resolver := newServiceResolver(resource.ResourceType)
+		resolver := newServiceResolver(resource.GetResourceType())
 		service := resolver.ServiceType()
 		var recs []*pbc.Recommendation
 
 		switch service {
-		case "ec2":
-			recs = p.generateEC2Recommendations(resource.Sku, region)
-		case "ebs":
-			recs = p.getEBSRecommendations(resource.Sku, region, resource.Tags)
-		case "rds":
-			engine := extractRDSEngine(resource.Tags)
-			recs = p.generateRDSRecommendations(resource.Sku, engine, region)
+		case serviceEC2:
+			recs = p.generateEC2Recommendations(resource.GetSku(), region)
+		case serviceEBS:
+			recs = p.getEBSRecommendations(resource.GetSku(), region, resource.GetTags())
+		case serviceRDS:
+			engine := extractRDSEngine(resource.GetTags())
+			recs = p.generateRDSRecommendations(resource.GetSku(), engine, region)
 		default:
 			// Log unsupported service types at debug level
 			p.logger.Debug().
 				Str("trace_id", traceID).
-				Str("resource_type", resource.ResourceType).
+				Str("resource_type", resource.GetResourceType()).
 				Str("detected_service", service).
 				Str("reason", "unsupported service for recommendations").
 				Msg("no recommendations generated for resource")
 			if p.strictValidation {
 				err := p.newErrorWithID(traceID, codes.InvalidArgument,
 					fmt.Sprintf("strict validation: service %q does not support recommendations (resource_type: %s)",
-						service, resource.ResourceType),
+						service, resource.GetResourceType()),
 					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 				return nil, err
 			}
@@ -171,16 +174,16 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 
 		// Populate correlation info: Native Id takes priority over tag (FR-001, FR-002, FR-003)
 		for _, rec := range recs {
-			if rec.Resource != nil {
+			if rec.GetResource() != nil {
 				// Priority 1: Use native Id field from ResourceDescriptor (FR-001, FR-002)
-				if id := strings.TrimSpace(resource.Id); id != "" {
+				if id := strings.TrimSpace(resource.GetId()); id != "" {
 					rec.Resource.Id = id
 					p.logger.Trace().
 						Str(pluginsdk.FieldTraceID, traceID).
 						Str("id_source", "native").
 						Str("id", id).
 						Msg("using native ID for recommendation correlation")
-				} else if resourceID := resource.Tags["resource_id"]; resourceID != "" {
+				} else if resourceID := resource.GetTags()["resource_id"]; resourceID != "" {
 					// Priority 2: Fall back to resource_id tag for backward compat (FR-003)
 					rec.Resource.Id = resourceID
 					p.logger.Trace().
@@ -190,24 +193,24 @@ func (p *AWSPublicPlugin) GetRecommendations(ctx context.Context, req *pbc.GetRe
 						Msg("using tag ID for recommendation correlation")
 				}
 				// Use name tag if available (FR-004 - unchanged)
-				if name := resource.Tags["name"]; name != "" {
+				if name := resource.GetTags()["name"]; name != "" {
 					rec.Resource.Name = name
 				}
 			} else { // Handle missing resource impact logging (rec.Resource is nil here)
 				p.logger.Warn().
-					Str("recommendation_id", rec.Id).
+					Str("recommendation_id", rec.GetId()).
 					Msg("recommendation missing resource data")
 			}
 
-			if rec.Impact != nil {
-				pctx.BatchStats.TotalSavings += rec.Impact.GetEstimatedSavings()
+			if rec.GetImpact() != nil {
+				pctx.BatchStats.TotalSavings += rec.GetImpact().GetEstimatedSavings()
 			} else {
 				resourceSKU := ""
-				if rec.Resource != nil {
-					resourceSKU = rec.Resource.Sku
+				if rec.GetResource() != nil {
+					resourceSKU = rec.GetResource().GetSku()
 				}
 				p.logger.Warn().
-					Str("recommendation_id", rec.Id).
+					Str("recommendation_id", rec.GetId()).
 					Str("resource_sku", resourceSKU).
 					Msg("recommendation missing impact data, skipping savings aggregation")
 			}
@@ -270,12 +273,12 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 
 	newType := newFamily + "." + size
 
-	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, "Linux", "Shared")
+	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, defaultOS, defaultTenancy)
 	if !found {
 		return nil
 	}
 
-	newPrice, found := p.pricing.EC2OnDemandPricePerHour(newType, "Linux", "Shared")
+	newPrice, found := p.pricing.EC2OnDemandPricePerHour(newType, defaultOS, defaultTenancy)
 	// FR-011: Only recommend when new price <= current price
 	if !found || newPrice > currentPrice {
 		return nil
@@ -312,7 +315,7 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
 			Provider:     providerAWS,
-			ResourceType: "ec2",
+			ResourceType: serviceEC2,
 			Region:       region,
 			Sku:          instanceType,
 		},
@@ -358,12 +361,12 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 
 	gravitonType := gravitonFamily + "." + size
 
-	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, "Linux", "Shared")
+	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, defaultOS, defaultTenancy)
 	if !found {
 		return nil
 	}
 
-	gravitonPrice, found := p.pricing.EC2OnDemandPricePerHour(gravitonType, "Linux", "Shared")
+	gravitonPrice, found := p.pricing.EC2OnDemandPricePerHour(gravitonType, defaultOS, defaultTenancy)
 	// FR-011: Only recommend when new price <= current price
 	if !found || gravitonPrice > currentPrice {
 		return nil
@@ -386,15 +389,15 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
 			Provider:     providerAWS,
-			ResourceType: "ec2",
+			ResourceType: serviceEC2,
 			Region:       region,
 			Sku:          instanceType,
 		},
 		ActionDetail: &pbc.Recommendation_Modify{
 			Modify: &pbc.ModifyAction{
 				ModificationType:  modTypeGraviton,
-				CurrentConfig:     map[string]string{"instance_type": instanceType, "architecture": "x86_64"},
-				RecommendedConfig: map[string]string{"instance_type": gravitonType, "architecture": "arm64"},
+				CurrentConfig:     map[string]string{"instance_type": instanceType, "architecture": archX86},
+				RecommendedConfig: map[string]string{"instance_type": gravitonType, "architecture": archARM64},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
@@ -436,12 +439,12 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 
 	// Extract size from tags, default to defaultEBSVolumeGB per edge case spec
 	sizeGB := defaultEBSVolumeGB
-	if sizeStr, ok := tags["size"]; ok {
+	if sizeStr, sizeFound := tags["size"]; sizeFound {
 		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
 			sizeGB = parsed
 		}
-	} else if sizeStr, ok := tags["volume_size"]; ok {
-		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+	} else if volSizeStr, volFound := tags["volume_size"]; volFound {
+		if parsed, err := strconv.Atoi(volSizeStr); err == nil && parsed > 0 {
 			sizeGB = parsed
 		}
 	}
@@ -473,7 +476,7 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
 			Provider:     providerAWS,
-			ResourceType: "ebs",
+			ResourceType: serviceEBS,
 			Region:       region,
 			Sku:          volumeType,
 		},
@@ -514,14 +517,14 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 // Normalizes engine names for consistent pricing lookup.
 func extractRDSEngine(tags map[string]string) string {
 	if tags == nil {
-		return "mysql"
+		return defaultRDSEngine
 	}
 	engine := tags["engine"]
 	if engine == "" {
 		engine = tags["Engine"] // Handle capitalization variants
 	}
 	if engine == "" {
-		return "mysql"
+		return defaultRDSEngine
 	}
 	return normalizeRDSEngine(engine)
 }
@@ -531,7 +534,7 @@ func extractRDSEngine(tags map[string]string) string {
 func normalizeRDSEngine(engine string) string {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
 	case "mysql", "mysql8", "mysql-8.0":
-		return "mysql"
+		return defaultRDSEngine
 	case "postgres", "postgresql", "postgres13", "postgres14", "postgres15":
 		return "postgresql"
 	case "mariadb", "maria":
@@ -627,7 +630,7 @@ func (p *AWSPublicPlugin) getRDSGenerationUpgradeRecommendation(
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
 			Provider:     providerAWS,
-			ResourceType: "rds",
+			ResourceType: serviceRDS,
 			Region:       region,
 			Sku:          instanceType,
 		},
@@ -698,15 +701,23 @@ func (p *AWSPublicPlugin) getRDSGravitonRecommendation(
 		ActionType: pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY,
 		Resource: &pbc.ResourceRecommendationInfo{
 			Provider:     providerAWS,
-			ResourceType: "rds",
+			ResourceType: serviceRDS,
 			Region:       region,
 			Sku:          instanceType,
 		},
 		ActionDetail: &pbc.Recommendation_Modify{
 			Modify: &pbc.ModifyAction{
-				ModificationType:  modTypeGraviton,
-				CurrentConfig:     map[string]string{"instance_type": instanceType, "engine": engine, "architecture": "x86_64"},
-				RecommendedConfig: map[string]string{"instance_type": gravitonType, "engine": engine, "architecture": "arm64"},
+				ModificationType: modTypeGraviton,
+				CurrentConfig: map[string]string{
+					"instance_type": instanceType,
+					"engine":        engine,
+					"architecture":  archX86,
+				},
+				RecommendedConfig: map[string]string{
+					"instance_type": gravitonType,
+					"engine":        engine,
+					"architecture":  "arm64",
+				},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
@@ -741,24 +752,24 @@ func (p *AWSPublicPlugin) matchesFilter(resource *pbc.ResourceDescriptor, filter
 	}
 
 	// Check Region
-	if filter.Region != "" && filter.Region != resource.Region {
+	if filter.GetRegion() != "" && filter.GetRegion() != resource.GetRegion() {
 		return false
 	}
 
 	// Check ResourceType
-	if filter.ResourceType != "" && filter.ResourceType != resource.ResourceType {
+	if filter.GetResourceType() != "" && filter.GetResourceType() != resource.GetResourceType() {
 		return false
 	}
 
 	// Check Sku
-	if filter.Sku != "" && filter.Sku != resource.Sku {
+	if filter.GetSku() != "" && filter.GetSku() != resource.GetSku() {
 		return false
 	}
 
 	// Check Tags (if filter has tags, resource must have all of them with matching values)
-	if len(filter.Tags) > 0 {
-		for k, v := range filter.Tags {
-			if resVal, ok := resource.Tags[k]; !ok || resVal != v {
+	if len(filter.GetTags()) > 0 {
+		for k, v := range filter.GetTags() {
+			if resVal, ok := resource.GetTags()[k]; !ok || resVal != v {
 				return false
 			}
 		}

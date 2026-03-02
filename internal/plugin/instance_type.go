@@ -5,7 +5,7 @@ import "strings"
 // parseInstanceType splits an EC2 instance type into family and size.
 // Example: "t2.medium" → ("t2", "medium")
 // Returns empty strings if the format is invalid.
-func parseInstanceType(instanceType string) (family, size string) {
+func parseInstanceType(instanceType string) (string, string) {
 	parts := strings.SplitN(instanceType, ".", 2)
 	if len(parts) != 2 {
 		return "", ""
@@ -91,7 +91,7 @@ var gravitonMap = map[string]string{
 // parseRDSInstanceType splits an RDS instance type into family and size.
 // Example: "db.t3.medium" → ("db.t3", "medium")
 // Returns empty strings if the format is invalid.
-func parseRDSInstanceType(instanceType string) (family, size string) {
+func parseRDSInstanceType(instanceType string) (string, string) {
 	if !strings.HasPrefix(instanceType, "db.") {
 		return "", ""
 	}
@@ -140,11 +140,11 @@ var rdsGravitonMap = map[string]string{
 // rdsGravitonSupportedEngines lists engines that support Graviton instances.
 // Used to filter out Graviton recommendations for unsupported engines.
 var rdsGravitonSupportedEngines = map[string]bool{
-	"mysql":      true,
-	"postgres":   true,
-	"postgresql": true,
-	"mariadb":    true,
-	"aurora":     true, // Aurora MySQL/PostgreSQL
+	"mysql":             true,
+	"postgres":          true,
+	"postgresql":        true,
+	"mariadb":           true,
+	"aurora":            true, // Aurora MySQL/PostgreSQL
 	"aurora-mysql":      true,
 	"aurora-postgresql": true,
 }

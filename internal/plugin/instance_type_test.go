@@ -84,16 +84,16 @@ func TestParseInstanceType(t *testing.T) {
 // expected mappings for common instance families.
 func TestGenerationUpgradeMapEntries(t *testing.T) {
 	expected := map[string]string{
-		"t2":  "t3",
-		"t3":  "t3a",
-		"m4":  "m5",
-		"m5":  "m6i",
-		"c4":  "c5",
-		"c5":  "c6i",
-		"r4":  "r5",
-		"r5":  "r6i",
-		"i3":  "i3en",
-		"d2":  "d3",
+		"t2": "t3",
+		"t3": "t3a",
+		"m4": "m5",
+		"m5": "m6i",
+		"c4": "c5",
+		"c5": "c6i",
+		"r4": "r5",
+		"r5": "r6i",
+		"i3": "i3en",
+		"d2": "d3",
 	}
 
 	for old, expectedNew := range expected {
@@ -166,7 +166,7 @@ func TestNoSelfReferencesInMaps(t *testing.T) {
 // various RDS instance type formats correctly.
 //
 // RDS instance types follow the pattern: db.<family>.<size>
-// Examples: db.t3.medium, db.r6g.xlarge, db.m5.large
+// Examples: db.t3.medium, db.r6g.xlarge, db.m5.large.
 func TestParseRDSInstanceType(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -247,12 +247,12 @@ func TestParseRDSInstanceType(t *testing.T) {
 // contains expected mappings for common RDS instance families.
 func TestRDSGenerationUpgradeMapEntries(t *testing.T) {
 	expected := map[string]string{
-		"db.t2":  "db.t3",
-		"db.t3":  "db.t4g",
-		"db.m4":  "db.m5",
-		"db.m5":  "db.m6i",
-		"db.r4":  "db.r5",
-		"db.r5":  "db.r6i",
+		"db.t2": "db.t3",
+		"db.t3": "db.t4g",
+		"db.m4": "db.m5",
+		"db.m5": "db.m6i",
+		"db.r4": "db.r5",
+		"db.r5": "db.r6i",
 	}
 
 	for old, expectedNew := range expected {
@@ -271,9 +271,9 @@ func TestRDSGenerationUpgradeMapEntries(t *testing.T) {
 // mappings for x86 to ARM instance family migrations.
 func TestRDSGravitonMapEntries(t *testing.T) {
 	expected := map[string]string{
-		"db.m5":  "db.m6g",
-		"db.r5":  "db.r6g",
-		"db.t3":  "db.t4g",
+		"db.m5": "db.m6g",
+		"db.r5": "db.r6g",
+		"db.t3": "db.t4g",
 	}
 
 	for x86, expectedGraviton := range expected {

@@ -25,10 +25,10 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "gp3",
 				StorageSizeGB: 100,
 				Utilization:   0.5,
-				Hours: HoursPerMonth,
+				Hours:         HoursPerMonth,
 			},
 			wantOK:         true,
-			minCarbonGrams: 3000,  // CCF: m5.large ~3.5kg CO2e/month
+			minCarbonGrams: 3000, // CCF: m5.large ~3.5kg CO2e/month
 			maxCarbonGrams: 5000,
 		},
 		{
@@ -40,10 +40,10 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "gp3",
 				StorageSizeGB: 100,
 				Utilization:   0.5,
-				Hours: HoursPerMonth,
+				Hours:         HoursPerMonth,
 			},
 			wantOK:         true,
-			minCarbonGrams: 6000,  // 2× Single-AZ ~7kg CO2e/month
+			minCarbonGrams: 6000, // 2× Single-AZ ~7kg CO2e/month
 			maxCarbonGrams: 10000,
 		},
 		{
@@ -55,7 +55,7 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "io2",
 				StorageSizeGB: 500,
 				Utilization:   0.5,
-				Hours: HoursPerMonth,
+				Hours:         HoursPerMonth,
 			},
 			wantOK:         true,
 			minCarbonGrams: 10000, // r5.xlarge 4vCPU + 500GB storage
@@ -70,7 +70,7 @@ func TestRDSEstimator_EstimateCarbonGrams(t *testing.T) {
 				StorageType:   "gp3",
 				StorageSizeGB: 100,
 				Utilization:   0.5,
-				Hours: HoursPerMonth,
+				Hours:         HoursPerMonth,
 			},
 			wantOK:         false,
 			minCarbonGrams: 0,
@@ -107,7 +107,7 @@ func TestRDSEstimator_MultiAZDoubles(t *testing.T) {
 		StorageType:   "gp3",
 		StorageSizeGB: 100,
 		Utilization:   0.5,
-		Hours: HoursPerMonth,
+		Hours:         HoursPerMonth,
 	}
 
 	configMultiAZ := configSingleAZ
@@ -135,7 +135,7 @@ func TestRDSEstimator_Breakdown(t *testing.T) {
 		StorageType:   "gp3",
 		StorageSizeGB: 100,
 		Utilization:   0.5,
-		Hours: HoursPerMonth,
+		Hours:         HoursPerMonth,
 	}
 
 	computeCarbon, storageCarbon, ok := e.EstimateCarbonGramsWithBreakdown(config)
@@ -152,8 +152,8 @@ func TestRDSEstimator_Breakdown(t *testing.T) {
 // TestRDSToEC2InstanceType verifies RDS to EC2 type conversion.
 func TestRDSToEC2InstanceType(t *testing.T) {
 	tests := []struct {
-		rdsType  string
-		wantEC2  string
+		rdsType string
+		wantEC2 string
 	}{
 		{"db.m5.large", "m5.large"},
 		{"db.r5.xlarge", "r5.xlarge"},

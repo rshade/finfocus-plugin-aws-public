@@ -19,7 +19,7 @@ func NewEKSEstimator() *EKSEstimator {
 //   - config: EKS cluster configuration
 //
 // Returns (0, true) always - the billing detail explains worker node estimation.
-func (e *EKSEstimator) EstimateCarbonGrams(config EKSClusterConfig) (float64, bool) {
+func (e *EKSEstimator) EstimateCarbonGrams(_ EKSClusterConfig) (float64, bool) {
 	// Control plane carbon is shared and not allocated to customers
 	return 0, true
 }
@@ -27,7 +27,7 @@ func (e *EKSEstimator) EstimateCarbonGrams(config EKSClusterConfig) (float64, bo
 // GetBillingDetail returns a human-readable description explaining EKS carbon.
 // The guidance for worker node estimation is included directly in the billing detail
 // since that's what users see in cost responses.
-func (e *EKSEstimator) GetBillingDetail(config EKSClusterConfig) string {
+func (e *EKSEstimator) GetBillingDetail(_ EKSClusterConfig) string {
 	return "EKS control plane carbon is shared and not allocated to customers. " +
 		"Estimate worker nodes as EC2 instances for cluster carbon footprint."
 }

@@ -46,7 +46,12 @@ func (e *S3Estimator) EstimateCarbonGrams(config S3StorageConfig) (float64, bool
 }
 
 // EstimateCarbonGramsSimple is a convenience method that takes individual parameters.
-func (e *S3Estimator) EstimateCarbonGramsSimple(storageClass string, sizeGB float64, region string, hours float64) (float64, bool) {
+func (e *S3Estimator) EstimateCarbonGramsSimple(
+	storageClass string,
+	sizeGB float64,
+	region string,
+	hours float64,
+) (float64, bool) {
 	return e.EstimateCarbonGrams(S3StorageConfig{
 		StorageClass: storageClass,
 		SizeGB:       sizeGB,

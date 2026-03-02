@@ -46,7 +46,12 @@ type AWSPublicPlugin struct {
 // Returns:
 //
 //	A pointer to an initialized AWSPublicPlugin.
-func NewAWSPublicPlugin(region string, version string, pricingClient pricing.PricingClient, logger zerolog.Logger) *AWSPublicPlugin {
+func NewAWSPublicPlugin(
+	region string,
+	version string,
+	pricingClient pricing.PricingClient,
+	logger zerolog.Logger,
+) *AWSPublicPlugin {
 	testMode := IsTestMode()
 
 	if testMode {
@@ -61,7 +66,12 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 	// Initialize configuration
 	maxBatchSize := defaultMaxBatchSize
 	// Check for batch size (new variable takes precedence over deprecated)
-	val, varName, found := getEnvWithDeprecation(logger, EnvMaxBatchSize, EnvMaxBatchSizeDeprecated, EnvMaxBatchSizeLegacy)
+	val, varName, found := getEnvWithDeprecation(
+		logger,
+		EnvMaxBatchSize,
+		EnvMaxBatchSizeDeprecated,
+		EnvMaxBatchSizeLegacy,
+	)
 
 	if found {
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
@@ -85,7 +95,12 @@ func NewAWSPublicPlugin(region string, version string, pricingClient pricing.Pri
 
 	// Check for strict validation (new variable takes precedence over deprecated)
 	var strictValidation bool
-	val, _, found = getEnvWithDeprecation(logger, EnvStrictValidation, EnvStrictValidationDeprecated, EnvStrictValidationLegacy)
+	val, _, found = getEnvWithDeprecation(
+		logger,
+		EnvStrictValidation,
+		EnvStrictValidationDeprecated,
+		EnvStrictValidationLegacy,
+	)
 	if found {
 		strictValidation = parseBoolVal(val)
 	}
@@ -216,7 +231,12 @@ func (p *AWSPublicPlugin) logErrorWithID(traceID, operation string, err error, c
 // newErrorWithID creates a gRPC error with trace_id in the error details using a pre-captured trace ID.
 // Use this when you've already extracted the trace ID to ensure consistency
 // between error objects and log entries.
-func (p *AWSPublicPlugin) newErrorWithID(traceID string, grpcCode codes.Code, msg string, errorCode pbc.ErrorCode) error {
+func (p *AWSPublicPlugin) newErrorWithID(
+	traceID string,
+	grpcCode codes.Code,
+	msg string,
+	errorCode pbc.ErrorCode,
+) error {
 	errDetail := &pbc.ErrorDetail{
 		Code:    errorCode,
 		Message: msg,
@@ -243,7 +263,7 @@ func (p *AWSPublicPlugin) newErrorWithID(traceID string, grpcCode codes.Code, ms
 
 // traceLogger returns a logger with traceID and operation pre-filled.
 // This reduces code duplication for repeated logging patterns throughout the plugin.
-// Usage: p.traceLogger(traceID, "GetProjectedCost").Debug().Msg("message")
+// Usage: p.traceLogger(traceID, "GetProjectedCost").Debug().Msg("message").
 func (p *AWSPublicPlugin) traceLogger(traceID string, operation string) *zerolog.Logger {
 	logger := p.logger.With().
 		Str(pluginsdk.FieldTraceID, traceID).
@@ -258,7 +278,10 @@ func (p *AWSPublicPlugin) Name() string {
 }
 
 // GetPluginInfo returns metadata about the plugin.
-func (p *AWSPublicPlugin) GetPluginInfo(ctx context.Context, _ *pbc.GetPluginInfoRequest) (*pbc.GetPluginInfoResponse, error) {
+func (p *AWSPublicPlugin) GetPluginInfo(
+	ctx context.Context,
+	_ *pbc.GetPluginInfoRequest,
+) (*pbc.GetPluginInfoResponse, error) {
 	traceID := p.getTraceID(ctx)
 
 	p.traceLogger(traceID, "GetPluginInfo").Info().
@@ -268,7 +291,7 @@ func (p *AWSPublicPlugin) GetPluginInfo(ctx context.Context, _ *pbc.GetPluginInf
 		Name:        p.Name(),
 		Version:     p.version,
 		SpecVersion: pluginsdk.SpecVersion,
-		Providers:   []string{"aws"},
+		Providers:   []string{providerAWS},
 		Metadata: map[string]string{
 			"region": p.region,
 			"type":   "public-pricing-fallback",
@@ -282,7 +305,10 @@ func (p *AWSPublicPlugin) GetPluginInfo(ctx context.Context, _ *pbc.GetPluginInf
 // The proto API uses ResourceId (string) which we expect to be a JSON-encoded
 // ResourceDescriptor. If ResourceId is empty, we fall back to extracting
 // resource info from the Tags map.
-func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.GetActualCostResponse, error) {
+func (p *AWSPublicPlugin) GetActualCost(
+	ctx context.Context,
+	req *pbc.GetActualCostRequest,
+) (*pbc.GetActualCostResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
@@ -309,7 +335,12 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 
 	runtimeHours, err := calculateRuntimeHours(fromTime, toTime)
 	if err != nil {
-		statusErr := p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid time range: %v", err), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		statusErr := p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			fmt.Sprintf("invalid time range: %v", err),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 		p.logErrorWithID(traceID, "GetActualCost", statusErr, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, statusErr
 	}
@@ -447,8 +478,8 @@ func (p *AWSPublicPlugin) GetActualCost(ctx context.Context, req *pbc.GetActualC
 func extractErrorCode(err error) pbc.ErrorCode {
 	if st, ok := status.FromError(err); ok {
 		for _, detail := range st.Details() {
-			if errDetail, ok := detail.(*pbc.ErrorDetail); ok {
-				return errDetail.Code
+			if errDetail, isErrDetail := detail.(*pbc.ErrorDetail); isErrDetail {
+				return errDetail.GetCode()
 			}
 		}
 	}
@@ -470,7 +501,10 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	// Fall back to extracting from Tags
 	tags := req.GetTags()
 	if tags == nil {
-		return nil, status.Error(codes.InvalidArgument, "missing resource information: provide ResourceId as JSON or use Tags")
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"missing resource information: provide ResourceId as JSON or use Tags",
+		)
 	}
 
 	// Extract resource info from tags
@@ -498,8 +532,12 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	}
 
 	// Validate required fields
-	if resource.GetProvider() == "" || resource.GetResourceType() == "" || resource.GetSku() == "" || resource.GetRegion() == "" {
-		return nil, status.Error(codes.InvalidArgument, "resource information incomplete: need provider, resource_type, sku, region in ResourceId or Tags")
+	if resource.GetProvider() == "" || resource.GetResourceType() == "" || resource.GetSku() == "" ||
+		resource.GetRegion() == "" {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"resource information incomplete: need provider, resource_type, sku, region in ResourceId or Tags",
+		)
 	}
 
 	return resource, nil

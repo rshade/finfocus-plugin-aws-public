@@ -420,8 +420,14 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
   - `tenancy = "Shared"`
   - `hoursPerMonth = 730` (24×7 on-demand)
 - `unit_price`: Hourly rate from pricing data
-- `cost_per_month`: unit_price × 730
-- `billing_detail`: "On-demand Linux, shared tenancy, 730 hrs/month"
+- `cost_per_month`: (unit_price × 730) + root EBS volume cost (when present)
+- `billing_detail`: "On-demand Linux, shared tenancy, 730 hrs/month" (+ root volume detail when present)
+- **Root EBS Volume Cost**: When `rootBlockDevice` tag or individual
+  `root_volume_type`/`root_volume_size` tags are present, the root EBS volume
+  storage cost is included in `cost_per_month`. Tag priority: individual tags
+  override `rootBlockDevice` map values. Defaults: gp2 type, 8 GB. When no root
+  volume tags are present, behavior is unchanged (compute-only). Carbon
+  estimation includes root EBS volume when present.
 
 ### EBS Volumes
 - `resource_type`: "ebs"
@@ -469,7 +475,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 
 | Service | Included | Excluded | Carbon |
 |---------|----------|----------|--------|
-| EC2 | On-demand instance hours | Spot, Reserved, data transfer, EBS | ✅ gCO2e (CPU/GPU) |
+| EC2 | On-demand instance hours + root EBS volume (when tags present) | Spot, Reserved, data transfer, additional EBS volumes | ✅ gCO2e (CPU/GPU + root EBS) |
 | EBS | Storage GB-month | IOPS, throughput, snapshots | ✅ gCO2e (SSD/HDD) |
 | EKS | Control plane hours | Worker nodes, add-ons, data transfer | ✅ (guidance only) |
 | ElastiCache | On-demand node hours (Redis/Memcached/Valkey) | Reserved nodes, data transfer, snapshots | ✅ gCO2e |
@@ -780,6 +786,8 @@ Per CLAUDE.md performance goals: "startup < 1s, PORT < 1s, GetProjectedCost < 10
 ## Active Technologies
 - Go 1.25+ + `finfocus-spec` v0.5.6 (`pluginsdk`, `pbcconnect`), `connectrpc.com/connect` v1.19.1, `zerolog` (036-multi-region-router)
 - N/A (in-memory child process registry only) (036-multi-region-router)
+- Go 1.25+ + finfocus-spec v0.5.6 (pluginsdk, pbc), zerolog, connectrpc (001-correctness-fixes)
+- N/A (in-memory only) (001-correctness-fixes)
 
 - Go 1.25+ + gRPC (finfocus-spec/sdk/go/pluginsdk), zerolog (001-cache-service-type)
 - N/A (pure in-memory optimization, no persistence) (001-cache-service-type)

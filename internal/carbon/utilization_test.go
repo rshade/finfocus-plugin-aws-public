@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetUtilization_Priority tests the priority order: perResource > request > default (T033 support)
+// TestGetUtilization_Priority tests the priority order: perResource > request > default (T033 support).
 func TestGetUtilization_Priority(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -54,7 +54,7 @@ func TestGetUtilization_Priority(t *testing.T) {
 	}
 }
 
-// TestClamp tests value clamping to 0.0-1.0 range (T034)
+// TestClamp tests value clamping to 0.0-1.0 range (T034).
 func TestClamp(t *testing.T) {
 	tests := []struct {
 		name string
@@ -79,7 +79,7 @@ func TestClamp(t *testing.T) {
 	}
 }
 
-// TestGetUtilization_Clamping tests that utilization values are clamped to 0.0-1.0 (T034)
+// TestGetUtilization_Clamping tests that utilization values are clamped to 0.0-1.0 (T034).
 func TestGetUtilization_Clamping(t *testing.T) {
 	tests := []struct {
 		name           string

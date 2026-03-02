@@ -66,13 +66,15 @@ func (e *RDSEstimator) EstimateCarbonGrams(config RDSInstanceConfig) (float64, b
 // EstimateCarbonGramsWithBreakdown returns compute and storage carbon separately.
 //
 // This method is thread-safe and can be called concurrently.
-func (e *RDSEstimator) EstimateCarbonGramsWithBreakdown(config RDSInstanceConfig) (computeCarbon, storageCarbon float64, ok bool) {
+func (e *RDSEstimator) EstimateCarbonGramsWithBreakdown(
+	config RDSInstanceConfig,
+) (float64, float64, bool) {
 	ec2InstanceType := rdsToEC2InstanceType(config.InstanceType)
 
 	// Create a fresh EC2 estimator per call for thread-safety (see EstimateCarbonGrams)
 	ec2Estimator := NewEstimator()
 	ec2Estimator.IncludeGPU = false
-	computeCarbon, ok = ec2Estimator.EstimateCarbonGrams(
+	computeCarbon, ok := ec2Estimator.EstimateCarbonGrams(
 		ec2InstanceType,
 		config.Region,
 		config.Utilization,
@@ -83,7 +85,7 @@ func (e *RDSEstimator) EstimateCarbonGramsWithBreakdown(config RDSInstanceConfig
 	}
 
 	ebsEstimator := NewEBSEstimator()
-	storageCarbon, _ = ebsEstimator.EstimateCarbonGrams(EBSVolumeConfig{
+	storageCarbon, _ := ebsEstimator.EstimateCarbonGrams(EBSVolumeConfig{
 		VolumeType: config.StorageType,
 		SizeGB:     config.StorageSizeGB,
 		Region:     config.Region,
@@ -113,7 +115,7 @@ func (e *RDSEstimator) GetBillingDetail(config RDSInstanceConfig) string {
 }
 
 // rdsToEC2InstanceType converts an RDS instance type to its EC2 equivalent.
-// Example: db.m5.large -> m5.large
+// Example: db.m5.large -> m5.large.
 func rdsToEC2InstanceType(rdsType string) string {
 	// Remove "db." prefix if present
 	if strings.HasPrefix(rdsType, "db.") {

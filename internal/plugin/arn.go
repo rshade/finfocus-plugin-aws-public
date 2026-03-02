@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -33,7 +34,7 @@ type ARNComponents struct {
 //   - arn:aws:lambda:eu-west-1:123456789012:function:my-function
 func ParseARN(arnString string) (*ARNComponents, error) {
 	if arnString == "" {
-		return nil, fmt.Errorf("ARN is empty")
+		return nil, errors.New("ARN is empty")
 	}
 
 	// Split by ":" - ARNs have at least 6 parts
@@ -50,12 +51,15 @@ func ParseARN(arnString string) (*ARNComponents, error) {
 	// Validate partition
 	partition := parts[1]
 	if partition == "" {
-		return nil, fmt.Errorf("invalid ARN: partition is empty")
+		return nil, errors.New("invalid ARN: partition is empty")
 	}
 	if !isValidPartition(partition) {
 		// Provide specific guidance for isolated partitions
 		if partition == "aws-iso" || partition == "aws-iso-b" {
-			return nil, fmt.Errorf("unsupported ARN partition %q: isolated partitions (aws-iso, aws-iso-b) do not have public pricing data available", partition)
+			return nil, fmt.Errorf(
+				"unsupported ARN partition %q: isolated partitions (aws-iso, aws-iso-b) do not have public pricing data available",
+				partition,
+			)
 		}
 		return nil, fmt.Errorf("invalid ARN partition: %q", partition)
 	}
@@ -63,7 +67,7 @@ func ParseARN(arnString string) (*ARNComponents, error) {
 	// Validate service
 	service := parts[2]
 	if service == "" {
-		return nil, fmt.Errorf("invalid ARN: service is empty")
+		return nil, errors.New("invalid ARN: service is empty")
 	}
 
 	// Region can be empty (e.g., S3 buckets, IAM)
@@ -75,7 +79,7 @@ func ParseARN(arnString string) (*ARNComponents, error) {
 	// Resource part - may contain "/" or ":" as separator
 	resourcePart := parts[5]
 	if resourcePart == "" {
-		return nil, fmt.Errorf("invalid ARN: resource part is empty")
+		return nil, errors.New("invalid ARN: resource part is empty")
 	}
 
 	// Parse resource type and ID
@@ -107,7 +111,7 @@ func isValidPartition(partition string) bool {
 
 // parseResourcePart extracts resource type and ID from the resource part of an ARN.
 // Handles both "/" and ":" separators.
-func parseResourcePart(resourcePart string) (resourceType, resourceID string) {
+func parseResourcePart(resourcePart string) (string, string) {
 	// Try "/" separator first
 	if idx := strings.Index(resourcePart, "/"); idx != -1 {
 		return resourcePart[:idx], resourcePart[idx+1:]
@@ -134,25 +138,44 @@ func parseResourcePart(resourcePart string) (resourceType, resourceID string) {
 //   - dynamodb:table -> dynamodb
 //   - eks:cluster  -> eks
 func (a *ARNComponents) ToPulumiResourceType() string {
-	// Special case: EBS volumes are under ec2 service but should map to "ebs"
-	if a.Service == "ec2" && a.ResourceType == "volume" {
-		return "ebs"
+	// EC2 service has multiple sub-resource types that need distinct mapping
+	if a.Service == serviceEC2 {
+		switch a.ResourceType {
+		case "volume":
+			return serviceEBS
+		case "vpc":
+			return "vpc"
+		case "subnet":
+			return "subnet"
+		case "security-group":
+			return "securitygroup"
+		case "launch-template":
+			return serviceLaunchTmpl
+		default:
+			return serviceEC2
+		}
 	}
 
 	// For most services, the service name is the resource type
 	switch a.Service {
-	case "ec2":
-		return "ec2"
-	case "rds":
-		return "rds"
-	case "s3":
-		return "s3"
-	case "lambda":
-		return "lambda"
-	case "dynamodb":
-		return "dynamodb"
-	case "eks":
-		return "eks"
+	case serviceRDS:
+		return serviceRDS
+	case serviceS3:
+		return serviceS3
+	case serviceLambda:
+		return serviceLambda
+	case serviceDynamoDB:
+		return serviceDynamoDB
+	case serviceEKS:
+		return serviceEKS
+	case serviceIAM:
+		return serviceIAM
+	case "autoscaling":
+		// LaunchConfigurations are under autoscaling service
+		if a.ResourceType == "launchConfiguration" || a.ResourceType == "launch-configuration" {
+			return serviceLaunchConfig
+		}
+		return a.Service
 	default:
 		// Return the service name as-is for unsupported services
 		return a.Service
@@ -161,5 +184,5 @@ func (a *ARNComponents) ToPulumiResourceType() string {
 
 // IsGlobalService returns true if the service is global (region may be empty in ARN).
 func (a *ARNComponents) IsGlobalService() bool {
-	return a.Service == "s3" || a.Service == "iam"
+	return a.Service == serviceS3 || a.Service == serviceIAM
 }
