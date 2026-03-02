@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.6](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.5...v0.1.6) (2026-03-02)
+
+
+### Features
+
+* **router:** add multi-region router with child process orchestration ([#296](https://github.com/rshade/finfocus-plugin-aws-public/issues/296)) ([afd4702](https://github.com/rshade/finfocus-plugin-aws-public/commit/afd47023d6fc52a5d1ff6cf38be0c8590a7814d3)), closes [#245](https://github.com/rshade/finfocus-plugin-aws-public/issues/245)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.5 ([#302](https://github.com/rshade/finfocus-plugin-aws-public/issues/302)) ([39a97c8](https://github.com/rshade/finfocus-plugin-aws-public/commit/39a97c8306390a412f811426c65e596e065e0d3a))
+* **deps:** update module github.com/rshade/finfocus-spec to v0.5.7 ([#297](https://github.com/rshade/finfocus-plugin-aws-public/issues/297)) ([f33bad8](https://github.com/rshade/finfocus-plugin-aws-public/commit/f33bad8188ea66e51c2846ee164eee98da510c34))
+
 ## [0.1.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.4...v0.1.5) (2026-01-24)
 
 
