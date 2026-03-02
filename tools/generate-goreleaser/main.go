@@ -38,8 +38,46 @@ builds:
     ldflags:
       - -s -w -X main.version={{"{{"}} .Version {{"}}"}}
 {{end}}
+  - id: router
+    main: ./cmd/finfocus-plugin-aws-public-router
+    binary: finfocus-plugin-aws-public
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{"{{"}} .Version {{"}}"}}
+
 archives:
-  - formats:
+  - id: region-archives
+    builds:
+{{- range .Regions}}
+      - {{.Name}}
+{{- end}}
+    formats:
+      - tar.gz
+    name_template: >-
+      {{"{{"}} .ProjectName {{"}}"}}_
+      {{"{{"}} .Version {{"}}"}}_
+      {{"{{"}} title .Os {{"}}"}}_
+      {{"{{"}} if eq .Arch "amd64" {{"}}"}}x86_64
+      {{"{{"}} else if eq .Arch "386" {{"}}"}}i386
+      {{"{{"}} else {{"}}"}}{{"{{"}} .Arch {{"}}"}}{{"{{"}} end {{"}}"}}
+      {{"{{"}} if .Arm {{"}}"}}v{{"{{"}} .Arm {{"}}"}}{{"{{"}} end {{"}}"}}_
+      {{"{{"}} .ID {{"}}"}}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+  - id: router-archive
+    builds:
+      - router
+    formats:
       - tar.gz
     name_template: >-
       {{"{{"}} .ProjectName {{"}}"}}_

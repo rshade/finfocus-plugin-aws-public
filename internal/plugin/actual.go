@@ -97,11 +97,11 @@ func mergeTagsFromRequest(req *pbc.GetActualCostRequest) map[string]string {
 	merged := make(map[string]string)
 
 	// First, try to extract tags from ResourceId JSON
-	if req.ResourceId != "" {
+	if req.GetResourceId() != "" {
 		var resource struct {
 			Tags map[string]string `json:"tags"`
 		}
-		if json.Unmarshal([]byte(req.ResourceId), &resource) == nil && resource.Tags != nil {
+		if json.Unmarshal([]byte(req.GetResourceId()), &resource) == nil && resource.Tags != nil {
 			for k, v := range resource.Tags {
 				merged[k] = v
 			}
@@ -109,8 +109,8 @@ func mergeTagsFromRequest(req *pbc.GetActualCostRequest) map[string]string {
 	}
 
 	// Then overlay req.Tags (takes precedence)
-	if req.Tags != nil {
-		for k, v := range req.Tags {
+	if req.GetTags() != nil {
+		for k, v := range req.GetTags() {
 			merged[k] = v
 		}
 	}
@@ -134,7 +134,7 @@ func mergeTagsFromRequest(req *pbc.GetActualCostRequest) map[string]string {
 // Returns error if no valid timestamps can be resolved.
 func resolveTimestamps(req *pbc.GetActualCostRequest) (*TimestampResolution, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request is nil")
+		return nil, errors.New("request is nil")
 	}
 
 	// Merge tags from both req.Tags and ResourceId JSON
@@ -145,12 +145,12 @@ func resolveTimestamps(req *pbc.GetActualCostRequest) (*TimestampResolution, err
 	}
 
 	// Track which timestamp sources are used
-	hasExplicitStart := req.Start != nil
-	hasExplicitEnd := req.End != nil
+	hasExplicitStart := req.GetStart() != nil
+	hasExplicitEnd := req.GetEnd() != nil
 
 	// Resolve start time
 	if hasExplicitStart {
-		resolution.Start = req.Start.AsTime()
+		resolution.Start = req.GetStart().AsTime()
 		resolution.Source = "explicit"
 	} else {
 		// Try pulumi:created from merged tags
@@ -158,13 +158,13 @@ func resolveTimestamps(req *pbc.GetActualCostRequest) (*TimestampResolution, err
 			resolution.Start = created
 			resolution.Source = "pulumi:created"
 		} else {
-			return nil, fmt.Errorf("start time required: provide explicit Start or pulumi:created tag")
+			return nil, errors.New("start time required: provide explicit Start or pulumi:created tag")
 		}
 	}
 
 	// Resolve end time
 	if hasExplicitEnd {
-		resolution.End = req.End.AsTime()
+		resolution.End = req.GetEnd().AsTime()
 		// Update source if we have mixed sources
 		if !hasExplicitStart && resolution.Source == "pulumi:created" {
 			resolution.Source = "mixed"
@@ -230,12 +230,12 @@ func calculateRuntimeHours(from, to time.Time) (float64, error) {
 func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.ResourceDescriptor, resolver *serviceResolver) (*pbc.GetProjectedCostResponse, error) {
 	// Defensive nil check - callers should validate, but be safe
 	if resource == nil {
-		return nil, fmt.Errorf("resource descriptor is nil (caller must validate)")
+		return nil, errors.New("resource descriptor is nil (caller must validate)")
 	}
 
 	// Use provided resolver or create one if not provided (backward compatibility)
 	if resolver == nil {
-		resolver = newServiceResolver(resource.ResourceType)
+		resolver = newServiceResolver(resource.GetResourceType())
 	}
 	serviceType := resolver.ServiceType()
 
@@ -257,15 +257,24 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 		return p.estimateCloudWatch(traceID, resource)
 	case "elasticache":
 		return p.estimateElastiCache(traceID, resource)
-	case "s3", "lambda", "rds", "dynamodb":
-		return p.estimateStub(resource)
+	case "s3":
+		return p.estimateS3(traceID, resource)
+	case "lambda":
+		return p.estimateLambda(traceID, resource)
+	case "rds":
+		return p.estimateRDS(traceID, resource)
+	case "dynamodb":
+		return p.estimateDynamoDB(traceID, resource)
+	case "vpc", "securitygroup", "subnet", "iam":
+		// Zero-cost AWS networking and IAM resources - no direct charges
+		return p.estimateZeroCostResource(traceID, resource, serviceType), nil
 	default:
 		// Unknown resource type - return $0 with explanation
 		return &pbc.GetProjectedCostResponse{
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("Resource type %q not supported for cost estimation", resource.ResourceType),
+			BillingDetail: fmt.Sprintf("Resource type %q not supported for cost estimation", resource.GetResourceType()),
 		}, nil
 	}
 }

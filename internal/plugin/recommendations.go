@@ -778,33 +778,37 @@ func (p *AWSPublicPlugin) normalizeInput(req *pbc.GetRecommendationsRequest) *Pr
 	pctx := &ProcessingContext{}
 
 	// Deep copy Filter to avoid mutating caller's object (thread-safety for concurrent gRPC calls)
-	if req.Filter != nil {
-		pctx.Filter = proto.Clone(req.Filter).(*pbc.RecommendationFilter)
+	if req.GetFilter() != nil {
+		if cloned, ok := proto.Clone(req.GetFilter()).(*pbc.RecommendationFilter); ok {
+			pctx.Filter = cloned
+		}
 	}
 
 	// Issue #124: Normalize filter resource type if present
-	if pctx.Filter != nil && pctx.Filter.ResourceType != "" {
-		pctx.Filter.ResourceType = normalizeResourceType(pctx.Filter.ResourceType)
+	if pctx.Filter != nil && pctx.Filter.GetResourceType() != "" {
+		pctx.Filter.ResourceType = normalizeResourceType(pctx.Filter.GetResourceType())
 	}
 
-	if len(req.TargetResources) > 0 {
+	if len(req.GetTargetResources()) > 0 {
 		// Batch mode: deep copy each ResourceDescriptor to avoid mutating caller's objects
-		pctx.Scope = make([]*pbc.ResourceDescriptor, len(req.TargetResources))
-		for i, res := range req.TargetResources {
-			pctx.Scope[i] = proto.Clone(res).(*pbc.ResourceDescriptor)
+		pctx.Scope = make([]*pbc.ResourceDescriptor, len(req.GetTargetResources()))
+		for i, res := range req.GetTargetResources() {
+			if cloned, ok := proto.Clone(res).(*pbc.ResourceDescriptor); ok {
+				pctx.Scope[i] = cloned
+			}
 		}
 		// Normalize resource types (Issue #124) - now safe to mutate our copies
 		for _, res := range pctx.Scope {
-			res.ResourceType = normalizeResourceType(res.ResourceType)
+			res.ResourceType = normalizeResourceType(res.GetResourceType())
 		}
-	} else if req.Filter != nil && req.Filter.Sku != "" {
+	} else if req.GetFilter() != nil && req.GetFilter().GetSku() != "" {
 		// Legacy mode: construct single-item scope from Filter (already cloned above)
 		pctx.Scope = []*pbc.ResourceDescriptor{{
-			ResourceType: pctx.Filter.ResourceType, // Use normalized copy
-			Sku:          pctx.Filter.Sku,
-			Region:       pctx.Filter.Region,
-			Tags:         copyTags(pctx.Filter.Tags), // Deep copy to avoid sharing map
-			Provider:     providerAWS,                // Implicit for this plugin
+			ResourceType: pctx.Filter.GetResourceType(), // Use normalized copy
+			Sku:          pctx.Filter.GetSku(),
+			Region:       pctx.Filter.GetRegion(),
+			Tags:         copyTags(pctx.Filter.GetTags()), // Deep copy to avoid sharing map
+			Provider:     providerAWS,                     // Implicit for this plugin
 		}}
 	}
 

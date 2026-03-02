@@ -39,8 +39,9 @@ func main() {
 	})
 
 	server := &http.Server{
-		Addr:    config.ListenAddr,
-		Handler: mux,
+		Addr:              config.ListenAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	shutdownDone := make(chan struct{})
@@ -124,7 +125,7 @@ func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Co
 func fetchMetrics(ctx context.Context, port int, httpClient *http.Client) (string, error) {
 	url := fmt.Sprintf("http://localhost:%d/metrics", port)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -134,8 +135,8 @@ func fetchMetrics(ctx context.Context, port int, httpClient *http.Client) (strin
 		return "", err
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Error().Err(err).Msg("Failed to close response body")
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Error().Err(closeErr).Msg("Failed to close response body")
 		}
 	}()
 

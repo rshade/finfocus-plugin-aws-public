@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -131,17 +132,17 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	traceID := p.getTraceID(ctx)
 
 	// Early nil check to create serviceResolver (optimization: compute once per request)
-	if req == nil || req.Resource == nil {
+	if req == nil || req.GetResource() == nil {
 		err := p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
 
-	resource := req.Resource
+	resource := req.GetResource()
 
 	// Create resolver early to cache normalized type across validation and routing.
 	// This ensures detectService() is called exactly once per request (SC-002).
-	resolver := newServiceResolver(resource.ResourceType)
+	resolver := newServiceResolver(resource.GetResourceType())
 
 	// FR-009, FR-010: Use SDK validation + custom region check (US2)
 	if _, err := p.validateProjectedCostRequestWithResolver(ctx, req, resolver); err != nil {
@@ -155,10 +156,10 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	if p.testMode {
 		p.logger.Debug().
 			Str(pluginsdk.FieldTraceID, traceID).
-			Str("resource_type", resource.ResourceType).
-			Str("sku", resource.Sku).
-			Str("region", resource.Region).
-			Str("provider", resource.Provider).
+			Str("resource_type", resource.GetResourceType()).
+			Str("sku", resource.GetSku()).
+			Str("region", resource.GetRegion()).
+			Str("provider", resource.GetProvider()).
 			Msg("Test mode: request details")
 	}
 
@@ -200,33 +201,43 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("Resource type %q not supported for cost estimation", resource.ResourceType),
+			BillingDetail: fmt.Sprintf("Resource type %q not supported for cost estimation", resource.GetResourceType()),
 		}
 	}
 
 	if err != nil {
-		p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_UNSPECIFIED)
-		return nil, err
+		var pue *PricingUnavailableError
+		if errors.As(err, &pue) {
+			resp = &pbc.GetProjectedCostResponse{
+				CostPerMonth:  0,
+				UnitPrice:     0,
+				Currency:      "USD",
+				BillingDetail: pue.BillingDetail,
+			}
+		} else {
+			p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_UNSPECIFIED)
+			return nil, err
+		}
 	}
 
 	// Test mode: Enhanced logging for calculation result (US3)
 	if p.testMode {
 		p.logger.Debug().
 			Str(pluginsdk.FieldTraceID, traceID).
-			Float64("unit_price", resp.UnitPrice).
-			Float64("cost_per_month", resp.CostPerMonth).
-			Str("currency", resp.Currency).
-			Str("billing_detail", resp.BillingDetail).
+			Float64("unit_price", resp.GetUnitPrice()).
+			Float64("cost_per_month", resp.GetCostPerMonth()).
+			Str("currency", resp.GetCurrency()).
+			Str("billing_detail", resp.GetBillingDetail()).
 			Msg("Test mode: calculation result")
 	}
 
 	// Log successful completion with all required fields
 	p.traceLogger(traceID, "GetProjectedCost").Info().
-		Str(pluginsdk.FieldResourceType, resource.ResourceType).
-		Str("aws_service", resource.ResourceType).
-		Str("aws_region", resource.Region).
-		Interface("tags", sanitizeTagsForLogging(resource.Tags)).
-		Float64(pluginsdk.FieldCostMonthly, resp.CostPerMonth).
+		Str(pluginsdk.FieldResourceType, resource.GetResourceType()).
+		Str("aws_service", resource.GetResourceType()).
+		Str("aws_region", resource.GetRegion()).
+		Interface("tags", sanitizeTagsForLogging(resource.GetTags())).
+		Float64(pluginsdk.FieldCostMonthly, resp.GetCostPerMonth()).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 		Msg("cost calculated")
 
@@ -237,30 +248,22 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 // traceID is passed from the parent handler to ensure consistent trace correlation.
 func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDescriptor, req *pbc.GetProjectedCostRequest) (*pbc.GetProjectedCostResponse, error) {
 	// FR-012: Use resource.Sku first, fallback to tags extraction
-	instanceType := resource.Sku
+	instanceType := resource.GetSku()
 	if instanceType == "" {
-		instanceType = extractAWSSKU(resource.Tags)
+		instanceType = extractAWSSKU(resource.GetTags())
 	}
 
 	// Extract OS and tenancy using shared helper (FR-001, FR-002)
-	ec2Attrs := ExtractEC2AttributesFromTags(resource.Tags)
+	ec2Attrs := ExtractEC2AttributesFromTags(resource.GetTags())
 
 	// FR-020: Lookup pricing using embedded data
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, ec2Attrs.OS, ec2Attrs.Tenancy)
 	if !found {
-		// FR-035: Unknown instance types return $0 with explanation
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("instance_type", instanceType).
-			Str("aws_region", p.region).
-			Str("pricing_source", "embedded").
-			Msg("EC2 instance type not found in pricing data")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "EC2",
+			SKU:           instanceType,
 			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", instanceType),
-		}, nil
+		}
 	}
 
 	// Debug log successful lookup
@@ -283,9 +286,9 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 	}
 
 	// Carbon estimation: Calculate carbon footprint for EC2 instance
-	utilization := carbon.GetUtilization(req.UtilizationPercentage, resource.UtilizationPercentage)
+	utilization := carbon.GetUtilization(req.GetUtilizationPercentage(), resource.GetUtilizationPercentage())
 	carbonGrams, carbonOK := p.carbonEstimator.EstimateCarbonGrams(
-		instanceType, resource.Region, utilization, carbon.HoursPerMonth,
+		instanceType, resource.GetRegion(), utilization, carbon.HoursPerMonth,
 	)
 
 	if carbonOK {
@@ -299,7 +302,7 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 
 		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("instance_type", instanceType).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("utilization", utilization).
 			Float64("carbon_grams", carbonGrams).
 			Msg("Carbon estimation successful")
@@ -320,22 +323,22 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 // traceID is passed from the parent handler to ensure consistent trace correlation.
 func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	// FR-012: Use resource.Sku first, fallback to tags extraction
-	volumeType := resource.Sku
+	volumeType := resource.GetSku()
 	if volumeType == "" {
-		volumeType = extractAWSSKU(resource.Tags)
+		volumeType = extractAWSSKU(resource.GetTags())
 	}
 
 	// FR-041 & FR-042: Extract size from tags, default to 8GB
 	sizeGB := defaultEBSGB
 	sizeAssumed := true
 
-	if resource.Tags != nil {
-		if sizeStr, ok := resource.Tags["size"]; ok {
+	if resource.GetTags() != nil {
+		if sizeStr, ok := resource.GetTags()["size"]; ok {
 			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
 				sizeGB = size
 				sizeAssumed = false
 			}
-		} else if sizeStr, ok := resource.Tags["volume_size"]; ok {
+		} else if sizeStr, ok := resource.GetTags()["volume_size"]; ok {
 			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
 				sizeGB = size
 				sizeAssumed = false
@@ -346,19 +349,11 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 	// FR-020: Lookup pricing using embedded data
 	ratePerGBMonth, found := p.pricing.EBSPricePerGBMonth(volumeType)
 	if !found {
-		// Unknown volume type - return $0 with explanation
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("storage_type", volumeType).
-			Str("aws_region", p.region).
-			Str("pricing_source", "embedded").
-			Msg("EBS volume type not found in pricing data")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "EBS",
+			SKU:           volumeType,
 			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "EBS volume type", volumeType),
-		}, nil
+		}
 	}
 
 	// Debug log successful lookup
@@ -393,7 +388,7 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 	carbonGrams, carbonOK := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
 		VolumeType: volumeType,
 		SizeGB:     float64(sizeGB),
-		Region:     resource.Region,
+		Region:     resource.GetRegion(),
 		Hours:      HoursPerMonthProd,
 	})
 
@@ -409,7 +404,7 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("volume_type", volumeType).
 			Int("size_gb", sizeGB).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("carbon_grams", carbonGrams).
 			Msg("EBS carbon estimation successful")
 	}
@@ -440,19 +435,11 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 	// Lookup pricing using embedded data
 	ratePerGBMonth, found := p.pricing.S3PricePerGBMonth(storageClass)
 	if !found {
-		// Unknown storage class - return $0 with explanation
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("storage_class", storageClass).
-			Str("aws_region", p.region).
-			Str("pricing_source", "embedded").
-			Msg("S3 storage class not found in pricing data")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "S3",
+			SKU:           storageClass,
 			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "S3 storage class", storageClass),
-		}, nil
+		}
 	}
 
 	// Debug log successful lookup
@@ -840,17 +827,11 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 	}
 
 	if !fixedFound || !cuFound {
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("lb_type", lbType).
-			Str("aws_region", p.region).
-			Msg("ELB pricing data not found")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "ELB",
+			SKU:           strings.ToUpper(lbType),
 			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, strings.ToUpper(lbType), p.region),
-		}, nil
+		}
 	}
 
 	// 4. Calculate Costs
@@ -884,31 +865,20 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 	return resp, nil
 }
 
-// estimateStub returns $0 cost for services not yet implemented.
-func (p *AWSPublicPlugin) estimateStub(resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	// FR-025 & FR-026: Return $0 with explanation
-	return &pbc.GetProjectedCostResponse{
-		CostPerMonth:  0,
-		UnitPrice:     0,
-		Currency:      "USD",
-		BillingDetail: fmt.Sprintf("%s cost estimation not fully implemented - returns $0 estimate", resource.ResourceType),
-	}, nil
-}
-
 // estimateRDS calculates the projected monthly cost for an RDS instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
 func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
 	// FR-012: Use resource.Sku first, fallback to tags extraction
-	instanceType := resource.Sku
+	instanceType := resource.GetSku()
 	if instanceType == "" {
-		instanceType = extractAWSSKU(resource.Tags)
+		instanceType = extractAWSSKU(resource.GetTags())
 	}
 
 	// Extract engine from tags, default to MySQL
 	engine := defaultRDSEngine
 	engineDefaulted := true
-	if resource.Tags != nil {
-		if engineTag, ok := resource.Tags["engine"]; ok && engineTag != "" {
+	if resource.GetTags() != nil {
+		if engineTag, ok := resource.GetTags()["engine"]; ok && engineTag != "" {
 			engine = strings.ToLower(engineTag)
 			engineDefaulted = false
 		}
@@ -925,8 +895,8 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 	// Extract storage info from tags
 	storageType := defaultRDSStorage
 	storageDefaulted := true
-	if resource.Tags != nil {
-		if st, ok := resource.Tags["storage_type"]; ok && st != "" {
+	if resource.GetTags() != nil {
+		if st, ok := resource.GetTags()["storage_type"]; ok && st != "" {
 			storageType = strings.ToLower(st)
 			storageDefaulted = false
 		}
@@ -941,8 +911,8 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 	// Extract storage size from tags
 	storageSizeGB := defaultRDSSizeGB
 	sizeDefaulted := true
-	if resource.Tags != nil {
-		if sizeStr, ok := resource.Tags["storage_size"]; ok {
+	if resource.GetTags() != nil {
+		if sizeStr, ok := resource.GetTags()["storage_size"]; ok {
 			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
 				storageSizeGB = size
 				sizeDefaulted = false
@@ -952,8 +922,8 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 
 	// Extract Multi-AZ from tags (for carbon estimation)
 	multiAZ := false
-	if resource.Tags != nil {
-		if multiAZStr, ok := resource.Tags["multi_az"]; ok {
+	if resource.GetTags() != nil {
+		if multiAZStr, ok := resource.GetTags()["multi_az"]; ok {
 			multiAZ = strings.EqualFold(multiAZStr, "true")
 		}
 	}
@@ -961,20 +931,11 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 	// Lookup instance hourly rate
 	hourlyRate, found := p.pricing.RDSOnDemandPricePerHour(instanceType, normalizedEngine)
 	if !found {
-		// Unknown instance type - return $0 with explanation
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("instance_type", instanceType).
-			Str("engine", normalizedEngine).
-			Str("aws_region", p.region).
-			Str("pricing_source", "embedded").
-			Msg("RDS instance type not found in pricing data")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "RDS",
+			SKU:           instanceType,
 			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "RDS instance type", instanceType),
-		}, nil
+		}
 	}
 
 	// Lookup storage rate
@@ -1033,7 +994,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 	rdsEstimator := carbon.NewRDSEstimator()
 	carbonGrams, carbonOK := rdsEstimator.EstimateCarbonGrams(carbon.RDSInstanceConfig{
 		InstanceType:  instanceType,
-		Region:        resource.Region,
+		Region:        resource.GetRegion(),
 		MultiAZ:       multiAZ,
 		StorageType:   storageType,
 		StorageSizeGB: float64(storageSizeGB),
@@ -1054,7 +1015,7 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 			Str("instance_type", instanceType).
 			Int("storage_size_gb", storageSizeGB).
 			Bool("multi_az", multiAZ).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("carbon_grams", carbonGrams).
 			Msg("RDS carbon estimation successful")
 	}
@@ -1138,17 +1099,11 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 	// Look up EKS pricing based on support type
 	hourlyRate, found := p.pricing.EKSClusterPricePerHour(extendedSupport)
 	if !found {
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("aws_region", p.region).
-			Bool("extended_support", extendedSupport).
-			Msg("EKS pricing data not found")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "EKS",
+			SKU:           resource.Sku,
 			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "EKS", p.region),
-		}, nil
+		}
 	}
 
 	// Debug log successful lookup
@@ -1254,17 +1209,11 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 	gbSecPrice, gbSecFound := p.pricing.LambdaPricePerGBSecond(architecture)
 
 	if !reqFound || !gbSecFound {
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("aws_region", p.region).
-			Str("architecture", architecture).
-			Msg("Lambda pricing data not found")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "Lambda",
+			SKU:           architecture,
 			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "Lambda", p.region),
-		}, nil
+		}
 	}
 
 	// 4. Calculate Costs
@@ -1366,16 +1315,11 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 	// 1. Lookup Pricing
 	pricing, found := p.pricing.NATGatewayPrice()
 	if !found {
-		p.traceLogger(traceID, "GetProjectedCost").Debug().
-			Str("aws_region", p.region).
-			Msg("NAT Gateway pricing data not found")
-
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "NATGateway",
+			SKU:           p.region,
 			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "NAT Gateway", p.region),
-		}, nil
+		}
 	}
 
 	// 2. Extract and Validate Data Processed Tag
@@ -1604,7 +1548,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 	}
 
 	// Build billing detail
-	billingDetail := ""
+	var billingDetail string
 	if len(details) > 0 {
 		billingDetail = "CloudWatch: " + strings.Join(details, ", ")
 	} else {
@@ -1698,13 +1642,11 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 	// Look up hourly rate from pricing client
 	hourlyRate, found := p.pricing.ElastiCacheOnDemandPricePerHour(nodeType, engine)
 	if !found {
-		// Unknown node type or engine - return $0 with explanation
-		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
+		return nil, &PricingUnavailableError{
+			Service:       "ElastiCache",
+			SKU:           nodeType,
 			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, fmt.Sprintf("ElastiCache %s node", engine), nodeType),
-		}, nil
+		}
 	}
 
 	// Calculate monthly cost: hourly_rate × num_nodes × hours_per_month

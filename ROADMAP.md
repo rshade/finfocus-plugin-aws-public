@@ -54,6 +54,10 @@ security overhead of cloud credentials.
   reflects carbon estimation availability per service (#257).
 - **IAM Zero-Cost Resources:** Added IAM users, roles, policies, groups, and
   instance profiles to zero-cost handling (#274).
+- **Multi-Region Router:** Single-port entry point that auto-discovers and
+  delegates to region-specific child processes. Supports parallel fan-out
+  for multi-region recommendations and automatic binary downloads from
+  GitHub Releases (#245).
 
 ---
 
@@ -95,8 +99,6 @@ security overhead of cloud credentials.
 - **[Planned] Capability Discovery Enhancements:**
   - **Dual-Layer Discovery:** Service-level and resource-level capability
     introspection for richer client integration (#258).
-- **[Planned] Multi-Region Router:** Single-port request routing for the Docker
-  image to simplify client integration (#245).
 
 ---
 
