@@ -177,7 +177,12 @@ func TestExtractEC2AttributesFromTags_TenancyNormalization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			attrs := ExtractEC2AttributesFromTags(tt.tags)
 			if attrs.Tenancy != tt.wantTenancy {
-				t.Errorf("ExtractEC2AttributesFromTags(%v).Tenancy = %q, want %q", tt.tags, attrs.Tenancy, tt.wantTenancy)
+				t.Errorf(
+					"ExtractEC2AttributesFromTags(%v).Tenancy = %q, want %q",
+					tt.tags,
+					attrs.Tenancy,
+					tt.wantTenancy,
+				)
 			}
 		})
 	}
@@ -218,7 +223,12 @@ func TestExtractEC2AttributesFromTags_NilAndEmpty(t *testing.T) {
 				t.Errorf("ExtractEC2AttributesFromTags(%v).OS = %q, want %q", tt.tags, attrs.OS, tt.wantOS)
 			}
 			if attrs.Tenancy != tt.wantTenancy {
-				t.Errorf("ExtractEC2AttributesFromTags(%v).Tenancy = %q, want %q", tt.tags, attrs.Tenancy, tt.wantTenancy)
+				t.Errorf(
+					"ExtractEC2AttributesFromTags(%v).Tenancy = %q, want %q",
+					tt.tags,
+					attrs.Tenancy,
+					tt.wantTenancy,
+				)
 			}
 		})
 	}
@@ -259,7 +269,12 @@ func TestExtractEC2AttributesFromTags_Combined(t *testing.T) {
 				t.Errorf("ExtractEC2AttributesFromTags(%v).OS = %q, want %q", tt.tags, attrs.OS, tt.wantOS)
 			}
 			if attrs.Tenancy != tt.wantTenancy {
-				t.Errorf("ExtractEC2AttributesFromTags(%v).Tenancy = %q, want %q", tt.tags, attrs.Tenancy, tt.wantTenancy)
+				t.Errorf(
+					"ExtractEC2AttributesFromTags(%v).Tenancy = %q, want %q",
+					tt.tags,
+					attrs.Tenancy,
+					tt.wantTenancy,
+				)
 			}
 		})
 	}
@@ -429,4 +444,322 @@ func mustStruct(m map[string]interface{}) *structpb.Struct {
 		panic(err)
 	}
 	return s
+}
+
+// TestParseGoMapString verifies parsing of Go's fmt.Sprint map format strings.
+func TestParseGoMapString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  map[string]string
+	}{
+		{
+			name:  "normal map",
+			input: "map[volumeSize:8 volumeType:gp2]",
+			want:  map[string]string{"volumeSize": "8", "volumeType": "gp2"},
+		},
+		{
+			name:  "single entry",
+			input: "map[volumeType:gp3]",
+			want:  map[string]string{"volumeType": "gp3"},
+		},
+		{
+			name:  "empty map",
+			input: "map[]",
+			want:  map[string]string{},
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  map[string]string{},
+		},
+		{
+			name:  "no map prefix",
+			input: "volumeSize:8 volumeType:gp2",
+			want:  map[string]string{},
+		},
+		{
+			name:  "value with colons",
+			input: "map[arn:aws:ec2:us-east-1 volumeType:gp2]",
+			want:  map[string]string{"arn": "aws:ec2:us-east-1", "volumeType": "gp2"},
+		},
+		{
+			name:  "multiple fields",
+			input: "map[deleteOnTermination:true encrypted:false volumeSize:20 volumeType:gp3]",
+			want: map[string]string{
+				"deleteOnTermination": "true",
+				"encrypted":           "false",
+				"volumeSize":          "20",
+				"volumeType":          "gp3",
+			},
+		},
+		{
+			name:  "whitespace around",
+			input: "  map[volumeSize:8 volumeType:gp2]  ",
+			want:  map[string]string{"volumeSize": "8", "volumeType": "gp2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseGoMapString(tt.input)
+			if len(got) != len(tt.want) {
+				t.Errorf("parseGoMapString(%q) returned %d entries, want %d", tt.input, len(got), len(tt.want))
+				return
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("parseGoMapString(%q)[%q] = %q, want %q", tt.input, k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+// TestExtractRootVolumeFromTags_GoMapFormat tests root volume extraction from
+// the rootBlockDevice tag in Go map string format.
+func TestExtractRootVolumeFromTags_GoMapFormat(t *testing.T) {
+	tags := map[string]string{
+		"rootBlockDevice": "map[volumeSize:20 volumeType:gp3]",
+	}
+	rv := ExtractRootVolumeFromTags(tags)
+
+	if !rv.Present {
+		t.Fatal("Expected Present=true for rootBlockDevice tag")
+	}
+	if rv.VolumeType != "gp3" {
+		t.Errorf("VolumeType = %q, want %q", rv.VolumeType, "gp3")
+	}
+	if rv.SizeGB != 20 {
+		t.Errorf("SizeGB = %d, want %d", rv.SizeGB, 20)
+	}
+}
+
+// TestExtractRootVolumeFromTags_IndividualTags tests root volume extraction
+// from individual root_volume_type and root_volume_size tags.
+func TestExtractRootVolumeFromTags_IndividualTags(t *testing.T) {
+	tags := map[string]string{
+		"root_volume_type": "io1",
+		"root_volume_size": "100",
+	}
+	rv := ExtractRootVolumeFromTags(tags)
+
+	if !rv.Present {
+		t.Fatal("Expected Present=true for individual tags")
+	}
+	if rv.VolumeType != "io1" {
+		t.Errorf("VolumeType = %q, want %q", rv.VolumeType, "io1")
+	}
+	if rv.SizeGB != 100 {
+		t.Errorf("SizeGB = %d, want %d", rv.SizeGB, 100)
+	}
+}
+
+// TestExtractRootVolumeFromTags_IndividualOverridesMap tests that individual
+// tags take priority over rootBlockDevice map values.
+func TestExtractRootVolumeFromTags_IndividualOverridesMap(t *testing.T) {
+	tags := map[string]string{
+		"rootBlockDevice":  "map[volumeSize:8 volumeType:gp2]",
+		"root_volume_type": "gp3",
+		"root_volume_size": "50",
+	}
+	rv := ExtractRootVolumeFromTags(tags)
+
+	if !rv.Present {
+		t.Fatal("Expected Present=true")
+	}
+	if rv.VolumeType != "gp3" {
+		t.Errorf("VolumeType = %q, want %q (individual should override map)", rv.VolumeType, "gp3")
+	}
+	if rv.SizeGB != 50 {
+		t.Errorf("SizeGB = %d, want %d (individual should override map)", rv.SizeGB, 50)
+	}
+}
+
+// TestExtractRootVolumeFromTags_NoInfo tests that no root volume info is
+// returned when no relevant tags are present.
+func TestExtractRootVolumeFromTags_NoInfo(t *testing.T) {
+	tests := []struct {
+		name string
+		tags map[string]string
+	}{
+		{name: "nil tags", tags: nil},
+		{name: "empty tags", tags: map[string]string{}},
+		{name: "unrelated tags", tags: map[string]string{"Name": "test"}},
+		{name: "empty rootBlockDevice", tags: map[string]string{"rootBlockDevice": ""}},
+		{name: "malformed rootBlockDevice", tags: map[string]string{"rootBlockDevice": "not a map"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rv := ExtractRootVolumeFromTags(tt.tags)
+			if rv.Present {
+				t.Errorf("Expected Present=false for tags %v", tt.tags)
+			}
+		})
+	}
+}
+
+// TestExtractRootVolumeFromTags_Defaults tests that defaults are applied when
+// root volume source is present but fields are missing or invalid.
+func TestExtractRootVolumeFromTags_Defaults(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     map[string]string
+		wantType string
+		wantSize int
+	}{
+		{
+			name:     "type only from individual tag",
+			tags:     map[string]string{"root_volume_type": "gp3"},
+			wantType: "gp3",
+			wantSize: 8, // default
+		},
+		{
+			name:     "size only from individual tag",
+			tags:     map[string]string{"root_volume_size": "50"},
+			wantType: "gp2", // default
+			wantSize: 50,
+		},
+		{
+			name:     "invalid size defaults to 8",
+			tags:     map[string]string{"root_volume_type": "gp3", "root_volume_size": "invalid"},
+			wantType: "gp3",
+			wantSize: 8, // default
+		},
+		{
+			name:     "negative size defaults to 8",
+			tags:     map[string]string{"root_volume_type": "gp3", "root_volume_size": "-10"},
+			wantType: "gp3",
+			wantSize: 8, // default
+		},
+		{
+			name:     "zero size defaults to 8",
+			tags:     map[string]string{"root_volume_type": "gp3", "root_volume_size": "0"},
+			wantType: "gp3",
+			wantSize: 8, // default
+		},
+		{
+			name:     "rootBlockDevice with type only",
+			tags:     map[string]string{"rootBlockDevice": "map[volumeType:io2]"},
+			wantType: "io2",
+			wantSize: 8, // default
+		},
+		{
+			name:     "rootBlockDevice with size only",
+			tags:     map[string]string{"rootBlockDevice": "map[volumeSize:100]"},
+			wantType: "gp2", // default
+			wantSize: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rv := ExtractRootVolumeFromTags(tt.tags)
+			if !rv.Present {
+				t.Fatal("Expected Present=true")
+			}
+			if rv.VolumeType != tt.wantType {
+				t.Errorf("VolumeType = %q, want %q", rv.VolumeType, tt.wantType)
+			}
+			if rv.SizeGB != tt.wantSize {
+				t.Errorf("SizeGB = %d, want %d", rv.SizeGB, tt.wantSize)
+			}
+		})
+	}
+}
+
+// TestExtractRootVolumeFromStruct tests root volume extraction from protobuf Struct.
+func TestExtractRootVolumeFromStruct(t *testing.T) {
+	tests := []struct {
+		name        string
+		attrs       *structpb.Struct
+		wantPresent bool
+		wantType    string
+		wantSize    int
+	}{
+		{
+			name:        "nil struct",
+			attrs:       nil,
+			wantPresent: false,
+		},
+		{
+			name:        "no rootBlockDevice",
+			attrs:       mustStruct(map[string]interface{}{"instanceType": "t3.micro"}),
+			wantPresent: false,
+		},
+		{
+			name: "rootBlockDevice as struct",
+			attrs: mustStruct(map[string]interface{}{
+				"rootBlockDevice": map[string]interface{}{
+					"volumeType": "gp3",
+					"volumeSize": float64(20),
+				},
+			}),
+			wantPresent: true,
+			wantType:    "gp3",
+			wantSize:    20,
+		},
+		{
+			name: "rootBlockDevice as list",
+			attrs: mustStruct(map[string]interface{}{
+				"rootBlockDevice": []interface{}{
+					map[string]interface{}{
+						"volumeType": "io1",
+						"volumeSize": float64(100),
+					},
+				},
+			}),
+			wantPresent: true,
+			wantType:    "io1",
+			wantSize:    100,
+		},
+		{
+			name: "rootBlockDevice as Go map string",
+			attrs: mustStruct(map[string]interface{}{
+				"rootBlockDevice": "map[volumeSize:30 volumeType:gp2]",
+			}),
+			wantPresent: true,
+			wantType:    "gp2",
+			wantSize:    30,
+		},
+		{
+			name: "rootBlockDevice struct with defaults",
+			attrs: mustStruct(map[string]interface{}{
+				"rootBlockDevice": map[string]interface{}{},
+			}),
+			wantPresent: true,
+			wantType:    "gp2",
+			wantSize:    8,
+		},
+		{
+			name: "rootBlockDevice struct with type only",
+			attrs: mustStruct(map[string]interface{}{
+				"rootBlockDevice": map[string]interface{}{
+					"volumeType": "gp3",
+				},
+			}),
+			wantPresent: true,
+			wantType:    "gp3",
+			wantSize:    8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rv := ExtractRootVolumeFromStruct(tt.attrs)
+			if rv.Present != tt.wantPresent {
+				t.Fatalf("Present = %v, want %v", rv.Present, tt.wantPresent)
+			}
+			if !tt.wantPresent {
+				return
+			}
+			if rv.VolumeType != tt.wantType {
+				t.Errorf("VolumeType = %q, want %q", rv.VolumeType, tt.wantType)
+			}
+			if rv.SizeGB != tt.wantSize {
+				t.Errorf("SizeGB = %d, want %d", rv.SizeGB, tt.wantSize)
+			}
+		})
+	}
 }

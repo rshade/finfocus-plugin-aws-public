@@ -36,12 +36,12 @@ func normalizeResourceType(resourceType string) string {
 	if strings.HasPrefix(rt, "aws:") {
 		// Special case: aws:ec2/volume is EBS
 		if strings.Contains(rt, "ec2/volume") {
-			return "ebs"
+			return serviceEBS
 		}
 
 		// IAM resources (prefix match)
 		if strings.HasPrefix(rt, "aws:iam/") {
-			return "iam"
+			return serviceIAM
 		}
 
 		// Zero-cost EC2 networking resources (centralized in ZeroCostPulumiPatterns)
@@ -63,12 +63,21 @@ func normalizeResourceType(resourceType string) string {
 			svcParts := strings.Split(parts[0], ":")
 			svc := svcParts[0]
 			switch svc {
-			case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "natgw", "cloudwatch", "elasticache":
+			case serviceEC2,
+				serviceEBS,
+				serviceRDS,
+				serviceS3,
+				serviceLambda,
+				serviceDynamoDB,
+				serviceEKS,
+				serviceNATGW,
+				serviceCloudWatch,
+				serviceElastiCache:
 				return svc
-			case "lb", "alb", "nlb":
-				return "elb"
+			case "lb", serviceALB, serviceNLB:
+				return serviceELB
 			case "natgateway":
-				return "natgw"
+				return serviceNATGW
 			}
 		}
 		// If it's an AWS resource but we don't recognize the service canonical form,
@@ -83,7 +92,7 @@ func normalizeResourceType(resourceType string) string {
 // Uses SDK mapping.ExtractSKU with extended key list for backwards compatibility
 // with both camelCase (SDK standard) and snake_case (legacy) property names.
 //
-// Priority order: instanceType > instance_class > instanceClass > type > volumeType > volume_type
+// Priority order: instanceType > instance_class > instanceClass > type > volumeType > volume_type.
 func extractAWSSKU(tags map[string]string) string {
 	// Use SDK's generic ExtractSKU with extended key list for backwards compatibility.
 	// This includes both SDK canonical keys (camelCase) and legacy snake_case variants.
@@ -127,13 +136,21 @@ var validRDSStorageTypes = map[string]bool{
 }
 
 // GetProjectedCost estimates the monthly cost for the given resource.
-func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) GetProjectedCost(
+	ctx context.Context,
+	req *pbc.GetProjectedCostRequest,
+) (*pbc.GetProjectedCostResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
 	// Early nil check to create serviceResolver (optimization: compute once per request)
 	if req == nil || req.GetResource() == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		err := p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"request and resource are required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 		p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
@@ -170,38 +187,41 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 	// Use cached service type from resolver (optimization: SC-002)
 	serviceType := resolver.ServiceType()
 	switch serviceType {
-	case "ec2":
+	case serviceEC2:
 		resp, err = p.estimateEC2(traceID, resource, req)
-	case "ebs":
+	case serviceEBS:
 		resp, err = p.estimateEBS(traceID, resource)
-	case "rds":
+	case serviceRDS:
 		resp, err = p.estimateRDS(traceID, resource)
-	case "eks":
+	case serviceEKS:
 		resp, err = p.estimateEKS(traceID, resource)
-	case "s3":
+	case serviceS3:
 		resp, err = p.estimateS3(traceID, resource)
-	case "lambda":
+	case serviceLambda:
 		resp, err = p.estimateLambda(traceID, resource)
-	case "dynamodb":
+	case serviceDynamoDB:
 		resp, err = p.estimateDynamoDB(traceID, resource)
-	case "elb":
+	case serviceELB:
 		resp, err = p.estimateELB(traceID, resource)
-	case "natgw":
+	case serviceNATGW:
 		resp, err = p.estimateNATGateway(traceID, resource)
-	case "cloudwatch":
+	case serviceCloudWatch:
 		resp, err = p.estimateCloudWatch(traceID, resource)
-	case "elasticache":
+	case serviceElastiCache:
 		resp, err = p.estimateElastiCache(traceID, resource)
-	case "vpc", "securitygroup", "subnet", "iam":
-		// Zero-cost AWS networking and IAM resources - no direct charges
+	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
+		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
 		// Unknown resource type - return $0 with explanation
 		resp = &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("Resource type %q not supported for cost estimation", resource.GetResourceType()),
+			CostPerMonth: 0,
+			UnitPrice:    0,
+			Currency:     "USD",
+			BillingDetail: fmt.Sprintf(
+				"Resource type %q not supported for cost estimation",
+				resource.GetResourceType(),
+			),
 		}
 	}
 
@@ -246,8 +266,12 @@ func (p *AWSPublicPlugin) GetProjectedCost(ctx context.Context, req *pbc.GetProj
 
 // estimateEC2 calculates the projected monthly cost for an EC2 instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDescriptor, req *pbc.GetProjectedCostRequest) (*pbc.GetProjectedCostResponse, error) {
-	// FR-012: Use resource.Sku first, fallback to tags extraction
+func (p *AWSPublicPlugin) estimateEC2(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+	req *pbc.GetProjectedCostRequest,
+) (*pbc.GetProjectedCostResponse, error) {
+	// FR-012: Use resource.GetSku() first, fallback to tags extraction
 	instanceType := resource.GetSku()
 	if instanceType == "" {
 		instanceType = extractAWSSKU(resource.GetTags())
@@ -275,27 +299,73 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 		Msg("EC2 pricing lookup successful")
 
 	// FR-021: Calculate monthly cost (730 hours/month)
-	costPerMonth := hourlyRate * carbon.HoursPerMonth
+	computeCost := hourlyRate * carbon.HoursPerMonth
+	costPerMonth := computeCost
+	billingDetail := fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", ec2Attrs.OS, ec2Attrs.Tenancy)
+
+	// Root EBS volume cost: Include root volume storage when tag info is present
+	rootVol := ExtractRootVolumeFromTags(resource.GetTags())
+	var rootVolumeCost float64
+	if rootVol.Present {
+		if ebsRate, ebsFound := p.pricing.EBSPricePerGBMonth(rootVol.VolumeType); ebsFound {
+			rootVolumeCost = ebsRate * float64(rootVol.SizeGB)
+			costPerMonth += rootVolumeCost
+			billingDetail += fmt.Sprintf(
+				" + %dGB %s root volume ($%.2f/mo)",
+				rootVol.SizeGB, rootVol.VolumeType, rootVolumeCost,
+			)
+
+			p.traceLogger(traceID, "GetProjectedCost").Debug().
+				Str("volume_type", rootVol.VolumeType).
+				Int("size_gb", rootVol.SizeGB).
+				Float64("root_volume_cost", rootVolumeCost).
+				Msg("Root EBS volume cost included in EC2 estimate")
+		} else {
+			p.traceLogger(traceID, "GetProjectedCost").Warn().
+				Str("volume_type", rootVol.VolumeType).
+				Msg("Root EBS volume type not found in pricing data, skipping root volume cost")
+		}
+	}
 
 	// FR-022, FR-023, FR-024: Return response with all required fields
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
-		BillingDetail: fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", ec2Attrs.OS, ec2Attrs.Tenancy),
+		BillingDetail: billingDetail,
 	}
 
 	// Carbon estimation: Calculate carbon footprint for EC2 instance
-	utilization := carbon.GetUtilization(req.GetUtilizationPercentage(), resource.GetUtilizationPercentage())
+	var perResourceUtil *float64
+	if u := resource.GetUtilizationPercentage(); u > 0 {
+		perResourceUtil = &u
+	}
+	utilization := carbon.GetUtilization(req.GetUtilizationPercentage(), perResourceUtil)
 	carbonGrams, carbonOK := p.carbonEstimator.EstimateCarbonGrams(
 		instanceType, resource.GetRegion(), utilization, carbon.HoursPerMonth,
 	)
 
-	if carbonOK {
+	// Add root volume EBS carbon if applicable
+	var rootCarbonGrams float64
+	if rootVol.Present && rootVolumeCost > 0 {
+		ebsEstimator := carbon.NewEBSEstimator()
+		rootCarbon, rootCarbonOK := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
+			VolumeType: rootVol.VolumeType,
+			SizeGB:     float64(rootVol.SizeGB),
+			Region:     resource.GetRegion(),
+			Hours:      HoursPerMonthProd,
+		})
+		if rootCarbonOK {
+			rootCarbonGrams = rootCarbon
+		}
+	}
+
+	totalCarbonGrams := carbonGrams + rootCarbonGrams
+	if carbonOK || rootCarbonGrams > 0 {
 		resp.ImpactMetrics = []*pbc.ImpactMetric{
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
-				Value: carbonGrams,
+				Value: totalCarbonGrams,
 				Unit:  "gCO2e",
 			},
 		}
@@ -304,7 +374,9 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 			Str("instance_type", instanceType).
 			Str("aws_region", resource.GetRegion()).
 			Float64("utilization", utilization).
-			Float64("carbon_grams", carbonGrams).
+			Float64("compute_carbon_grams", carbonGrams).
+			Float64("root_ebs_carbon_grams", rootCarbonGrams).
+			Float64("total_carbon_grams", totalCarbonGrams).
 			Msg("Carbon estimation successful")
 	} else {
 		// Unknown instance type for carbon - log warning but continue with financial cost
@@ -321,8 +393,11 @@ func (p *AWSPublicPlugin) estimateEC2(traceID string, resource *pbc.ResourceDesc
 
 // estimateEBS calculates the projected monthly cost for an EBS volume.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	// FR-012: Use resource.Sku first, fallback to tags extraction
+func (p *AWSPublicPlugin) estimateEBS(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	// FR-012: Use resource.GetSku() first, fallback to tags extraction
 	volumeType := resource.GetSku()
 	if volumeType == "" {
 		volumeType = extractAWSSKU(resource.GetTags())
@@ -333,13 +408,13 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 	sizeAssumed := true
 
 	if resource.GetTags() != nil {
-		if sizeStr, ok := resource.GetTags()["size"]; ok {
+		if sizeStr, sizeFound := resource.GetTags()["size"]; sizeFound {
 			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
 				sizeGB = size
 				sizeAssumed = false
 			}
-		} else if sizeStr, ok := resource.GetTags()["volume_size"]; ok {
-			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
+		} else if volSizeStr, volFound := resource.GetTags()["volume_size"]; volFound {
+			if size, err := strconv.Atoi(volSizeStr); err == nil && size > 0 {
 				sizeGB = size
 				sizeAssumed = false
 			}
@@ -416,15 +491,18 @@ func (p *AWSPublicPlugin) estimateEBS(traceID string, resource *pbc.ResourceDesc
 }
 
 // estimateS3 calculates projected monthly cost for S3 storage.
-func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	storageClass := resource.Sku
+func (p *AWSPublicPlugin) estimateS3(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	storageClass := resource.GetSku()
 
 	// Extract size from tags, default to 1GB
 	sizeGB := 1.0
 	sizeAssumed := true
 
-	if resource.Tags != nil {
-		if sizeStr, ok := resource.Tags["size"]; ok {
+	if resource.GetTags() != nil {
+		if sizeStr, ok := resource.GetTags()["size"]; ok {
 			if size, err := strconv.ParseFloat(sizeStr, 64); err == nil && size > 0 {
 				sizeGB = size
 				sizeAssumed = false
@@ -456,7 +534,12 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 	// Include assumption in billing_detail if size was defaulted
 	var billingDetail string
 	if sizeAssumed {
-		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB (defaulted), $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
+		billingDetail = fmt.Sprintf(
+			"S3 %s storage, %.0f GB (defaulted), $%.4f/GB-month",
+			storageClass,
+			sizeGB,
+			ratePerGBMonth,
+		)
 	} else {
 		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB, $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
 	}
@@ -473,7 +556,7 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 	carbonGrams, carbonOK := s3Estimator.EstimateCarbonGrams(carbon.S3StorageConfig{
 		StorageClass: storageClass,
 		SizeGB:       sizeGB,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 		Hours:        HoursPerMonthProd,
 	})
 
@@ -489,7 +572,7 @@ func (p *AWSPublicPlugin) estimateS3(traceID string, resource *pbc.ResourceDescr
 		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("storage_class", storageClass).
 			Float64("size_gb", sizeGB).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("carbon_grams", carbonGrams).
 			Msg("S3 carbon estimation successful")
 	}
@@ -546,8 +629,11 @@ func (p *AWSPublicPlugin) validateNonNegativeFloat64(traceID, tagName, value str
 }
 
 // estimateDynamoDB calculates projected monthly cost for DynamoDB tables.
-func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	capacityMode := strings.ToLower(resource.Sku)
+func (p *AWSPublicPlugin) estimateDynamoDB(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	capacityMode := strings.ToLower(resource.GetSku())
 	if capacityMode == "" {
 		capacityMode = "on-demand"
 	}
@@ -558,8 +644,8 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	var unitPrice float64
 
 	// Extract common storage
-	if resource.Tags != nil {
-		if s, ok := resource.Tags["storage_gb"]; ok {
+	if resource.GetTags() != nil {
+		if s, ok := resource.GetTags()["storage_gb"]; ok {
 			storageGB = p.validateNonNegativeFloat64(traceID, "storage_gb", s)
 		}
 	}
@@ -577,11 +663,11 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 
 	if capacityMode == "provisioned" {
 		// Provisioned Mode
-		if resource.Tags != nil {
-			if s, ok := resource.Tags["read_capacity_units"]; ok {
+		if resource.GetTags() != nil {
+			if s, ok := resource.GetTags()["read_capacity_units"]; ok {
 				readUnits = p.validateNonNegativeInt64(traceID, "read_capacity_units", s)
 			}
-			if s, ok := resource.Tags["write_capacity_units"]; ok {
+			if s, ok := resource.GetTags()["write_capacity_units"]; ok {
 				writeUnits = p.validateNonNegativeInt64(traceID, "write_capacity_units", s)
 			}
 		}
@@ -640,7 +726,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 		dynamoEstimator := carbon.NewDynamoDBEstimator()
 		carbonGrams, carbonOK := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
 			SizeGB: storageGB,
-			Region: resource.Region,
+			Region: resource.GetRegion(),
 			Hours:  HoursPerMonthProd,
 		})
 
@@ -655,7 +741,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 
 			p.traceLogger(traceID, "GetProjectedCost").Debug().
 				Float64("storage_gb", storageGB).
-				Str("aws_region", resource.Region).
+				Str("aws_region", resource.GetRegion()).
 				Float64("carbon_grams", carbonGrams).
 				Msg("DynamoDB carbon estimation successful")
 		}
@@ -664,15 +750,14 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 		setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:dynamodb:table", resp)
 
 		return resp, nil
-
 	}
 
 	// Default to On-Demand Mode
-	if resource.Tags != nil {
-		if s, ok := resource.Tags["read_requests_per_month"]; ok {
+	if resource.GetTags() != nil {
+		if s, ok := resource.GetTags()["read_requests_per_month"]; ok {
 			readUnits = p.validateNonNegativeInt64(traceID, "read_requests_per_month", s)
 		}
-		if s, ok := resource.Tags["write_requests_per_month"]; ok {
+		if s, ok := resource.GetTags()["write_requests_per_month"]; ok {
 			writeUnits = p.validateNonNegativeInt64(traceID, "write_requests_per_month", s)
 		}
 	}
@@ -732,7 +817,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 	dynamoEstimator := carbon.NewDynamoDBEstimator()
 	carbonGrams, carbonOK := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
 		SizeGB: storageGB,
-		Region: resource.Region,
+		Region: resource.GetRegion(),
 		Hours:  HoursPerMonthProd,
 	})
 
@@ -747,7 +832,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 
 		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Float64("storage_gb", storageGB).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("carbon_grams", carbonGrams).
 			Msg("DynamoDB carbon estimation successful")
 	}
@@ -759,31 +844,34 @@ func (p *AWSPublicPlugin) estimateDynamoDB(traceID string, resource *pbc.Resourc
 }
 
 // estimateELB calculates projected monthly cost for load balancers.
-func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) estimateELB(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
 	// 1. Identify Load Balancer Type (ALB vs NLB)
 	// Default to ALB per clarification
-	lbType := "alb"
-	skuLower := strings.ToLower(resource.Sku)
-	if strings.Contains(skuLower, "nlb") || strings.Contains(skuLower, "network") {
-		lbType = "nlb"
-	} else if strings.Contains(skuLower, "alb") || strings.Contains(skuLower, "application") {
-		lbType = "alb"
+	lbType := serviceALB
+	skuLower := strings.ToLower(resource.GetSku())
+	if strings.Contains(skuLower, serviceNLB) || strings.Contains(skuLower, "network") {
+		lbType = serviceNLB
+	} else if strings.Contains(skuLower, serviceALB) || strings.Contains(skuLower, "application") {
+		lbType = serviceALB
 	}
 
 	// 2. Extract Capacity Units from Tags
 	capacityUnits := 0.0
 	tagFound := false
-	if resource.Tags != nil {
+	if resource.GetTags() != nil {
 		// Specific tags take precedence
-		if lbType == "alb" {
-			if s, ok := resource.Tags["lcu_per_hour"]; ok {
+		if lbType == serviceALB {
+			if s, ok := resource.GetTags()["lcu_per_hour"]; ok {
 				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
 					capacityUnits = v
 					tagFound = true
 				}
 			}
 		} else {
-			if s, ok := resource.Tags["nlcu_per_hour"]; ok {
+			if s, ok := resource.GetTags()["nlcu_per_hour"]; ok {
 				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
 					capacityUnits = v
 					tagFound = true
@@ -793,7 +881,7 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 
 		// Generic fallback if specific tag not found or invalid
 		if !tagFound {
-			if s, ok := resource.Tags["capacity_units"]; ok {
+			if s, ok := resource.GetTags()["capacity_units"]; ok {
 				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
 					capacityUnits = v
 				}
@@ -816,7 +904,7 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 	var fixedFound, cuFound bool
 	var cuMetricName string
 
-	if lbType == "alb" {
+	if lbType == serviceALB {
 		fixedRate, fixedFound = p.pricing.ALBPricePerHour()
 		cuRate, cuFound = p.pricing.ALBPricePerLCU()
 		cuMetricName = "LCU"
@@ -860,15 +948,22 @@ func (p *AWSPublicPlugin) estimateELB(traceID string, resource *pbc.ResourceDesc
 	}
 
 	// Apply growth hint enrichment
-	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), "aws:elasticloadbalancing:loadbalancer", resp)
+	setGrowthHint(
+		p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(),
+		"aws:elasticloadbalancing:loadbalancer",
+		resp,
+	)
 
 	return resp, nil
 }
 
 // estimateRDS calculates the projected monthly cost for an RDS instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	// FR-012: Use resource.Sku first, fallback to tags extraction
+func (p *AWSPublicPlugin) estimateRDS(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	// FR-012: Use resource.GetSku() first, fallback to tags extraction
 	instanceType := resource.GetSku()
 	if instanceType == "" {
 		instanceType = extractAWSSKU(resource.GetTags())
@@ -1031,10 +1126,20 @@ func (p *AWSPublicPlugin) estimateRDS(traceID string, resource *pbc.ResourceDesc
 func detectService(resourceType string) string {
 	// Fast path for canonical forms
 	switch resourceType {
-	case "ec2", "ebs", "rds", "s3", "lambda", "dynamodb", "eks", "elb", "natgw", "cloudwatch", "elasticache":
+	case serviceEC2,
+		serviceEBS,
+		serviceRDS,
+		serviceS3,
+		serviceLambda,
+		serviceDynamoDB,
+		serviceEKS,
+		serviceELB,
+		serviceNATGW,
+		serviceCloudWatch,
+		serviceElastiCache:
 		return resourceType
-	case "alb", "nlb":
-		return "elb"
+	case serviceALB, serviceNLB:
+		return serviceELB
 	}
 
 	// Zero-cost networking resources (no direct AWS charges)
@@ -1047,41 +1152,44 @@ func detectService(resourceType string) string {
 	resourceTypeLower := strings.ToLower(resourceType)
 
 	if strings.Contains(resourceTypeLower, "ec2/instance") {
-		return "ec2"
+		return serviceEC2
 	}
 	if strings.Contains(resourceTypeLower, "ebs/volume") || strings.Contains(resourceTypeLower, "ec2/volume") {
-		return "ebs"
+		return serviceEBS
 	}
 	if strings.Contains(resourceTypeLower, "rds/instance") {
-		return "rds"
+		return serviceRDS
 	}
 	if strings.Contains(resourceTypeLower, "eks/cluster") {
-		return "eks"
+		return serviceEKS
 	}
 	if strings.Contains(resourceTypeLower, "s3/bucket") {
-		return "s3"
+		return serviceS3
 	}
 	if strings.Contains(resourceTypeLower, "lambda/function") {
-		return "lambda"
+		return serviceLambda
 	}
 	if strings.Contains(resourceTypeLower, "dynamodb/table") {
-		return "dynamodb"
+		return serviceDynamoDB
 	}
-	if strings.Contains(resourceTypeLower, "lb/loadbalancer") || strings.Contains(resourceTypeLower, "alb/loadbalancer") || strings.Contains(resourceTypeLower, "nlb/loadbalancer") {
-		return "elb"
+	if strings.Contains(resourceTypeLower, "lb/loadbalancer") ||
+		strings.Contains(resourceTypeLower, "alb/loadbalancer") ||
+		strings.Contains(resourceTypeLower, "nlb/loadbalancer") {
+		return serviceELB
 	}
 	if strings.Contains(resourceTypeLower, "ec2/natgateway") {
-		return "natgw"
+		return serviceNATGW
 	}
-	if strings.Contains(resourceTypeLower, "cloudwatch/loggroup") || strings.Contains(resourceTypeLower, "cloudwatch/logstream") ||
+	if strings.Contains(resourceTypeLower, "cloudwatch/loggroup") ||
+		strings.Contains(resourceTypeLower, "cloudwatch/logstream") ||
 		strings.Contains(resourceTypeLower, "cloudwatch/metricalarm") {
-		return "cloudwatch"
+		return serviceCloudWatch
 	}
 	if strings.Contains(resourceTypeLower, "elasticache/") {
-		return "elasticache"
+		return serviceElastiCache
 	}
 	if strings.Contains(resourceTypeLower, "iam/") {
-		return "iam"
+		return serviceIAM
 	}
 
 	return resourceType
@@ -1089,19 +1197,22 @@ func detectService(resourceType string) string {
 
 // estimateEKS calculates projected monthly cost for EKS clusters.
 // EKS has a simple fixed hourly rate per cluster (standard or extended support).
-func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	// Determine support type from resource.Sku or tags
-	// resource.Sku = "cluster" (standard) or "cluster-extended" (extended support)
+func (p *AWSPublicPlugin) estimateEKS(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	// Determine support type from resource SKU or tags
+	// SKU = "cluster" (standard) or "cluster-extended" (extended support)
 	// OR use tags: tags["support_type"] == "extended" (case-insensitive)
-	extendedSupport := resource.Sku == "cluster-extended" ||
-		(resource.Tags != nil && strings.EqualFold(resource.Tags["support_type"], "extended"))
+	extendedSupport := resource.GetSku() == "cluster-extended" ||
+		(resource.GetTags() != nil && strings.EqualFold(resource.GetTags()["support_type"], "extended"))
 
 	// Look up EKS pricing based on support type
 	hourlyRate, found := p.pricing.EKSClusterPricePerHour(extendedSupport)
 	if !found {
 		return nil, &PricingUnavailableError{
 			Service:       "EKS",
-			SKU:           resource.Sku,
+			SKU:           resource.GetSku(),
 			BillingDetail: fmt.Sprintf(PricingUnavailableTemplate, "EKS", p.region),
 		}
 	}
@@ -1123,16 +1234,19 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 	}
 
 	resp := &pbc.GetProjectedCostResponse{
-		CostPerMonth:  costPerMonth,
-		UnitPrice:     hourlyRate,
-		Currency:      "USD",
-		BillingDetail: fmt.Sprintf("EKS cluster (%s), 730 hrs/month (control plane only, excludes worker nodes)", supportType),
+		CostPerMonth: costPerMonth,
+		UnitPrice:    hourlyRate,
+		Currency:     "USD",
+		BillingDetail: fmt.Sprintf(
+			"EKS cluster (%s), 730 hrs/month (control plane only, excludes worker nodes)",
+			supportType,
+		),
 	}
 
 	// Carbon estimation for EKS (control plane is shared, returns 0)
 	eksEstimator := carbon.NewEKSEstimator()
 	carbonGrams, _ := eksEstimator.EstimateCarbonGrams(carbon.EKSClusterConfig{
-		Region: resource.Region,
+		Region: resource.GetRegion(),
 	})
 
 	// EKS control plane carbon is shared infrastructure, so we always include
@@ -1147,7 +1261,7 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 	}
 
 	p.logger.Debug().
-		Str("aws_region", resource.Region).
+		Str("aws_region", resource.GetRegion()).
 		Float64("carbon_grams", carbonGrams).
 		Msg("EKS carbon estimation: control plane is shared infrastructure (0 gCO2e)")
 
@@ -1159,12 +1273,15 @@ func (p *AWSPublicPlugin) estimateEKS(traceID string, resource *pbc.ResourceDesc
 
 // estimateLambda calculates projected monthly cost for Lambda functions.
 // Uses request count and GB-seconds from resource tags.
-func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) estimateLambda(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
 	// 1. Determine Memory (SKU -> MB)
 	memoryMB := 128
 	memoryDefaulted := false
-	if resource.Sku != "" {
-		if mem, err := strconv.Atoi(resource.Sku); err == nil && mem > 0 {
+	if resource.GetSku() != "" {
+		if mem, err := strconv.Atoi(resource.GetSku()); err == nil && mem > 0 {
 			memoryMB = mem
 		} else {
 			memoryDefaulted = true
@@ -1176,30 +1293,30 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 	// 2. Extract Usage Tags (Requests, Duration, Architecture)
 	requestsPerMonth := int64(0)
 	avgDurationMs := 100
-	architecture := "x86_64" // Default to x86_64 per FR-011
+	architecture := archX86 // Default to x86_64 per FR-011
 	requestsDefaulted := true
 	durationDefaulted := true
 	archDefaulted := true
 
-	if resource.Tags != nil {
-		if reqStr, ok := resource.Tags["requests_per_month"]; ok {
+	if resource.GetTags() != nil {
+		if reqStr, ok := resource.GetTags()["requests_per_month"]; ok {
 			if reqs, err := strconv.ParseInt(reqStr, 10, 64); err == nil && reqs >= 0 {
 				requestsPerMonth = reqs
 				requestsDefaulted = false
 			}
 		}
-		if durStr, ok := resource.Tags["avg_duration_ms"]; ok {
+		if durStr, ok := resource.GetTags()["avg_duration_ms"]; ok {
 			if dur, err := strconv.Atoi(durStr); err == nil && dur > 0 {
 				avgDurationMs = dur
 				durationDefaulted = false
 			}
 		}
 		// FR-011: Read architecture from tags
-		if archStr, ok := resource.Tags["arch"]; ok && archStr != "" {
+		if archStr, archFound := resource.GetTags()["arch"]; archFound && archStr != "" {
 			architecture = archStr
 			archDefaulted = false
-		} else if archStr, ok := resource.Tags["architecture"]; ok && archStr != "" {
-			architecture = archStr
+		} else if archFull, fullFound := resource.GetTags()["architecture"]; fullFound && archFull != "" {
+			architecture = archFull
 			archDefaulted = false
 		}
 	}
@@ -1247,9 +1364,9 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 	// User input "arm" is normalized to "arm64" to match AWS Lambda's official
 	// architecture naming (x86_64, arm64). This ensures billing details are
 	// consistent regardless of whether the user specifies "arm" or "arm64".
-	archDisplay := "x86_64"
-	if strings.ToLower(architecture) == "arm64" || strings.ToLower(architecture) == "arm" {
-		archDisplay = "arm64"
+	archDisplay := archX86
+	if strings.ToLower(architecture) == archARM64 || strings.ToLower(architecture) == archARM {
+		archDisplay = archARM64
 	}
 
 	detail := fmt.Sprintf("Lambda %dMB (%s), %d requests/month, %dms avg duration",
@@ -1282,7 +1399,7 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 		DurationMs:   avgDurationMs,
 		Invocations:  requestsPerMonth,
 		Architecture: archDisplay,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 	})
 
 	if carbonOK {
@@ -1298,7 +1415,7 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 			Int("memory_mb", memoryMB).
 			Str("architecture", archDisplay).
 			Int64("invocations", requestsPerMonth).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("carbon_grams", carbonGrams).
 			Msg("Lambda carbon estimation successful")
 	}
@@ -1311,7 +1428,10 @@ func (p *AWSPublicPlugin) estimateLambda(traceID string, resource *pbc.ResourceD
 
 // estimateNATGateway calculates projected monthly cost for VPC NAT Gateways.
 // Combines fixed hourly cost and variable data processing cost.
-func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) estimateNATGateway(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
 	// 1. Lookup Pricing
 	pricing, found := p.pricing.NATGatewayPrice()
 	if !found {
@@ -1325,18 +1445,33 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 	// 2. Extract and Validate Data Processed Tag
 	dataProcessedGB := 0.0
 	tagPresent := false
-	if resource.Tags != nil {
-		if val, ok := resource.Tags["data_processed_gb"]; ok {
+	if resource.GetTags() != nil {
+		if val, ok := resource.GetTags()["data_processed_gb"]; ok {
 			tagPresent = true
 			if val == "" {
-				return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "tag 'data_processed_gb' is present but empty", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+				return nil, p.newErrorWithID(
+					traceID,
+					codes.InvalidArgument,
+					"tag 'data_processed_gb' is present but empty",
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+				)
 			}
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
-				return nil, p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid value for 'data_processed_gb': %q is not a valid number", val), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+				return nil, p.newErrorWithID(
+					traceID,
+					codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'data_processed_gb': %q is not a valid number", val),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+				)
 			}
 			if parsed < 0 {
-				return nil, p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid value for 'data_processed_gb': %.2f cannot be negative", parsed), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+				return nil, p.newErrorWithID(
+					traceID,
+					codes.InvalidArgument,
+					fmt.Sprintf("invalid value for 'data_processed_gb': %.2f cannot be negative", parsed),
+					pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+				)
 			}
 			dataProcessedGB = parsed
 		}
@@ -1349,11 +1484,12 @@ func (p *AWSPublicPlugin) estimateNATGateway(traceID string, resource *pbc.Resou
 
 	// 4. Build Billing Detail
 	detail := fmt.Sprintf("NAT Gateway, %d hrs/month ($%.3f/hr)", int(carbon.HoursPerMonth), pricing.HourlyRate)
-	if tagPresent && dataProcessedGB > 0 {
+	switch {
+	case tagPresent && dataProcessedGB > 0:
 		detail += fmt.Sprintf(" + %.2f GB data processed ($%.3f/GB)", dataProcessedGB, pricing.DataProcessingRate)
-	} else if tagPresent && dataProcessedGB == 0 {
+	case tagPresent && dataProcessedGB == 0:
 		detail += " (0 GB data processed)"
-	} else {
+	default:
 		detail += " (data processing cost not included; use 'data_processed_gb' tag to estimate)"
 	}
 
@@ -1435,10 +1571,13 @@ func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
 //   - log_ingestion_gb: GB of logs ingested per month
 //   - log_storage_gb: GB of logs stored
 //   - custom_metrics: Number of custom metrics
-func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
-	sku := strings.ToLower(resource.Sku)
+func (p *AWSPublicPlugin) estimateCloudWatch(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	sku := strings.ToLower(resource.GetSku())
 	if sku == "" {
-		sku = "logs" // Default to logs estimation
+		sku = skuLogs // Default to logs estimation
 	}
 
 	// Extract tag values with safe defaults
@@ -1446,9 +1585,9 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 	logStorageGB := 0.0
 	customMetrics := 0.0
 
-	if resource.Tags != nil {
+	if resource.GetTags() != nil {
 		// Parse log_ingestion_gb
-		if val, ok := resource.Tags["log_ingestion_gb"]; ok && val != "" {
+		if val, ok := resource.GetTags()["log_ingestion_gb"]; ok && val != "" {
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1464,7 +1603,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 		}
 
 		// Parse log_storage_gb
-		if val, ok := resource.Tags["log_storage_gb"]; ok && val != "" {
+		if val, ok := resource.GetTags()["log_storage_gb"]; ok && val != "" {
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1480,7 +1619,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 		}
 
 		// Parse custom_metrics
-		if val, ok := resource.Tags["custom_metrics"]; ok && val != "" {
+		if val, ok := resource.GetTags()["custom_metrics"]; ok && val != "" {
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1501,7 +1640,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 	var details []string
 
 	// Logs cost calculation
-	if sku == "logs" || sku == "combined" {
+	if sku == skuLogs || sku == "combined" {
 		ingestionCost := 0.0
 		storageCost := 0.0
 
@@ -1512,7 +1651,10 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 				ingestionCost = calculateTieredCost(logIngestionGB, tiers)
 				details = append(details, fmt.Sprintf("%.2f GB logs ingested ($%.2f)", logIngestionGB, ingestionCost))
 			} else {
-				details = append(details, fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch Logs ingestion", p.region))
+				details = append(
+					details,
+					fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch Logs ingestion", p.region),
+				)
 			}
 		}
 
@@ -1521,7 +1663,10 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 			storageRate, found := p.pricing.CloudWatchLogsStoragePrice()
 			if found {
 				storageCost = logStorageGB * storageRate
-				details = append(details, fmt.Sprintf("%.2f GB logs stored @ $%.4f/GB-mo ($%.2f)", logStorageGB, storageRate, storageCost))
+				details = append(
+					details,
+					fmt.Sprintf("%.2f GB logs stored @ $%.4f/GB-mo ($%.2f)", logStorageGB, storageRate, storageCost),
+				)
 			} else {
 				details = append(details, fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch Logs storage", p.region))
 			}
@@ -1587,17 +1732,20 @@ func (p *AWSPublicPlugin) estimateCloudWatch(traceID string, resource *pbc.Resou
 // Cost formula: hourly_rate × num_nodes × 730 hours/month
 //
 // Required fields:
-//   - resource.Sku: The cache node type (e.g., "cache.m5.large")
+//   - resource SKU: The cache node type (e.g., "cache.m5.large")
 //
 // Optional tags:
 //   - "engine": Cache engine - "redis" (default), "memcached", or "valkey" (open-source Redis fork)
 //   - "num_nodes" or "num_cache_nodes": Number of cache nodes (default: 1)
-func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.ResourceDescriptor) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) estimateElastiCache(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
 	// Extract node type from SKU
-	nodeType := resource.Sku
+	nodeType := resource.GetSku()
 	if nodeType == "" {
 		// Try extracting from tags using extractAWSSKU pattern
-		nodeType = extractAWSSKU(resource.Tags)
+		nodeType = extractAWSSKU(resource.GetTags())
 	}
 	if nodeType == "" {
 		return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1607,21 +1755,21 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 
 	// Extract engine (default: redis)
 	engine := "redis"
-	if resource.Tags != nil {
-		if val, ok := resource.Tags["engine"]; ok && val != "" {
+	if resource.GetTags() != nil {
+		if val, ok := resource.GetTags()["engine"]; ok && val != "" {
 			engine = strings.ToLower(val)
 		}
 	}
 
 	// Extract number of nodes (default: 1)
 	numNodes := 1
-	if resource.Tags != nil {
+	if resource.GetTags() != nil {
 		// Try num_nodes first, then num_cache_nodes
 		nodeCountStr := ""
-		if val, ok := resource.Tags["num_nodes"]; ok && val != "" {
+		if val, nodeFound := resource.GetTags()["num_nodes"]; nodeFound && val != "" {
 			nodeCountStr = val
-		} else if val, ok := resource.Tags["num_cache_nodes"]; ok && val != "" {
-			nodeCountStr = val
+		} else if cacheVal, cacheFound := resource.GetTags()["num_cache_nodes"]; cacheFound && cacheVal != "" {
+			nodeCountStr = cacheVal
 		}
 		if nodeCountStr != "" {
 			parsed, err := strconv.Atoi(nodeCountStr)
@@ -1681,7 +1829,7 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 		NodeType:    nodeType,
 		Engine:      engine,
 		Nodes:       numNodes,
-		Region:      resource.Region,
+		Region:      resource.GetRegion(),
 		Utilization: carbon.DefaultUtilization, // Use CCF default (50%)
 		Hours:       carbon.HoursPerMonth,
 	})
@@ -1698,7 +1846,7 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Str("node_type", nodeType).
 			Int("num_nodes", numNodes).
-			Str("aws_region", resource.Region).
+			Str("aws_region", resource.GetRegion()).
 			Float64("carbon_grams", carbonGrams).
 			Msg("ElastiCache carbon estimation successful")
 	}
@@ -1711,16 +1859,22 @@ func (p *AWSPublicPlugin) estimateElastiCache(traceID string, resource *pbc.Reso
 
 // zeroCostResourceDescriptions provides billing detail messages for resources with no direct AWS charges.
 var zeroCostResourceDescriptions = map[string]string{
-	"vpc":           "VPC has no direct hourly or monthly charge. Costs may apply for associated resources (NAT Gateway, VPN, etc.)",
-	"securitygroup": "Security Groups have no direct charge. They are a free networking feature.",
-	"subnet":        "Subnets have no direct charge. Costs may apply for data transfer between AZs.",
-	"iam":           "IAM resources (users, roles, policies) have no direct charge. They are a free AWS feature.",
+	serviceVPC:           "VPC has no direct hourly or monthly charge. Costs may apply for associated resources (NAT Gateway, VPN, etc.)",
+	serviceSecurityGroup: "Security Groups have no direct charge. They are a free networking feature.",
+	serviceSubnet:        "Subnets have no direct charge. Costs may apply for data transfer between AZs.",
+	serviceIAM:           "IAM resources (users, roles, policies) have no direct charge. They are a free AWS feature.",
+	serviceLaunchTmpl:    "Launch Templates are configuration-only resources with no direct charge. Costs apply to instances launched from them.",
+	serviceLaunchConfig:  "Launch Configurations are configuration-only resources with no direct charge. Costs apply to instances launched from them.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.
 // These include VPC, Security Groups, and Subnets - fundamental networking resources that are
 // free to create but may have associated costs from other resources.
-func (p *AWSPublicPlugin) estimateZeroCostResource(traceID string, resource *pbc.ResourceDescriptor, serviceType string) *pbc.GetProjectedCostResponse {
+func (p *AWSPublicPlugin) estimateZeroCostResource(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+	serviceType string,
+) *pbc.GetProjectedCostResponse {
 	description, ok := zeroCostResourceDescriptions[serviceType]
 	if !ok {
 		description = fmt.Sprintf("%s has no direct AWS charge", serviceType)
@@ -1729,7 +1883,7 @@ func (p *AWSPublicPlugin) estimateZeroCostResource(traceID string, resource *pbc
 	p.logger.Debug().
 		Str(pluginsdk.FieldTraceID, traceID).
 		Str("service_type", serviceType).
-		Str("original_resource_type", resource.ResourceType).
+		Str("original_resource_type", resource.GetResourceType()).
 		Msg("Zero-cost resource estimated")
 
 	resp := &pbc.GetProjectedCostResponse{
@@ -1740,7 +1894,7 @@ func (p *AWSPublicPlugin) estimateZeroCostResource(traceID string, resource *pbc
 	}
 
 	// Apply growth hint enrichment (static for networking resources)
-	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), resource.ResourceType, resp)
+	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), resource.GetResourceType(), resp)
 
 	return resp
 }

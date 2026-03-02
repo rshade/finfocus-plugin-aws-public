@@ -95,16 +95,28 @@ func TestEstimateELB_ALB(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotNil(t, resp)
-			assert.Equal(t, "USD", resp.Currency)
+			assert.Equal(t, "USD", resp.GetCurrency())
 
 			// Verify cost is in expected range
-			assert.GreaterOrEqual(t, resp.CostPerMonth, tt.expectedCostRange[0], "Cost should be at least %.2f", tt.expectedCostRange[0])
-			assert.LessOrEqual(t, resp.CostPerMonth, tt.expectedCostRange[1], "Cost should be at most %.2f", tt.expectedCostRange[1])
+			assert.GreaterOrEqual(
+				t,
+				resp.GetCostPerMonth(),
+				tt.expectedCostRange[0],
+				"Cost should be at least %.2f",
+				tt.expectedCostRange[0],
+			)
+			assert.LessOrEqual(
+				t,
+				resp.GetCostPerMonth(),
+				tt.expectedCostRange[1],
+				"Cost should be at most %.2f",
+				tt.expectedCostRange[1],
+			)
 
 			// Verify billing detail includes LCU metric
-			assert.Contains(t, resp.BillingDetail, "ALB")
-			assert.Contains(t, resp.BillingDetail, "LCU")
-			assert.Contains(t, resp.BillingDetail, "730 hrs/month")
+			assert.Contains(t, resp.GetBillingDetail(), "ALB")
+			assert.Contains(t, resp.GetBillingDetail(), "LCU")
+			assert.Contains(t, resp.GetBillingDetail(), "730 hrs/month")
 		})
 	}
 }
@@ -177,16 +189,28 @@ func TestEstimateELB_NLB(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotNil(t, resp)
-			assert.Equal(t, "USD", resp.Currency)
+			assert.Equal(t, "USD", resp.GetCurrency())
 
 			// Verify cost is in expected range
-			assert.GreaterOrEqual(t, resp.CostPerMonth, tt.expectedCostRange[0], "Cost should be at least %.2f", tt.expectedCostRange[0])
-			assert.LessOrEqual(t, resp.CostPerMonth, tt.expectedCostRange[1], "Cost should be at most %.2f", tt.expectedCostRange[1])
+			assert.GreaterOrEqual(
+				t,
+				resp.GetCostPerMonth(),
+				tt.expectedCostRange[0],
+				"Cost should be at least %.2f",
+				tt.expectedCostRange[0],
+			)
+			assert.LessOrEqual(
+				t,
+				resp.GetCostPerMonth(),
+				tt.expectedCostRange[1],
+				"Cost should be at most %.2f",
+				tt.expectedCostRange[1],
+			)
 
 			// Verify billing detail includes NLCU metric
-			assert.Contains(t, resp.BillingDetail, "NLB")
-			assert.Contains(t, resp.BillingDetail, "NLCU")
-			assert.Contains(t, resp.BillingDetail, "730 hrs/month")
+			assert.Contains(t, resp.GetBillingDetail(), "NLB")
+			assert.Contains(t, resp.GetBillingDetail(), "NLCU")
+			assert.Contains(t, resp.GetBillingDetail(), "730 hrs/month")
 		})
 	}
 }
@@ -241,7 +265,7 @@ func TestEstimateELB_FallbackCapacityUnits(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotNil(t, resp)
-			assert.Contains(t, resp.BillingDetail, tt.wantMetric)
+			assert.Contains(t, resp.GetBillingDetail(), tt.wantMetric)
 		})
 	}
 }
@@ -276,7 +300,7 @@ func TestEstimateELB_InvalidTag(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, resp)
 	// Should default to fixed rate only (0 capacity units)
-	assert.Contains(t, resp.BillingDetail, "0.0 LCU")
+	assert.Contains(t, resp.GetBillingDetail(), "0.0 LCU")
 }
 
 // TestEstimateELB_RoundTripEstimate validates end-to-end ALB and NLB estimation.
@@ -332,8 +356,8 @@ func TestEstimateELB_RoundTripEstimate(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotNil(t, resp)
-			assert.Greater(t, resp.CostPerMonth, 0.0)
-			assert.Contains(t, resp.BillingDetail, tt.lbType)
+			assert.Greater(t, resp.GetCostPerMonth(), 0.0)
+			assert.Contains(t, resp.GetBillingDetail(), tt.lbType)
 		})
 	}
 }

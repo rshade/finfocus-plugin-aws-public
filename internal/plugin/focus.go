@@ -1,4 +1,3 @@
-// Package plugin implements the AWS public pricing cost estimation plugin.
 package plugin
 
 import (
@@ -12,16 +11,16 @@ import (
 // AWS service name mappings for FOCUS ServiceName field.
 // These follow AWS's official service naming conventions.
 var awsServiceNames = map[string]string{
-	"ec2":        "Amazon EC2",
-	"ebs":        "Amazon EBS",
-	"s3":         "Amazon S3",
-	"rds":        "Amazon RDS",
-	"lambda":     "AWS Lambda",
-	"dynamodb":   "Amazon DynamoDB",
-	"eks":        "Amazon EKS",
-	"elb":        "Elastic Load Balancing",
-	"natgw":      "Amazon VPC NAT Gateway",
-	"cloudwatch": "Amazon CloudWatch",
+	serviceEC2:        "Amazon EC2",
+	serviceEBS:        "Amazon EBS",
+	serviceS3:         "Amazon S3",
+	serviceRDS:        "Amazon RDS",
+	serviceLambda:     "AWS Lambda",
+	serviceDynamoDB:   "Amazon DynamoDB",
+	serviceEKS:        "Amazon EKS",
+	serviceELB:        "Elastic Load Balancing",
+	serviceNATGW:      "Amazon VPC NAT Gateway",
+	serviceCloudWatch: "Amazon CloudWatch",
 }
 
 // buildFocusRecord creates a FocusCostRecord for public pricing estimates.
@@ -107,17 +106,17 @@ func buildFocusRecord(
 //   - MANAGEMENT: Monitoring and operations (CloudWatch)
 func mapServiceCategory(serviceType string) pbc.FocusServiceCategory {
 	switch serviceType {
-	case "ec2", "lambda":
+	case serviceEC2, serviceLambda:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE
-	case "ebs", "s3":
+	case serviceEBS, serviceS3:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE
-	case "rds", "dynamodb":
+	case serviceRDS, serviceDynamoDB:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_DATABASE
-	case "elb", "natgw":
+	case serviceELB, serviceNATGW:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_NETWORK
-	case "cloudwatch":
+	case serviceCloudWatch:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_MANAGEMENT
-	case "eks":
+	case serviceEKS:
 		// EKS control plane is compute; worker nodes would be EC2
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE
 	default:
@@ -139,15 +138,15 @@ func getServiceName(serviceType string) string {
 // This is used when the caller doesn't have a specific pricing unit available.
 func getPricingUnitForService(serviceType string) string {
 	switch serviceType {
-	case "ec2", "rds", "eks", "elb", "alb", "nlb", "natgw":
+	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB, serviceNATGW:
 		return "Hours"
-	case "ebs", "s3":
+	case serviceEBS, serviceS3:
 		return "GB-Mo"
-	case "lambda":
+	case serviceLambda:
 		return "GB-Seconds"
-	case "dynamodb":
+	case serviceDynamoDB:
 		return "Requests" // Simplified; actual has RCU/WCU
-	case "cloudwatch":
+	case serviceCloudWatch:
 		return "GB" // For log ingestion
 	default:
 		return "Units"

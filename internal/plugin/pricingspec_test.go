@@ -33,19 +33,19 @@ func TestGetPricingSpec_EC2(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "aws", resp.Spec.Provider)
-	assert.Equal(t, "ec2", resp.Spec.ResourceType)
-	assert.Equal(t, "t3.micro", resp.Spec.Sku)
-	assert.Equal(t, "us-east-1", resp.Spec.Region)
-	assert.Equal(t, "per_hour", resp.Spec.BillingMode)
-	assert.Equal(t, 0.0104, resp.Spec.RatePerUnit)
-	assert.Equal(t, "USD", resp.Spec.Currency)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Equal(t, "aws-public", resp.Spec.Source)
-	assert.Contains(t, resp.Spec.Description, "Linux")
-	assert.Contains(t, resp.Spec.Description, "Shared")
-	assert.NotEmpty(t, resp.Spec.Assumptions)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "aws", resp.GetSpec().GetProvider())
+	assert.Equal(t, "ec2", resp.GetSpec().GetResourceType())
+	assert.Equal(t, "t3.micro", resp.GetSpec().GetSku())
+	assert.Equal(t, "us-east-1", resp.GetSpec().GetRegion())
+	assert.Equal(t, "per_hour", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.0104, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "USD", resp.GetSpec().GetCurrency())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "Linux")
+	assert.Contains(t, resp.GetSpec().GetDescription(), "Shared")
+	assert.NotEmpty(t, resp.GetSpec().GetAssumptions())
 }
 
 // TestGetPricingSpec_EC2_PulumiFormat tests EC2 pricing spec with Pulumi resource type format.
@@ -65,19 +65,19 @@ func TestGetPricingSpec_EC2_PulumiFormat(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "aws", resp.Spec.Provider)
-	assert.Equal(t, "aws:ec2/instance:Instance", resp.Spec.ResourceType) // Should preserve original format
-	assert.Equal(t, "t3.micro", resp.Spec.Sku)
-	assert.Equal(t, "us-east-1", resp.Spec.Region)
-	assert.Equal(t, "per_hour", resp.Spec.BillingMode)
-	assert.Equal(t, 0.0104, resp.Spec.RatePerUnit)
-	assert.Equal(t, "USD", resp.Spec.Currency)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Equal(t, "aws-public", resp.Spec.Source)
-	assert.Contains(t, resp.Spec.Description, "Linux")
-	assert.Contains(t, resp.Spec.Description, "Shared")
-	assert.NotEmpty(t, resp.Spec.Assumptions)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "aws", resp.GetSpec().GetProvider())
+	assert.Equal(t, "aws:ec2/instance:Instance", resp.GetSpec().GetResourceType()) // Should preserve original format
+	assert.Equal(t, "t3.micro", resp.GetSpec().GetSku())
+	assert.Equal(t, "us-east-1", resp.GetSpec().GetRegion())
+	assert.Equal(t, "per_hour", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.0104, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "USD", resp.GetSpec().GetCurrency())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "Linux")
+	assert.Contains(t, resp.GetSpec().GetDescription(), "Shared")
+	assert.NotEmpty(t, resp.GetSpec().GetAssumptions())
 }
 
 // TestGetPricingSpec_EC2_NotFound verifies handling of unknown instance types.
@@ -97,10 +97,10 @@ func TestGetPricingSpec_EC2_NotFound(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_hour", resp.Spec.BillingMode)
-	assert.Equal(t, float64(0), resp.Spec.RatePerUnit)
-	assert.Contains(t, resp.Spec.Description, "not found")
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_hour", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, float64(0), resp.GetSpec().GetRatePerUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "not found")
 }
 
 // TestGetPricingSpec_EBS verifies EBS pricing specification retrieval.
@@ -120,18 +120,18 @@ func TestGetPricingSpec_EBS(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "aws", resp.Spec.Provider)
-	assert.Equal(t, "ebs", resp.Spec.ResourceType)
-	assert.Equal(t, "gp3", resp.Spec.Sku)
-	assert.Equal(t, "us-east-1", resp.Spec.Region)
-	assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)
-	assert.Equal(t, 0.08, resp.Spec.RatePerUnit)
-	assert.Equal(t, "USD", resp.Spec.Currency)
-	assert.Equal(t, "GB-month", resp.Spec.Unit)
-	assert.Equal(t, "aws-public", resp.Spec.Source)
-	assert.Contains(t, resp.Spec.Description, "gp3")
-	assert.NotEmpty(t, resp.Spec.Assumptions)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "aws", resp.GetSpec().GetProvider())
+	assert.Equal(t, "ebs", resp.GetSpec().GetResourceType())
+	assert.Equal(t, "gp3", resp.GetSpec().GetSku())
+	assert.Equal(t, "us-east-1", resp.GetSpec().GetRegion())
+	assert.Equal(t, "per_gb_month", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.08, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "USD", resp.GetSpec().GetCurrency())
+	assert.Equal(t, "GB-month", resp.GetSpec().GetUnit())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "gp3")
+	assert.NotEmpty(t, resp.GetSpec().GetAssumptions())
 }
 
 // TestGetPricingSpec_EBS_PulumiFormat tests EBS pricing spec with Pulumi resource type format.
@@ -151,18 +151,18 @@ func TestGetPricingSpec_EBS_PulumiFormat(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "aws", resp.Spec.Provider)
-	assert.Equal(t, "aws:ebs/volume:Volume", resp.Spec.ResourceType) // Should preserve original format
-	assert.Equal(t, "gp3", resp.Spec.Sku)
-	assert.Equal(t, "us-east-1", resp.Spec.Region)
-	assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)
-	assert.Equal(t, 0.08, resp.Spec.RatePerUnit)
-	assert.Equal(t, "USD", resp.Spec.Currency)
-	assert.Equal(t, "GB-month", resp.Spec.Unit)
-	assert.Equal(t, "aws-public", resp.Spec.Source)
-	assert.Contains(t, resp.Spec.Description, "gp3")
-	assert.NotEmpty(t, resp.Spec.Assumptions)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "aws", resp.GetSpec().GetProvider())
+	assert.Equal(t, "aws:ebs/volume:Volume", resp.GetSpec().GetResourceType()) // Should preserve original format
+	assert.Equal(t, "gp3", resp.GetSpec().GetSku())
+	assert.Equal(t, "us-east-1", resp.GetSpec().GetRegion())
+	assert.Equal(t, "per_gb_month", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.08, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "USD", resp.GetSpec().GetCurrency())
+	assert.Equal(t, "GB-month", resp.GetSpec().GetUnit())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "gp3")
+	assert.NotEmpty(t, resp.GetSpec().GetAssumptions())
 }
 
 // TestGetPricingSpec_EBS_NotFound verifies handling of unknown volume types.
@@ -182,10 +182,10 @@ func TestGetPricingSpec_EBS_NotFound(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)
-	assert.Equal(t, float64(0), resp.Spec.RatePerUnit)
-	assert.Contains(t, resp.Spec.Description, "not found")
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_gb_month", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, float64(0), resp.GetSpec().GetRatePerUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "not found")
 }
 
 // TestGetPricingSpec_S3 verifies S3 pricing specification retrieval.
@@ -205,12 +205,12 @@ func TestGetPricingSpec_S3(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)
-	assert.Equal(t, 0.023, resp.Spec.RatePerUnit)
-	assert.Equal(t, "GB-month", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "STANDARD")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_gb_month", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.023, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "GB-month", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "STANDARD")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_Lambda verifies Lambda pricing specification retrieval.
@@ -231,12 +231,12 @@ func TestGetPricingSpec_Lambda(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_request_and_gb_second", resp.Spec.BillingMode)
-	assert.Equal(t, 0.0000166667, resp.Spec.RatePerUnit)
-	assert.Equal(t, "GB-second", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "x86_64")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_request_and_gb_second", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.0000166667, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "GB-second", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "x86_64")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_RDS verifies RDS pricing specification retrieval.
@@ -257,12 +257,12 @@ func TestGetPricingSpec_RDS(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_hour", resp.Spec.BillingMode)
-	assert.Equal(t, 0.068, resp.Spec.RatePerUnit)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "mysql")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_hour", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.068, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "mysql")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_DynamoDB_OnDemand verifies DynamoDB on-demand pricing spec.
@@ -284,11 +284,11 @@ func TestGetPricingSpec_DynamoDB_OnDemand(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "on_demand", resp.Spec.BillingMode)
-	assert.Equal(t, 0.25, resp.Spec.RatePerUnit) // Storage rate
-	assert.Equal(t, "GB-month", resp.Spec.Unit)
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "on_demand", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.25, resp.GetSpec().GetRatePerUnit()) // Storage rate
+	assert.Equal(t, "GB-month", resp.GetSpec().GetUnit())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_DynamoDB_Provisioned verifies DynamoDB provisioned pricing spec.
@@ -310,11 +310,11 @@ func TestGetPricingSpec_DynamoDB_Provisioned(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "provisioned_capacity", resp.Spec.BillingMode)
-	assert.Equal(t, 0.00013, resp.Spec.RatePerUnit) // RCU rate
-	assert.Equal(t, "RCU-hour", resp.Spec.Unit)
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "provisioned_capacity", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.00013, resp.GetSpec().GetRatePerUnit()) // RCU rate
+	assert.Equal(t, "RCU-hour", resp.GetSpec().GetUnit())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_EKS verifies EKS pricing specification retrieval.
@@ -334,12 +334,12 @@ func TestGetPricingSpec_EKS(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_hour", resp.Spec.BillingMode)
-	assert.Equal(t, 0.10, resp.Spec.RatePerUnit)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "standard")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_hour", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.10, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "standard")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_ALB verifies ALB pricing specification retrieval.
@@ -360,12 +360,12 @@ func TestGetPricingSpec_ALB(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_hour_plus_lcu", resp.Spec.BillingMode)
-	assert.Equal(t, 0.0225, resp.Spec.RatePerUnit)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "Application Load Balancer")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_hour_plus_lcu", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.0225, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "Application Load Balancer")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_NLB verifies NLB pricing specification retrieval.
@@ -386,12 +386,12 @@ func TestGetPricingSpec_NLB(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_hour_plus_nlcu", resp.Spec.BillingMode)
-	assert.Equal(t, 0.0225, resp.Spec.RatePerUnit)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "Network Load Balancer")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_hour_plus_nlcu", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.0225, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "Network Load Balancer")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_NATGateway verifies NAT Gateway pricing spec retrieval.
@@ -412,12 +412,12 @@ func TestGetPricingSpec_NATGateway(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "per_hour_plus_data", resp.Spec.BillingMode)
-	assert.Equal(t, 0.045, resp.Spec.RatePerUnit)
-	assert.Equal(t, "hour", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "NAT Gateway")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "per_hour_plus_data", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.045, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "hour", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "NAT Gateway")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_CloudWatch_Logs verifies CloudWatch logs pricing spec.
@@ -442,12 +442,12 @@ func TestGetPricingSpec_CloudWatch_Logs(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "tiered_ingestion_plus_storage", resp.Spec.BillingMode)
-	assert.Equal(t, 0.50, resp.Spec.RatePerUnit) // First tier rate
-	assert.Equal(t, "GB-ingested", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "CloudWatch Logs")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "tiered_ingestion_plus_storage", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.50, resp.GetSpec().GetRatePerUnit()) // First tier rate
+	assert.Equal(t, "GB-ingested", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "CloudWatch Logs")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_CloudWatch_Metrics verifies CloudWatch metrics pricing spec.
@@ -471,12 +471,12 @@ func TestGetPricingSpec_CloudWatch_Metrics(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "tiered_per_metric", resp.Spec.BillingMode)
-	assert.Equal(t, 0.30, resp.Spec.RatePerUnit) // First tier rate
-	assert.Equal(t, "metric-month", resp.Spec.Unit)
-	assert.Contains(t, resp.Spec.Description, "custom metrics")
-	assert.Equal(t, "aws-public", resp.Spec.Source)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "tiered_per_metric", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, 0.30, resp.GetSpec().GetRatePerUnit()) // First tier rate
+	assert.Equal(t, "metric-month", resp.GetSpec().GetUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "custom metrics")
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
 }
 
 // TestGetPricingSpec_UnknownResourceType verifies handling of unsupported resource types.
@@ -495,10 +495,10 @@ func TestGetPricingSpec_UnknownResourceType(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, resp.Spec)
-	assert.Equal(t, "unknown", resp.Spec.BillingMode)
-	assert.Equal(t, float64(0), resp.Spec.RatePerUnit)
-	assert.Contains(t, resp.Spec.Description, "not supported")
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "unknown", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, float64(0), resp.GetSpec().GetRatePerUnit())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "not supported")
 }
 
 // TestGetPricingSpec_RegionMismatch verifies error handling for region mismatches.
@@ -646,9 +646,9 @@ func TestGetPricingSpec_AllVolumeTypes(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			require.NotNil(t, resp.Spec)
-			assert.Equal(t, tt.pricePerGB, resp.Spec.RatePerUnit)
-			assert.Equal(t, "per_gb_month", resp.Spec.BillingMode)
+			require.NotNil(t, resp.GetSpec())
+			assert.Equal(t, tt.pricePerGB, resp.GetSpec().GetRatePerUnit())
+			assert.Equal(t, "per_gb_month", resp.GetSpec().GetBillingMode())
 		})
 	}
 }

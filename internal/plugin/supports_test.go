@@ -314,16 +314,16 @@ func TestSupports(t *testing.T) {
 			}
 
 			// Supports() never returns nil response
-			if resp.Supported != tt.wantSupported {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			if resp.GetSupported() != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.wantSupported)
 			}
 
-			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
-				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.GetReason(), tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.GetReason(), tt.wantReasonSubstr)
 			}
 
-			if tt.wantReasonSubstr == "" && resp.Reason != "" {
-				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			if tt.wantReasonSubstr == "" && resp.GetReason() != "" {
+				t.Errorf("Reason = %q, want empty string", resp.GetReason())
 			}
 		})
 	}
@@ -364,7 +364,7 @@ func TestSupports_ZeroCost_Resources(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
-			if !resp.Supported {
+			if !resp.GetSupported() {
 				t.Errorf("%s should be supported", tt.name)
 			}
 
@@ -376,7 +376,7 @@ func TestSupports_ZeroCost_Resources(t *testing.T) {
 	}
 }
 
-// T028: Test Supports logs contain required structured fields
+// T028: Test Supports logs contain required structured fields.
 func TestSupportsLogsContainRequiredFields(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -453,7 +453,7 @@ func TestSupportsLogsContainRequiredFields(t *testing.T) {
 	}
 }
 
-// TestSupports_CACentral1 tests support for ca-central-1 region binary
+// TestSupports_CACentral1 tests support for ca-central-1 region binary.
 func TestSupports_CACentral1(t *testing.T) {
 	mock := newMockPricingClient("ca-central-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -534,22 +534,22 @@ func TestSupports_CACentral1(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if resp.Supported != tt.wantSupported {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			if resp.GetSupported() != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.wantSupported)
 			}
 
-			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
-				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.GetReason(), tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.GetReason(), tt.wantReasonSubstr)
 			}
 
-			if tt.wantReasonSubstr == "" && resp.Reason != "" {
-				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			if tt.wantReasonSubstr == "" && resp.GetReason() != "" {
+				t.Errorf("Reason = %q, want empty string", resp.GetReason())
 			}
 		})
 	}
 }
 
-// TestSupports_SAEast1 tests support for sa-east-1 region binary
+// TestSupports_SAEast1 tests support for sa-east-1 region binary.
 func TestSupports_SAEast1(t *testing.T) {
 	mock := newMockPricingClient("sa-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -630,16 +630,16 @@ func TestSupports_SAEast1(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if resp.Supported != tt.wantSupported {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			if resp.GetSupported() != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.wantSupported)
 			}
 
-			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
-				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.GetReason(), tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.GetReason(), tt.wantReasonSubstr)
 			}
 
-			if tt.wantReasonSubstr == "" && resp.Reason != "" {
-				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			if tt.wantReasonSubstr == "" && resp.GetReason() != "" {
+				t.Errorf("Reason = %q, want empty string", resp.GetReason())
 			}
 		})
 	}
@@ -649,7 +649,7 @@ func TestSupports_SAEast1(t *testing.T) {
 // Carbon Estimation Supports Tests (T026-T027)
 // ============================================================================
 
-// TestSupports_EC2_SupportedMetrics tests that EC2 returns supported_metrics with carbon footprint (T026)
+// TestSupports_EC2_SupportedMetrics tests that EC2 returns supported_metrics with carbon footprint (T026).
 func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -667,17 +667,17 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 		t.Fatalf("Supports() returned error: %v", err)
 	}
 
-	if !resp.Supported {
+	if !resp.GetSupported() {
 		t.Fatal("EC2 should be supported")
 	}
 
 	// Verify SupportedMetrics contains METRIC_KIND_CARBON_FOOTPRINT
-	if len(resp.SupportedMetrics) == 0 {
+	if len(resp.GetSupportedMetrics()) == 0 {
 		t.Fatal("SupportedMetrics should not be empty for EC2")
 	}
 
 	foundCarbon := false
-	for _, m := range resp.SupportedMetrics {
+	for _, m := range resp.GetSupportedMetrics() {
 		if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 			foundCarbon = true
 			break
@@ -685,7 +685,7 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 	}
 
 	if !foundCarbon {
-		t.Errorf("SupportedMetrics should contain METRIC_KIND_CARBON_FOOTPRINT, got %v", resp.SupportedMetrics)
+		t.Errorf("SupportedMetrics should contain METRIC_KIND_CARBON_FOOTPRINT, got %v", resp.GetSupportedMetrics())
 	}
 }
 
@@ -708,20 +708,20 @@ func TestSupports_DynamoDB_HasCarbonSupport(t *testing.T) {
 		t.Fatalf("Supports() returned error: %v", err)
 	}
 
-	if !resp.Supported {
+	if !resp.GetSupported() {
 		t.Fatal("DynamoDB should be supported")
 	}
 
 	// DynamoDB has carbon estimation (storage-based, SSD × 3× replication)
 	hasCarbon := false
-	for _, m := range resp.SupportedMetrics {
+	for _, m := range resp.GetSupportedMetrics() {
 		if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 			hasCarbon = true
 			break
 		}
 	}
 	if !hasCarbon {
-		t.Errorf("SupportedMetrics should include CARBON_FOOTPRINT for DynamoDB, got %v", resp.SupportedMetrics)
+		t.Errorf("SupportedMetrics should include CARBON_FOOTPRINT for DynamoDB, got %v", resp.GetSupportedMetrics())
 	}
 }
 
@@ -765,7 +765,7 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 			}
 
 			hasCarbon := false
-			for _, m := range resp.SupportedMetrics {
+			for _, m := range resp.GetSupportedMetrics() {
 				if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 					hasCarbon = true
 					break
@@ -779,7 +779,7 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 	}
 }
 
-// TestSupports_APSoutheast1 tests support for ap-southeast-1 region binary (T010)
+// TestSupports_APSoutheast1 tests support for ap-southeast-1 region binary (T010).
 func TestSupports_APSoutheast1(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -860,16 +860,16 @@ func TestSupports_APSoutheast1(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if resp.Supported != tt.wantSupported {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			if resp.GetSupported() != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.wantSupported)
 			}
 
-			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
-				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.GetReason(), tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.GetReason(), tt.wantReasonSubstr)
 			}
 
-			if tt.wantReasonSubstr == "" && resp.Reason != "" {
-				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			if tt.wantReasonSubstr == "" && resp.GetReason() != "" {
+				t.Errorf("Reason = %q, want empty string", resp.GetReason())
 			}
 		})
 	}
@@ -911,7 +911,7 @@ func TestSupports_ZeroCost_MixedCase(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if !resp.Supported {
+			if !resp.GetSupported() {
 				t.Errorf("%s should be supported (case-insensitive)", tt.resourceType)
 			}
 
@@ -970,12 +970,12 @@ func TestSupports_USWest1_UnsupportedResourceType(t *testing.T) {
 				t.Fatalf("Supports() returned unexpected error: %v", err)
 			}
 
-			if resp.Supported != tt.wantSupport {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupport)
+			if resp.GetSupported() != tt.wantSupport {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.wantSupport)
 			}
 
-			if !strings.Contains(resp.Reason, tt.wantReason) {
-				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReason)
+			if !strings.Contains(resp.GetReason(), tt.wantReason) {
+				t.Errorf("Reason = %q, want substring %q", resp.GetReason(), tt.wantReason)
 			}
 		})
 	}
@@ -1087,16 +1087,16 @@ func TestSupports_USWest1(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if resp.Supported != tt.wantSupported {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.wantSupported)
+			if resp.GetSupported() != tt.wantSupported {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.wantSupported)
 			}
 
-			if tt.wantReasonSubstr != "" && !strings.Contains(resp.Reason, tt.wantReasonSubstr) {
-				t.Errorf("Reason = %q, want substring %q", resp.Reason, tt.wantReasonSubstr)
+			if tt.wantReasonSubstr != "" && !strings.Contains(resp.GetReason(), tt.wantReasonSubstr) {
+				t.Errorf("Reason = %q, want substring %q", resp.GetReason(), tt.wantReasonSubstr)
 			}
 
-			if tt.wantReasonSubstr == "" && resp.Reason != "" {
-				t.Errorf("Reason = %q, want empty string", resp.Reason)
+			if tt.wantReasonSubstr == "" && resp.GetReason() != "" {
+				t.Errorf("Reason = %q, want empty string", resp.GetReason())
 			}
 		})
 	}
@@ -1127,7 +1127,11 @@ func TestSupports_ZeroCost_SupportedMetricsNil(t *testing.T) {
 			}
 
 			if resp.SupportedMetrics != nil {
-				t.Errorf("SupportedMetrics should be nil for zero-cost resource %s, got: %v", rt, resp.SupportedMetrics)
+				t.Errorf(
+					"SupportedMetrics should be nil for zero-cost resource %s, got: %v",
+					rt,
+					resp.GetSupportedMetrics(),
+				)
 			}
 		})
 	}
@@ -1163,8 +1167,8 @@ func TestSupports_IAM(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if resp.Supported != tt.want {
-				t.Errorf("Supported = %v, want %v", resp.Supported, tt.want)
+			if resp.GetSupported() != tt.want {
+				t.Errorf("Supported = %v, want %v", resp.GetSupported(), tt.want)
 			}
 		})
 	}

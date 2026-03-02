@@ -3,6 +3,7 @@ package carbon
 import (
 	_ "embed"
 	"encoding/csv"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -64,12 +65,12 @@ func parseStorageSpecs() {
 	}
 
 	for {
-		record, err := reader.Read()
-		if err == io.EOF {
+		record, readErr := reader.Read()
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
-		if err != nil {
-			logger.Warn().Err(err).Msg("skipping malformed storage specs CSV row")
+		if readErr != nil {
+			logger.Warn().Err(readErr).Msg("skipping malformed storage specs CSV row")
 			continue
 		}
 
@@ -87,14 +88,14 @@ func parseStorageSpecs() {
 		}
 
 		// Parse replication factor
-		replicationFactor, err := strconv.Atoi(strings.TrimSpace(record[colStorageReplicationFactor]))
-		if err != nil || replicationFactor < 1 {
+		replicationFactor, parseErr := strconv.Atoi(strings.TrimSpace(record[colStorageReplicationFactor]))
+		if parseErr != nil || replicationFactor < 1 {
 			continue
 		}
 
 		// Parse power coefficient
-		powerCoefficient, err := strconv.ParseFloat(strings.TrimSpace(record[colStoragePowerCoefficient]), 64)
-		if err != nil || powerCoefficient <= 0 {
+		powerCoefficient, parseErr := strconv.ParseFloat(strings.TrimSpace(record[colStoragePowerCoefficient]), 64)
+		if parseErr != nil || powerCoefficient <= 0 {
 			continue
 		}
 

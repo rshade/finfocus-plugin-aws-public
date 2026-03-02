@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// TestGetProjectedCost_EC2 tests EC2 cost estimation (T040)
+// TestGetProjectedCost_EC2 tests EC2 cost estimation (T040).
 func TestGetProjectedCost_EC2(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -38,19 +38,19 @@ func TestGetProjectedCost_EC2(t *testing.T) {
 
 	// Verify cost calculation: 0.0104 * 730 = 7.592
 	expectedCost := 0.0104 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.UnitPrice != 0.0104 {
-		t.Errorf("UnitPrice = %v, want 0.0104", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.0104 {
+		t.Errorf("UnitPrice = %v, want 0.0104", resp.GetUnitPrice())
 	}
 
-	if resp.Currency != "USD" {
-		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 	}
 
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should not be empty")
 	}
 
@@ -60,7 +60,7 @@ func TestGetProjectedCost_EC2(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_EC2_PulumiFormat tests EC2 cost estimation with Pulumi resource type format (T042)
+// TestGetProjectedCost_EC2_PulumiFormat tests EC2 cost estimation with Pulumi resource type format (T042).
 func TestGetProjectedCost_EC2_PulumiFormat(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -82,12 +82,177 @@ func TestGetProjectedCost_EC2_PulumiFormat(t *testing.T) {
 	}
 
 	expectedCost := 0.0104 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
-// TestGetProjectedCost_EBS_WithSize tests EBS cost estimation with explicit size (T041)
+// TestGetProjectedCost_EC2_WithRootVolume tests that root EBS volume cost is
+// included in EC2 estimates when rootBlockDevice tag is present.
+func TestGetProjectedCost_EC2_WithRootVolume(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	mock.ebsPrices["gp2"] = 0.10
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"rootBlockDevice": "map[volumeSize:8 volumeType:gp2]",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Compute: 0.0104 * 730 = 7.592
+	// Root EBS: 0.10 * 8 = 0.80
+	// Total: 8.392
+	computeCost := 0.0104 * 730.0
+	rootCost := 0.10 * 8.0
+	expectedCost := computeCost + rootCost
+
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.001 {
+		t.Errorf(
+			"CostPerMonth = %v, want %v (compute=%v + root=%v)",
+			resp.GetCostPerMonth(), expectedCost, computeCost, rootCost,
+		)
+	}
+
+	// UnitPrice stays as hourly compute rate
+	if resp.GetUnitPrice() != 0.0104 {
+		t.Errorf("UnitPrice = %v, want 0.0104 (hourly compute only)", resp.GetUnitPrice())
+	}
+
+	// BillingDetail should mention root volume
+	if !strings.Contains(resp.GetBillingDetail(), "root volume") {
+		t.Errorf("BillingDetail should mention root volume, got %q", resp.GetBillingDetail())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "8GB") {
+		t.Errorf("BillingDetail should mention 8GB, got %q", resp.GetBillingDetail())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "gp2") {
+		t.Errorf("BillingDetail should mention gp2, got %q", resp.GetBillingDetail())
+	}
+}
+
+// TestGetProjectedCost_EC2_WithRootVolume_IndividualTags tests root volume cost
+// using individual root_volume_type and root_volume_size tags.
+func TestGetProjectedCost_EC2_WithRootVolume_IndividualTags(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	mock.ebsPrices["gp3"] = 0.08
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "m5.large",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"root_volume_type": "gp3",
+				"root_volume_size": "20",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Compute: 0.096 * 730 = 70.08
+	// Root EBS: 0.08 * 20 = 1.60
+	// Total: 71.68
+	expectedCost := (0.096 * 730.0) + (0.08 * 20.0)
+
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
+	}
+}
+
+// TestGetProjectedCost_EC2_WithRootVolume_UnknownType tests graceful handling
+// when root EBS volume type is not in pricing data.
+func TestGetProjectedCost_EC2_WithRootVolume_UnknownType(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	// Do NOT add EBS pricing for "unknown_type"
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"root_volume_type": "unknown_type",
+				"root_volume_size": "8",
+			},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should fall back to compute-only cost
+	expectedCost := 0.0104 * 730.0
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v (compute only, unknown EBS type)", resp.GetCostPerMonth(), expectedCost)
+	}
+
+	// BillingDetail should NOT mention root volume
+	if strings.Contains(resp.GetBillingDetail(), "root volume") {
+		t.Errorf("BillingDetail should not mention root volume for unknown type, got %q", resp.GetBillingDetail())
+	}
+}
+
+// TestGetProjectedCost_EC2_WithoutRootVolume_BackwardCompat tests that EC2
+// estimates remain unchanged when no root volume tags are present.
+func TestGetProjectedCost_EC2_WithoutRootVolume_BackwardCompat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	mock.ebsPrices["gp2"] = 0.10
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+			// No root volume tags
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("GetProjectedCost() returned error: %v", err)
+	}
+
+	// Should be compute-only cost
+	expectedCost := 0.0104 * 730.0
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v (compute only)", resp.GetCostPerMonth(), expectedCost)
+	}
+
+	// BillingDetail should not mention root volume
+	if strings.Contains(resp.GetBillingDetail(), "root volume") {
+		t.Errorf("BillingDetail should not mention root volume, got %q", resp.GetBillingDetail())
+	}
+}
+
+// TestGetProjectedCost_EBS_WithSize tests EBS cost estimation with explicit size (T041).
 func TestGetProjectedCost_EBS_WithSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -112,20 +277,20 @@ func TestGetProjectedCost_EBS_WithSize(t *testing.T) {
 
 	// Verify cost calculation: 0.08 * 100 = 8.0
 	expectedCost := 0.08 * 100.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.UnitPrice != 0.08 {
-		t.Errorf("UnitPrice = %v, want 0.08", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.08 {
+		t.Errorf("UnitPrice = %v, want 0.08", resp.GetUnitPrice())
 	}
 
-	if resp.Currency != "USD" {
-		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 	}
 
 	// Verify billing detail exists
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should not be empty")
 	}
 
@@ -135,7 +300,7 @@ func TestGetProjectedCost_EBS_WithSize(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_EBS_DefaultSize tests EBS with defaulted 8GB size (T042)
+// TestGetProjectedCost_EBS_DefaultSize tests EBS with defaulted 8GB size (T042).
 func TestGetProjectedCost_EBS_DefaultSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -158,21 +323,21 @@ func TestGetProjectedCost_EBS_DefaultSize(t *testing.T) {
 
 	// Verify cost calculation: 0.10 * 8 = 0.80
 	expectedCost := 0.10 * 8.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.Currency != "USD" {
-		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 	}
 
 	// Should mention "defaulted" in billing detail
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should not be empty")
 	}
 }
 
-// TestGetProjectedCost_RegionMismatch tests region mismatch error handling (T043)
+// TestGetProjectedCost_RegionMismatch tests region mismatch error handling (T043).
 func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -208,7 +373,7 @@ func TestGetProjectedCost_RegionMismatch(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_MissingRequiredField tests validation error (T044)
+// TestGetProjectedCost_MissingRequiredField tests validation error (T044).
 func TestGetProjectedCost_MissingRequiredField(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -278,7 +443,7 @@ func TestGetProjectedCost_MissingRequiredField(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_UnknownInstanceType tests unknown instance type handling
+// TestGetProjectedCost_UnknownInstanceType tests unknown instance type handling.
 func TestGetProjectedCost_UnknownInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -299,16 +464,16 @@ func TestGetProjectedCost_UnknownInstanceType(t *testing.T) {
 	}
 
 	// Should return $0 with explanation
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0 for unknown instance type", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for unknown instance type", resp.GetCostPerMonth())
 	}
 
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should explain why cost is $0")
 	}
 }
 
-// TestGetProjectedCost_StubServices tests stub service handling
+// TestGetProjectedCost_StubServices tests stub service handling.
 func TestGetProjectedCost_StubServices(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -332,22 +497,22 @@ func TestGetProjectedCost_StubServices(t *testing.T) {
 			}
 
 			// Should return $0 with explanation
-			if resp.CostPerMonth != 0 {
-				t.Errorf("CostPerMonth = %v, want 0 for stub service", resp.CostPerMonth)
+			if resp.GetCostPerMonth() != 0 {
+				t.Errorf("CostPerMonth = %v, want 0 for stub service", resp.GetCostPerMonth())
 			}
 
-			if resp.Currency != "USD" {
-				t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+			if resp.GetCurrency() != "USD" {
+				t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 			}
 
-			if resp.BillingDetail == "" {
+			if resp.GetBillingDetail() == "" {
 				t.Error("BillingDetail should explain stub implementation")
 			}
 		})
 	}
 }
 
-// TestGetProjectedCost_APSoutheast1_EC2 tests EC2 pricing for ap-southeast-1 (T011)
+// TestGetProjectedCost_APSoutheast1_EC2 tests EC2 pricing for ap-southeast-1 (T011).
 func TestGetProjectedCost_APSoutheast1_EC2(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -388,22 +553,22 @@ func TestGetProjectedCost_APSoutheast1_EC2(t *testing.T) {
 			}
 
 			expectedCost := tt.wantPrice * 730.0
-			if resp.CostPerMonth != expectedCost {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			if resp.GetCostPerMonth() != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 			}
 
-			if resp.UnitPrice != tt.wantPrice {
-				t.Errorf("UnitPrice = %v, want %v", resp.UnitPrice, tt.wantPrice)
+			if resp.GetUnitPrice() != tt.wantPrice {
+				t.Errorf("UnitPrice = %v, want %v", resp.GetUnitPrice(), tt.wantPrice)
 			}
 
-			if resp.Currency != "USD" {
-				t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+			if resp.GetCurrency() != "USD" {
+				t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 			}
 		})
 	}
 }
 
-// TestGetProjectedCost_APSoutheast1_EBS tests EBS pricing for ap-southeast-1 (T011)
+// TestGetProjectedCost_APSoutheast1_EBS tests EBS pricing for ap-southeast-1 (T011).
 func TestGetProjectedCost_APSoutheast1_EBS(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -455,18 +620,18 @@ func TestGetProjectedCost_APSoutheast1_EBS(t *testing.T) {
 			}
 			expectedCost := tt.wantPrice * sizeGB
 
-			if resp.CostPerMonth != expectedCost {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			if resp.GetCostPerMonth() != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 			}
 
-			if resp.UnitPrice != tt.wantPrice {
-				t.Errorf("UnitPrice = %v, want %v", resp.UnitPrice, tt.wantPrice)
+			if resp.GetUnitPrice() != tt.wantPrice {
+				t.Errorf("UnitPrice = %v, want %v", resp.GetUnitPrice(), tt.wantPrice)
 			}
 		})
 	}
 }
 
-// TestGetProjectedCost_APSoutheast1_RegionMismatch tests region mismatch for ap-southeast-1 binary (T011)
+// TestGetProjectedCost_APSoutheast1_RegionMismatch tests region mismatch for ap-southeast-1 binary (T011).
 func TestGetProjectedCost_APSoutheast1_RegionMismatch(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -501,7 +666,7 @@ func TestGetProjectedCost_APSoutheast1_RegionMismatch(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_ConcurrentCalls tests thread safety with 10+ parallel gRPC calls (T040, SC-006)
+// TestGetProjectedCost_ConcurrentCalls tests thread safety with 10+ parallel gRPC calls (T040, SC-006).
 func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -583,7 +748,7 @@ func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 }
 
 // BenchmarkGetProjectedCost_RegionMismatch benchmarks region mismatch error response time (T041, SC-005)
-// Success criteria: Response time < 100ms
+// Success criteria: Response time < 100ms.
 func BenchmarkGetProjectedCost_RegionMismatch(b *testing.B) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -604,7 +769,7 @@ func BenchmarkGetProjectedCost_RegionMismatch(b *testing.B) {
 	}
 }
 
-// TestGetProjectedCost_RegionMismatchLatency tests that region mismatch errors return < 100ms (T041, SC-005)
+// TestGetProjectedCost_RegionMismatchLatency tests that region mismatch errors return < 100ms (T041, SC-005).
 func TestGetProjectedCost_RegionMismatchLatency(t *testing.T) {
 	mock := newMockPricingClient("ap-southeast-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -643,7 +808,7 @@ func TestGetProjectedCost_RegionMismatchLatency(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_CrossRegionPricingDifference tests that pricing differs across AP regions (T042, SC-003)
+// TestGetProjectedCost_CrossRegionPricingDifference tests that pricing differs across AP regions (T042, SC-003).
 func TestGetProjectedCost_CrossRegionPricingDifference(t *testing.T) {
 	// Create plugins for different AP regions with realistic pricing variations
 	regions := map[string]struct {
@@ -678,8 +843,8 @@ func TestGetProjectedCost_CrossRegionPricingDifference(t *testing.T) {
 			t.Fatalf("%s: GetProjectedCost() error: %v", name, err)
 		}
 
-		costs[name] = resp.CostPerMonth
-		t.Logf("%s (t3.micro): $%.2f/month (hourly: $%.4f)", name, resp.CostPerMonth, resp.UnitPrice)
+		costs[name] = resp.GetCostPerMonth()
+		t.Logf("%s (t3.micro): $%.2f/month (hourly: $%.4f)", name, resp.GetCostPerMonth(), resp.GetUnitPrice())
 	}
 
 	// Verify that costs differ between regions
@@ -689,7 +854,12 @@ func TestGetProjectedCost_CrossRegionPricingDifference(t *testing.T) {
 			continue
 		}
 		if cost == singaporeCost {
-			t.Errorf("Cost for %s ($%.2f) equals Singapore cost ($%.2f), expected different pricing (SC-003)", name, cost, singaporeCost)
+			t.Errorf(
+				"Cost for %s ($%.2f) equals Singapore cost ($%.2f), expected different pricing (SC-003)",
+				name,
+				cost,
+				singaporeCost,
+			)
 		}
 	}
 
@@ -705,7 +875,7 @@ func TestGetProjectedCost_CrossRegionPricingDifference(t *testing.T) {
 	t.Logf("Successfully verified pricing varies across %d AP regions", len(regions))
 }
 
-// TestSupports_RegionRejection tests that each region binary rejects other regions 100% of the time (T043, SC-008)
+// TestSupports_RegionRejection tests that each region binary rejects other regions 100% of the time (T043, SC-008).
 func TestSupports_RegionRejection(t *testing.T) {
 	testRegions := []string{"ap-southeast-1", "ap-southeast-2", "ap-northeast-1", "ap-south-1"}
 
@@ -740,7 +910,7 @@ func TestSupports_RegionRejection(t *testing.T) {
 					continue
 				}
 
-				if resp.Supported {
+				if resp.GetSupported() {
 					t.Errorf("Plugin %s incorrectly supported EC2 request from %s", pluginRegion, requestRegion)
 				} else {
 					successfulRejections++
@@ -760,7 +930,7 @@ func TestSupports_RegionRejection(t *testing.T) {
 					continue
 				}
 
-				if resp.Supported {
+				if resp.GetSupported() {
 					t.Errorf("Plugin %s incorrectly supported EBS request from %s", pluginRegion, requestRegion)
 				} else {
 					successfulRejections++
@@ -770,17 +940,27 @@ func TestSupports_RegionRejection(t *testing.T) {
 			}
 
 			rejectionRate := float64(successfulRejections) / float64(totalTests) * 100.0
-			t.Logf("Plugin %s: Rejected %d/%d wrong-region requests (%.1f%%)", pluginRegion, successfulRejections, totalTests, rejectionRate)
+			t.Logf(
+				"Plugin %s: Rejected %d/%d wrong-region requests (%.1f%%)",
+				pluginRegion,
+				successfulRejections,
+				totalTests,
+				rejectionRate,
+			)
 
 			// Success criteria: 100% rejection rate (SC-008)
 			if rejectionRate < 100.0 {
-				t.Errorf("Plugin %s rejection rate %.1f%% is below 100%% requirement (SC-008)", pluginRegion, rejectionRate)
+				t.Errorf(
+					"Plugin %s rejection rate %.1f%% is below 100%% requirement (SC-008)",
+					pluginRegion,
+					rejectionRate,
+				)
 			}
 		})
 	}
 }
 
-// T027: Test GetProjectedCost logs contain required structured fields
+// T027: Test GetProjectedCost logs contain required structured fields.
 func TestGetProjectedCostLogsContainRequiredFields(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -861,7 +1041,7 @@ func TestGetProjectedCostLogsContainRequiredFields(t *testing.T) {
 	}
 }
 
-// T038: Test debug logs contain instance_type for EC2
+// T038: Test debug logs contain instance_type for EC2.
 func TestDebugLogsContainInstanceTypeForEC2(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -910,7 +1090,7 @@ func TestDebugLogsContainInstanceTypeForEC2(t *testing.T) {
 	}
 }
 
-// T039: Test debug logs contain storage_type for EBS
+// T039: Test debug logs contain storage_type for EBS.
 func TestDebugLogsContainStorageTypeForEBS(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -962,7 +1142,7 @@ func TestDebugLogsContainStorageTypeForEBS(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_RDS_MySQL tests RDS cost estimation with MySQL engine
+// TestGetProjectedCost_RDS_MySQL tests RDS cost estimation with MySQL engine.
 func TestGetProjectedCost_RDS_MySQL(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -995,19 +1175,19 @@ func TestGetProjectedCost_RDS_MySQL(t *testing.T) {
 	expectedStorageCost := 0.10 * 100.0
 	expectedTotal := expectedInstanceCost + expectedStorageCost
 
-	if resp.CostPerMonth != expectedTotal {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedTotal)
+	if resp.GetCostPerMonth() != expectedTotal {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedTotal)
 	}
 
-	if resp.UnitPrice != 0.068 {
-		t.Errorf("UnitPrice = %v, want 0.068", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.068 {
+		t.Errorf("UnitPrice = %v, want 0.068", resp.GetUnitPrice())
 	}
 
-	if resp.Currency != "USD" {
-		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 	}
 
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should not be empty")
 	}
 
@@ -1017,7 +1197,7 @@ func TestGetProjectedCost_RDS_MySQL(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_RDS_DefaultValues tests RDS with default values
+// TestGetProjectedCost_RDS_DefaultValues tests RDS with default values.
 func TestGetProjectedCost_RDS_DefaultValues(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1048,20 +1228,20 @@ func TestGetProjectedCost_RDS_DefaultValues(t *testing.T) {
 
 	// Use tolerance for floating-point comparison
 	tolerance := 0.0001
-	if diff := resp.CostPerMonth - expectedTotal; diff < -tolerance || diff > tolerance {
-		t.Errorf("CostPerMonth = %v, want %v (within tolerance %v)", resp.CostPerMonth, expectedTotal, tolerance)
+	if diff := resp.GetCostPerMonth() - expectedTotal; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v (within tolerance %v)", resp.GetCostPerMonth(), expectedTotal, tolerance)
 	}
 
 	// BillingDetail should mention defaults
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should not be empty")
 	}
-	if !strings.Contains(resp.BillingDetail, "defaulted") {
-		t.Errorf("BillingDetail should mention defaults, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "defaulted") {
+		t.Errorf("BillingDetail should mention defaults, got: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_RDS_PostgreSQL tests RDS with PostgreSQL engine
+// TestGetProjectedCost_RDS_PostgreSQL tests RDS with PostgreSQL engine.
 func TestGetProjectedCost_RDS_PostgreSQL(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1088,17 +1268,17 @@ func TestGetProjectedCost_RDS_PostgreSQL(t *testing.T) {
 	}
 
 	// Verify PostgreSQL was normalized correctly
-	if resp.UnitPrice != 0.068 {
-		t.Errorf("UnitPrice = %v, want 0.068", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.068 {
+		t.Errorf("UnitPrice = %v, want 0.068", resp.GetUnitPrice())
 	}
 
 	// BillingDetail should show PostgreSQL
-	if !strings.Contains(resp.BillingDetail, "PostgreSQL") {
-		t.Errorf("BillingDetail should contain PostgreSQL, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "PostgreSQL") {
+		t.Errorf("BillingDetail should contain PostgreSQL, got: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_RDS_UnknownEngine tests defaulting to MySQL for unknown engine
+// TestGetProjectedCost_RDS_UnknownEngine tests defaulting to MySQL for unknown engine.
 func TestGetProjectedCost_RDS_UnknownEngine(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1123,17 +1303,17 @@ func TestGetProjectedCost_RDS_UnknownEngine(t *testing.T) {
 	}
 
 	// Should default to MySQL pricing
-	if resp.UnitPrice != 0.017 {
-		t.Errorf("UnitPrice = %v, want 0.017 (MySQL default)", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.017 {
+		t.Errorf("UnitPrice = %v, want 0.017 (MySQL default)", resp.GetUnitPrice())
 	}
 
 	// BillingDetail should mention it defaulted
-	if !strings.Contains(resp.BillingDetail, "defaulted") {
-		t.Errorf("BillingDetail should mention defaulted engine, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "defaulted") {
+		t.Errorf("BillingDetail should mention defaulted engine, got: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_RDS_UnknownInstance tests $0 return for unknown instance type
+// TestGetProjectedCost_RDS_UnknownInstance tests $0 return for unknown instance type.
 func TestGetProjectedCost_RDS_UnknownInstance(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1154,19 +1334,19 @@ func TestGetProjectedCost_RDS_UnknownInstance(t *testing.T) {
 	}
 
 	// Should return $0 with explanation
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0 for unknown instance type", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for unknown instance type", resp.GetCostPerMonth())
 	}
 
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should explain why cost is $0")
 	}
-	if !strings.Contains(resp.BillingDetail, "not found") {
-		t.Errorf("BillingDetail should mention not found, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "not found") {
+		t.Errorf("BillingDetail should mention not found, got: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_RDS_AllEngines tests all supported database engines
+// TestGetProjectedCost_RDS_AllEngines tests all supported database engines.
 func TestGetProjectedCost_RDS_AllEngines(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -1209,19 +1389,19 @@ func TestGetProjectedCost_RDS_AllEngines(t *testing.T) {
 			}
 
 			// Should find pricing for the normalized engine
-			if resp.UnitPrice == 0 {
+			if resp.GetUnitPrice() == 0 {
 				t.Errorf("UnitPrice = 0, expected non-zero for engine %s", tt.engineTag)
 			}
 
 			// BillingDetail should show normalized engine name
-			if !strings.Contains(resp.BillingDetail, tt.expectedNormalized) {
-				t.Errorf("BillingDetail should contain %s, got: %s", tt.expectedNormalized, resp.BillingDetail)
+			if !strings.Contains(resp.GetBillingDetail(), tt.expectedNormalized) {
+				t.Errorf("BillingDetail should contain %s, got: %s", tt.expectedNormalized, resp.GetBillingDetail())
 			}
 		})
 	}
 }
 
-// TestGetProjectedCost_RDS_InvalidStorageSize tests invalid storage size handling
+// TestGetProjectedCost_RDS_InvalidStorageSize tests invalid storage size handling.
 func TestGetProjectedCost_RDS_InvalidStorageSize(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1265,13 +1445,17 @@ func TestGetProjectedCost_RDS_InvalidStorageSize(t *testing.T) {
 			expectedInstanceCost := 0.017 * 730.0
 			expectedTotal := expectedInstanceCost + expectedStorageCost
 
-			if resp.CostPerMonth != expectedTotal {
-				t.Errorf("CostPerMonth = %v, want %v (with default 20GB storage)", resp.CostPerMonth, expectedTotal)
+			if resp.GetCostPerMonth() != expectedTotal {
+				t.Errorf(
+					"CostPerMonth = %v, want %v (with default 20GB storage)",
+					resp.GetCostPerMonth(),
+					expectedTotal,
+				)
 			}
 
 			// Should mention defaulted
-			if !strings.Contains(resp.BillingDetail, "defaulted") {
-				t.Errorf("BillingDetail should mention defaulted, got: %s", resp.BillingDetail)
+			if !strings.Contains(resp.GetBillingDetail(), "defaulted") {
+				t.Errorf("BillingDetail should mention defaulted, got: %s", resp.GetBillingDetail())
 			}
 		})
 	}
@@ -1329,7 +1513,7 @@ func TestDetectService(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_EKS_StandardSupport tests EKS standard support cost estimation
+// TestGetProjectedCost_EKS_StandardSupport tests EKS standard support cost estimation.
 func TestGetProjectedCost_EKS_StandardSupport(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1352,22 +1536,22 @@ func TestGetProjectedCost_EKS_StandardSupport(t *testing.T) {
 
 	// Verify cost calculation: 0.10 * 730 = 73.00
 	expectedCost := 0.10 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.UnitPrice != 0.10 {
-		t.Errorf("UnitPrice = %v, want 0.10", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.10 {
+		t.Errorf("UnitPrice = %v, want 0.10", resp.GetUnitPrice())
 	}
 
-	if resp.Currency != "USD" {
-		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 	}
 
 	// Verify billing detail mentions standard support and control plane only
 	expectedDetail := "EKS cluster (standard support), 730 hrs/month (control plane only, excludes worker nodes)"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 
 	// Verify pricing client was called
@@ -1376,7 +1560,7 @@ func TestGetProjectedCost_EKS_StandardSupport(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_EKS_ExtendedSupport tests EKS extended support cost estimation
+// TestGetProjectedCost_EKS_ExtendedSupport tests EKS extended support cost estimation.
 func TestGetProjectedCost_EKS_ExtendedSupport(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1399,18 +1583,18 @@ func TestGetProjectedCost_EKS_ExtendedSupport(t *testing.T) {
 
 	// Verify cost calculation: 0.50 * 730 = 365.00
 	expectedCost := 0.50 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.UnitPrice != 0.50 {
-		t.Errorf("UnitPrice = %v, want 0.50", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.50 {
+		t.Errorf("UnitPrice = %v, want 0.50", resp.GetUnitPrice())
 	}
 
 	// Verify billing detail mentions extended support
 	expectedDetail := "EKS cluster (extended support), 730 hrs/month (control plane only, excludes worker nodes)"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 }
 
@@ -1437,24 +1621,24 @@ func TestGetProjectedCost_EKS_MissingPricing(t *testing.T) {
 	}
 
 	// Should return $0 with explanation
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0 for missing pricing", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for missing pricing", resp.GetCostPerMonth())
 	}
 
-	if resp.UnitPrice != 0 {
-		t.Errorf("UnitPrice = %v, want 0 for missing pricing", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0 {
+		t.Errorf("UnitPrice = %v, want 0 for missing pricing", resp.GetUnitPrice())
 	}
 
-	if resp.BillingDetail == "" {
+	if resp.GetBillingDetail() == "" {
 		t.Error("BillingDetail should explain missing pricing")
 	}
 
-	if !strings.Contains(resp.BillingDetail, "not available") {
-		t.Errorf("BillingDetail should mention not available: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "not available") {
+		t.Errorf("BillingDetail should mention not available: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_EKS_ExtendedSupportViaTags tests EKS extended support via tags
+// TestGetProjectedCost_EKS_ExtendedSupportViaTags tests EKS extended support via tags.
 func TestGetProjectedCost_EKS_ExtendedSupportViaTags(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1480,14 +1664,14 @@ func TestGetProjectedCost_EKS_ExtendedSupportViaTags(t *testing.T) {
 
 	// Verify cost calculation: 0.50 * 730 = 365.00
 	expectedCost := 0.50 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
 	// Verify billing detail mentions extended support
 	expectedDetail := "EKS cluster (extended support), 730 hrs/month (control plane only, excludes worker nodes)"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 }
 
@@ -1532,23 +1716,23 @@ func TestGetProjectedCost_EKS_SupportTypeCaseInsensitive(t *testing.T) {
 
 			// Should use extended support pricing ($0.50/hour)
 			expectedCost := 0.50 * 730.0
-			if resp.CostPerMonth != expectedCost {
-				t.Errorf("CostPerMonth = %v, want %v (extended pricing)", resp.CostPerMonth, expectedCost)
+			if resp.GetCostPerMonth() != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v (extended pricing)", resp.GetCostPerMonth(), expectedCost)
 			}
 
-			if resp.UnitPrice != 0.50 {
-				t.Errorf("UnitPrice = %v, want 0.50 (extended pricing)", resp.UnitPrice)
+			if resp.GetUnitPrice() != 0.50 {
+				t.Errorf("UnitPrice = %v, want 0.50 (extended pricing)", resp.GetUnitPrice())
 			}
 
 			// Verify billing detail shows extended support
-			if !strings.Contains(resp.BillingDetail, "extended support") {
-				t.Errorf("BillingDetail should mention extended support, got: %s", resp.BillingDetail)
+			if !strings.Contains(resp.GetBillingDetail(), "extended support") {
+				t.Errorf("BillingDetail should mention extended support, got: %s", resp.GetBillingDetail())
 			}
 		})
 	}
 }
 
-// TestExtractAWSSKU tests SDK-style SKU extraction with priority ordering
+// TestExtractAWSSKU tests SDK-style SKU extraction with priority ordering.
 func TestExtractAWSSKU(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1628,7 +1812,7 @@ func TestExtractAWSSKU(t *testing.T) {
 	}
 }
 
-// TestExtractAWSRegion tests SDK-style region extraction
+// TestExtractAWSRegion tests SDK-style region extraction.
 func TestExtractAWSRegion(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1688,7 +1872,7 @@ func TestExtractAWSRegion(t *testing.T) {
 	}
 }
 
-// TestGetProjectedCost_EBS_VolumeSizeAlias tests volume_size alias extraction (T055)
+// TestGetProjectedCost_EBS_VolumeSizeAlias tests volume_size alias extraction (T055).
 func TestGetProjectedCost_EBS_VolumeSizeAlias(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1750,25 +1934,31 @@ func TestGetProjectedCost_EBS_VolumeSizeAlias(t *testing.T) {
 
 			// Verify size is correctly extracted
 			expectedCost := 0.08 * float64(tt.expectSize)
-			if resp.CostPerMonth != expectedCost {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			if resp.GetCostPerMonth() != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 			}
 
 			// Verify billing detail includes size and defaulted annotation
 			if tt.expectAssumed {
-				if !strings.Contains(resp.BillingDetail, "(defaulted)") {
-					t.Errorf("BillingDetail should contain '(defaulted)' for assumed size, got: %s", resp.BillingDetail)
+				if !strings.Contains(resp.GetBillingDetail(), "(defaulted)") {
+					t.Errorf(
+						"BillingDetail should contain '(defaulted)' for assumed size, got: %s",
+						resp.GetBillingDetail(),
+					)
 				}
 			} else {
-				if strings.Contains(resp.BillingDetail, "(defaulted)") {
-					t.Errorf("BillingDetail should not contain '(defaulted)' for explicit size, got: %s", resp.BillingDetail)
+				if strings.Contains(resp.GetBillingDetail(), "(defaulted)") {
+					t.Errorf(
+						"BillingDetail should not contain '(defaulted)' for explicit size, got: %s",
+						resp.GetBillingDetail(),
+					)
 				}
 			}
 		})
 	}
 }
 
-// TestGetProjectedCost_RDS_EngineDefaulted tests engine default tracking (T057)
+// TestGetProjectedCost_RDS_EngineDefaulted tests engine default tracking (T057).
 func TestGetProjectedCost_RDS_EngineDefaulted(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1818,19 +2008,25 @@ func TestGetProjectedCost_RDS_EngineDefaulted(t *testing.T) {
 
 			// Verify billing detail includes defaulted annotation when expected
 			if tt.expectDefaulted {
-				if !strings.Contains(resp.BillingDetail, "engine defaulted to MySQL") {
-					t.Errorf("BillingDetail should contain 'engine defaulted to MySQL', got: %s", resp.BillingDetail)
+				if !strings.Contains(resp.GetBillingDetail(), "engine defaulted to MySQL") {
+					t.Errorf(
+						"BillingDetail should contain 'engine defaulted to MySQL', got: %s",
+						resp.GetBillingDetail(),
+					)
 				}
 			} else {
-				if strings.Contains(resp.BillingDetail, "defaulted") {
-					t.Errorf("BillingDetail should not contain 'defaulted' for explicit engine, got: %s", resp.BillingDetail)
+				if strings.Contains(resp.GetBillingDetail(), "defaulted") {
+					t.Errorf(
+						"BillingDetail should not contain 'defaulted' for explicit engine, got: %s",
+						resp.GetBillingDetail(),
+					)
 				}
 			}
 		})
 	}
 }
 
-// TestGetProjectedCost_Lambda_Basic tests basic Lambda cost estimation
+// TestGetProjectedCost_Lambda_Basic tests basic Lambda cost estimation.
 func TestGetProjectedCost_Lambda_Basic(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1865,25 +2061,25 @@ func TestGetProjectedCost_Lambda_Basic(t *testing.T) {
 
 	expectedCost := 1.86667
 	tolerance := 0.00001
-	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.UnitPrice != 0.0000166667 {
-		t.Errorf("UnitPrice = %v, want 0.0000166667", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.0000166667 {
+		t.Errorf("UnitPrice = %v, want 0.0000166667", resp.GetUnitPrice())
 	}
 
-	if !strings.Contains(resp.BillingDetail, "Lambda 512MB") {
-		t.Errorf("BillingDetail missing memory info: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "Lambda 512MB") {
+		t.Errorf("BillingDetail missing memory info: %s", resp.GetBillingDetail())
 	}
 
 	// FR-011: Verify architecture is shown (defaults to x86_64)
-	if !strings.Contains(resp.BillingDetail, "x86_64") {
-		t.Errorf("BillingDetail missing architecture info: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "x86_64") {
+		t.Errorf("BillingDetail missing architecture info: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_Lambda_Defaults tests Lambda with missing tags (default values)
+// TestGetProjectedCost_Lambda_Defaults tests Lambda with missing tags (default values).
 func TestGetProjectedCost_Lambda_Defaults(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1906,16 +2102,16 @@ func TestGetProjectedCost_Lambda_Defaults(t *testing.T) {
 	}
 
 	// Should be 0 cost because default requests = 0
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
 	}
 
-	if !strings.Contains(resp.BillingDetail, "defaulted") {
-		t.Errorf("BillingDetail should mention defaults: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "defaulted") {
+		t.Errorf("BillingDetail should mention defaults: %s", resp.GetBillingDetail())
 	}
 }
 
-// TestGetProjectedCost_Lambda_InvalidMemory tests Lambda with invalid memory SKU
+// TestGetProjectedCost_Lambda_InvalidMemory tests Lambda with invalid memory SKU.
 func TestGetProjectedCost_Lambda_InvalidMemory(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -1949,12 +2145,12 @@ func TestGetProjectedCost_Lambda_InvalidMemory(t *testing.T) {
 
 	expectedCost := 0.40833375
 	tolerance := 0.00001
-	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
-		t.Errorf("CostPerMonth = %v, want %v (with default 128MB)", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v (with default 128MB)", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if !strings.Contains(resp.BillingDetail, "defaulted") {
-		t.Errorf("BillingDetail should mention defaults: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "defaulted") {
+		t.Errorf("BillingDetail should mention defaults: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -1996,18 +2192,18 @@ func TestGetProjectedCost_Lambda_ARM64(t *testing.T) {
 
 	expectedCost := 1.53334
 	tolerance := 0.00001
-	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
-		t.Errorf("CostPerMonth = %v, want %v (with ARM pricing)", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v (with ARM pricing)", resp.GetCostPerMonth(), expectedCost)
 	}
 
 	// Verify ARM pricing used
-	if resp.UnitPrice != 0.0000133334 {
-		t.Errorf("UnitPrice = %v, want 0.0000133334 (ARM rate)", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.0000133334 {
+		t.Errorf("UnitPrice = %v, want 0.0000133334 (ARM rate)", resp.GetUnitPrice())
 	}
 
 	// Verify billing detail mentions ARM architecture
-	if !strings.Contains(resp.BillingDetail, "arm64") {
-		t.Errorf("BillingDetail should mention arm64: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "arm64") {
+		t.Errorf("BillingDetail should mention arm64: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -2109,13 +2305,13 @@ func TestGetProjectedCost_Lambda_ArchitectureVariants(t *testing.T) {
 				expectedPrice = 0.0000133334
 			}
 
-			if resp.UnitPrice != expectedPrice {
-				t.Errorf("UnitPrice = %v, want %v", resp.UnitPrice, expectedPrice)
+			if resp.GetUnitPrice() != expectedPrice {
+				t.Errorf("UnitPrice = %v, want %v", resp.GetUnitPrice(), expectedPrice)
 			}
 
 			// Verify billing detail mentions correct architecture
-			if !strings.Contains(resp.BillingDetail, tt.wantArch) {
-				t.Errorf("BillingDetail should contain %s: %s", tt.wantArch, resp.BillingDetail)
+			if !strings.Contains(resp.GetBillingDetail(), tt.wantArch) {
+				t.Errorf("BillingDetail should contain %s: %s", tt.wantArch, resp.GetBillingDetail())
 			}
 		})
 	}
@@ -2150,8 +2346,8 @@ func TestGetProjectedCost_Lambda_ARMFallbackToX86(t *testing.T) {
 	}
 
 	// Should fall back to x86 pricing when ARM not available
-	if resp.UnitPrice != 0.0000166667 {
-		t.Errorf("UnitPrice = %v, want 0.0000166667 (fallback to x86)", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.0000166667 {
+		t.Errorf("UnitPrice = %v, want 0.0000166667 (fallback to x86)", resp.GetUnitPrice())
 	}
 }
 
@@ -2159,7 +2355,7 @@ func TestGetProjectedCost_Lambda_ARMFallbackToX86(t *testing.T) {
 // Carbon Estimation Tests (T017-T019)
 // ============================================================================
 
-// TestGetProjectedCost_EC2_WithCarbonMetrics tests that EC2 responses include carbon metrics (T017)
+// TestGetProjectedCost_EC2_WithCarbonMetrics tests that EC2 responses include carbon metrics (T017).
 func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -2182,19 +2378,19 @@ func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
 	// Verify financial cost is still present
 	// $0.0104/hour × 730 hours/month = $7.592/month for t3.micro on-demand
 	expectedCost := 0.0104 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
 	// Verify carbon metrics are present
-	if len(resp.ImpactMetrics) == 0 {
+	if len(resp.GetImpactMetrics()) == 0 {
 		t.Fatal("ImpactMetrics should not be empty for known EC2 instance type")
 	}
 
 	// Find carbon footprint metric
 	var carbonMetric *pbc.ImpactMetric
-	for _, m := range resp.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+	for _, m := range resp.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 			carbonMetric = m
 			break
 		}
@@ -2206,17 +2402,17 @@ func TestGetProjectedCost_EC2_WithCarbonMetrics(t *testing.T) {
 
 	// Verify carbon value is reasonable for t3.micro monthly in us-east-1
 	// Expected ~3500 gCO2e based on CCF formula; allow 2000-5000 range for variance
-	if carbonMetric.Value < 2000 || carbonMetric.Value > 5000 {
-		t.Errorf("Carbon value = %v, want between 2000 and 5000 gCO2e", carbonMetric.Value)
+	if carbonMetric.GetValue() < 2000 || carbonMetric.GetValue() > 5000 {
+		t.Errorf("Carbon value = %v, want between 2000 and 5000 gCO2e", carbonMetric.GetValue())
 	}
 
 	// Verify unit is correct
-	if carbonMetric.Unit != "gCO2e" {
-		t.Errorf("Carbon unit = %q, want %q", carbonMetric.Unit, "gCO2e")
+	if carbonMetric.GetUnit() != "gCO2e" {
+		t.Errorf("Carbon unit = %q, want %q", carbonMetric.GetUnit(), "gCO2e")
 	}
 }
 
-// TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance tests that carbon is 0 for unknown instance types (T018)
+// TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance tests that carbon is 0 for unknown instance types (T018).
 func TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -2237,17 +2433,20 @@ func TestGetProjectedCost_EC2_CarbonZeroForUnknownInstance(t *testing.T) {
 	}
 
 	// Financial cost should still work
-	if resp.CostPerMonth == 0 {
+	if resp.GetCostPerMonth() == 0 {
 		t.Error("CostPerMonth should be non-zero for instance with pricing")
 	}
 
 	// Carbon metrics should be empty for unknown instance type
-	if len(resp.ImpactMetrics) > 0 {
-		t.Errorf("ImpactMetrics should be empty for unknown instance type, got %d metrics", len(resp.ImpactMetrics))
+	if len(resp.GetImpactMetrics()) > 0 {
+		t.Errorf(
+			"ImpactMetrics should be empty for unknown instance type, got %d metrics",
+			len(resp.GetImpactMetrics()),
+		)
 	}
 }
 
-// TestGetProjectedCost_EC2_RegionAffectsCarbon tests that region affects carbon value (T019)
+// TestGetProjectedCost_EC2_RegionAffectsCarbon tests that region affects carbon value (T019).
 func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
 	// Test with us-east-1 plugin
 	mockUSEast := newMockPricingClient("us-east-1", "USD")
@@ -2286,22 +2485,22 @@ func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
 	}
 
 	// Both should have carbon metrics
-	if len(respUSEast.ImpactMetrics) == 0 {
+	if len(respUSEast.GetImpactMetrics()) == 0 {
 		t.Fatal("us-east-1 should have ImpactMetrics")
 	}
-	if len(respEUNorth.ImpactMetrics) == 0 {
+	if len(respEUNorth.GetImpactMetrics()) == 0 {
 		t.Fatal("eu-north-1 should have ImpactMetrics")
 	}
 
 	var carbonUSEast, carbonEUNorth float64
-	for _, m := range respUSEast.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonUSEast = m.Value
+	for _, m := range respUSEast.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonUSEast = m.GetValue()
 		}
 	}
-	for _, m := range respEUNorth.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonEUNorth = m.Value
+	for _, m := range respEUNorth.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonEUNorth = m.GetValue()
 		}
 	}
 
@@ -2317,7 +2516,7 @@ func TestGetProjectedCost_EC2_RegionAffectsCarbon(t *testing.T) {
 		carbonUSEast, carbonEUNorth, carbonUSEast/carbonEUNorth)
 }
 
-// TestGetProjectedCost_EC2_RequestLevelUtilization tests request-level utilization override (T031)
+// TestGetProjectedCost_EC2_RequestLevelUtilization tests request-level utilization override (T031).
 func TestGetProjectedCost_EC2_RequestLevelUtilization(t *testing.T) {
 	mockClient := newMockPricingClient("us-east-1", "USD")
 	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
@@ -2354,14 +2553,14 @@ func TestGetProjectedCost_EC2_RequestLevelUtilization(t *testing.T) {
 
 	// Extract carbon values
 	var carbonHigh, carbonLow float64
-	for _, m := range respHigh.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonHigh = m.Value
+	for _, m := range respHigh.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonHigh = m.GetValue()
 		}
 	}
-	for _, m := range respLow.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonLow = m.Value
+	for _, m := range respLow.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonLow = m.GetValue()
 		}
 	}
 
@@ -2374,7 +2573,7 @@ func TestGetProjectedCost_EC2_RequestLevelUtilization(t *testing.T) {
 	t.Logf("Utilization impact: 80%%=%v gCO2e, 20%%=%v gCO2e", carbonHigh, carbonLow)
 }
 
-// TestGetProjectedCost_EC2_PerResourceUtilization tests per-resource utilization override (T032)
+// TestGetProjectedCost_EC2_PerResourceUtilization tests per-resource utilization override (T032).
 func TestGetProjectedCost_EC2_PerResourceUtilization(t *testing.T) {
 	mockClient := newMockPricingClient("us-east-1", "USD")
 	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
@@ -2411,14 +2610,14 @@ func TestGetProjectedCost_EC2_PerResourceUtilization(t *testing.T) {
 
 	// Extract carbon values
 	var carbonWithOverride, carbonDefault float64
-	for _, m := range resp.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonWithOverride = m.Value
+	for _, m := range resp.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonWithOverride = m.GetValue()
 		}
 	}
-	for _, m := range respDefault.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonDefault = m.Value
+	for _, m := range respDefault.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonDefault = m.GetValue()
 		}
 	}
 
@@ -2431,7 +2630,7 @@ func TestGetProjectedCost_EC2_PerResourceUtilization(t *testing.T) {
 	t.Logf("Per-resource override: 90%%=%v gCO2e, default 50%%=%v gCO2e", carbonWithOverride, carbonDefault)
 }
 
-// TestGetProjectedCost_EC2_UtilizationPriority tests utilization priority order (T033)
+// TestGetProjectedCost_EC2_UtilizationPriority tests utilization priority order (T033).
 func TestGetProjectedCost_EC2_UtilizationPriority(t *testing.T) {
 	mockClient := newMockPricingClient("us-east-1", "USD")
 	mockClient.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
@@ -2470,14 +2669,14 @@ func TestGetProjectedCost_EC2_UtilizationPriority(t *testing.T) {
 
 	// Extract carbon values
 	var carbonPerResource, carbonRequest float64
-	for _, m := range respPerResource.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonPerResource = m.Value
+	for _, m := range respPerResource.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonPerResource = m.GetValue()
 		}
 	}
-	for _, m := range respRequest.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			carbonRequest = m.Value
+	for _, m := range respRequest.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+			carbonRequest = m.GetValue()
 		}
 	}
 
@@ -2519,28 +2718,28 @@ func TestGetProjectedCost_EC2_GPUInstance(t *testing.T) {
 	}
 
 	// Financial cost should still be returned
-	if resp.CostPerMonth < 2000 {
-		t.Errorf("GPU instance cost should be > $2000/month, got %v", resp.CostPerMonth)
+	if resp.GetCostPerMonth() < 2000 {
+		t.Errorf("GPU instance cost should be > $2000/month, got %v", resp.GetCostPerMonth())
 	}
 
 	// Carbon metrics may or may not be present depending on CCF data
 	// If present, they won't include GPU power (known limitation)
 	var hasCarbon bool
-	for _, m := range resp.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+	for _, m := range resp.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 			hasCarbon = true
-			t.Logf("GPU instance carbon: %v gCO2e (CPU only, GPU power not included)", m.Value)
+			t.Logf("GPU instance carbon: %v gCO2e (CPU only, GPU power not included)", m.GetValue())
 		}
 	}
 
-	t.Logf("p3.2xlarge: $%.2f/month, carbon metrics present=%v", resp.CostPerMonth, hasCarbon)
+	t.Logf("p3.2xlarge: $%.2f/month, carbon metrics present=%v", resp.GetCostPerMonth(), hasCarbon)
 }
 
 // ============================================================================
 // DynamoDB Tests
 // ============================================================================
 
-// TestGetProjectedCost_DynamoDB tests DynamoDB cost estimation (P1, P2)
+// TestGetProjectedCost_DynamoDB tests DynamoDB cost estimation (P1, P2).
 func TestGetProjectedCost_DynamoDB(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -2630,11 +2829,11 @@ func TestGetProjectedCost_DynamoDB(t *testing.T) {
 
 			// Use tolerance for floating-point comparison
 			tolerance := 0.0001
-			if diff := resp.CostPerMonth - tt.expectedCost; diff < -tolerance || diff > tolerance {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.expectedCost)
+			if diff := resp.GetCostPerMonth() - tt.expectedCost; diff < -tolerance || diff > tolerance {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), tt.expectedCost)
 			}
 
-			if resp.BillingDetail == "" {
+			if resp.GetBillingDetail() == "" {
 				t.Error("BillingDetail should not be empty")
 			}
 		})
@@ -2677,14 +2876,14 @@ func TestEstimateDynamoDB_MissingStoragePricing(t *testing.T) {
 
 	// Verify billing_detail includes pricing unavailable note
 	expectedDetail := "DynamoDB provisioned, 100 RCUs, 50 WCUs, 730 hrs/month, 50GB storage (pricing unavailable: Storage)"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 
 	// Verify cost calculation includes RCU/WCU but not storage
 	expectedCost := (100 * 730 * 0.00013) + (50 * 730 * 0.00065) // RCU + WCU, no storage
-	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -2726,14 +2925,14 @@ func TestEstimateDynamoDB_MissingProvisionedPricing(t *testing.T) {
 
 	// Verify billing_detail includes pricing unavailable note
 	expectedDetail := "DynamoDB provisioned, 100 RCUs, 50 WCUs, 730 hrs/month, 50GB storage (pricing unavailable: RCU, WCU)"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 
 	// Verify cost calculation includes only storage
 	expectedCost := 50 * 0.25 // Only storage
-	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -2775,14 +2974,14 @@ func TestEstimateDynamoDB_MissingOnDemandPricing(t *testing.T) {
 
 	// Verify billing_detail includes pricing unavailable note
 	expectedDetail := "DynamoDB on-demand, 10000000 reads, 1000000 writes, 50GB storage (pricing unavailable: Read, Write)"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 
 	// Verify cost calculation includes only storage
 	expectedCost := 50 * 0.25 // Only storage
-	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -2982,8 +3181,8 @@ func TestEstimateDynamoDB_NegativeCapacityUnits(t *testing.T) {
 
 	// Verify cost calculation treats negative as 0
 	expectedCost := 50 * 0.25 // Only storage
-	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -3023,8 +3222,8 @@ func TestEstimateDynamoDB_InvalidTagValues(t *testing.T) {
 
 	// Verify cost calculation treats invalid as 0
 	expectedCost := 50 * 0.25 // Only storage
-	if diff := resp.CostPerMonth - expectedCost; diff < -0.001 || diff > 0.001 {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -0.001 || diff > 0.001 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -3127,8 +3326,8 @@ func TestGetProjectedCost_NATGateway(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 
-			if resp.CostPerMonth != tt.wantCost {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			if resp.GetCostPerMonth() != tt.wantCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), tt.wantCost)
 			}
 		})
 	}
@@ -3138,7 +3337,7 @@ func TestGetProjectedCost_NATGateway(t *testing.T) {
 // with tiered pricing. AWS CloudWatch uses volume-based tiers for log ingestion:
 // - First 10 TB at a higher rate (e.g., $0.50/GB)
 // - Next 20 TB at a lower rate (e.g., $0.25/GB)
-// - Beyond 30 TB at an even lower rate
+// - Beyond 30 TB at an even lower rate.
 func TestGetProjectedCost_CloudWatch_LogsIngestion(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
@@ -3250,12 +3449,12 @@ func TestGetProjectedCost_CloudWatch_LogsIngestion(t *testing.T) {
 			}
 
 			// Allow small floating point tolerance
-			if abs(resp.CostPerMonth-tt.wantCost) > 0.01 {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			if abs(resp.GetCostPerMonth()-tt.wantCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), tt.wantCost)
 			}
 
-			if !strings.Contains(resp.BillingDetail, tt.wantContains) {
-				t.Errorf("BillingDetail = %q, want to contain %q", resp.BillingDetail, tt.wantContains)
+			if !strings.Contains(resp.GetBillingDetail(), tt.wantContains) {
+				t.Errorf("BillingDetail = %q, want to contain %q", resp.GetBillingDetail(), tt.wantContains)
 			}
 		})
 	}
@@ -3330,8 +3529,8 @@ func TestGetProjectedCost_CloudWatch_LogsStorage(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 
-			if abs(resp.CostPerMonth-tt.wantCost) > 0.01 {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			if abs(resp.GetCostPerMonth()-tt.wantCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), tt.wantCost)
 			}
 		})
 	}
@@ -3414,12 +3613,12 @@ func TestGetProjectedCost_CloudWatch_Metrics(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 
-			if abs(resp.CostPerMonth-tt.wantCost) > 0.01 {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, tt.wantCost)
+			if abs(resp.GetCostPerMonth()-tt.wantCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), tt.wantCost)
 			}
 
-			if tt.wantContains != "" && !strings.Contains(resp.BillingDetail, tt.wantContains) {
-				t.Errorf("BillingDetail = %q, want to contain %q", resp.BillingDetail, tt.wantContains)
+			if tt.wantContains != "" && !strings.Contains(resp.GetBillingDetail(), tt.wantContains) {
+				t.Errorf("BillingDetail = %q, want to contain %q", resp.GetBillingDetail(), tt.wantContains)
 			}
 		})
 	}
@@ -3457,16 +3656,16 @@ func TestGetProjectedCost_CloudWatch_Combined(t *testing.T) {
 	}
 
 	expectedCost := (100 * 0.50) + (500 * 0.03) + (1000 * 0.30)
-	if abs(resp.CostPerMonth-expectedCost) > 0.01 {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
 	// Should contain indicators for both logs and metrics
-	if !strings.Contains(resp.BillingDetail, "log") {
-		t.Errorf("BillingDetail should contain 'log', got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "log") {
+		t.Errorf("BillingDetail should contain 'log', got: %s", resp.GetBillingDetail())
 	}
-	if !strings.Contains(resp.BillingDetail, "metric") {
-		t.Errorf("BillingDetail should contain 'metric', got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "metric") {
+		t.Errorf("BillingDetail should contain 'metric', got: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -3493,14 +3692,14 @@ func TestGetProjectedCost_CloudWatch_MissingPricing(t *testing.T) {
 		t.Fatalf("Expected soft failure (no error), got: %v", err)
 	}
 
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0 (soft failure)", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 (soft failure)", resp.GetCostPerMonth())
 	}
 
 	// Billing detail should explain why cost is $0
-	if !strings.Contains(strings.ToLower(resp.BillingDetail), "unavailable") &&
-		!strings.Contains(strings.ToLower(resp.BillingDetail), "not available") {
-		t.Errorf("BillingDetail should indicate pricing unavailable, got: %s", resp.BillingDetail)
+	if !strings.Contains(strings.ToLower(resp.GetBillingDetail()), "unavailable") &&
+		!strings.Contains(strings.ToLower(resp.GetBillingDetail()), "not available") {
+		t.Errorf("BillingDetail should indicate pricing unavailable, got: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -3539,8 +3738,8 @@ func TestGetProjectedCost_CloudWatch_PulumiResourceType(t *testing.T) {
 			}
 
 			expectedCost := 100 * 0.50
-			if abs(resp.CostPerMonth-expectedCost) > 0.01 {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			if abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 			}
 		})
 	}
@@ -3553,7 +3752,7 @@ func TestGetProjectedCost_CloudWatch_PulumiResourceType(t *testing.T) {
 // - Multi-tier with quantity within first tier
 // - Multi-tier with quantity spanning multiple tiers
 // - Multi-tier with quantity exceeding all tiers
-// - Exact tier boundary values
+// - Exact tier boundary values.
 func TestCalculateTieredCost(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -3711,21 +3910,21 @@ func TestGetProjectedCost_ElastiCache_BasicRedis(t *testing.T) {
 
 	// Verify cost calculation: 0.156 * 730 = 113.88
 	expectedCost := 0.156 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if resp.UnitPrice != 0.156 {
-		t.Errorf("UnitPrice = %v, want 0.156", resp.UnitPrice)
+	if resp.GetUnitPrice() != 0.156 {
+		t.Errorf("UnitPrice = %v, want 0.156", resp.GetUnitPrice())
 	}
 
-	if resp.Currency != "USD" {
-		t.Errorf("Currency = %q, want %q", resp.Currency, "USD")
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want %q", resp.GetCurrency(), "USD")
 	}
 
 	expectedDetail := "ElastiCache cache.m5.large (redis), 1 node, 730 hrs/month"
-	if resp.BillingDetail != expectedDetail {
-		t.Errorf("BillingDetail = %q, want %q", resp.BillingDetail, expectedDetail)
+	if resp.GetBillingDetail() != expectedDetail {
+		t.Errorf("BillingDetail = %q, want %q", resp.GetBillingDetail(), expectedDetail)
 	}
 }
 
@@ -3754,8 +3953,8 @@ func TestGetProjectedCost_ElastiCache_PulumiClusterFormat(t *testing.T) {
 	}
 
 	expectedCost := 0.017 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -3784,8 +3983,8 @@ func TestGetProjectedCost_ElastiCache_PulumiReplicationGroupFormat(t *testing.T)
 	}
 
 	expectedCost := 0.252 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -3814,12 +4013,12 @@ func TestGetProjectedCost_ElastiCache_Memcached(t *testing.T) {
 
 	expectedCost := 0.148 * 730.0
 	tolerance := 0.001
-	if diff := resp.CostPerMonth - expectedCost; diff < -tolerance || diff > tolerance {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if diff := resp.GetCostPerMonth() - expectedCost; diff < -tolerance || diff > tolerance {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if !strings.Contains(resp.BillingDetail, "memcached") {
-		t.Errorf("BillingDetail should mention memcached: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "memcached") {
+		t.Errorf("BillingDetail should mention memcached: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -3847,12 +4046,12 @@ func TestGetProjectedCost_ElastiCache_Valkey(t *testing.T) {
 	}
 
 	expectedCost := 0.156 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if !strings.Contains(resp.BillingDetail, "valkey") {
-		t.Errorf("BillingDetail should mention valkey: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "valkey") {
+		t.Errorf("BillingDetail should mention valkey: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -3894,8 +4093,8 @@ func TestGetProjectedCost_ElastiCache_EngineCaseInsensitive(t *testing.T) {
 			}
 
 			expectedCost := 0.017 * 730.0
-			if resp.CostPerMonth != expectedCost {
-				t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+			if resp.GetCostPerMonth() != expectedCost {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 			}
 		})
 	}
@@ -3927,12 +4126,12 @@ func TestGetProjectedCost_ElastiCache_MultiNode(t *testing.T) {
 
 	// Verify cost calculation: 0.156 * 3 * 730 = 341.64
 	expectedCost := 0.156 * 3 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
-	if !strings.Contains(resp.BillingDetail, "3 nodes") {
-		t.Errorf("BillingDetail should mention 3 nodes: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "3 nodes") {
+		t.Errorf("BillingDetail should mention 3 nodes: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -3962,8 +4161,8 @@ func TestGetProjectedCost_ElastiCache_NumCacheClusters(t *testing.T) {
 
 	// Verify cost calculation: 0.252 * 5 * 730 = 919.8
 	expectedCost := 0.252 * 5 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 }
 
@@ -3989,13 +4188,13 @@ func TestGetProjectedCost_ElastiCache_DefaultEngine(t *testing.T) {
 	}
 
 	expectedCost := 0.017 * 730.0
-	if resp.CostPerMonth != expectedCost {
-		t.Errorf("CostPerMonth = %v, want %v", resp.CostPerMonth, expectedCost)
+	if resp.GetCostPerMonth() != expectedCost {
+		t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), expectedCost)
 	}
 
 	// BillingDetail should show redis (the default)
-	if !strings.Contains(resp.BillingDetail, "redis") {
-		t.Errorf("BillingDetail should show redis (default): %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "redis") {
+		t.Errorf("BillingDetail should show redis (default): %s", resp.GetBillingDetail())
 	}
 }
 
@@ -4023,12 +4222,12 @@ func TestGetProjectedCost_ElastiCache_MissingPricing(t *testing.T) {
 	}
 
 	// Should return $0 with explanation
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0 for missing pricing", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for missing pricing", resp.GetCostPerMonth())
 	}
 
-	if !strings.Contains(resp.BillingDetail, "not found") {
-		t.Errorf("BillingDetail should mention not found: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "not found") {
+		t.Errorf("BillingDetail should mention not found: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -4087,19 +4286,19 @@ func TestGetProjectedCost_ElastiCache_Carbon(t *testing.T) {
 	}
 
 	// Verify impact metrics exist
-	if len(resp.ImpactMetrics) == 0 {
+	if len(resp.GetImpactMetrics()) == 0 {
 		t.Fatal("ImpactMetrics should not be empty")
 	}
 
 	foundCarbon := false
-	for _, m := range resp.ImpactMetrics {
-		if m.Kind == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
+	for _, m := range resp.GetImpactMetrics() {
+		if m.GetKind() == pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
 			foundCarbon = true
-			if m.Value <= 0 {
-				t.Errorf("Carbon footprint value %v should be positive", m.Value)
+			if m.GetValue() <= 0 {
+				t.Errorf("Carbon footprint value %v should be positive", m.GetValue())
 			}
-			if m.Unit != "gCO2e" {
-				t.Errorf("Carbon footprint unit = %q, want %q", m.Unit, "gCO2e")
+			if m.GetUnit() != "gCO2e" {
+				t.Errorf("Carbon footprint unit = %q, want %q", m.GetUnit(), "gCO2e")
 			}
 		}
 	}
@@ -4196,12 +4395,12 @@ func TestEstimateZeroCostResource_VPC(t *testing.T) {
 		t.Fatalf("GetProjectedCost() returned error: %v", err)
 	}
 
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
 	}
 
-	if !strings.Contains(resp.BillingDetail, "VPC has no direct hourly or monthly charge") {
-		t.Errorf("BillingDetail should mention VPC no charge, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "VPC has no direct hourly or monthly charge") {
+		t.Errorf("BillingDetail should mention VPC no charge, got: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -4223,12 +4422,12 @@ func TestEstimateZeroCostResource_SecurityGroup(t *testing.T) {
 		t.Fatalf("GetProjectedCost() returned error: %v", err)
 	}
 
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
 	}
 
-	if !strings.Contains(resp.BillingDetail, "Security Groups have no direct charge") {
-		t.Errorf("BillingDetail should mention Security Group no charge, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "Security Groups have no direct charge") {
+		t.Errorf("BillingDetail should mention Security Group no charge, got: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -4250,12 +4449,12 @@ func TestEstimateZeroCostResource_Subnet(t *testing.T) {
 		t.Fatalf("GetProjectedCost() returned error: %v", err)
 	}
 
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
 	}
 
-	if !strings.Contains(resp.BillingDetail, "Subnets have no direct charge") {
-		t.Errorf("BillingDetail should mention Subnet no charge, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "Subnets have no direct charge") {
+		t.Errorf("BillingDetail should mention Subnet no charge, got: %s", resp.GetBillingDetail())
 	}
 }
 
@@ -4288,12 +4487,12 @@ func TestEstimateZeroCostResource_PulumiFormat(t *testing.T) {
 				t.Fatalf("GetProjectedCost() returned error: %v", err)
 			}
 
-			if resp.CostPerMonth != 0 {
-				t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+			if resp.GetCostPerMonth() != 0 {
+				t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
 			}
 
-			if !strings.Contains(resp.BillingDetail, tt.expectText) {
-				t.Errorf("BillingDetail should contain %q, got: %s", tt.expectText, resp.BillingDetail)
+			if !strings.Contains(resp.GetBillingDetail(), tt.expectText) {
+				t.Errorf("BillingDetail should contain %q, got: %s", tt.expectText, resp.GetBillingDetail())
 			}
 		})
 	}
@@ -4354,16 +4553,72 @@ func TestGetProjectedCost_IAM(t *testing.T) {
 				t.Fatalf("GetProjectedCost() returned error: %v", err)
 			}
 
-			if resp.CostPerMonth != 0 {
-				t.Errorf("CostPerMonth = %v, want 0", resp.CostPerMonth)
+			if resp.GetCostPerMonth() != 0 {
+				t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
 			}
 
-			if !strings.Contains(resp.BillingDetail, "IAM") {
-				t.Errorf("BillingDetail %q does not contain \"IAM\"", resp.BillingDetail)
+			if !strings.Contains(resp.GetBillingDetail(), "IAM") {
+				t.Errorf("BillingDetail %q does not contain \"IAM\"", resp.GetBillingDetail())
 			}
 
-			if len(resp.ImpactMetrics) > 0 {
-				t.Errorf("ImpactMetrics = %v, want empty for IAM", resp.ImpactMetrics)
+			if len(resp.GetImpactMetrics()) > 0 {
+				t.Errorf("ImpactMetrics = %v, want empty for IAM", resp.GetImpactMetrics())
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_LaunchTemplate verifies that LaunchTemplate and LaunchConfiguration
+// resources return $0 via GetProjectedCost. These are configuration-only resources with
+// no direct AWS charges. Regression test for issue #294.
+func TestGetProjectedCost_LaunchTemplate(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	tests := []struct {
+		name         string
+		resourceType string
+		tags         map[string]string
+	}{
+		{"LaunchTemplate canonical", "launchtemplate", nil},
+		{"LaunchTemplate Pulumi", "aws:ec2/launchTemplate:LaunchTemplate", nil},
+		{"LaunchConfiguration canonical", "launchconfiguration", nil},
+		{"LaunchConfiguration Pulumi", "aws:ec2/launchConfiguration:LaunchConfiguration", nil},
+		{
+			"LaunchTemplate with instanceType tag",
+			"aws:ec2/launchTemplate:LaunchTemplate",
+			map[string]string{"instanceType": "t3.micro"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+					Tags:         tt.tags,
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			if resp.GetCostPerMonth() != 0 {
+				t.Errorf("CostPerMonth = %v, want 0", resp.GetCostPerMonth())
+			}
+
+			if resp.GetUnitPrice() != 0 {
+				t.Errorf("UnitPrice = %v, want 0", resp.GetUnitPrice())
+			}
+
+			detail := resp.GetBillingDetail()
+			if !strings.Contains(strings.ToLower(detail), "no direct charge") &&
+				!strings.Contains(strings.ToLower(detail), "configuration") {
+				t.Errorf("BillingDetail %q should indicate zero-cost/configuration resource", detail)
 			}
 		})
 	}
@@ -4391,12 +4646,13 @@ func TestGetProjectedCost_PricingUnavailable(t *testing.T) {
 	}
 
 	// FR-005: MUST return $0 for backward compatibility
-	if resp.CostPerMonth != 0 {
-		t.Errorf("CostPerMonth = %v, want 0 for unavailable pricing", resp.CostPerMonth)
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %v, want 0 for unavailable pricing", resp.GetCostPerMonth())
 	}
 
 	// MUST explain why pricing is unavailable
-	if !strings.Contains(resp.BillingDetail, "not found") && !strings.Contains(resp.BillingDetail, "not available") {
-		t.Errorf("BillingDetail should explain missing pricing, got: %s", resp.BillingDetail)
+	if !strings.Contains(resp.GetBillingDetail(), "not found") &&
+		!strings.Contains(resp.GetBillingDetail(), "not available") {
+		t.Errorf("BillingDetail should explain missing pricing, got: %s", resp.GetBillingDetail())
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -39,7 +40,11 @@ var serviceConfig = map[string]string{
 func main() {
 	regions := flag.String("regions", "us-east-1", "Comma-separated regions")
 	outDir := flag.String("out-dir", "./data", "Output directory")
-	service := flag.String("service", "AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB,AmazonVPC,AmazonCloudWatch,AmazonElastiCache", "AWS Service Codes (comma-separated)")
+	service := flag.String(
+		"service",
+		"AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB,AmazonVPC,AmazonCloudWatch,AmazonElastiCache",
+		"AWS Service Codes (comma-separated)",
+	)
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")
 
 	flag.Parse()
@@ -85,7 +90,7 @@ func main() {
 // or any file write fails.
 func generatePerServicePricingData(region string, services []string, outDir string) error {
 	// Ensure output directory exists
-	if err := os.MkdirAll(outDir, 0755); err != nil {
+	if err := os.MkdirAll(outDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -102,16 +107,16 @@ func generatePerServicePricingData(region string, services []string, outDir stri
 		}
 
 		fmt.Printf("Fetching %s for %s...\n", service, region)
-		data, err := fetchServicePricingRaw(region, service)
-		if err != nil {
+		data, fetchErr := fetchServicePricingRaw(region, service)
+		if fetchErr != nil {
 			// Fail fast - do not continue with partial data
-			return fmt.Errorf("failed to fetch %s: %w", service, err)
+			return fmt.Errorf("failed to fetch %s: %w", service, fetchErr)
 		}
 
 		// Write per-service file: {prefix}_{region}.json (e.g., ec2_us-east-1.json)
 		outFile := fmt.Sprintf("%s/%s_%s.json", outDir, prefix, region)
-		if err := writeRawPricingFile(data, outFile); err != nil {
-			return fmt.Errorf("failed to write %s: %w", outFile, err)
+		if writeErr := writeRawPricingFile(data, outFile); writeErr != nil {
+			return fmt.Errorf("failed to write %s: %w", outFile, writeErr)
 		}
 
 		fmt.Printf("Wrote %s (%d bytes)\n", outFile, len(data))
@@ -120,7 +125,7 @@ func generatePerServicePricingData(region string, services []string, outDir stri
 	return nil
 }
 
-// httpRequestTimeout is the timeout for HTTP requests to AWS pricing API
+// httpRequestTimeout is the timeout for HTTP requests to AWS pricing API.
 const httpRequestTimeout = 5 * time.Minute
 
 // awsPricingResponse represents the structure of AWS Price List API response.
@@ -145,7 +150,11 @@ type awsPricingResponse struct {
 // Returns the filtered JSON bytes on success. An error is returned if the HTTP request fails,
 // the response status is not 200 OK, or reading the response body fails.
 func fetchServicePricingRaw(region, service string) ([]byte, error) {
-	url := fmt.Sprintf("https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/%s/current/%s/index.json", service, region)
+	url := fmt.Sprintf(
+		"https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/%s/current/%s/index.json",
+		service,
+		region,
+	)
 
 	// Create request with context for timeout support
 	ctx, cancel := context.WithTimeout(context.Background(), httpRequestTimeout)
@@ -177,12 +186,12 @@ func fetchServicePricingRaw(region, service string) ([]byte, error) {
 
 	// Parse the response to filter terms
 	var pricing awsPricingResponse
-	if err := json.Unmarshal(body, &pricing); err != nil {
-		return nil, fmt.Errorf("invalid JSON response: %w", err)
+	if unmarshalErr := json.Unmarshal(body, &pricing); unmarshalErr != nil {
+		return nil, fmt.Errorf("invalid JSON response: %w", unmarshalErr)
 	}
 
 	if pricing.OfferCode == "" {
-		return nil, fmt.Errorf("missing offerCode in response")
+		return nil, errors.New("missing offerCode in response")
 	}
 	if len(pricing.Products) == 0 {
 		return nil, fmt.Errorf("no products in response for %s/%s", service, region)
@@ -243,17 +252,17 @@ func writeRawPricingFile(data []byte, outFile string) error {
 		}
 	}()
 
-	if _, err := tmpFile.Write(data); err != nil {
-		return fmt.Errorf("failed to write data: %w", err)
+	if _, writeErr := tmpFile.Write(data); writeErr != nil {
+		return fmt.Errorf("failed to write data: %w", writeErr)
 	}
 
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temp file: %w", err)
+	if closeErr := tmpFile.Close(); closeErr != nil {
+		return fmt.Errorf("failed to close temp file: %w", closeErr)
 	}
 
 	// Atomic rename (works on same filesystem)
-	if err := os.Rename(tmpPath, outFile); err != nil {
-		return fmt.Errorf("failed to rename temp file to %s: %w", outFile, err)
+	if renameErr := os.Rename(tmpPath, outFile); renameErr != nil {
+		return fmt.Errorf("failed to rename temp file to %s: %w", outFile, renameErr)
 	}
 
 	success = true

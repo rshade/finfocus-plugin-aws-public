@@ -39,10 +39,11 @@ func (e *DynamoDBEstimator) EstimateCarbonGrams(config DynamoDBTableConfig) (flo
 		return carbonGrams, true
 	}
 
-	// Fallback to DynamoDB defaults: SSD with 3× replication for durability
-	// This ensures we always return a value even if specs are missing
+	// Fallback to DynamoDB defaults: SSD with 3× replication for durability.
+	// This ensures we always return a value even if specs are missing.
+	// Note: Technology is not used in the calculation below, so it is omitted
+	// to avoid an unused write.
 	spec := StorageSpec{
-		Technology:        "SSD",
 		ReplicationFactor: 3,
 		PowerCoefficient:  SSDPowerCoefficient,
 	}

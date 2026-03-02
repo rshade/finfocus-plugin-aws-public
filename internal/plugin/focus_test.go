@@ -132,8 +132,8 @@ func TestGetPricingUnitForService(t *testing.T) {
 		{"rds", "Hours"},
 		{"eks", "Hours"},
 		{"elb", "Hours"},
-		{"alb", "Hours"},  // ALB variant
-		{"nlb", "Hours"},  // NLB variant
+		{"alb", "Hours"}, // ALB variant
+		{"nlb", "Hours"}, // NLB variant
 		{"natgw", "Hours"},
 		{"ebs", "GB-Mo"},
 		{"s3", "GB-Mo"},
@@ -171,81 +171,81 @@ func TestBuildFocusRecord(t *testing.T) {
 	)
 
 	// Verify cost fields (all equal for public pricing)
-	if record.BilledCost != 100.50 {
-		t.Errorf("BilledCost = %v, want 100.50", record.BilledCost)
+	if record.GetBilledCost() != 100.50 {
+		t.Errorf("BilledCost = %v, want 100.50", record.GetBilledCost())
 	}
-	if record.EffectiveCost != 100.50 {
-		t.Errorf("EffectiveCost = %v, want 100.50", record.EffectiveCost)
+	if record.GetEffectiveCost() != 100.50 {
+		t.Errorf("EffectiveCost = %v, want 100.50", record.GetEffectiveCost())
 	}
-	if record.ListCost != 100.50 {
-		t.Errorf("ListCost = %v, want 100.50", record.ListCost)
+	if record.GetListCost() != 100.50 {
+		t.Errorf("ListCost = %v, want 100.50", record.GetListCost())
 	}
-	if record.ListUnitPrice != 0.1376 {
-		t.Errorf("ListUnitPrice = %v, want 0.1376", record.ListUnitPrice)
+	if record.GetListUnitPrice() != 0.1376 {
+		t.Errorf("ListUnitPrice = %v, want 0.1376", record.GetListUnitPrice())
 	}
 
 	// Verify service classification
-	if record.ServiceCategory != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE {
-		t.Errorf("ServiceCategory = %v, want COMPUTE", record.ServiceCategory)
+	if record.GetServiceCategory() != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE {
+		t.Errorf("ServiceCategory = %v, want COMPUTE", record.GetServiceCategory())
 	}
-	if record.ServiceName != "Amazon EC2" {
-		t.Errorf("ServiceName = %q, want 'Amazon EC2'", record.ServiceName)
+	if record.GetServiceName() != "Amazon EC2" {
+		t.Errorf("ServiceName = %q, want 'Amazon EC2'", record.GetServiceName())
 	}
 
 	// Verify charge classification
-	if record.ChargeCategory != pbc.FocusChargeCategory_FOCUS_CHARGE_CATEGORY_USAGE {
-		t.Errorf("ChargeCategory = %v, want USAGE", record.ChargeCategory)
+	if record.GetChargeCategory() != pbc.FocusChargeCategory_FOCUS_CHARGE_CATEGORY_USAGE {
+		t.Errorf("ChargeCategory = %v, want USAGE", record.GetChargeCategory())
 	}
-	if record.ChargeClass != pbc.FocusChargeClass_FOCUS_CHARGE_CLASS_REGULAR {
-		t.Errorf("ChargeClass = %v, want REGULAR", record.ChargeClass)
+	if record.GetChargeClass() != pbc.FocusChargeClass_FOCUS_CHARGE_CLASS_REGULAR {
+		t.Errorf("ChargeClass = %v, want REGULAR", record.GetChargeClass())
 	}
-	if record.ChargeFrequency != pbc.FocusChargeFrequency_FOCUS_CHARGE_FREQUENCY_USAGE_BASED {
-		t.Errorf("ChargeFrequency = %v, want USAGE_BASED", record.ChargeFrequency)
+	if record.GetChargeFrequency() != pbc.FocusChargeFrequency_FOCUS_CHARGE_FREQUENCY_USAGE_BASED {
+		t.Errorf("ChargeFrequency = %v, want USAGE_BASED", record.GetChargeFrequency())
 	}
 
 	// Verify pricing
-	if record.PricingCategory != pbc.FocusPricingCategory_FOCUS_PRICING_CATEGORY_STANDARD {
-		t.Errorf("PricingCategory = %v, want STANDARD", record.PricingCategory)
+	if record.GetPricingCategory() != pbc.FocusPricingCategory_FOCUS_PRICING_CATEGORY_STANDARD {
+		t.Errorf("PricingCategory = %v, want STANDARD", record.GetPricingCategory())
 	}
-	if record.PricingUnit != "Hours" {
-		t.Errorf("PricingUnit = %q, want 'Hours'", record.PricingUnit)
+	if record.GetPricingUnit() != "Hours" {
+		t.Errorf("PricingUnit = %q, want 'Hours'", record.GetPricingUnit())
 	}
 
 	// Verify timestamps
-	if record.ChargePeriodStart == nil {
+	if record.GetChargePeriodStart() == nil {
 		t.Error("ChargePeriodStart is nil")
-	} else if !record.ChargePeriodStart.AsTime().Equal(start) {
-		t.Errorf("ChargePeriodStart = %v, want %v", record.ChargePeriodStart.AsTime(), start)
+	} else if !record.GetChargePeriodStart().AsTime().Equal(start) {
+		t.Errorf("ChargePeriodStart = %v, want %v", record.GetChargePeriodStart().AsTime(), start)
 	}
-	if record.ChargePeriodEnd == nil {
+	if record.GetChargePeriodEnd() == nil {
 		t.Error("ChargePeriodEnd is nil")
-	} else if !record.ChargePeriodEnd.AsTime().Equal(end) {
-		t.Errorf("ChargePeriodEnd = %v, want %v", record.ChargePeriodEnd.AsTime(), end)
+	} else if !record.GetChargePeriodEnd().AsTime().Equal(end) {
+		t.Errorf("ChargePeriodEnd = %v, want %v", record.GetChargePeriodEnd().AsTime(), end)
 	}
 
 	// Verify location and currency
-	if record.RegionId != "us-east-1" {
-		t.Errorf("RegionId = %q, want 'us-east-1'", record.RegionId)
+	if record.GetRegionId() != "us-east-1" {
+		t.Errorf("RegionId = %q, want 'us-east-1'", record.GetRegionId())
 	}
-	if record.BillingCurrency != "USD" {
-		t.Errorf("BillingCurrency = %q, want 'USD'", record.BillingCurrency)
+	if record.GetBillingCurrency() != "USD" {
+		t.Errorf("BillingCurrency = %q, want 'USD'", record.GetBillingCurrency())
 	}
 
 	// Verify resource identification
-	if record.ResourceType != "aws:ec2/instance:Instance" {
-		t.Errorf("ResourceType = %q, want 'aws:ec2/instance:Instance'", record.ResourceType)
+	if record.GetResourceType() != "aws:ec2/instance:Instance" {
+		t.Errorf("ResourceType = %q, want 'aws:ec2/instance:Instance'", record.GetResourceType())
 	}
-	if record.SkuId != "t3.micro" {
-		t.Errorf("SkuId = %q, want 't3.micro'", record.SkuId)
+	if record.GetSkuId() != "t3.micro" {
+		t.Errorf("SkuId = %q, want 't3.micro'", record.GetSkuId())
 	}
 
 	// Verify provider
-	if record.ServiceProviderName != "AWS" {
-		t.Errorf("ServiceProviderName = %q, want 'AWS'", record.ServiceProviderName)
+	if record.GetServiceProviderName() != "AWS" {
+		t.Errorf("ServiceProviderName = %q, want 'AWS'", record.GetServiceProviderName())
 	}
 
 	// Verify description exists
-	if record.ChargeDescription == "" {
+	if record.GetChargeDescription() == "" {
 		t.Error("ChargeDescription is empty")
 	}
 }
@@ -268,14 +268,14 @@ func TestBuildFocusRecordStorageService(t *testing.T) {
 	)
 
 	// Verify storage category
-	if record.ServiceCategory != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE {
-		t.Errorf("ServiceCategory = %v, want STORAGE", record.ServiceCategory)
+	if record.GetServiceCategory() != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE {
+		t.Errorf("ServiceCategory = %v, want STORAGE", record.GetServiceCategory())
 	}
-	if record.ServiceName != "Amazon S3" {
-		t.Errorf("ServiceName = %q, want 'Amazon S3'", record.ServiceName)
+	if record.GetServiceName() != "Amazon S3" {
+		t.Errorf("ServiceName = %q, want 'Amazon S3'", record.GetServiceName())
 	}
-	if record.PricingUnit != "GB-Mo" {
-		t.Errorf("PricingUnit = %q, want 'GB-Mo'", record.PricingUnit)
+	if record.GetPricingUnit() != "GB-Mo" {
+		t.Errorf("PricingUnit = %q, want 'GB-Mo'", record.GetPricingUnit())
 	}
 }
 
@@ -296,11 +296,11 @@ func TestBuildFocusRecordDatabaseService(t *testing.T) {
 	)
 
 	// Verify database category
-	if record.ServiceCategory != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_DATABASE {
-		t.Errorf("ServiceCategory = %v, want DATABASE", record.ServiceCategory)
+	if record.GetServiceCategory() != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_DATABASE {
+		t.Errorf("ServiceCategory = %v, want DATABASE", record.GetServiceCategory())
 	}
-	if record.ServiceName != "Amazon RDS" {
-		t.Errorf("ServiceName = %q, want 'Amazon RDS'", record.ServiceName)
+	if record.GetServiceName() != "Amazon RDS" {
+		t.Errorf("ServiceName = %q, want 'Amazon RDS'", record.GetServiceName())
 	}
 }
 
@@ -321,10 +321,10 @@ func TestBuildFocusRecordNetworkService(t *testing.T) {
 	)
 
 	// Verify network category
-	if record.ServiceCategory != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_NETWORK {
-		t.Errorf("ServiceCategory = %v, want NETWORK", record.ServiceCategory)
+	if record.GetServiceCategory() != pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_NETWORK {
+		t.Errorf("ServiceCategory = %v, want NETWORK", record.GetServiceCategory())
 	}
-	if record.ServiceName != "Amazon VPC NAT Gateway" {
-		t.Errorf("ServiceName = %q, want 'Amazon VPC NAT Gateway'", record.ServiceName)
+	if record.GetServiceName() != "Amazon VPC NAT Gateway" {
+		t.Errorf("ServiceName = %q, want 'Amazon VPC NAT Gateway'", record.GetServiceName())
 	}
 }

@@ -3,6 +3,7 @@ package carbon
 import (
 	_ "embed"
 	"encoding/csv"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -91,13 +92,13 @@ func parseInstanceSpecs() {
 	}
 
 	for {
-		record, err := reader.Read()
-		if err == io.EOF {
+		record, readErr := reader.Read()
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
-		if err != nil {
+		if readErr != nil {
 			// Skip malformed rows
-			logger.Warn().Err(err).Msg("skipping malformed CCF instance specs CSV row")
+			logger.Warn().Err(readErr).Msg("skipping malformed CCF instance specs CSV row")
 			continue
 		}
 
@@ -112,8 +113,8 @@ func parseInstanceSpecs() {
 		}
 
 		// Parse vCPU count
-		vcpuCount, err := strconv.Atoi(strings.TrimSpace(record[colVCPUCount]))
-		if err != nil || vcpuCount < 1 {
+		vcpuCount, parseErr := strconv.Atoi(strings.TrimSpace(record[colVCPUCount]))
+		if parseErr != nil || vcpuCount < 1 {
 			continue
 		}
 

@@ -14,7 +14,9 @@ func TestFetchMetrics(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte("# HELP test_metric Test metric\n# TYPE test_metric gauge\ntest_metric 1\n")); err != nil {
+		if _, err := w.Write(
+			[]byte("# HELP test_metric Test metric\n# TYPE test_metric gauge\ntest_metric 1\n"),
+		); err != nil {
 			t.Fatalf("Failed to write response: %v", err)
 		}
 	}))
@@ -57,7 +59,7 @@ func TestAggregatedMetricsHandler(t *testing.T) {
 		Timeout: config.Timeout,
 	}
 
-	req := httptest.NewRequest("GET", "/metrics/aggregated", nil)
+	req := httptest.NewRequest(http.MethodGet, "/metrics/aggregated", nil)
 	w := httptest.NewRecorder()
 
 	aggregatedMetricsHandler(w, req, config, httpClient)

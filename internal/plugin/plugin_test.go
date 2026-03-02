@@ -309,7 +309,7 @@ func BenchmarkLoggingOverhead(b *testing.B) {
 	}
 }
 
-// T017: Test trace_id propagation with provided trace_id in gRPC metadata
+// T017: Test trace_id propagation with provided trace_id in gRPC metadata.
 func TestTraceIDPropagationWithProvidedTraceID(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -365,7 +365,7 @@ func TestTraceIDPropagationWithProvidedTraceID(t *testing.T) {
 	}
 }
 
-// T018: Test UUID generation when trace_id is missing from context
+// T018: Test UUID generation when trace_id is missing from context.
 func TestTraceIDGenerationWhenMissing(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -452,7 +452,7 @@ func TestConcurrentRequestsWithDifferentTraceIDs(t *testing.T) {
 	}
 }
 
-// T029: Test error logs contain error_code field
+// T029: Test error logs contain error_code field.
 func TestErrorLogsContainErrorCode(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -546,7 +546,7 @@ func TestErrorResponseContainsTraceID(t *testing.T) {
 	var foundTraceID bool
 	for _, detail := range st.Details() {
 		if errDetail, ok := detail.(*pbc.ErrorDetail); ok {
-			if traceID, exists := errDetail.Details["trace_id"]; exists {
+			if traceID, exists := errDetail.GetDetails()["trace_id"]; exists {
 				if traceID == expectedTraceID {
 					foundTraceID = true
 					t.Logf("Found trace_id in error details: %s", traceID)
@@ -562,7 +562,7 @@ func TestErrorResponseContainsTraceID(t *testing.T) {
 	}
 }
 
-// T033: Test startup log format contains required fields
+// T033: Test startup log format contains required fields.
 func TestStartupLogFormat(t *testing.T) {
 	var logBuf bytes.Buffer
 	// Simulate what main.go does

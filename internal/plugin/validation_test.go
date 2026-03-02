@@ -47,7 +47,7 @@ func TestValidateProjectedCostRequest(t *testing.T) {
 		},
 		{
 			name: "missing resource",
-			req: &pbc.GetProjectedCostRequest{
+			req:  &pbc.GetProjectedCostRequest{
 				// Resource is nil
 			},
 			wantError: true,
@@ -84,11 +84,11 @@ func TestValidateProjectedCostRequest(t *testing.T) {
 				require.NotEmpty(t, details)
 				errDetail, ok := details[0].(*pbc.ErrorDetail)
 				require.True(t, ok)
-				assert.Equal(t, tt.pbcCode, errDetail.Code)
-				assert.Contains(t, errDetail.Details, "trace_id")
+				assert.Equal(t, tt.pbcCode, errDetail.GetCode())
+				assert.Contains(t, errDetail.GetDetails(), "trace_id")
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.req.Resource, res)
+				assert.Equal(t, tt.req.GetResource(), res)
 			}
 		})
 	}
@@ -172,10 +172,10 @@ func TestValidateActualCostRequest(t *testing.T) {
 				require.NotEmpty(t, details)
 				errDetail, ok := details[0].(*pbc.ErrorDetail)
 				require.True(t, ok)
-				assert.Equal(t, tt.pbcCode, errDetail.Code)
+				assert.Equal(t, tt.pbcCode, errDetail.GetCode())
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.req.Tags["region"], res.Region)
+				assert.Equal(t, tt.req.GetTags()["region"], res.GetRegion())
 			}
 		})
 	}
@@ -197,13 +197,13 @@ func TestRegionMismatchError(t *testing.T) {
 
 	errDetail, ok := details[0].(*pbc.ErrorDetail)
 	require.True(t, ok)
-	assert.Equal(t, pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION, errDetail.Code)
-	assert.Equal(t, "trace-123", errDetail.Details["trace_id"])
-	assert.Equal(t, "us-east-1", errDetail.Details["plugin_region"])
-	assert.Equal(t, "us-west-2", errDetail.Details["resource_region"])
+	assert.Equal(t, pbc.ErrorCode_ERROR_CODE_UNSUPPORTED_REGION, errDetail.GetCode())
+	assert.Equal(t, "trace-123", errDetail.GetDetails()["trace_id"])
+	assert.Equal(t, "us-east-1", errDetail.GetDetails()["plugin_region"])
+	assert.Equal(t, "us-west-2", errDetail.GetDetails()["resource_region"])
 }
 
-// TestValidateActualCostRequest_ARN tests ARN-based resource identification (T072)
+// TestValidateActualCostRequest_ARN tests ARN-based resource identification (T072).
 func TestValidateActualCostRequest_ARN(t *testing.T) {
 	logger := zerolog.Nop()
 	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
@@ -350,13 +350,13 @@ func TestValidateActualCostRequest_ARN(t *testing.T) {
 				require.NotEmpty(t, details)
 				errDetail, ok := details[0].(*pbc.ErrorDetail)
 				require.True(t, ok)
-				assert.Equal(t, tt.pbcCode, errDetail.Code)
+				assert.Equal(t, tt.pbcCode, errDetail.GetCode())
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.wantResource.Provider, res.Provider)
-				assert.Equal(t, tt.wantResource.ResourceType, res.ResourceType)
-				assert.Equal(t, tt.wantResource.Sku, res.Sku)
-				assert.Equal(t, tt.wantResource.Region, res.Region)
+				assert.Equal(t, tt.wantResource.GetProvider(), res.GetProvider())
+				assert.Equal(t, tt.wantResource.GetResourceType(), res.GetResourceType())
+				assert.Equal(t, tt.wantResource.GetSku(), res.GetSku())
+				assert.Equal(t, tt.wantResource.GetRegion(), res.GetRegion())
 			}
 		})
 	}
@@ -372,9 +372,9 @@ func TestRegionFallbackGlobalServices(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name      string
-		req       *pbc.GetActualCostRequest
-		wantError bool
+		name        string
+		req         *pbc.GetActualCostRequest
+		wantError   bool
 		checkRegion bool
 	}{
 		{
@@ -414,7 +414,7 @@ func TestRegionFallbackGlobalServices(t *testing.T) {
 				require.NoError(t, err, "validation should pass for global services")
 				assert.NotNil(t, res)
 				if tt.checkRegion {
-					assert.Equal(t, "us-east-1", res.Region, "global service should have plugin region assigned")
+					assert.Equal(t, "us-east-1", res.GetRegion(), "global service should have plugin region assigned")
 				}
 			}
 		})
@@ -451,7 +451,7 @@ func TestValidateProjectedCostRequest_ZeroCostResource_NoSKURequired(t *testing.
 
 			res, err := p.ValidateProjectedCostRequest(ctx, req)
 			require.NoError(t, err)
-			assert.Equal(t, tt.resourceType, res.ResourceType)
+			assert.Equal(t, tt.resourceType, res.GetResourceType())
 		})
 	}
 }
