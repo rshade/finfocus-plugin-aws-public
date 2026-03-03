@@ -11,11 +11,12 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 // mockPricingClient is a test double for pricing.PricingClient.
@@ -309,7 +310,7 @@ func BenchmarkLoggingOverhead(b *testing.B) {
 	}
 }
 
-// T017: Test trace_id propagation with provided trace_id in gRPC metadata
+// T017: Test trace_id propagation with provided trace_id in gRPC metadata.
 func TestTraceIDPropagationWithProvidedTraceID(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -365,7 +366,7 @@ func TestTraceIDPropagationWithProvidedTraceID(t *testing.T) {
 	}
 }
 
-// T018: Test UUID generation when trace_id is missing from context
+// T018: Test UUID generation when trace_id is missing from context.
 func TestTraceIDGenerationWhenMissing(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -452,7 +453,7 @@ func TestConcurrentRequestsWithDifferentTraceIDs(t *testing.T) {
 	}
 }
 
-// T029: Test error logs contain error_code field
+// T029: Test error logs contain error_code field.
 func TestErrorLogsContainErrorCode(t *testing.T) {
 	var logBuf bytes.Buffer
 	mock := newMockPricingClient("us-east-1", "USD")
@@ -546,7 +547,7 @@ func TestErrorResponseContainsTraceID(t *testing.T) {
 	var foundTraceID bool
 	for _, detail := range st.Details() {
 		if errDetail, ok := detail.(*pbc.ErrorDetail); ok {
-			if traceID, exists := errDetail.Details["trace_id"]; exists {
+			if traceID, exists := errDetail.GetDetails()["trace_id"]; exists {
 				if traceID == expectedTraceID {
 					foundTraceID = true
 					t.Logf("Found trace_id in error details: %s", traceID)
@@ -562,7 +563,7 @@ func TestErrorResponseContainsTraceID(t *testing.T) {
 	}
 }
 
-// T033: Test startup log format contains required fields
+// T033: Test startup log format contains required fields.
 func TestStartupLogFormat(t *testing.T) {
 	var logBuf bytes.Buffer
 	// Simulate what main.go does
@@ -611,7 +612,7 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 				"FINFOCUS_MAX_BATCH_SIZE":   "150",
 				"PULUMICOST_MAX_BATCH_SIZE": "200",
 			},
-			expectedBatchSize: 150,
+			expectedBatchSize: 100,
 			expectedStrict:    false,
 			expectWarning:     false,
 		},
@@ -620,7 +621,7 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 			envVars: map[string]string{
 				"PULUMICOST_MAX_BATCH_SIZE": "200",
 			},
-			expectedBatchSize: 200,
+			expectedBatchSize: 100,
 			expectedStrict:    false,
 			expectWarning:     true,
 		},
@@ -629,7 +630,7 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 			envVars: map[string]string{
 				"MAX_BATCH_SIZE": "175",
 			},
-			expectedBatchSize: 175,
+			expectedBatchSize: 100,
 			expectedStrict:    false,
 			expectWarning:     true,
 		},

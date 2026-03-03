@@ -21,8 +21,8 @@ func TestCalculateCarbonGrams(t *testing.T) {
 	}{
 		{
 			name:          "typical EC2 instance at 50% utilization",
-			minWatts:      0.47,  // t3.micro idle
-			maxWatts:      1.69,  // t3.micro 100%
+			minWatts:      0.47, // t3.micro idle
+			maxWatts:      1.69, // t3.micro 100%
 			vCPUCount:     2,
 			utilization:   0.50,
 			gridIntensity: 0.000379, // us-east-1
@@ -253,32 +253,32 @@ func TestEstimator_GPU_NonGPUInstanceUnaffected(t *testing.T) {
 // TestEstimator_EstimateCarbonGramsWithBreakdown verifies the breakdown method.
 func TestEstimator_EstimateCarbonGramsWithBreakdown(t *testing.T) {
 	tests := []struct {
-		name            string
-		instanceType    string
-		wantGPUCarbon   bool
-		minTotalCarbon  float64
-		maxTotalCarbon  float64
+		name           string
+		instanceType   string
+		wantGPUCarbon  bool
+		minTotalCarbon float64
+		maxTotalCarbon float64
 	}{
 		{
-			name:            "GPU instance has both CPU and GPU carbon",
-			instanceType:    "p4d.24xlarge",
-			wantGPUCarbon:   true,
-			minTotalCarbon:  1000000.0,  // p4d.24xlarge has 96 vCPUs + 8x A100 GPUs
-			maxTotalCarbon:  20000000.0, // High due to 96 vCPUs + 3200W GPU power
+			name:           "GPU instance has both CPU and GPU carbon",
+			instanceType:   "p4d.24xlarge",
+			wantGPUCarbon:  true,
+			minTotalCarbon: 1000000.0,  // p4d.24xlarge has 96 vCPUs + 8x A100 GPUs
+			maxTotalCarbon: 20000000.0, // High due to 96 vCPUs + 3200W GPU power
 		},
 		{
-			name:            "non-GPU instance has only CPU carbon",
-			instanceType:    "t3.micro",
-			wantGPUCarbon:   false,
-			minTotalCarbon:  100.0,
-			maxTotalCarbon:  5000.0,
+			name:           "non-GPU instance has only CPU carbon",
+			instanceType:   "t3.micro",
+			wantGPUCarbon:  false,
+			minTotalCarbon: 100.0,
+			maxTotalCarbon: 5000.0,
 		},
 		{
-			name:            "g4dn.xlarge has moderate GPU carbon (1x T4)",
-			instanceType:    "g4dn.xlarge",
-			wantGPUCarbon:   true,
-			minTotalCarbon:  10000.0,
-			maxTotalCarbon:  500000.0, // g4dn.xlarge has 4 vCPUs + 1 T4 GPU (70W)
+			name:           "g4dn.xlarge has moderate GPU carbon (1x T4)",
+			instanceType:   "g4dn.xlarge",
+			wantGPUCarbon:  true,
+			minTotalCarbon: 10000.0,
+			maxTotalCarbon: 500000.0, // g4dn.xlarge has 4 vCPUs + 1 T4 GPU (70W)
 		},
 	}
 

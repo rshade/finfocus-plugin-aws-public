@@ -1,5 +1,3 @@
-// Package carbon provides carbon emission estimation for AWS resources
-// using Cloud Carbon Footprint (CCF) methodology.
 package carbon
 
 const (

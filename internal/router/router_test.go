@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/goccy/go-json"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,6 +103,14 @@ func TestExtractRegionFromResource(t *testing.T) {
 
 // TestExtractRegionFromActualCostRequest verifies region extraction from GetActualCostRequest.
 func TestExtractRegionFromActualCostRequest(t *testing.T) {
+	resourceJSON, err := json.Marshal(&pbc.ResourceDescriptor{
+		Provider:     "aws",
+		ResourceType: "ec2",
+		Sku:          "t3.micro",
+		Region:       "eu-west-1",
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name     string
 		req      *pbc.GetActualCostRequest
@@ -115,6 +124,21 @@ func TestExtractRegionFromActualCostRequest(t *testing.T) {
 			expected: "us-west-2",
 		},
 		{
+			name: "region in resource id json",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: string(resourceJSON),
+			},
+			expected: "eu-west-1",
+		},
+		{
+			name: "tags take precedence over resource id json region",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: string(resourceJSON),
+				Tags:       map[string]string{"region": "us-west-1"},
+			},
+			expected: "us-west-1",
+		},
+		{
 			name: "no region in tags",
 			req: &pbc.GetActualCostRequest{
 				Tags: map[string]string{"provider": "aws"},
@@ -122,8 +146,20 @@ func TestExtractRegionFromActualCostRequest(t *testing.T) {
 			expected: "",
 		},
 		{
+			name: "invalid resource id json",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "{invalid",
+			},
+			expected: "",
+		},
+		{
 			name:     "nil tags",
 			req:      &pbc.GetActualCostRequest{},
+			expected: "",
+		},
+		{
+			name:     "nil request",
+			req:      nil,
 			expected: "",
 		},
 	}
@@ -329,15 +365,20 @@ func TestGetTraceID_GeneratesUUID(t *testing.T) {
 	assert.Len(t, traceID, 36) // UUID format: 8-4-4-4-12
 }
 
-// TestPropagateTraceID verifies that trace_id is set in outgoing gRPC metadata.
+// TestPropagateTraceID verifies that trace_id is set in outgoing gRPC metadata
+// without dropping any existing outgoing metadata.
 func TestPropagateTraceID(t *testing.T) {
-	ctx := propagateTraceID(context.Background(), "my-trace-id")
+	base := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-existing", "1"))
+	ctx := propagateTraceID(base, "my-trace-id")
 
 	md, ok := metadata.FromOutgoingContext(ctx)
 	require.True(t, ok)
+
 	values := md.Get(pluginsdk.TraceIDMetadataKey)
 	require.Len(t, values, 1)
 	assert.Equal(t, "my-trace-id", values[0])
+
+	assert.Equal(t, []string{"1"}, md.Get("x-existing"))
 }
 
 // TestNewInvalidRegionError verifies the error structure for missing region.

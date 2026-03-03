@@ -1,6 +1,7 @@
 package pricing
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -13,6 +14,23 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Pricing unit constants from AWS Price List API.
+const (
+	unitGBMonth = "GB-Mo"
+	unitHours   = "Hrs"
+)
+
+// isHourlyUnit reports whether the AWS pricing unit represents an hourly rate.
+// AWS pricing data may use "hour", "hours", or "hrs" with varying capitalization.
+func isHourlyUnit(unit string) bool {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "hour", "hours", "hrs":
+		return true
+	default:
+		return false
+	}
+}
+
 // elasticacheEngineNormalization maps user-input engine names (lowercase)
 // to AWS canonical engine names used in pricing data.
 // ElastiCache supports three engines: Redis, Memcached, and Valkey.
@@ -22,85 +40,85 @@ var elasticacheEngineNormalization = map[string]string{
 	"valkey":    "Valkey",
 }
 
-// PricingClient provides pricing data lookups
+// PricingClient provides pricing data lookups.
 type PricingClient interface {
-	// Region returns the AWS region for this pricing data
+	// Region returns the AWS region for this pricing data.
 	Region() string
 
-	// Currency returns the currency code (always "USD" for v1)
+	// Currency returns the currency code (always "USD" for v1).
 	Currency() string
 
-	// EC2OnDemandPricePerHour returns hourly rate for an EC2 instance
-	// Returns (price, true) if found, (0, false) if not found
+	// EC2OnDemandPricePerHour returns hourly rate for an EC2 instance.
+	// Returns (price, true) if found, (0, false) if not found.
 	EC2OnDemandPricePerHour(instanceType, os, tenancy string) (float64, bool)
 
-	// EBSPricePerGBMonth returns monthly rate per GB for an EBS volume
-	// Returns (price, true) if found, (0, false) if not found
+	// EBSPricePerGBMonth returns monthly rate per GB for an EBS volume.
+	// Returns (price, true) if found, (0, false) if not found.
 	EBSPricePerGBMonth(volumeType string) (float64, bool)
 
-	// S3PricePerGBMonth returns monthly rate per GB for S3 storage
-	// Returns (price, true) if found, (0, false) if not found
+	// S3PricePerGBMonth returns monthly rate per GB for S3 storage.
+	// Returns (price, true) if found, (0, false) if not found.
 	S3PricePerGBMonth(storageClass string) (float64, bool)
 
 	// RDSOnDemandPricePerHour returns hourly rate for an RDS instance
 	// instanceType: e.g., "db.t3.medium"
 	// engine: normalized engine name, e.g., "MySQL", "PostgreSQL"
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	RDSOnDemandPricePerHour(instanceType, engine string) (float64, bool)
 
-	// RDSStoragePricePerGBMonth returns monthly rate per GB for RDS storage
+	// RDSStoragePricePerGBMonth returns monthly rate per GB for RDS storage.
 	// volumeType: e.g., "gp2", "gp3", "io1"
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	RDSStoragePricePerGBMonth(volumeType string) (float64, bool)
 
 	// EKSClusterPricePerHour returns hourly rate for EKS cluster control plane.
 	// extendedSupport: true for extended support pricing, false for standard support.
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	EKSClusterPricePerHour(extendedSupport bool) (float64, bool)
 
 	// LambdaPricePerRequest returns the cost per request (same for all architectures)
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	LambdaPricePerRequest() (float64, bool)
 
 	// LambdaPricePerGBSecond returns the cost per GB-second of compute duration.
 	// arch: "x86_64" or "arm64" (defaults to x86_64 if unrecognized)
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	LambdaPricePerGBSecond(arch string) (float64, bool)
 
 	// DynamoDBOnDemandReadPrice returns the cost per read request unit.
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	DynamoDBOnDemandReadPrice() (float64, bool)
 
 	// DynamoDBOnDemandWritePrice returns the cost per write request unit.
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	DynamoDBOnDemandWritePrice() (float64, bool)
 
 	// DynamoDBStoragePricePerGBMonth returns the monthly rate per GB for table storage.
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	DynamoDBStoragePricePerGBMonth() (float64, bool)
 
 	// DynamoDBProvisionedRCUPrice returns the cost per RCU-hour.
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	DynamoDBProvisionedRCUPrice() (float64, bool)
 
 	// DynamoDBProvisionedWCUPrice returns the cost per WCU-hour.
-	// Returns (price, true) if found, (0, false) if not found
+	// Returns (price, true) if found, (0, false) if not found.
 	DynamoDBProvisionedWCUPrice() (float64, bool)
 
 	// ALBPricePerHour returns the fixed hourly rate for an Application Load Balancer.
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	ALBPricePerHour() (float64, bool)
 
 	// ALBPricePerLCU returns the cost per LCU-hour for an Application Load Balancer.
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	ALBPricePerLCU() (float64, bool)
 
 	// NLBPricePerHour returns the fixed hourly rate for a Network Load Balancer.
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	NLBPricePerHour() (float64, bool)
 
 	// NLBPricePerNLCU returns the cost per NLCU-hour for a Network Load Balancer.
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	NLBPricePerNLCU() (float64, bool)
 
 	// NATGatewayPrice returns the pricing for a NAT Gateway (hourly and data processing).
@@ -112,7 +130,7 @@ type PricingClient interface {
 	CloudWatchLogsIngestionTiers() ([]TierRate, bool)
 
 	// CloudWatchLogsStoragePrice returns the per-GB-month rate for CloudWatch log storage.
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	CloudWatchLogsStoragePrice() (float64, bool)
 
 	// CloudWatchMetricsTiers returns the tiered pricing for CloudWatch custom metrics.
@@ -122,11 +140,11 @@ type PricingClient interface {
 	// ElastiCacheOnDemandPricePerHour returns the hourly rate for an ElastiCache cache node.
 	// instanceType: e.g., "cache.m5.large", "cache.t3.micro"
 	// engine: "redis", "memcached", or "valkey" (case-insensitive)
-	// Returns (price, true) if found, (0, false) if not found.
+	// Returns (price, true) if found, (0, false) if not found..
 	ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool)
 }
 
-// Client implements PricingClient with embedded JSON data
+// Client implements PricingClient with embedded JSON data.
 type Client struct {
 	region   string
 	currency string
@@ -362,7 +380,7 @@ func (c *Client) init() error {
 			if isFallbackBuild {
 				c.logger.Debug().Msg("EC2 pricing index empty (expected for fallback build)")
 			} else {
-				c.err = fmt.Errorf("EC2 pricing index is empty - data corruption or filtering issue")
+				c.err = errors.New("EC2 pricing index is empty - data corruption or filtering issue")
 				c.logger.Error().Msg("EC2 pricing index is empty - failing initialization")
 				return
 			}
@@ -371,7 +389,7 @@ func (c *Client) init() error {
 			if isFallbackBuild {
 				c.logger.Debug().Msg("EBS pricing index empty (expected for fallback build)")
 			} else {
-				c.err = fmt.Errorf("EBS pricing index is empty - data corruption or filtering issue")
+				c.err = errors.New("EBS pricing index is empty - data corruption or filtering issue")
 				c.logger.Error().Msg("EBS pricing index is empty - failing initialization")
 				return
 			}
@@ -499,7 +517,7 @@ func getOnDemandPrice(data *awsPricing, sku string) (float64, string, bool) {
 	}
 	for _, term := range termMap {
 		for _, dim := range term.PriceDimensions {
-			if amountStr, ok := dim.PricePerUnit["USD"]; ok {
+			if amountStr, hasUSD := dim.PricePerUnit["USD"]; hasUSD {
 				amount, err := strconv.ParseFloat(amountStr, 64)
 				if err == nil {
 					return amount, dim.Unit, true
@@ -553,7 +571,6 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 			if instType != "" && os != "" && tenancy != "" &&
 				capacityStatus == "Used" &&
 				(preInstalledSw == "NA" || preInstalledSw == "") {
-
 				key := fmt.Sprintf("%s/%s/%s", instType, os, tenancy)
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
 				if found {
@@ -573,7 +590,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 				continue
 			}
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			if found && unit == "GB-Mo" {
+			if found && unit == unitGBMonth {
 				c.ebsIndex[volType] = ebsPrice{
 					Unit:           unit,
 					RatePerGBMonth: rate,
@@ -615,7 +632,7 @@ func (c *Client) parseS3Pricing(data []byte) (string, error) {
 				continue
 			}
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			if found && unit == "GB-Mo" {
+			if found && unit == unitGBMonth {
 				c.s3Index[storageClass] = s3Price{
 					Unit:           unit,
 					RatePerGBMonth: rate,
@@ -660,7 +677,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) {
 			if instClass != "" && engine != "" && deployOption == "Single-AZ" {
 				key := fmt.Sprintf("%s/%s", instClass, engine)
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				if found && unit == "Hrs" {
+				if found && isHourlyUnit(unit) {
 					c.rdsInstanceIndex[key] = rdsInstancePrice{
 						Unit:       unit,
 						HourlyRate: rate,
@@ -698,7 +715,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) {
 			}
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			if found && unit == "GB-Mo" {
+			if found && unit == unitGBMonth {
 				if _, exists := c.rdsStorageIndex[apiVolType]; !exists {
 					c.rdsStorageIndex[apiVolType] = rdsStoragePrice{
 						Unit:           unit,
@@ -742,15 +759,14 @@ func (c *Client) parseEKSPricing(data []byte) (string, error) {
 
 			if c.eksPricing == nil {
 				c.eksPricing = &eksPrice{
-					Unit:     "Hrs",
+					Unit:     unitHours,
 					Currency: "USD",
 				}
 			}
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			// AWS returns unit as "Hours", "Hrs", or "hours" depending on the product
-			unitLower := strings.ToLower(unit)
-			if found && (unitLower == "hrs" || unitLower == "hours") && rate > 0 {
+			// AWS returns unit as "Hours", "Hrs", or "hours" depending on the product.
+			if found && isHourlyUnit(unit) && rate > 0 {
 				if operation == "ExtendedSupport" || strings.Contains(usageType, "extendedSupport") {
 					c.eksPricing.ExtendedHourlyRate = rate
 				} else if operation == "CreateOperation" || strings.Contains(usageType, "perCluster") {
@@ -798,11 +814,12 @@ func (c *Client) parseLambdaPricing(data []byte) (string, error) {
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
 			if found {
-				if group == "AWS-Lambda-Requests" && unit == "Requests" {
+				switch {
+				case group == "AWS-Lambda-Requests" && unit == "Requests":
 					c.lambdaPricing.RequestPrice = rate
-				} else if group == "AWS-Lambda-Duration" && (unit == "Second" || unit == "Lambda-GB-Second") {
+				case group == "AWS-Lambda-Duration" && (unit == "Second" || unit == "Lambda-GB-Second"):
 					c.lambdaPricing.X86GBSecondPrice = rate
-				} else if group == "AWS-Lambda-Duration-ARM" && (unit == "Second" || unit == "Lambda-GB-Second") {
+				case group == "AWS-Lambda-Duration-ARM" && (unit == "Second" || unit == "Lambda-GB-Second"):
 					c.lambdaPricing.ARMGBSecondPrice = rate
 				}
 			}
@@ -844,7 +861,8 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) {
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
 			if found {
-				if prod.ProductFamily == "Amazon DynamoDB PayPerRequest Throughput" {
+				switch {
+				case prod.ProductFamily == "Amazon DynamoDB PayPerRequest Throughput":
 					group := attrs["group"]
 					switch group {
 					case "DDB-ReadUnits":
@@ -852,16 +870,16 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) {
 					case "DDB-WriteUnits":
 						c.dynamoDBPricing.OnDemandWritePrice = rate
 					}
-				} else if prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput") {
+				case prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput"):
 					usageType := attrs["usagetype"]
-					if strings.Contains(usageType, "ReadCapacityUnit") && unit == "Hrs" {
+					if strings.Contains(usageType, "ReadCapacityUnit") && isHourlyUnit(unit) {
 						c.dynamoDBPricing.ProvisionedRCUPrice = rate
-					} else if strings.Contains(usageType, "WriteCapacityUnit") && unit == "Hrs" {
+					} else if strings.Contains(usageType, "WriteCapacityUnit") && isHourlyUnit(unit) {
 						c.dynamoDBPricing.ProvisionedWCUPrice = rate
 					}
-				} else if prod.ProductFamily == "Database Storage" {
+				case prod.ProductFamily == "Database Storage":
 					usageType := attrs["usagetype"]
-					if strings.Contains(usageType, "TimedStorage-ByteHrs") && unit == "GB-Mo" {
+					if strings.Contains(usageType, "TimedStorage-ByteHrs") && unit == unitGBMonth {
 						c.dynamoDBPricing.StoragePrice = rate
 					}
 				}
@@ -908,15 +926,19 @@ func (c *Client) parseELBPricing(data []byte) (string, error) {
 			if found {
 				switch prod.ProductFamily {
 				case "Load Balancer-Application":
-					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
+					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") &&
+						isHourlyUnit(unit) {
 						c.elbPricing.ALBHourlyRate = rate
-					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") &&
+						unit == "LCU-Hrs" {
 						c.elbPricing.ALBLCURate = rate
 					}
 				case "Load Balancer-Network":
-					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") && unit == "Hrs" {
+					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") &&
+						isHourlyUnit(unit) {
 						c.elbPricing.NLBHourlyRate = rate
-					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") && unit == "LCU-Hrs" {
+					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") &&
+						unit == "LCU-Hrs" {
 						// AWS uses "LCUUsage" with "LCU-Hrs" for NLB capacity units too
 						// The description differentiates: "Network load balancer capacity unit-hour"
 						c.elbPricing.NLBNLCURate = rate
@@ -963,7 +985,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
 			if found {
-				if strings.Contains(usageType, "NatGateway-Hours") && unit == "Hrs" {
+				if strings.Contains(usageType, "NatGateway-Hours") && isHourlyUnit(unit) {
 					c.natGatewayPricing.HourlyRate = rate
 				} else if strings.Contains(usageType, "NatGateway-Bytes") && (unit == "Quantity" || unit == "GB") {
 					// AWS Pricing API returns "Quantity" as the unit for NatGateway-Bytes,
@@ -984,7 +1006,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 //   - Log Ingestion: productFamily="Data Payload", group="Ingested Logs", usagetype contains "DataProcessing-Bytes"
 //   - Log Storage: productFamily="Storage Snapshot", usagetype contains "TimedStorage-ByteHrs"
 //   - Metrics: productFamily="Metric", group="Metric", usagetype="CW:MetricMonitorUsage"
-//     - Metrics use tiered pricing with beginRange/endRange in priceDimensions
+//   - Metrics use tiered pricing with beginRange/endRange in priceDimensions
 func (c *Client) parseCloudWatchPricing(data []byte) (string, error) {
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
@@ -1036,7 +1058,7 @@ func (c *Client) parseCloudWatchPricing(data []byte) (string, error) {
 			usageType := attrs["usagetype"]
 			if strings.Contains(usageType, "TimedStorage-ByteHrs") {
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				if found && unit == "GB-Mo" && rate > 0 {
+				if found && unit == unitGBMonth && rate > 0 {
 					c.cloudWatchPricing.LogsStorageRate = rate
 				}
 			}
@@ -1098,8 +1120,8 @@ func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
 
 			if instanceType != "" && engine != "" {
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				// AWS returns unit as "Hrs" for hourly pricing
-				if found && strings.ToLower(unit) == "hrs" && rate > 0 {
+				// AWS returns unit as "Hrs" for hourly pricing.
+				if found && isHourlyUnit(unit) && rate > 0 {
 					// Index key: "instanceType:engine" (e.g., "cache.m5.large:Redis")
 					key := fmt.Sprintf("%s:%s", instanceType, engine)
 					c.elasticacheIndex[key] = elasticacheInstancePrice{
@@ -1126,8 +1148,8 @@ func (c *Client) extractTieredPricing(data *awsPricing, sku string) []TierRate {
 	var tiers []TierRate
 	for _, term := range termMap {
 		for _, dim := range term.PriceDimensions {
-			amountStr, ok := dim.PricePerUnit["USD"]
-			if !ok {
+			amountStr, hasUSD := dim.PricePerUnit["USD"]
+			if !hasUSD {
 				continue
 			}
 			rate, err := strconv.ParseFloat(amountStr, 64)
@@ -1161,19 +1183,19 @@ func (c *Client) extractTieredPricing(data *awsPricing, sku string) []TierRate {
 	return tiers
 }
 
-// Region returns the AWS region for this pricing data
+// Region returns the AWS region for this pricing data.
 func (c *Client) Region() string {
 	_ = c.init() // Ensure initialization
 	return c.region
 }
 
-// Currency returns the currency code
+// Currency returns the currency code.
 func (c *Client) Currency() string {
 	_ = c.init() // Ensure initialization
 	return c.currency
 }
 
-// EC2OnDemandPricePerHour returns hourly rate for an EC2 instance
+// EC2OnDemandPricePerHour returns hourly rate for an EC2 instance.
 func (c *Client) EC2OnDemandPricePerHour(instanceType, os, tenancy string) (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1201,7 +1223,7 @@ func (c *Client) EC2OnDemandPricePerHour(instanceType, os, tenancy string) (floa
 	return price.HourlyRate, true
 }
 
-// EBSPricePerGBMonth returns monthly rate per GB for an EBS volume
+// EBSPricePerGBMonth returns monthly rate per GB for an EBS volume.
 func (c *Client) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1226,7 +1248,7 @@ func (c *Client) EBSPricePerGBMonth(volumeType string) (float64, bool) {
 	return price.RatePerGBMonth, true
 }
 
-// S3PricePerGBMonth returns monthly rate per GB for S3 storage
+// S3PricePerGBMonth returns monthly rate per GB for S3 storage.
 func (c *Client) S3PricePerGBMonth(storageClass string) (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1280,8 +1302,8 @@ func (c *Client) RDSOnDemandPricePerHour(instanceType, engine string) (float64, 
 	return price.HourlyRate, true
 }
 
-// RDSStoragePricePerGBMonth returns monthly rate per GB for RDS storage
-// volumeType: e.g., "gp2", "gp3", "io1", "standard"
+// RDSStoragePricePerGBMonth returns monthly rate per GB for RDS storage.
+// volumeType: e.g., "gp2", "gp3", "io1", "standard".
 func (c *Client) RDSStoragePricePerGBMonth(volumeType string) (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1346,7 +1368,7 @@ func (c *Client) EKSClusterPricePerHour(extendedSupport bool) (float64, bool) {
 // The rate is sourced from AWS Price List API product family "AWS Lambda" with
 // group "AWS-Lambda-Requests". Standard pricing is $0.20 per 1 million requests
 // ($0.0000002 per request) as of December 2025.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) LambdaPricePerRequest() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1380,7 +1402,7 @@ func (c *Client) LambdaPricePerRequest() (float64, bool) {
 //   - arm64:  ~$0.0000133334 per GB-second (~20% cheaper)
 //
 // arch parameter accepts: "x86_64", "arm64", "x86", "arm" (defaults to x86_64)
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) LambdaPricePerGBSecond(arch string) (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1424,7 +1446,7 @@ func (c *Client) LambdaPricePerGBSecond(arch string) (float64, bool) {
 }
 
 // DynamoDBOnDemandReadPrice returns the cost per read request unit.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) DynamoDBOnDemandReadPrice() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1448,7 +1470,7 @@ func (c *Client) DynamoDBOnDemandReadPrice() (float64, bool) {
 }
 
 // DynamoDBOnDemandWritePrice returns the cost per write request unit.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) DynamoDBOnDemandWritePrice() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1472,7 +1494,7 @@ func (c *Client) DynamoDBOnDemandWritePrice() (float64, bool) {
 }
 
 // DynamoDBStoragePricePerGBMonth returns the monthly rate per GB for table storage.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) DynamoDBStoragePricePerGBMonth() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1496,7 +1518,7 @@ func (c *Client) DynamoDBStoragePricePerGBMonth() (float64, bool) {
 }
 
 // DynamoDBProvisionedRCUPrice returns the cost per RCU-hour.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) DynamoDBProvisionedRCUPrice() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1520,7 +1542,7 @@ func (c *Client) DynamoDBProvisionedRCUPrice() (float64, bool) {
 }
 
 // DynamoDBProvisionedWCUPrice returns the cost per WCU-hour.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) DynamoDBProvisionedWCUPrice() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1689,7 +1711,7 @@ func (c *Client) CloudWatchLogsIngestionTiers() ([]TierRate, bool) {
 }
 
 // CloudWatchLogsStoragePrice returns the per-GB-month rate for CloudWatch log storage.
-// Returns (price, true) if found, (0, false) if not found.
+// Returns (price, true) if found, (0, false) if not found..
 func (c *Client) CloudWatchLogsStoragePrice() (float64, bool) {
 	start := time.Now()
 	defer func() {
@@ -1750,7 +1772,7 @@ func (c *Client) CloudWatchMetricsTiers() ([]TierRate, bool) {
 //   - "memcached", "Memcached" -> "Memcached"
 //   - "valkey", "Valkey" -> "Valkey"
 //
-// Returns (price, true) if found, (0, false) if not found or engine unknown.
+// Returns (price, true) if found, (0, false) if not found. or engine unknown.
 func (c *Client) ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool) {
 	start := time.Now()
 	defer func() {

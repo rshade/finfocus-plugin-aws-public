@@ -4,21 +4,68 @@ package plugin
 // providerAWS is the constant identifier for the AWS provider.
 const providerAWS = "aws"
 
+// Service type constants used across the plugin for routing, detection, and classification.
+const (
+	serviceEC2          = "ec2"
+	serviceEBS          = "ebs"
+	serviceS3           = "s3"
+	serviceRDS          = "rds"
+	serviceEKS          = "eks"
+	serviceLambda       = "lambda"
+	serviceDynamoDB     = "dynamodb"
+	serviceELB          = "elb"
+	serviceALB          = "alb"
+	serviceNLB          = "nlb"
+	serviceCloudWatch   = "cloudwatch"
+	serviceElastiCache  = "elasticache"
+	serviceNATGW        = "natgw"
+	serviceIAM          = "iam"
+	serviceLaunchTmpl   = "launchtemplate"
+	serviceLaunchConfig = "launchconfiguration"
+)
+
+// Default values for EC2 attributes.
+const (
+	defaultOS      = "Linux"
+	defaultTenancy = "Shared"
+)
+
+// Architecture constants.
+const (
+	archX86 = "x86_64"
+	archARM = "arm"
+)
+
+// archARM64 is the full ARM64 architecture string used in Lambda tags.
+const archARM64 = "arm64"
+
+// skuLogs is the CloudWatch logs SKU identifier.
+const skuLogs = "logs"
+
+// serviceSecurityGroup is the canonical name for security group zero-cost resources.
+const serviceSecurityGroup = "securitygroup"
+
+// serviceSubnet is the canonical name for subnet zero-cost resources.
+const serviceSubnet = "subnet"
+
+// serviceVPC is the canonical name for VPC zero-cost resources.
+const serviceVPC = "vpc"
+
 // PricingNotFoundTemplate is the standard message template for missing pricing data.
 // Use with fmt.Sprintf to format specific resource details.
 //
 // Example: fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", "t3.micro")
-// Result: "EC2 instance type \"t3.micro\" not found in pricing data"
+// Result: "EC2 instance type \"t3.micro\" not found in pricing data".
 const PricingNotFoundTemplate = "%s %q not found in pricing data"
 
 // PricingUnavailableTemplate is the standard message template for region-level pricing unavailability.
 // Use with fmt.Sprintf to format service and region.
 //
 // Example: fmt.Sprintf(PricingUnavailableTemplate, "CloudWatch", "ap-northeast-3")
-// Result: "CloudWatch pricing data not available for region ap-northeast-3"
+// Result: "CloudWatch pricing data not available for region ap-northeast-3".
 const PricingUnavailableTemplate = "%s pricing data not available for region %s"
 
-// Hours per month for production and development modes
+// Hours per month for production and development modes.
 const (
 	HoursPerMonthProd = 730 // Production: 24 hours/day * 30 days
 	HoursPerMonthDev  = 160 // Development: 8 hours/day * 5 days/week * 4 weeks
@@ -39,21 +86,25 @@ const RelationshipManagedBy = "managed_by"
 //
 // When adding new zero-cost resources:
 // 1. Add the canonical service name here
-// 2. Add the Pulumi pattern to ZeroCostPulumiPatterns below, OR implement dedicated prefix matching in normalizeResourceType()
+// 2. Add the Pulumi pattern to ZeroCostPulumiPatterns below, OR implement dedicated prefix matching in normalizeResourceType().
 var ZeroCostServices = map[string]bool{
-	"vpc":           true,
-	"securitygroup": true,
-	"subnet":        true,
-	"iam":           true,
+	serviceVPC:            true,
+	serviceSecurityGroup:  true,
+	serviceSubnet:         true,
+	"iam":                 true,
+	"launchtemplate":      true,
+	"launchconfiguration": true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
 // Used by normalizeResourceType() to detect zero-cost resources from Pulumi format.
-// Example: "ec2/vpc" in "aws:ec2/vpc:Vpc" maps to "vpc"
+// Example: "ec2/vpc" in "aws:ec2/vpc:Vpc" maps to "vpc".
 var ZeroCostPulumiPatterns = map[string]string{
-	"ec2/vpc":           "vpc",
-	"ec2/securitygroup": "securitygroup",
-	"ec2/subnet":        "subnet",
+	"ec2/vpc":                 serviceVPC,
+	"ec2/securitygroup":       serviceSecurityGroup,
+	"ec2/subnet":              serviceSubnet,
+	"ec2/launchtemplate":      "launchtemplate",
+	"ec2/launchconfiguration": "launchconfiguration",
 }
 
 // IsZeroCostService returns true if the canonical service name has no direct AWS charges.

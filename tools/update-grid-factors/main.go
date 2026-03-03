@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -28,18 +29,18 @@ import (
 
 const (
 	// CCF grid factors URL - this points to the emissions factors JSON
-	// Note: CCF uses a structured data format in their repository
+	// Note: CCF uses a structured data format in their repository.
 	ccfGridFactorsURL = "https://raw.githubusercontent.com/cloud-carbon-footprint/cloud-carbon-coefficients/main/data/grid-emissions-factors-aws.json"
 
 	// Fallback: EPA eGRID data for US regions
 	// https://www.epa.gov/egrid/power-profiler
 
-	// Valid range for grid factors (metric tons CO2e per kWh)
+	// Valid range for grid factors (metric tons CO2e per kWh).
 	minValidFactor = 0.0     // Some regions like Iceland have near-zero carbon grids
 	maxValidFactor = 2.0     // No grid should exceed 2 metric tons CO2e per kWh
 	defaultFactor  = 0.00039 // Global average
 
-	// Template for generating grid_factors.go
+	// Template for generating grid_factors.go.
 	fileTemplate = `package carbon
 
 // GridEmissionFactors maps AWS region codes to grid carbon intensity.
@@ -107,9 +108,9 @@ type GridFactor struct {
 	Note     string
 }
 
-// CCFGridData represents the structure of CCF's grid emission factors JSON
+// CCFGridData represents the structure of CCF's grid emission factors JSON.
 type CCFGridData struct {
-	Region      string  `json:"region"`
+	Region       string  `json:"region"`
 	MtCO2ePerKwh float64 `json:"mtCO2ePerKwh"`
 }
 
@@ -130,8 +131,8 @@ func main() {
 	}
 
 	if *validate {
-		if err := validateFactors(factors); err != nil {
-			fmt.Fprintf(os.Stderr, "Validation error: %v\n", err)
+		if valErr := validateFactors(factors); valErr != nil {
+			fmt.Fprintf(os.Stderr, "Validation error: %v\n", valErr)
 			os.Exit(1)
 		}
 		fmt.Println("Validation passed")
@@ -147,8 +148,8 @@ func main() {
 	}
 
 	// Write the file
-	if err := os.WriteFile(*output, []byte(content), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
+	if writeErr := os.WriteFile(*output, []byte(content), 0o644); writeErr != nil {
+		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", writeErr)
 		os.Exit(1)
 	}
 
@@ -160,7 +161,15 @@ func main() {
 func fetchGridFactors() ([]GridFactor, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 
-	resp, err := client.Get(ccfGridFactorsURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ccfGridFactorsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch grid factors: %w", err)
 	}

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -54,7 +54,7 @@ func parseWebConfig(enabled bool, logger zerolog.Logger) (pluginsdk.WebConfig, e
 
 	// FR-005: Fatal error on Wildcard + Credentials
 	if hasWildcard && config.AllowCredentials {
-		return pluginsdk.WebConfig{}, fmt.Errorf("cannot enable credentials with wildcard origin (*); security risk")
+		return pluginsdk.WebConfig{}, errors.New("cannot enable credentials with wildcard origin (*); security risk")
 	}
 
 	// FR-007 & FR-008: Max Age

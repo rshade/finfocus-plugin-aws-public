@@ -46,7 +46,12 @@ func (e *EBSEstimator) EstimateCarbonGrams(config EBSVolumeConfig) (float64, boo
 }
 
 // EstimateCarbonGramsSimple is a convenience method that takes individual parameters.
-func (e *EBSEstimator) EstimateCarbonGramsSimple(volumeType string, sizeGB float64, region string, hours float64) (float64, bool) {
+func (e *EBSEstimator) EstimateCarbonGramsSimple(
+	volumeType string,
+	sizeGB float64,
+	region string,
+	hours float64,
+) (float64, bool) {
 	return e.EstimateCarbonGrams(EBSVolumeConfig{
 		VolumeType: volumeType,
 		SizeGB:     sizeGB,

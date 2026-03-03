@@ -3,6 +3,7 @@ package carbon
 import (
 	_ "embed"
 	"encoding/csv"
+	"errors"
 	"io"
 	"strconv"
 	"strings"
@@ -55,12 +56,12 @@ func parseGPUSpecs() {
 	}
 
 	for {
-		record, err := reader.Read()
-		if err == io.EOF {
+		record, readErr := reader.Read()
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
-		if err != nil {
-			logger.Warn().Err(err).Msg("skipping malformed GPU specs CSV row")
+		if readErr != nil {
+			logger.Warn().Err(readErr).Msg("skipping malformed GPU specs CSV row")
 			continue
 		}
 
@@ -77,14 +78,14 @@ func parseGPUSpecs() {
 		gpuModel := strings.TrimSpace(record[colGPUModel])
 
 		// Parse GPU count
-		gpuCount, err := strconv.Atoi(strings.TrimSpace(record[colGPUCount]))
-		if err != nil || gpuCount < 0 {
+		gpuCount, parseErr := strconv.Atoi(strings.TrimSpace(record[colGPUCount]))
+		if parseErr != nil || gpuCount <= 0 {
 			continue
 		}
 
 		// Parse TDP per GPU
-		tdpPerGPU, err := strconv.ParseFloat(strings.TrimSpace(record[colTDPPerGPU]), 64)
-		if err != nil || tdpPerGPU < 0 {
+		tdpPerGPU, parseErr := strconv.ParseFloat(strings.TrimSpace(record[colTDPPerGPU]), 64)
+		if parseErr != nil || tdpPerGPU < 0 {
 			continue
 		}
 

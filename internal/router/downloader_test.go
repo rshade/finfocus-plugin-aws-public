@@ -2,6 +2,7 @@ package router
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -144,23 +146,26 @@ func TestDownloader_Download_FullFlow(t *testing.T) {
 	binaryName := fmt.Sprintf("finfocus-plugin-aws-public-%s", region)
 	binaryContent := []byte("#!/bin/sh\necho 'test binary'")
 
-	// Create a tar.gz archive containing the binary
-	tarballBytes := createTestTarball(t, binaryName, binaryContent)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	d := NewDownloader("1.0.0", targetDir, logger)
+	archiveName := d.archiveName(region)
 
-	// Compute checksum of the tarball
-	h := sha256.Sum256(tarballBytes)
-	tarballHash := hex.EncodeToString(h[:])
-	tarballName := fmt.Sprintf("finfocus-plugin-aws-public_1.0.0_Linux_amd64_%s.tar.gz", region)
+	// Create an archive containing the binary.
+	archiveBytes := createTestArchive(t, archiveName, binaryName, binaryContent)
 
-	checksumContent := fmt.Sprintf("%s  %s\n", tarballHash, tarballName)
+	// Compute checksum of the archive.
+	h := sha256.Sum256(archiveBytes)
+	archiveHash := hex.EncodeToString(h[:])
+
+	checksumContent := fmt.Sprintf("%s  %s\n", archiveHash, archiveName)
 
 	// Mock HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1.0.0/checksums.txt":
 			fmt.Fprint(w, checksumContent)
-		case "/v1.0.0/" + tarballName:
-			w.Write(tarballBytes)
+		case "/v1.0.0/" + archiveName:
+			w.Write(archiveBytes)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -168,8 +173,6 @@ func TestDownloader_Download_FullFlow(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	d := NewDownloader("1.0.0", targetDir, logger)
 	d.baseURL = server.URL
 
 	path, err := d.Download(context.Background(), region)
@@ -194,27 +197,27 @@ func TestDownloader_Download_ChecksumMismatch(t *testing.T) {
 	region := "us-east-1"
 	binaryName := fmt.Sprintf("finfocus-plugin-aws-public-%s", region)
 
-	tarballBytes := createTestTarball(t, binaryName, []byte("binary"))
-	tarballName := fmt.Sprintf("finfocus-plugin-aws-public_1.0.0_Linux_amd64_%s.tar.gz", region)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	d := NewDownloader("1.0.0", targetDir, logger)
+	archiveName := d.archiveName(region)
+	archiveBytes := createTestArchive(t, archiveName, binaryName, []byte("binary"))
 
 	// Provide wrong checksum
 	wrongHash := "0000000000000000000000000000000000000000000000000000000000000000"
-	checksumContent := fmt.Sprintf("%s  %s\n", wrongHash, tarballName)
+	checksumContent := fmt.Sprintf("%s  %s\n", wrongHash, archiveName)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1.0.0/checksums.txt":
 			fmt.Fprint(w, checksumContent)
-		case "/v1.0.0/" + tarballName:
-			w.Write(tarballBytes)
+		case "/v1.0.0/" + archiveName:
+			w.Write(archiveBytes)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server.Close()
 
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	d := NewDownloader("1.0.0", targetDir, logger)
 	d.baseURL = server.URL
 
 	_, err := d.Download(context.Background(), region)
@@ -228,32 +231,40 @@ func TestDownloader_Download_MissingChecksum(t *testing.T) {
 	targetDir := t.TempDir()
 	region := "us-east-1"
 	binaryName := fmt.Sprintf("finfocus-plugin-aws-public-%s", region)
-	tarballName := fmt.Sprintf("finfocus-plugin-aws-public_1.0.0_Linux_amd64_%s.tar.gz", region)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	d := NewDownloader("1.0.0", targetDir, logger)
+	archiveName := d.archiveName(region)
 
-	tarballBytes := createTestTarball(t, binaryName, []byte("binary"))
+	archiveBytes := createTestArchive(t, archiveName, binaryName, []byte("binary"))
 
-	// Checksums file has no entry for our tarball
+	// Checksums file has no entry for our archive.
 	checksumContent := "abc123  some-other-file.tar.gz\n"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1.0.0/checksums.txt":
 			fmt.Fprint(w, checksumContent)
-		case "/v1.0.0/" + tarballName:
-			w.Write(tarballBytes)
+		case "/v1.0.0/" + archiveName:
+			w.Write(archiveBytes)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server.Close()
 
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	d := NewDownloader("1.0.0", targetDir, logger)
 	d.baseURL = server.URL
 
 	_, err := d.Download(context.Background(), region)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no checksum found")
+}
+
+func createTestArchive(t *testing.T, archiveName, filename string, content []byte) []byte {
+	t.Helper()
+	if strings.HasSuffix(strings.ToLower(archiveName), ".zip") {
+		return createTestZip(t, filename, content)
+	}
+	return createTestTarball(t, filename, content)
 }
 
 // createTestTarball creates a tar.gz archive containing a single file with the given name and content.
@@ -283,6 +294,35 @@ func createTestTarball(t *testing.T, filename string, content []byte) []byte {
 	// Must close writers before reading back
 	require.NoError(t, tw.Close())
 	require.NoError(t, gz.Close())
+	require.NoError(t, f.Close())
+
+	data, err := os.ReadFile(tmpFile)
+	require.NoError(t, err)
+	return data
+}
+
+// createTestZip creates a zip archive containing a single file with the given name and content.
+func createTestZip(t *testing.T, filename string, content []byte) []byte {
+	t.Helper()
+
+	tmpFile := filepath.Join(t.TempDir(), "test.zip")
+	f, err := os.Create(tmpFile)
+	require.NoError(t, err)
+	defer f.Close()
+
+	zw := zip.NewWriter(f)
+	header := &zip.FileHeader{
+		Name:   filename,
+		Method: zip.Deflate,
+	}
+	header.SetMode(0755)
+	w, err := zw.CreateHeader(header)
+	require.NoError(t, err)
+
+	_, err = w.Write(content)
+	require.NoError(t, err)
+
+	require.NoError(t, zw.Close())
 	require.NoError(t, f.Close())
 
 	data, err := os.ReadFile(tmpFile)

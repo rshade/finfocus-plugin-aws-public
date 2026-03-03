@@ -5,6 +5,7 @@
 package regionsconfig
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -46,8 +47,8 @@ func Load(filename string) (*Config, error) {
 	}
 
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse regions config: %w", err)
+	if unmarshalErr := yaml.Unmarshal(data, &config); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to parse regions config: %w", unmarshalErr)
 	}
 
 	return &config, nil
@@ -68,7 +69,7 @@ func Validate(regions []RegionConfig) error {
 	for _, r := range regions {
 		// Check required fields
 		if r.ID == "" {
-			return fmt.Errorf("region missing id")
+			return errors.New("region missing id")
 		}
 		if r.Name == "" {
 			return fmt.Errorf("region %s missing name", r.ID)
@@ -79,13 +80,22 @@ func Validate(regions []RegionConfig) error {
 
 		// Validate characters to prevent YAML injection
 		if !safePattern.MatchString(r.ID) {
-			return fmt.Errorf("region id %q contains invalid characters (only alphanumeric, hyphens, underscores allowed)", r.ID)
+			return fmt.Errorf(
+				"region id %q contains invalid characters (only alphanumeric, hyphens, underscores allowed)",
+				r.ID,
+			)
 		}
 		if !safePattern.MatchString(r.Name) {
-			return fmt.Errorf("region name %q contains invalid characters (only alphanumeric, hyphens, underscores allowed)", r.Name)
+			return fmt.Errorf(
+				"region name %q contains invalid characters (only alphanumeric, hyphens, underscores allowed)",
+				r.Name,
+			)
 		}
 		if !safePattern.MatchString(r.Tag) {
-			return fmt.Errorf("region tag %q contains invalid characters (only alphanumeric, hyphens, underscores allowed)", r.Tag)
+			return fmt.Errorf(
+				"region tag %q contains invalid characters (only alphanumeric, hyphens, underscores allowed)",
+				r.Tag,
+			)
 		}
 
 		// Validate tag format matches expected pattern
@@ -113,8 +123,8 @@ func LoadAndValidate(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	if err := Validate(config.Regions); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+	if validErr := Validate(config.Regions); validErr != nil {
+		return nil, fmt.Errorf("validation failed: %w", validErr)
 	}
 
 	return config, nil

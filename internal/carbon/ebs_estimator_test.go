@@ -25,7 +25,7 @@ func TestEBSEstimator_EstimateCarbonGrams(t *testing.T) {
 				Hours:      HoursPerMonth,
 			},
 			wantOK:         true,
-			minCarbonGrams: 50,  // ~73 gCO2e expected
+			minCarbonGrams: 50, // ~73 gCO2e expected
 			maxCarbonGrams: 150,
 		},
 		{
@@ -37,7 +37,7 @@ func TestEBSEstimator_EstimateCarbonGrams(t *testing.T) {
 				Hours:      HoursPerMonth,
 			},
 			wantOK:         true,
-			minCarbonGrams: 500,  // ~754 gCO2e expected
+			minCarbonGrams: 500, // ~754 gCO2e expected
 			maxCarbonGrams: 1500,
 		},
 		{
@@ -196,7 +196,7 @@ func TestEBSEstimator_GetBillingDetail(t *testing.T) {
 	e := NewEBSEstimator()
 
 	tests := []struct {
-		config      EBSVolumeConfig
+		config       EBSVolumeConfig
 		wantContains []string
 	}{
 		{

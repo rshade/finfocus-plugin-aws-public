@@ -97,10 +97,10 @@ func (e *EmbodiedCarbonEstimator) GetTotalCarbonGrams(
 	region string,
 	utilization float64,
 	hours float64,
-) (operationalCarbon, embodiedCarbon, totalCarbon float64, ok bool) {
+) (float64, float64, float64, bool) {
 	// Use the Estimator for operational carbon (includes GPU)
 	estimator := NewEstimator()
-	operationalCarbon, ok = estimator.EstimateCarbonGrams(instanceType, region, utilization, hours)
+	operationalCarbon, ok := estimator.EstimateCarbonGrams(instanceType, region, utilization, hours)
 	if !ok {
 		return 0, 0, 0, false
 	}
@@ -109,12 +109,12 @@ func (e *EmbodiedCarbonEstimator) GetTotalCarbonGrams(
 	months := hours / HoursPerMonth
 
 	// Calculate embodied carbon
-	embodiedCarbon, ok = e.EstimateEmbodiedCarbonGrams(instanceType, months)
+	embodiedCarbon, ok := e.EstimateEmbodiedCarbonGrams(instanceType, months)
 	if !ok {
 		return 0, 0, 0, false
 	}
 
-	totalCarbon = operationalCarbon + embodiedCarbon
+	totalCarbon := operationalCarbon + embodiedCarbon
 	return operationalCarbon, embodiedCarbon, totalCarbon, true
 }
 
@@ -132,8 +132,15 @@ func (e *EmbodiedCarbonEstimator) GetBillingDetail(instanceType string, months f
 
 	monthlyAmortized := e.EmbodiedCarbonPerServerKg / e.ServerLifespanMonths
 
-	return fmt.Sprintf("Embodied carbon: %s (%d/%.0f vCPUs of server), %.2f kgCO2e/month amortized over %.0f months for %.1f months",
-		instanceType, spec.VCPUCount, maxVCPUs, monthlyAmortized, e.ServerLifespanMonths, months)
+	return fmt.Sprintf(
+		"Embodied carbon: %s (%d/%.0f vCPUs of server), %.2f kgCO2e/month amortized over %.0f months for %.1f months",
+		instanceType,
+		spec.VCPUCount,
+		maxVCPUs,
+		monthlyAmortized,
+		e.ServerLifespanMonths,
+		months,
+	)
 }
 
 // GetMaxFamilyVCPUs returns the maximum vCPU count for the instance family.
@@ -201,8 +208,8 @@ func GetMaxFamilyVCPUs(instanceType string) float64 {
 		"trn1": 128, // trn1.32xlarge
 	}
 
-	if max, ok := maxVCPUs[family]; ok {
-		return max
+	if maxVal, ok := maxVCPUs[family]; ok {
+		return maxVal
 	}
 
 	// Default: return 0 to signal that caller should use instance's own vCPUs
@@ -210,7 +217,7 @@ func GetMaxFamilyVCPUs(instanceType string) float64 {
 }
 
 // parseInstanceFamily extracts the family from an instance type.
-// e.g., "m5.large" -> "m5", "p4d.24xlarge" -> "p4d"
+// e.g., "m5.large" -> "m5", "p4d.24xlarge" -> "p4d".
 func parseInstanceFamily(instanceType string) string {
 	family, _, _ := strings.Cut(instanceType, ".")
 	return family

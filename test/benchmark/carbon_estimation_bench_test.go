@@ -7,7 +7,7 @@
 package benchmark
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -394,26 +394,26 @@ func TestLatencyRequirement_AllEstimators(t *testing.T) {
 func TestConcurrentLatency(t *testing.T) {
 	const goroutines = 150
 	var wg sync.WaitGroup
-	errors := make(chan error, goroutines)
+	errs := make(chan error, goroutines)
 
 	for i := 0; i < goroutines; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Run a representative estimator call
+			// Run a representative estimator call.
 			start := time.Now()
 			e := carbon.NewEstimator()
 			e.EstimateCarbonGrams("m5.large", "us-east-1", 0.5, 730)
 			if time.Since(start).Milliseconds() > maxLatencyMs {
-				errors <- fmt.Errorf("exceeded latency under concurrent load")
+				errs <- errors.New("exceeded latency under concurrent load")
 			}
 		}()
 	}
 
 	wg.Wait()
-	close(errors)
+	close(errs)
 
-	for err := range errors {
+	for err := range errs {
 		t.Error(err)
 	}
 }

@@ -59,7 +59,7 @@ func testAggregationWithNilImpact(t *testing.T) {
 		},
 		{
 			Id:       "rec-3",
-			Resource: nil,  // nil Resource AND nil Impact - edge case
+			Resource: nil, // nil Resource AND nil Impact - edge case
 			Impact:   nil,
 		},
 		{
@@ -72,13 +72,13 @@ func testAggregationWithNilImpact(t *testing.T) {
 	// Execute the aggregation logic (mirrors what happens in GetRecommendations)
 	var totalSavings float64
 	for _, rec := range recommendations {
-		if rec.Impact != nil {
-			totalSavings += rec.Impact.GetEstimatedSavings()
+		if rec.GetImpact() != nil {
+			totalSavings += rec.GetImpact().GetEstimatedSavings()
 		} else {
 			// This mirrors the logging code path that safely handles nil Resource
 			resourceSKU := ""
-			if rec.Resource != nil {
-				resourceSKU = rec.Resource.Sku
+			if rec.GetResource() != nil {
+				resourceSKU = rec.GetResource().GetSku()
 			}
 			// Verify no panic accessing resourceSKU
 			_ = resourceSKU

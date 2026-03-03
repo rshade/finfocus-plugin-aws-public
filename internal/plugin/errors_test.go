@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestPricingUnavailableError verifies PricingUnavailableError message formatting
+// with and without explicit billing detail text.
+// Why: this error text is surfaced to clients and must remain stable for fallback logic.
+// Workflow: subtests validate custom-detail precedence and default template fallback.
+// Run: go test ./internal/plugin -run TestPricingUnavailableError -v.
 func TestPricingUnavailableError(t *testing.T) {
 	t.Run("with billing detail", func(t *testing.T) {
 		err := &PricingUnavailableError{

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
@@ -201,12 +202,17 @@ func (r *Plugin) GetRecommendations(
 
 	// Single region — simple delegation
 	if len(regionResources) == 1 {
-		for region := range regionResources {
+		for region, resources := range regionResources {
 			client, err := r.registry.GetOrLaunch(ctx, region)
 			if err != nil {
 				return nil, wrapRegionError(region, err)
 			}
-			return client.GetRecommendations(propagateTraceID(ctx, traceID), req)
+
+			regionReq := &pbc.GetRecommendationsRequest{
+				Filter:          req.GetFilter(),
+				TargetResources: resources,
+			}
+			return client.GetRecommendations(propagateTraceID(ctx, traceID), regionReq)
 		}
 	}
 
@@ -341,10 +347,27 @@ func extractRegionFromResource(resource *pbc.ResourceDescriptor) string {
 // extractRegionFromActualCostRequest extracts the region from a GetActualCostRequest.
 // It first tries Tags, then falls back to parsing ResourceId.
 func extractRegionFromActualCostRequest(req *pbc.GetActualCostRequest) string {
+	if req == nil {
+		return ""
+	}
 	if tags := req.GetTags(); tags != nil {
 		if region := tags["region"]; region != "" {
 			return region
 		}
+	}
+	if req.GetResourceId() == "" {
+		return ""
+	}
+
+	var resource pbc.ResourceDescriptor
+	if err := json.Unmarshal([]byte(req.GetResourceId()), &resource); err != nil {
+		return ""
+	}
+	if region := resource.GetRegion(); region != "" {
+		return region
+	}
+	if tags := resource.GetTags(); tags != nil {
+		return tags["region"]
 	}
 	return ""
 }
@@ -384,9 +407,13 @@ func (r *Plugin) getTraceID(ctx context.Context) string {
 
 // propagateTraceID creates a new context with the trace_id set as outgoing gRPC metadata.
 func propagateTraceID(ctx context.Context, traceID string) context.Context {
-	md := metadata.New(map[string]string{
-		pluginsdk.TraceIDMetadataKey: traceID,
-	})
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok || md == nil {
+		md = metadata.MD{}
+	} else {
+		md = md.Copy()
+	}
+	md.Set(pluginsdk.TraceIDMetadataKey, traceID)
 	return metadata.NewOutgoingContext(ctx, md)
 }
 

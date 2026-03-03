@@ -4,19 +4,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
+
+// errNoLogEntries is a sentinel error returned when no log entries are found.
+var errNoLogEntries = errors.New("no log entries found in buffer")
 
 // parseLastLogEntry parses the last non-empty JSON line from a log buffer.
 // This handles cases where the logger emits multiple entries during a test.
@@ -24,7 +29,7 @@ import (
 func parseLastLogEntry(buf *bytes.Buffer) (map[string]interface{}, error) {
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	if len(lines) == 0 || lines[len(lines)-1] == "" {
-		return nil, nil
+		return nil, errNoLogEntries
 	}
 	var logEntry map[string]interface{}
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &logEntry); err != nil {
@@ -58,7 +63,7 @@ func TestGetRecommendations_NilRequest(t *testing.T) {
 	var foundErrorCode bool
 	for _, detail := range st.Details() {
 		if errDetail, ok := detail.(*pbc.ErrorDetail); ok {
-			if errDetail.Code == pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE {
+			if errDetail.GetCode() == pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE {
 				foundErrorCode = true
 			}
 		}
@@ -86,11 +91,11 @@ func TestGetRecommendations_EmptyRequest(t *testing.T) {
 		t.Fatal("Expected non-nil response")
 	}
 
-	if len(resp.Recommendations) != 0 {
-		t.Errorf("Expected empty recommendations list, got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != 0 {
+		t.Errorf("Expected empty recommendations list, got %d", len(resp.GetRecommendations()))
 	}
 
-	if resp.Summary == nil {
+	if resp.GetSummary() == nil {
 		t.Error("Expected non-nil summary")
 	}
 }
@@ -164,19 +169,19 @@ func TestGetRecommendations_EC2WithFilter(t *testing.T) {
 	}
 
 	// Should have at least one recommendation (generation upgrade t2->t3)
-	if len(resp.Recommendations) == 0 {
+	if len(resp.GetRecommendations()) == 0 {
 		t.Error("Expected at least one recommendation for t2.medium")
 	}
 
 	// Verify a generation upgrade recommendation exists
 	var foundGenUpgrade bool
-	for _, rec := range resp.Recommendations {
-		if rec.GetModify() != nil && rec.GetModify().ModificationType == modTypeGenUpgrade {
+	for _, rec := range resp.GetRecommendations() {
+		if rec.GetModify() != nil && rec.GetModify().GetModificationType() == modTypeGenUpgrade {
 			foundGenUpgrade = true
 			// Verify the recommended config
-			if rec.GetModify().RecommendedConfig["instance_type"] != "t3.medium" {
+			if rec.GetModify().GetRecommendedConfig()["instance_type"] != "t3.medium" {
 				t.Errorf("Expected recommended instance_type t3.medium, got %s",
-					rec.GetModify().RecommendedConfig["instance_type"])
+					rec.GetModify().GetRecommendedConfig()["instance_type"])
 			}
 		}
 	}
@@ -186,7 +191,7 @@ func TestGetRecommendations_EC2WithFilter(t *testing.T) {
 	}
 
 	// Summary should reflect the recommendations
-	if resp.Summary == nil {
+	if resp.GetSummary() == nil {
 		t.Error("Expected non-nil summary")
 	}
 }
@@ -219,21 +224,25 @@ func TestGetRecommendations_EBSWithFilter(t *testing.T) {
 	}
 
 	// Should have exactly one recommendation (gp2->gp3)
-	if len(resp.Recommendations) != 1 {
-		t.Errorf("Expected 1 recommendation for gp2 volume, got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != 1 {
+		t.Errorf("Expected 1 recommendation for gp2 volume, got %d", len(resp.GetRecommendations()))
 	}
 
-	if len(resp.Recommendations) > 0 {
-		rec := resp.Recommendations[0]
+	if len(resp.GetRecommendations()) > 0 {
+		rec := resp.GetRecommendations()[0]
 		if rec.GetModify() == nil {
 			t.Fatal("Expected modify action")
 		}
-		if rec.GetModify().ModificationType != modTypeVolumeUpgrade {
-			t.Errorf("Expected modification type %s, got %s", modTypeVolumeUpgrade, rec.GetModify().ModificationType)
+		if rec.GetModify().GetModificationType() != modTypeVolumeUpgrade {
+			t.Errorf(
+				"Expected modification type %s, got %s",
+				modTypeVolumeUpgrade,
+				rec.GetModify().GetModificationType(),
+			)
 		}
-		if rec.GetModify().RecommendedConfig["volume_type"] != "gp3" {
+		if rec.GetModify().GetRecommendedConfig()["volume_type"] != "gp3" {
 			t.Errorf("Expected recommended volume_type gp3, got %s",
-				rec.GetModify().RecommendedConfig["volume_type"])
+				rec.GetModify().GetRecommendedConfig()["volume_type"])
 		}
 	}
 }
@@ -265,14 +274,14 @@ func TestGetRecommendations_DefaultRegion(t *testing.T) {
 	}
 
 	// Should have recommendations (m5->m6i generation upgrade)
-	if len(resp.Recommendations) == 0 {
+	if len(resp.GetRecommendations()) == 0 {
 		t.Error("Expected recommendations when region defaults to plugin region")
 	}
 
 	// Verify recommendations use the plugin's region
-	for _, rec := range resp.Recommendations {
-		if rec.Resource != nil && rec.Resource.Region != "us-west-2" {
-			t.Errorf("Expected region us-west-2, got %s", rec.Resource.Region)
+	for _, rec := range resp.GetRecommendations() {
+		if rec.GetResource() != nil && rec.GetResource().GetRegion() != "us-west-2" {
+			t.Errorf("Expected region us-west-2, got %s", rec.GetResource().GetRegion())
 		}
 	}
 }
@@ -300,7 +309,7 @@ func TestGetRecommendations_PulumiResourceType(t *testing.T) {
 	}
 
 	// Should have at least one recommendation
-	if len(resp.Recommendations) == 0 {
+	if len(resp.GetRecommendations()) == 0 {
 		t.Error("Expected recommendations for Pulumi-format resource type")
 	}
 }
@@ -320,7 +329,7 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	// Should have at least one recommendation (generation upgrade)
 	var genUpgradeRec *pbc.Recommendation
 	for _, rec := range recs {
-		if rec.GetModify() != nil && rec.GetModify().ModificationType == modTypeGenUpgrade {
+		if rec.GetModify() != nil && rec.GetModify().GetModificationType() == modTypeGenUpgrade {
 			genUpgradeRec = rec
 			break
 		}
@@ -331,23 +340,23 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	}
 
 	// Verify recommendation details
-	if genUpgradeRec.Category != pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST {
-		t.Errorf("Category = %v, want COST", genUpgradeRec.Category)
+	if genUpgradeRec.GetCategory() != pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST {
+		t.Errorf("Category = %v, want COST", genUpgradeRec.GetCategory())
 	}
 
-	if genUpgradeRec.ActionType != pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY {
-		t.Errorf("ActionType = %v, want MODIFY", genUpgradeRec.ActionType)
+	if genUpgradeRec.GetActionType() != pbc.RecommendationActionType_RECOMMENDATION_ACTION_TYPE_MODIFY {
+		t.Errorf("ActionType = %v, want MODIFY", genUpgradeRec.GetActionType())
 	}
 
 	// Verify resource info
-	if genUpgradeRec.Resource == nil {
+	if genUpgradeRec.GetResource() == nil {
 		t.Fatal("Expected Resource to be set")
 	}
-	if genUpgradeRec.Resource.Provider != "aws" {
-		t.Errorf("Provider = %q, want %q", genUpgradeRec.Resource.Provider, "aws")
+	if genUpgradeRec.GetResource().GetProvider() != "aws" {
+		t.Errorf("Provider = %q, want %q", genUpgradeRec.GetResource().GetProvider(), "aws")
 	}
-	if genUpgradeRec.Resource.ResourceType != "ec2" {
-		t.Errorf("ResourceType = %q, want %q", genUpgradeRec.Resource.ResourceType, "ec2")
+	if genUpgradeRec.GetResource().GetResourceType() != "ec2" {
+		t.Errorf("ResourceType = %q, want %q", genUpgradeRec.GetResource().GetResourceType(), "ec2")
 	}
 
 	// Verify modify action
@@ -355,39 +364,43 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	if modify == nil {
 		t.Fatal("Expected Modify action")
 	}
-	if modify.CurrentConfig["instance_type"] != "t2.medium" {
-		t.Errorf("CurrentConfig[instance_type] = %q, want %q", modify.CurrentConfig["instance_type"], "t2.medium")
+	if modify.GetCurrentConfig()["instance_type"] != "t2.medium" {
+		t.Errorf("CurrentConfig[instance_type] = %q, want %q", modify.GetCurrentConfig()["instance_type"], "t2.medium")
 	}
-	if modify.RecommendedConfig["instance_type"] != "t3.medium" {
-		t.Errorf("RecommendedConfig[instance_type] = %q, want %q", modify.RecommendedConfig["instance_type"], "t3.medium")
+	if modify.GetRecommendedConfig()["instance_type"] != "t3.medium" {
+		t.Errorf(
+			"RecommendedConfig[instance_type] = %q, want %q",
+			modify.GetRecommendedConfig()["instance_type"],
+			"t3.medium",
+		)
 	}
 
 	// FR-006: Verify confidence level is 0.9 (high) for generation upgrades
-	if genUpgradeRec.ConfidenceScore == nil || *genUpgradeRec.ConfidenceScore != confidenceHigh {
+	if genUpgradeRec.ConfidenceScore == nil || genUpgradeRec.GetConfidenceScore() != confidenceHigh {
 		t.Errorf("ConfidenceScore = %v, want %v", genUpgradeRec.ConfidenceScore, confidenceHigh)
 	}
 
 	// Verify impact calculations (FR-005: 730 hours/month)
-	if genUpgradeRec.Impact == nil {
+	if genUpgradeRec.GetImpact() == nil {
 		t.Fatal("Expected Impact to be set")
 	}
 	expectedCurrentMonthly := 0.0464 * carbon.HoursPerMonth // ~33.87
 	expectedNewMonthly := 0.0416 * carbon.HoursPerMonth     // ~30.37
 	expectedSavings := expectedCurrentMonthly - expectedNewMonthly
 
-	if genUpgradeRec.Impact.CurrentCost != expectedCurrentMonthly {
-		t.Errorf("CurrentCost = %v, want %v", genUpgradeRec.Impact.CurrentCost, expectedCurrentMonthly)
+	if genUpgradeRec.GetImpact().GetCurrentCost() != expectedCurrentMonthly {
+		t.Errorf("CurrentCost = %v, want %v", genUpgradeRec.GetImpact().GetCurrentCost(), expectedCurrentMonthly)
 	}
-	if genUpgradeRec.Impact.ProjectedCost != expectedNewMonthly {
-		t.Errorf("ProjectedCost = %v, want %v", genUpgradeRec.Impact.ProjectedCost, expectedNewMonthly)
+	if genUpgradeRec.GetImpact().GetProjectedCost() != expectedNewMonthly {
+		t.Errorf("ProjectedCost = %v, want %v", genUpgradeRec.GetImpact().GetProjectedCost(), expectedNewMonthly)
 	}
-	if genUpgradeRec.Impact.EstimatedSavings != expectedSavings {
-		t.Errorf("EstimatedSavings = %v, want %v", genUpgradeRec.Impact.EstimatedSavings, expectedSavings)
+	if genUpgradeRec.GetImpact().GetEstimatedSavings() != expectedSavings {
+		t.Errorf("EstimatedSavings = %v, want %v", genUpgradeRec.GetImpact().GetEstimatedSavings(), expectedSavings)
 	}
 
 	// Verify source
-	if genUpgradeRec.Source != sourceAWSPublic {
-		t.Errorf("Source = %q, want %q", genUpgradeRec.Source, sourceAWSPublic)
+	if genUpgradeRec.GetSource() != sourceAWSPublic {
+		t.Errorf("Source = %q, want %q", genUpgradeRec.GetSource(), sourceAWSPublic)
 	}
 }
 
@@ -405,7 +418,7 @@ func TestGenerateEC2Recommendations_NoUpgradeWhenNewIsExpensive(t *testing.T) {
 
 	// Should NOT have generation upgrade recommendation
 	for _, rec := range recs {
-		if rec.GetModify() != nil && rec.GetModify().ModificationType == modTypeGenUpgrade {
+		if rec.GetModify() != nil && rec.GetModify().GetModificationType() == modTypeGenUpgrade {
 			t.Error("Should not recommend upgrade when new generation is more expensive")
 		}
 	}
@@ -425,7 +438,7 @@ func TestGenerateEC2Recommendations_NoUpgradeWhenPricingMissing(t *testing.T) {
 
 	// Should NOT have generation upgrade recommendation
 	for _, rec := range recs {
-		if rec.GetModify() != nil && rec.GetModify().ModificationType == modTypeGenUpgrade {
+		if rec.GetModify() != nil && rec.GetModify().GetModificationType() == modTypeGenUpgrade {
 			t.Error("Should not recommend upgrade when new generation pricing is missing")
 		}
 	}
@@ -461,7 +474,7 @@ func TestGenerateEC2Recommendations_GravitonMigration(t *testing.T) {
 	// Should have Graviton recommendation
 	var gravitonRec *pbc.Recommendation
 	for _, rec := range recs {
-		if rec.GetModify() != nil && rec.GetModify().ModificationType == modTypeGraviton {
+		if rec.GetModify() != nil && rec.GetModify().GetModificationType() == modTypeGraviton {
 			gravitonRec = rec
 			break
 		}
@@ -472,33 +485,37 @@ func TestGenerateEC2Recommendations_GravitonMigration(t *testing.T) {
 	}
 
 	// FR-007: Verify confidence level is 0.7 (medium) for Graviton recommendations
-	if gravitonRec.ConfidenceScore == nil || *gravitonRec.ConfidenceScore != confidenceMedium {
+	if gravitonRec.ConfidenceScore == nil || gravitonRec.GetConfidenceScore() != confidenceMedium {
 		t.Errorf("ConfidenceScore = %v, want %v", gravitonRec.ConfidenceScore, confidenceMedium)
 	}
 
 	// Verify architecture change in config
 	modify := gravitonRec.GetModify()
-	if modify.CurrentConfig["architecture"] != "x86_64" {
-		t.Errorf("CurrentConfig[architecture] = %q, want %q", modify.CurrentConfig["architecture"], "x86_64")
+	if modify.GetCurrentConfig()["architecture"] != "x86_64" {
+		t.Errorf("CurrentConfig[architecture] = %q, want %q", modify.GetCurrentConfig()["architecture"], "x86_64")
 	}
-	if modify.RecommendedConfig["architecture"] != "arm64" {
-		t.Errorf("RecommendedConfig[architecture] = %q, want %q", modify.RecommendedConfig["architecture"], "arm64")
+	if modify.GetRecommendedConfig()["architecture"] != "arm64" {
+		t.Errorf(
+			"RecommendedConfig[architecture] = %q, want %q",
+			modify.GetRecommendedConfig()["architecture"],
+			"arm64",
+		)
 	}
 
 	// FR-012: Verify metadata includes architecture warning
 	if gravitonRec.Metadata == nil {
 		t.Fatal("Expected Metadata to be set")
 	}
-	if _, ok := gravitonRec.Metadata["architecture_change"]; !ok {
+	if _, ok := gravitonRec.GetMetadata()["architecture_change"]; !ok {
 		t.Error("Expected architecture_change in metadata")
 	}
-	if _, ok := gravitonRec.Metadata["requires_validation"]; !ok {
+	if _, ok := gravitonRec.GetMetadata()["requires_validation"]; !ok {
 		t.Error("Expected requires_validation in metadata")
 	}
 
 	// Verify priority is LOW (Graviton requires validation)
-	if gravitonRec.Priority != pbc.RecommendationPriority_RECOMMENDATION_PRIORITY_LOW {
-		t.Errorf("Priority = %v, want LOW", gravitonRec.Priority)
+	if gravitonRec.GetPriority() != pbc.RecommendationPriority_RECOMMENDATION_PRIORITY_LOW {
+		t.Errorf("Priority = %v, want LOW", gravitonRec.GetPriority())
 	}
 }
 
@@ -520,7 +537,7 @@ func TestGenerateEC2Recommendations_BothUpgrades(t *testing.T) {
 		if rec.GetModify() == nil {
 			continue
 		}
-		switch rec.GetModify().ModificationType {
+		switch rec.GetModify().GetModificationType() {
 		case modTypeGenUpgrade:
 			hasGenUpgrade = true
 		case modTypeGraviton:
@@ -555,17 +572,17 @@ func TestGetEBSRecommendations_Gp2ToGp3(t *testing.T) {
 	rec := recs[0]
 
 	// Verify category
-	if rec.Category != pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST {
-		t.Errorf("Category = %v, want COST", rec.Category)
+	if rec.GetCategory() != pbc.RecommendationCategory_RECOMMENDATION_CATEGORY_COST {
+		t.Errorf("Category = %v, want COST", rec.GetCategory())
 	}
 
 	// Verify resource type
-	if rec.Resource == nil || rec.Resource.ResourceType != "ebs" {
+	if rec.GetResource() == nil || rec.GetResource().GetResourceType() != "ebs" {
 		t.Error("Expected ResourceType = 'ebs'")
 	}
 
 	// FR-006: Verify confidence level is 0.9 (high) for EBS volume changes
-	if rec.ConfidenceScore == nil || *rec.ConfidenceScore != confidenceHigh {
+	if rec.ConfidenceScore == nil || rec.GetConfidenceScore() != confidenceHigh {
 		t.Errorf("ConfidenceScore = %v, want %v", rec.ConfidenceScore, confidenceHigh)
 	}
 
@@ -574,14 +591,14 @@ func TestGetEBSRecommendations_Gp2ToGp3(t *testing.T) {
 	if modify == nil {
 		t.Fatal("Expected Modify action")
 	}
-	if modify.ModificationType != modTypeVolumeUpgrade {
-		t.Errorf("ModificationType = %q, want %q", modify.ModificationType, modTypeVolumeUpgrade)
+	if modify.GetModificationType() != modTypeVolumeUpgrade {
+		t.Errorf("ModificationType = %q, want %q", modify.GetModificationType(), modTypeVolumeUpgrade)
 	}
-	if modify.CurrentConfig["volume_type"] != "gp2" {
-		t.Errorf("CurrentConfig[volume_type] = %q, want %q", modify.CurrentConfig["volume_type"], "gp2")
+	if modify.GetCurrentConfig()["volume_type"] != "gp2" {
+		t.Errorf("CurrentConfig[volume_type] = %q, want %q", modify.GetCurrentConfig()["volume_type"], "gp2")
 	}
-	if modify.RecommendedConfig["volume_type"] != "gp3" {
-		t.Errorf("RecommendedConfig[volume_type] = %q, want %q", modify.RecommendedConfig["volume_type"], "gp3")
+	if modify.GetRecommendedConfig()["volume_type"] != "gp3" {
+		t.Errorf("RecommendedConfig[volume_type] = %q, want %q", modify.GetRecommendedConfig()["volume_type"], "gp3")
 	}
 
 	// Verify impact calculations
@@ -589,24 +606,24 @@ func TestGetEBSRecommendations_Gp2ToGp3(t *testing.T) {
 	expectedGp3Monthly := 0.08 * 500     // $40
 	expectedSavings := 10.0              // $10
 
-	if rec.Impact.CurrentCost != expectedCurrentMonthly {
-		t.Errorf("CurrentCost = %v, want %v", rec.Impact.CurrentCost, expectedCurrentMonthly)
+	if rec.GetImpact().GetCurrentCost() != expectedCurrentMonthly {
+		t.Errorf("CurrentCost = %v, want %v", rec.GetImpact().GetCurrentCost(), expectedCurrentMonthly)
 	}
-	if rec.Impact.ProjectedCost != expectedGp3Monthly {
-		t.Errorf("ProjectedCost = %v, want %v", rec.Impact.ProjectedCost, expectedGp3Monthly)
+	if rec.GetImpact().GetProjectedCost() != expectedGp3Monthly {
+		t.Errorf("ProjectedCost = %v, want %v", rec.GetImpact().GetProjectedCost(), expectedGp3Monthly)
 	}
-	if rec.Impact.EstimatedSavings != expectedSavings {
-		t.Errorf("EstimatedSavings = %v, want %v", rec.Impact.EstimatedSavings, expectedSavings)
+	if rec.GetImpact().GetEstimatedSavings() != expectedSavings {
+		t.Errorf("EstimatedSavings = %v, want %v", rec.GetImpact().GetEstimatedSavings(), expectedSavings)
 	}
 
 	// FR-012: Verify metadata includes performance info
 	if rec.Metadata == nil {
 		t.Fatal("Expected Metadata to be set")
 	}
-	if _, ok := rec.Metadata["baseline_iops"]; !ok {
+	if _, ok := rec.GetMetadata()["baseline_iops"]; !ok {
 		t.Error("Expected baseline_iops in metadata")
 	}
-	if _, ok := rec.Metadata["baseline_throughput"]; !ok {
+	if _, ok := rec.GetMetadata()["baseline_throughput"]; !ok {
 		t.Error("Expected baseline_throughput in metadata")
 	}
 }
@@ -630,14 +647,14 @@ func TestGetEBSRecommendations_DefaultSize(t *testing.T) {
 
 	rec := recs[0]
 	modify := rec.GetModify()
-	if modify.CurrentConfig["size_gb"] != "100" {
-		t.Errorf("CurrentConfig[size_gb] = %q, want %q (default)", modify.CurrentConfig["size_gb"], "100")
+	if modify.GetCurrentConfig()["size_gb"] != "100" {
+		t.Errorf("CurrentConfig[size_gb] = %q, want %q (default)", modify.GetCurrentConfig()["size_gb"], "100")
 	}
 
 	// Verify impact calculations use default 100GB
 	expectedCurrentMonthly := 0.10 * 100 // $10
-	if rec.Impact.CurrentCost != expectedCurrentMonthly {
-		t.Errorf("CurrentCost = %v, want %v", rec.Impact.CurrentCost, expectedCurrentMonthly)
+	if rec.GetImpact().GetCurrentCost() != expectedCurrentMonthly {
+		t.Errorf("CurrentCost = %v, want %v", rec.GetImpact().GetCurrentCost(), expectedCurrentMonthly)
 	}
 }
 
@@ -659,8 +676,8 @@ func TestGetEBSRecommendations_VolumeSizeTag(t *testing.T) {
 
 	rec := recs[0]
 	modify := rec.GetModify()
-	if modify.CurrentConfig["size_gb"] != "200" {
-		t.Errorf("CurrentConfig[size_gb] = %q, want %q", modify.CurrentConfig["size_gb"], "200")
+	if modify.GetCurrentConfig()["size_gb"] != "200" {
+		t.Errorf("CurrentConfig[size_gb] = %q, want %q", modify.GetCurrentConfig()["size_gb"], "200")
 	}
 }
 
@@ -729,17 +746,17 @@ func TestRecommendationHasUniqueID(t *testing.T) {
 
 	ids := make(map[string]bool)
 	for _, rec := range recs {
-		if rec.Id == "" {
+		if rec.GetId() == "" {
 			t.Error("Recommendation ID should not be empty")
 		}
-		if ids[rec.Id] {
-			t.Errorf("Duplicate recommendation ID: %s", rec.Id)
+		if ids[rec.GetId()] {
+			t.Errorf("Duplicate recommendation ID: %s", rec.GetId())
 		}
-		ids[rec.Id] = true
+		ids[rec.GetId()] = true
 
 		// Verify UUID format (36 chars with hyphens)
-		if len(rec.Id) != 36 {
-			t.Errorf("Recommendation ID %q should be UUID format (36 chars)", rec.Id)
+		if len(rec.GetId()) != 36 {
+			t.Errorf("Recommendation ID %q should be UUID format (36 chars)", rec.GetId())
 		}
 	}
 }
@@ -843,11 +860,37 @@ func TestGetRecommendations_Batch(t *testing.T) {
 
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
-			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},                                 // Upgrade
-			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}}, // Upgrade
-			{ResourceType: "aws:ec2:Instance", Sku: "m5.large", Region: "us-east-1", Provider: "aws"},                                  // Upgrade + Graviton
-			{ResourceType: "aws:ec2:Instance", Sku: "t3.medium", Region: "us-east-1", Provider: "aws"},                                 // No upgrade (already new)
-			{ResourceType: "aws:ebs:Volume", Sku: "gp3", Region: "us-east-1", Provider: "aws"},                                         // No upgrade
+			{
+				ResourceType: "aws:ec2:Instance",
+				Sku:          "t2.medium",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			}, // Upgrade
+			{
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp2",
+				Region:       "us-east-1",
+				Provider:     "aws",
+				Tags:         map[string]string{"size": "100"},
+			}, // Upgrade
+			{
+				ResourceType: "aws:ec2:Instance",
+				Sku:          "m5.large",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			}, // Upgrade + Graviton
+			{
+				ResourceType: "aws:ec2:Instance",
+				Sku:          "t3.medium",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			}, // No upgrade (already new)
+			{
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp3",
+				Region:       "us-east-1",
+				Provider:     "aws",
+			}, // No upgrade
 		},
 	}
 
@@ -868,8 +911,8 @@ func TestGetRecommendations_Batch(t *testing.T) {
 	// 5. gp3 -> None
 	// Total: 4 recommendations
 	expectedCount := 4
-	if len(resp.Recommendations) != expectedCount {
-		t.Errorf("Expected %d recommendations, got %d", expectedCount, len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != expectedCount {
+		t.Errorf("Expected %d recommendations, got %d", expectedCount, len(resp.GetRecommendations()))
 	}
 }
 
@@ -903,15 +946,19 @@ func TestGetRecommendations_FilteredBatch(t *testing.T) {
 	// Only the us-east-1 resource should match the filter
 	// t2.medium -> t3.medium = 1 recommendation
 	expectedCount := 1
-	if len(resp.Recommendations) != expectedCount {
-		t.Errorf("Expected %d recommendations for filtered batch, got %d", expectedCount, len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != expectedCount {
+		t.Errorf(
+			"Expected %d recommendations for filtered batch, got %d",
+			expectedCount,
+			len(resp.GetRecommendations()),
+		)
 	}
 
 	// Verify the recommendation is for the correct region
-	if len(resp.Recommendations) > 0 {
-		rec := resp.Recommendations[0]
-		if rec.Resource == nil || rec.Resource.Region != "us-east-1" {
-			t.Errorf("Expected recommendation for us-east-1, got %v", rec.Resource)
+	if len(resp.GetRecommendations()) > 0 {
+		rec := resp.GetRecommendations()[0]
+		if rec.GetResource() == nil || rec.GetResource().GetRegion() != "us-east-1" {
+			t.Errorf("Expected recommendation for us-east-1, got %v", rec.GetResource())
 		}
 	}
 }
@@ -930,7 +977,13 @@ func TestGetRecommendations_FilteredBatch_ByResourceType(t *testing.T) {
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
 			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
-			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}},
+			{
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp2",
+				Region:       "us-east-1",
+				Provider:     "aws",
+				Tags:         map[string]string{"size": "100"},
+			},
 		},
 		Filter: &pbc.RecommendationFilter{
 			ResourceType: "aws:ebs:Volume", // Only match EBS volumes
@@ -944,15 +997,19 @@ func TestGetRecommendations_FilteredBatch_ByResourceType(t *testing.T) {
 
 	// Only the EBS volume should match - gp2 -> gp3 = 1 recommendation
 	expectedCount := 1
-	if len(resp.Recommendations) != expectedCount {
-		t.Errorf("Expected %d recommendations for filtered batch, got %d", expectedCount, len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != expectedCount {
+		t.Errorf(
+			"Expected %d recommendations for filtered batch, got %d",
+			expectedCount,
+			len(resp.GetRecommendations()),
+		)
 	}
 
 	// Verify the recommendation is for EBS
-	if len(resp.Recommendations) > 0 {
-		rec := resp.Recommendations[0]
-		if rec.Resource == nil || rec.Resource.ResourceType != "ebs" {
-			t.Errorf("Expected recommendation for ebs, got %v", rec.Resource)
+	if len(resp.GetRecommendations()) > 0 {
+		rec := resp.GetRecommendations()[0]
+		if rec.GetResource() == nil || rec.GetResource().GetResourceType() != "ebs" {
+			t.Errorf("Expected recommendation for ebs, got %v", rec.GetResource())
 		}
 	}
 }
@@ -986,8 +1043,8 @@ func TestGetRecommendations_Legacy(t *testing.T) {
 	// Should generate recommendations from the filter-based single-item scope
 	// t2.medium -> t3.medium = 1 recommendation
 	expectedCount := 1
-	if len(resp.Recommendations) != expectedCount {
-		t.Errorf("Expected %d recommendations for legacy mode, got %d", expectedCount, len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != expectedCount {
+		t.Errorf("Expected %d recommendations for legacy mode, got %d", expectedCount, len(resp.GetRecommendations()))
 	}
 }
 
@@ -1018,14 +1075,18 @@ func TestGetRecommendations_LegacyWithDefaultRegion(t *testing.T) {
 	// Should generate recommendations using plugin's region (us-west-2)
 	// m5.large -> m6i.large (gen) + m6g.large (Graviton) = 2 recommendations
 	expectedCount := 2
-	if len(resp.Recommendations) != expectedCount {
-		t.Errorf("Expected %d recommendations for legacy mode with default region, got %d", expectedCount, len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != expectedCount {
+		t.Errorf(
+			"Expected %d recommendations for legacy mode with default region, got %d",
+			expectedCount,
+			len(resp.GetRecommendations()),
+		)
 	}
 
 	// Verify all recommendations use the plugin's region
-	for _, rec := range resp.Recommendations {
-		if rec.Resource == nil || rec.Resource.Region != "us-west-2" {
-			t.Errorf("Expected recommendation for us-west-2, got %v", rec.Resource)
+	for _, rec := range resp.GetRecommendations() {
+		if rec.GetResource() == nil || rec.GetResource().GetRegion() != "us-west-2" {
+			t.Errorf("Expected recommendation for us-west-2, got %v", rec.GetResource())
 		}
 	}
 }
@@ -1046,7 +1107,13 @@ func TestGetRecommendations_SummaryLogging(t *testing.T) {
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
 			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
-			{ResourceType: "aws:ebs:Volume", Sku: "gp2", Region: "us-east-1", Provider: "aws", Tags: map[string]string{"size": "100"}},
+			{
+				ResourceType: "aws:ebs:Volume",
+				Sku:          "gp2",
+				Region:       "us-east-1",
+				Provider:     "aws",
+				Tags:         map[string]string{"size": "100"},
+			},
 			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
 		},
 	}
@@ -1113,8 +1180,8 @@ func TestGetRecommendations_EmptyBothModes(t *testing.T) {
 	}
 
 	// Should return empty recommendations
-	if len(resp.Recommendations) != 0 {
-		t.Errorf("Expected 0 recommendations for empty request, got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != 0 {
+		t.Errorf("Expected 0 recommendations for empty request, got %d", len(resp.GetRecommendations()))
 	}
 }
 
@@ -1130,8 +1197,18 @@ func TestGetRecommendations_ProviderFilter(t *testing.T) {
 	req := &pbc.GetRecommendationsRequest{
 		TargetResources: []*pbc.ResourceDescriptor{
 			{ResourceType: "aws:ec2:Instance", Sku: "t2.medium", Region: "us-east-1", Provider: "aws"},
-			{ResourceType: "gcp:compute:Instance", Sku: "n1-standard-1", Region: "us-central1", Provider: "gcp"}, // Should be skipped
-			{ResourceType: "azure:vm:Instance", Sku: "Standard_B1s", Region: "eastus", Provider: "azure"},        // Should be skipped
+			{
+				ResourceType: "gcp:compute:Instance",
+				Sku:          "n1-standard-1",
+				Region:       "us-central1",
+				Provider:     "gcp",
+			}, // Should be skipped
+			{
+				ResourceType: "azure:vm:Instance",
+				Sku:          "Standard_B1s",
+				Region:       "eastus",
+				Provider:     "azure",
+			}, // Should be skipped
 		},
 	}
 
@@ -1142,8 +1219,8 @@ func TestGetRecommendations_ProviderFilter(t *testing.T) {
 
 	// Only the AWS resource should be processed
 	expectedCount := 1 // t2.medium -> t3.medium
-	if len(resp.Recommendations) != expectedCount {
-		t.Errorf("Expected %d recommendations (AWS only), got %d", expectedCount, len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != expectedCount {
+		t.Errorf("Expected %d recommendations (AWS only), got %d", expectedCount, len(resp.GetRecommendations()))
 	}
 }
 
@@ -1316,23 +1393,23 @@ func TestGetRecommendations_NativeIDPassthrough(t *testing.T) {
 				t.Fatalf("GetRecommendations() error: %v", err)
 			}
 
-			if len(resp.Recommendations) == 0 {
+			if len(resp.GetRecommendations()) == 0 {
 				t.Fatal("Expected at least one recommendation")
 			}
 
 			// Verify all recommendations have the expected Resource.Id and Resource.Name
-			for i, rec := range resp.Recommendations {
-				if rec.Resource == nil {
+			for i, rec := range resp.GetRecommendations() {
+				if rec.GetResource() == nil {
 					t.Errorf("Recommendation[%d]: Resource is nil", i)
 					continue
 				}
-				if rec.Resource.Id != tt.expectedID {
+				if rec.GetResource().GetId() != tt.expectedID {
 					t.Errorf("Recommendation[%d]: Resource.Id = %q, want %q",
-						i, rec.Resource.Id, tt.expectedID)
+						i, rec.GetResource().GetId(), tt.expectedID)
 				}
-				if rec.Resource.Name != tt.expectedName {
+				if rec.GetResource().GetName() != tt.expectedName {
 					t.Errorf("Recommendation[%d]: Resource.Name = %q, want %q",
-						i, rec.Resource.Name, tt.expectedName)
+						i, rec.GetResource().GetName(), tt.expectedName)
 				}
 			}
 		})
@@ -1372,19 +1449,19 @@ func TestGetRecommendations_MultipleRecsFromSameResource(t *testing.T) {
 	}
 
 	// Should have exactly 2 recommendations (gen upgrade + Graviton)
-	if len(resp.Recommendations) != 2 {
-		t.Fatalf("Expected 2 recommendations (gen upgrade + Graviton), got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != 2 {
+		t.Fatalf("Expected 2 recommendations (gen upgrade + Graviton), got %d", len(resp.GetRecommendations()))
 	}
 
 	// Verify both recommendations have the same Resource.Id
-	for i, rec := range resp.Recommendations {
-		if rec.Resource == nil {
+	for i, rec := range resp.GetRecommendations() {
+		if rec.GetResource() == nil {
 			t.Errorf("Recommendation[%d]: Resource is nil", i)
 			continue
 		}
-		if rec.Resource.Id != expectedID {
+		if rec.GetResource().GetId() != expectedID {
 			t.Errorf("Recommendation[%d]: Resource.Id = %q, want %q",
-				i, rec.Resource.Id, expectedID)
+				i, rec.GetResource().GetId(), expectedID)
 		}
 	}
 }
@@ -1431,8 +1508,8 @@ func TestGetRecommendations_BatchIDCorrelation(t *testing.T) {
 	}
 
 	// Should have 2 recommendations (1 EC2 gen upgrade + 1 EBS gp2->gp3)
-	if len(resp.Recommendations) != 2 {
-		t.Fatalf("Expected 2 recommendations, got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != 2 {
+		t.Fatalf("Expected 2 recommendations, got %d", len(resp.GetRecommendations()))
 	}
 
 	// Build a map of expected IDs by resource type
@@ -1442,19 +1519,19 @@ func TestGetRecommendations_BatchIDCorrelation(t *testing.T) {
 	}
 
 	// Verify each recommendation has the correct Resource.Id
-	for _, rec := range resp.Recommendations {
-		if rec.Resource == nil {
+	for _, rec := range resp.GetRecommendations() {
+		if rec.GetResource() == nil {
 			t.Error("Recommendation has nil Resource")
 			continue
 		}
-		expectedID, ok := expectedIDs[rec.Resource.ResourceType]
+		expectedID, ok := expectedIDs[rec.GetResource().GetResourceType()]
 		if !ok {
-			t.Errorf("Unexpected resource type: %s", rec.Resource.ResourceType)
+			t.Errorf("Unexpected resource type: %s", rec.GetResource().GetResourceType())
 			continue
 		}
-		if rec.Resource.Id != expectedID {
+		if rec.GetResource().GetId() != expectedID {
 			t.Errorf("Resource type %s: Resource.Id = %q, want %q",
-				rec.Resource.ResourceType, rec.Resource.Id, expectedID)
+				rec.GetResource().GetResourceType(), rec.GetResource().GetId(), expectedID)
 		}
 	}
 }
@@ -1493,21 +1570,30 @@ func TestGetRecommendations_Batch_EBSDefaultSize(t *testing.T) {
 		t.Fatalf("GetRecommendations() error: %v", err)
 	}
 
-	if len(resp.Recommendations) != 2 {
-		t.Fatalf("Expected 2 recommendations, got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) != 2 {
+		t.Fatalf("Expected 2 recommendations, got %d", len(resp.GetRecommendations()))
 	}
 
-	for i, rec := range resp.Recommendations {
+	for i, rec := range resp.GetRecommendations() {
 		// Verify default size was used (100GB)
 		modify := rec.GetModify()
-		if modify.CurrentConfig["size_gb"] != "100" {
-			t.Errorf("Recommendation[%d]: Expected size_gb=100 (default), got %s", i, modify.CurrentConfig["size_gb"])
+		if modify.GetCurrentConfig()["size_gb"] != "100" {
+			t.Errorf(
+				"Recommendation[%d]: Expected size_gb=100 (default), got %s",
+				i,
+				modify.GetCurrentConfig()["size_gb"],
+			)
 		}
 
 		// Verify cost calculation uses default size: $0.10 * 100GB = $10/month
 		expectedCurrentCost := 0.10 * 100
-		if rec.Impact.CurrentCost != expectedCurrentCost {
-			t.Errorf("Recommendation[%d]: CurrentCost = %v, want %v", i, rec.Impact.CurrentCost, expectedCurrentCost)
+		if rec.GetImpact().GetCurrentCost() != expectedCurrentCost {
+			t.Errorf(
+				"Recommendation[%d]: CurrentCost = %v, want %v",
+				i,
+				rec.GetImpact().GetCurrentCost(),
+				expectedCurrentCost,
+			)
 		}
 	}
 }
@@ -1606,14 +1692,14 @@ func TestGetRecommendations_RDS_Batch(t *testing.T) {
 
 	// db.t2 -> db.t3 generation upgrade should be recommended
 	// (Graviton may also be recommended if db.t4g pricing is cheaper)
-	if len(resp.Recommendations) < 1 {
-		t.Errorf("Expected at least 1 recommendation for RDS db.t2.medium, got %d", len(resp.Recommendations))
+	if len(resp.GetRecommendations()) < 1 {
+		t.Errorf("Expected at least 1 recommendation for RDS db.t2.medium, got %d", len(resp.GetRecommendations()))
 	}
 
 	// Verify the recommendation has correct resource type
-	for _, rec := range resp.Recommendations {
-		if rec.Resource.ResourceType != "rds" {
-			t.Errorf("Expected resource type 'rds', got %q", rec.Resource.ResourceType)
+	for _, rec := range resp.GetRecommendations() {
+		if rec.GetResource().GetResourceType() != "rds" {
+			t.Errorf("Expected resource type 'rds', got %q", rec.GetResource().GetResourceType())
 		}
 	}
 }
@@ -1647,9 +1733,9 @@ func TestGetRecommendations_RDS_NoGravitonForOracle(t *testing.T) {
 	}
 
 	// Should only get generation upgrade, NOT Graviton (Oracle doesn't support it)
-	for _, rec := range resp.Recommendations {
+	for _, rec := range resp.GetRecommendations() {
 		modify := rec.GetModify()
-		if modify != nil && modify.ModificationType == "graviton_migration" {
+		if modify != nil && modify.GetModificationType() == modTypeGraviton {
 			t.Errorf("Should not recommend Graviton migration for Oracle engine")
 		}
 	}
@@ -1684,13 +1770,16 @@ func TestGetRecommendations_RDS_GravitonForMySQL(t *testing.T) {
 
 	// Should get Graviton recommendation for MySQL
 	hasGraviton := false
-	for _, rec := range resp.Recommendations {
+	for _, rec := range resp.GetRecommendations() {
 		modify := rec.GetModify()
-		if modify != nil && modify.ModificationType == "graviton_migration" {
+		if modify != nil && modify.GetModificationType() == modTypeGraviton {
 			hasGraviton = true
 			// Verify engine is preserved
-			if modify.RecommendedConfig["engine"] != "mysql" {
-				t.Errorf("Expected engine 'mysql' in recommended config, got %q", modify.RecommendedConfig["engine"])
+			if modify.GetRecommendedConfig()["engine"] != "mysql" {
+				t.Errorf(
+					"Expected engine 'mysql' in recommended config, got %q",
+					modify.GetRecommendedConfig()["engine"],
+				)
 			}
 			break
 		}

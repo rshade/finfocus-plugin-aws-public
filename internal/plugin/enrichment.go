@@ -9,14 +9,14 @@ import (
 // They are intentionally kept for documentation purposes and will be activated when
 // the corresponding fields become available in the finfocus-spec proto definitions.
 
-// hasUsageProfile checks if UsageProfile field exists in request (future feature placeholder)
-func hasUsageProfile(req *pbc.ResourceDescriptor) bool { //nolint:unused
+// hasUsageProfile checks if UsageProfile field exists in request (future feature placeholder).
+func hasUsageProfile(_ *pbc.ResourceDescriptor) bool { //nolint:unused // future feature placeholder
 	// UsageProfile does not exist yet in current finfocus-spec version
 	return false
 }
 
-// hasLineage checks if Lineage field exists in response (future feature placeholder)
-func hasLineage(resp *pbc.GetProjectedCostResponse) bool { //nolint:unused
+// hasLineage checks if Lineage field exists in response (future feature placeholder).
+func hasLineage(_ *pbc.GetProjectedCostResponse) bool { //nolint:unused // future feature placeholder
 	// CostAllocationLineage does not exist yet in current finfocus-spec version
 	return false
 }
