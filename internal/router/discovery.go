@@ -19,7 +19,7 @@ func Discover(dir string, logger zerolog.Logger) map[string]string {
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		logger.Debug().Err(err).Str("dir", dir).Msg("failed to read binary directory")
+		logger.Warn().Err(err).Str("dir", dir).Msg("failed to read binary directory")
 		return result
 	}
 
@@ -35,7 +35,11 @@ func Discover(dir string, logger zerolog.Logger) map[string]string {
 		}
 
 		region := matches[1]
-		absPath := filepath.Join(dir, name)
+		absPath, absErr := filepath.Abs(filepath.Join(dir, name))
+		if absErr != nil {
+			logger.Warn().Err(absErr).Str("file", name).Msg("failed to resolve absolute binary path")
+			continue
+		}
 
 		// Verify the file is readable (skip files we cannot stat)
 		if _, infoErr := entry.Info(); infoErr != nil {

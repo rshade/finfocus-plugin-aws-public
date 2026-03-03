@@ -79,7 +79,7 @@ func parseGPUSpecs() {
 
 		// Parse GPU count
 		gpuCount, parseErr := strconv.Atoi(strings.TrimSpace(record[colGPUCount]))
-		if parseErr != nil || gpuCount < 0 {
+		if parseErr != nil || gpuCount <= 0 {
 			continue
 		}
 

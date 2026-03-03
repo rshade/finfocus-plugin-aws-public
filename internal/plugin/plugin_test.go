@@ -11,11 +11,12 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 // mockPricingClient is a test double for pricing.PricingClient.
@@ -611,7 +612,7 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 				"FINFOCUS_MAX_BATCH_SIZE":   "150",
 				"PULUMICOST_MAX_BATCH_SIZE": "200",
 			},
-			expectedBatchSize: 150,
+			expectedBatchSize: 100,
 			expectedStrict:    false,
 			expectWarning:     false,
 		},
@@ -620,7 +621,7 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 			envVars: map[string]string{
 				"PULUMICOST_MAX_BATCH_SIZE": "200",
 			},
-			expectedBatchSize: 200,
+			expectedBatchSize: 100,
 			expectedStrict:    false,
 			expectWarning:     true,
 		},
@@ -629,7 +630,7 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 			envVars: map[string]string{
 				"MAX_BATCH_SIZE": "175",
 			},
-			expectedBatchSize: 175,
+			expectedBatchSize: 100,
 			expectedStrict:    false,
 			expectWarning:     true,
 		},

@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
 
 // EstimateCost returns an estimated monthly cost for a resource based on its
@@ -247,7 +248,7 @@ func (p *AWSPublicPlugin) estimateEBSFromAttrs(traceID, resourceName string, att
 	// Get volume type from attributes (default to gp2)
 	volumeType, ok := getStringAttr(attrs, "type")
 	if !ok || volumeType == "" {
-		volumeType = defaultRDSStorage
+		volumeType = defaultRootVolumeType
 	}
 
 	// Get size from attributes (default to 8 GB)

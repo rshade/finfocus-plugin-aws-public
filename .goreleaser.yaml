@@ -212,7 +212,7 @@ archives:
       {{ else if eq .Arch "386" }}i386
       {{ else }}{{ .Arch }}{{ end }}
       {{ if .Arm }}v{{ .Arm }}{{ end }}_
-      {{ .ID }}
+      {{ .ArtifactID }}
     format_overrides:
       - goos: windows
         formats:

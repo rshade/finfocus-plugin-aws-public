@@ -60,10 +60,10 @@ func TestParseInstanceType(t *testing.T) {
 			wantSize:   "",
 		},
 		{
-			name:       "multiple dots - only first split",
+			name:       "multiple dots - invalid",
 			input:      "a.b.c",
-			wantFamily: "a",
-			wantSize:   "b.c",
+			wantFamily: "",
+			wantSize:   "",
 		},
 	}
 
@@ -225,6 +225,12 @@ func TestParseRDSInstanceType(t *testing.T) {
 		{
 			name:       "db.t3 - missing size",
 			input:      "db.t3",
+			wantFamily: "",
+			wantSize:   "",
+		},
+		{
+			name:       "db.t3.medium.extra - invalid",
+			input:      "db.t3.medium.extra",
 			wantFamily: "",
 			wantSize:   "",
 		},

@@ -148,7 +148,7 @@ func main() {
 	}
 
 	// Write the file
-	if writeErr := os.WriteFile(*output, []byte(content), 0o600); writeErr != nil {
+	if writeErr := os.WriteFile(*output, []byte(content), 0o644); writeErr != nil {
 		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", writeErr)
 		os.Exit(1)
 	}
@@ -253,8 +253,8 @@ func generateGridFactorsFile(factors []GridFactor) string {
 		if f.Note != "" {
 			comment += " (" + f.Note + ")"
 		}
-		entries.WriteString(fmt.Sprintf("\t%-18q: %.8f, // %s\n",
-			f.Region, f.Factor, comment))
+		fmt.Fprintf(&entries, "\t%-18q: %.8f, // %s\n",
+			f.Region, f.Factor, comment)
 	}
 
 	// Get current date for vintage

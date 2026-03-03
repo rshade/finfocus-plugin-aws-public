@@ -11,12 +11,13 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
 
 // errNoLogEntries is a sentinel error returned when no log entries are found.
@@ -1734,7 +1735,7 @@ func TestGetRecommendations_RDS_NoGravitonForOracle(t *testing.T) {
 	// Should only get generation upgrade, NOT Graviton (Oracle doesn't support it)
 	for _, rec := range resp.GetRecommendations() {
 		modify := rec.GetModify()
-		if modify != nil && modify.GetModificationType() == "graviton_migration" {
+		if modify != nil && modify.GetModificationType() == modTypeGraviton {
 			t.Errorf("Should not recommend Graviton migration for Oracle engine")
 		}
 	}
@@ -1771,7 +1772,7 @@ func TestGetRecommendations_RDS_GravitonForMySQL(t *testing.T) {
 	hasGraviton := false
 	for _, rec := range resp.GetRecommendations() {
 		modify := rec.GetModify()
-		if modify != nil && modify.GetModificationType() == "graviton_migration" {
+		if modify != nil && modify.GetModificationType() == modTypeGraviton {
 			hasGraviton = true
 			// Verify engine is preserved
 			if modify.GetRecommendedConfig()["engine"] != "mysql" {

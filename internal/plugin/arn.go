@@ -112,14 +112,14 @@ func isValidPartition(partition string) bool {
 // parseResourcePart extracts resource type and ID from the resource part of an ARN.
 // Handles both "/" and ":" separators.
 func parseResourcePart(resourcePart string) (string, string) {
-	// Try "/" separator first
-	if idx := strings.Index(resourcePart, "/"); idx != -1 {
-		return resourcePart[:idx], resourcePart[idx+1:]
-	}
+	idxColon := strings.Index(resourcePart, ":")
+	idxSlash := strings.Index(resourcePart, "/")
 
-	// Try ":" separator
-	if idx := strings.Index(resourcePart, ":"); idx != -1 {
-		return resourcePart[:idx], resourcePart[idx+1:]
+	switch {
+	case idxColon >= 0 && (idxSlash < 0 || idxColon < idxSlash):
+		return resourcePart[:idxColon], resourcePart[idxColon+1:]
+	case idxSlash >= 0:
+		return resourcePart[:idxSlash], resourcePart[idxSlash+1:]
 	}
 
 	// No separator - the whole part is the resource (e.g., S3 bucket name)

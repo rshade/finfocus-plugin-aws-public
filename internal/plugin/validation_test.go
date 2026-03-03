@@ -421,6 +421,55 @@ func TestRegionFallbackGlobalServices(t *testing.T) {
 	}
 }
 
+// TestValidateActualCostRequest_TagDerivedGlobalServiceEmptyRegion verifies that
+// tag-derived requests for global services (S3/IAM) can omit region and still
+// resolve to the plugin region during validation.
+func TestValidateActualCostRequest_TagDerivedGlobalServiceEmptyRegion(t *testing.T) {
+	logger := zerolog.Nop()
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
+	ctx := context.Background()
+	now := time.Now()
+
+	tests := []struct {
+		name string
+		tags map[string]string
+	}{
+		{
+			name: "S3 tags with empty region",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "s3",
+				"sku":           "STANDARD",
+			},
+		},
+		{
+			name: "IAM tags with empty region",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "iam",
+				"sku":           "role",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetActualCostRequest{
+				// Keep non-empty to satisfy SDK validation while forcing tag-derived parsing.
+				ResourceId: "invalid-json",
+				Start:      timestamppb.New(now.Add(-1 * time.Hour)),
+				End:        timestamppb.New(now),
+				Tags:       tt.tags,
+			}
+
+			res, _, err := p.ValidateActualCostRequest(ctx, req)
+			require.NoError(t, err)
+			require.NotNil(t, res)
+			assert.Equal(t, "us-east-1", res.GetRegion())
+		})
+	}
+}
+
 // TestValidateProjectedCostRequest_ZeroCostResource_NoSKURequired verifies that
 // zero-cost resources pass validation even without a SKU.
 func TestValidateProjectedCostRequest_ZeroCostResource_NoSKURequired(t *testing.T) {

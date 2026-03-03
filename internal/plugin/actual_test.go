@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 // mockPricingClientActual implements pricing.PricingClient for actual cost testing.
@@ -1483,24 +1484,28 @@ func TestGetActualCost_ZeroCostResource(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetActualCost() unexpected error for %s: %v", rt, err)
 			}
+			if resp == nil {
+				t.Fatalf("GetActualCost() returned nil response for %s", rt)
+			}
 
 			if len(resp.GetResults()) == 0 {
 				t.Fatalf("GetActualCost() returned 0 results for %s", rt)
 			}
+			result := resp.GetResults()[0]
 
-			if resp.GetResults()[0].GetCost() != 0 {
+			if diff := result.GetCost(); diff > 0.000001 || diff < -0.000001 {
 				t.Errorf(
 					"GetActualCost() cost = %v, want 0 for zero-cost resource %s",
-					resp.GetResults()[0].GetCost(),
+					result.GetCost(),
 					rt,
 				)
 			}
 
-			if !strings.Contains(resp.GetResults()[0].GetSource(), "no direct") &&
-				!strings.Contains(resp.GetResults()[0].GetSource(), "free") {
+			if !strings.Contains(result.GetSource(), "no direct") &&
+				!strings.Contains(result.GetSource(), "free") {
 				t.Errorf(
 					"GetActualCost() source = %q, want explanation for zero-cost resource %s",
-					resp.GetResults()[0].GetSource(),
+					result.GetSource(),
 					rt,
 				)
 			}
@@ -1532,8 +1537,14 @@ func TestGetActualCost_RoutingFix(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetActualCost(S3) failed: %v", err)
 		}
+		if resp == nil {
+			t.Fatal("GetActualCost(S3) returned nil response")
+		}
+		if len(resp.GetResults()) == 0 {
+			t.Fatal("GetActualCost(S3) returned empty results")
+		}
 		// $0.023/GB * 100GB = $2.30
-		if resp.GetResults()[0].GetCost() != 2.30 {
+		if diff := resp.GetResults()[0].GetCost() - 2.30; diff > 0.0001 || diff < -0.0001 {
 			t.Errorf("S3 cost = %v, want 2.30", resp.GetResults()[0].GetCost())
 		}
 	})
@@ -1550,6 +1561,12 @@ func TestGetActualCost_RoutingFix(t *testing.T) {
 		resp, err := plugin.GetActualCost(ctx, req)
 		if err != nil {
 			t.Fatalf("GetActualCost(Lambda) failed: %v", err)
+		}
+		if resp == nil {
+			t.Fatal("GetActualCost(Lambda) returned nil response")
+		}
+		if len(resp.GetResults()) == 0 {
+			t.Fatal("GetActualCost(Lambda) returned empty results")
 		}
 		// Requests: 1M * $0.0000002 = $0.20
 		// Compute: (128/1024) * 0.1s * 1M * $0.0000166667 = $0.2083
@@ -1580,6 +1597,10 @@ func TestGetActualCost_ZeroCostARN(t *testing.T) {
 		{"SecurityGroup", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-abc123"},
 		{"IAM Role", "arn:aws:iam::123456789012:role/my-role"},
 		{"LaunchTemplate", "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-abc123"},
+		{
+			"LaunchConfiguration",
+			"arn:aws:autoscaling:us-east-1:123456789012:launch-configuration/launch-config-abc123",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1594,12 +1615,15 @@ func TestGetActualCost_ZeroCostARN(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetActualCost(%s) unexpected error: %v", tt.name, err)
 			}
+			if resp == nil {
+				t.Fatalf("GetActualCost(%s) returned nil response", tt.name)
+			}
 
 			if len(resp.GetResults()) == 0 {
 				t.Fatalf("GetActualCost(%s) returned 0 results, want non-empty", tt.name)
 			}
 
-			if resp.GetResults()[0].GetCost() != 0 {
+			if diff := resp.GetResults()[0].GetCost(); diff > 0.000001 || diff < -0.000001 {
 				t.Errorf("GetActualCost(%s) cost = %v, want 0", tt.name, resp.GetResults()[0].GetCost())
 			}
 		})
@@ -1636,6 +1660,9 @@ func TestGetActualCost_MixedBatch(t *testing.T) {
 			resp, err := plugin.GetActualCost(ctx, req)
 			if err != nil {
 				t.Fatalf("GetActualCost failed: %v", err)
+			}
+			if resp == nil {
+				t.Fatalf("GetActualCost returned nil response for sku %s", tt.sku)
 			}
 			if len(resp.GetResults()) != tt.wantRes {
 				t.Errorf("sku %s: got %d results, want %d", tt.sku, len(resp.GetResults()), tt.wantRes)

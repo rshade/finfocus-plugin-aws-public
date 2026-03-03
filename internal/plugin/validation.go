@@ -417,17 +417,18 @@ func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*
 
 	// Map ARN service to Pulumi resource type
 	resourceType := arn.ToPulumiResourceType()
+	canonicalService := detectService(normalizeResourceType(resourceType))
 
 	// Zero-cost resources (VPC, Subnet, SecurityGroup, IAM, LaunchTemplate, etc.)
 	// don't need a SKU - skip extraction and return immediately with empty SKU.
-	if IsZeroCostService(resourceType) {
+	if IsZeroCostService(canonicalService) {
 		tags := make(map[string]string)
 		for k, v := range req.GetTags() {
 			tags[k] = v
 		}
 		return &pbc.ResourceDescriptor{
 			Provider:     providerAWS,
-			ResourceType: resourceType,
+			ResourceType: canonicalService,
 			Sku:          "",
 			Region:       arn.Region,
 			Tags:         tags,
@@ -436,10 +437,10 @@ func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*
 
 	// Extract SKU from tags (ARN doesn't contain instance type/SKU)
 	sku := ""
-	if req.Tags != nil {
-		sku = req.GetTags()["sku"]
+	if tags := req.GetTags(); tags != nil {
+		sku = tags["sku"]
 		if sku == "" {
-			sku = extractAWSSKU(req.GetTags())
+			sku = extractAWSSKU(tags)
 		}
 	}
 	if sku == "" {

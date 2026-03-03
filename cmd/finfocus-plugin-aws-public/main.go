@@ -10,9 +10,10 @@ import (
 	"syscall"
 
 	"github.com/rs/zerolog"
+	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
+
 	"github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
-	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 )
 
 // version is the plugin version, set at build time via ldflags.
@@ -74,23 +75,7 @@ func run() error {
 
 	if port == 0 {
 		// Priority 3: Backward compatibility Generic PORT environment variable
-		if portStr := os.Getenv("PORT"); portStr != "" {
-			logger.Warn().
-				Str("env_var", "PORT").
-				Str("replacement", "FINFOCUS_PLUGIN_PORT").
-				Str("deprecated_since", "v0.0.8").
-				Str("removal_version", "v0.1.0").
-				Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use FINFOCUS_PLUGIN_PORT instead.")
-			var portVal int
-			portVal, err = strconv.Atoi(portStr)
-			if err == nil && portVal > 0 && portVal <= 65535 {
-				port = portVal
-			} else if err == nil {
-				logger.Warn().
-					Int("port", portVal).
-					Msg("PORT environment variable value is out of valid range (1-65535), ignoring")
-			}
-		}
+		port = parseDeprecatedPort(logger)
 	}
 
 	// Log port source for troubleshooting
@@ -152,4 +137,37 @@ func run() error {
 	}
 
 	return nil
+}
+
+// parseDeprecatedPort reads the deprecated PORT environment variable and returns a valid port
+// or 0 if not set / invalid. Logs appropriate deprecation and validation warnings.
+func parseDeprecatedPort(logger zerolog.Logger) int {
+	portStr := os.Getenv("PORT")
+	if portStr == "" {
+		return 0
+	}
+
+	logger.Warn().
+		Str("env_var", "PORT").
+		Str("replacement", "FINFOCUS_PLUGIN_PORT").
+		Str("deprecated_since", "v0.0.8").
+		Str("removal_version", "v0.1.0").
+		Msg("PORT environment variable is deprecated since v0.0.8 and will be removed in v0.1.0. Please use FINFOCUS_PLUGIN_PORT instead.")
+
+	portVal, err := strconv.Atoi(portStr)
+	switch {
+	case err == nil && portVal > 0 && portVal <= 65535:
+		return portVal
+	case err == nil:
+		logger.Warn().
+			Int("port", portVal).
+			Msg("PORT environment variable value is out of valid range (1-65535), ignoring")
+	default:
+		logger.Warn().
+			Str("port_raw", portStr).
+			Err(err).
+			Msg("failed to parse PORT environment variable, falling back to ephemeral mode")
+	}
+
+	return 0
 }

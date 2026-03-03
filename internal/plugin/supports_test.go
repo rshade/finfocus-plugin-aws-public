@@ -1126,7 +1126,7 @@ func TestSupports_ZeroCost_SupportedMetricsNil(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			if resp.SupportedMetrics != nil {
+			if resp.GetSupportedMetrics() != nil {
 				t.Errorf(
 					"SupportedMetrics should be nil for zero-cost resource %s, got: %v",
 					rt,

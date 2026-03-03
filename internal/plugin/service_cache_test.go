@@ -383,11 +383,12 @@ func TestServiceResolver_AllSupportedServices(t *testing.T) {
 		{"aws:dynamodb/table:Table", "dynamodb"},
 		{"aws:cloudwatch/logGroup:LogGroup", "cloudwatch"},
 		{"aws:elasticache/cluster:Cluster", "elasticache"},
-		// Note: aws:ec2/natGateway:NatGateway currently resolves to "ec2" because
-		// normalizeResourceType() extracts just the service prefix ("ec2"), not the
-		// subresource. This is consistent with the two-step normalization pattern.
-		// Use "natgw" or "nat_gateway" for explicit NAT Gateway resource types.
-		{"aws:ec2/natGateway:NatGateway", "ec2"},
+		// NAT Gateway Pulumi type must map to natgw (not generic ec2).
+		{"aws:ec2/natGateway:NatGateway", "natgw"},
+		// NAT Gateway plain-string aliases (must resolve via detectService fast path)
+		{"nat_gateway", "natgw"},
+		{"nat-gateway", "natgw"},
+		{"natgateway", "natgw"},
 	}
 
 	for _, tt := range tests {

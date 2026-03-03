@@ -118,12 +118,16 @@ func parseInstanceSpecs() {
 			continue
 		}
 
-		// Parse min/max watts (CSV uses comma as decimal separator)
-		minWatts := parseEuropeanFloat(record[colMinWatts])
-		maxWatts := parseEuropeanFloat(record[colMaxWatts])
+		// Parse min/max watts (CSV uses comma as decimal separator).
+		minWatts, minOK := parseEuropeanFloat(record[colMinWatts])
+		maxWatts, maxOK := parseEuropeanFloat(record[colMaxWatts])
+		if !minOK || !maxOK {
+			continue
+		}
 
-		// Skip invalid power values
-		if minWatts < 0 || maxWatts < minWatts {
+		// Skip invalid power values.
+		// Both watts must be strictly positive and max must be >= min.
+		if minWatts <= 0 || maxWatts < minWatts {
 			continue
 		}
 
@@ -138,17 +142,17 @@ func parseInstanceSpecs() {
 
 // parseEuropeanFloat parses a decimal number that may use a comma as the decimal
 // separator and returns it as a float64. It trims surrounding whitespace and
-// accepts either '.' or ',' as the decimal point. Returns 0 if the string
-// cannot be parsed as a floating-point number.
-func parseEuropeanFloat(s string) float64 {
+// accepts either '.' or ',' as the decimal point.
+// The second return value indicates whether parsing succeeded.
+func parseEuropeanFloat(s string) (float64, bool) {
 	s = strings.TrimSpace(s)
 	// Replace comma with period for European format
 	s = strings.ReplaceAll(s, ",", ".")
 	val, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return 0
+		return 0, false
 	}
-	return val
+	return val, true
 }
 
 // GetInstanceSpec retrieves the InstanceSpec for the given EC2 instance type

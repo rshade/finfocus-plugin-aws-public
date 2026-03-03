@@ -56,7 +56,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.eksPricingSpec(resource)
 	case serviceELB, serviceALB, serviceNLB:
 		spec = p.elbPricingSpec(resource)
-	case serviceNATGW, "nat_gateway", "nat-gateway":
+	case serviceNATGW:
 		spec = p.natGatewayPricingSpec(resource)
 	case serviceCloudWatch:
 		spec = p.cloudWatchPricingSpec(resource)
