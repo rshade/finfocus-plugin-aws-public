@@ -12,13 +12,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 // AWSPublicPlugin implements the pluginsdk.Plugin interface for AWS public pricing.
@@ -531,9 +532,12 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 		}
 	}
 
-	// Validate required fields
+	// Validate required fields.
+	// Region may be empty for tag-derived requests so global services (S3/IAM)
+	// can use plugin-region fallback during validation.
+	allowEmptyRegion := len(req.GetTags()) > 0
 	if resource.GetProvider() == "" || resource.GetResourceType() == "" || resource.GetSku() == "" ||
-		resource.GetRegion() == "" {
+		(!allowEmptyRegion && resource.GetRegion() == "") {
 		return nil, status.Error(
 			codes.InvalidArgument,
 			"resource information incomplete: need provider, resource_type, sku, region in ResourceId or Tags",

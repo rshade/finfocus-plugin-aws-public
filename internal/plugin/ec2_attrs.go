@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -180,6 +181,21 @@ func parseGoMapString(s string) map[string]string {
 	return result
 }
 
+// parsePositiveIntField parses positive integer tag values used for root volume size fields.
+// It logs a warning for malformed or non-positive values.
+func parsePositiveIntField(fieldName, raw string) (int, bool) {
+	size, err := strconv.Atoi(raw)
+	if err != nil || size <= 0 {
+		log.Warn().
+			Str("field", fieldName).
+			Str("value", raw).
+			Err(err).
+			Msg("invalid root volume size value")
+		return 0, false
+	}
+	return size, true
+}
+
 // ExtractRootVolumeFromTags extracts root EBS volume configuration from a
 // ResourceDescriptor.Tags map. This is used by the GetProjectedCost path.
 //
@@ -210,7 +226,7 @@ func ExtractRootVolumeFromTags(tags map[string]string) RootVolumeInfo {
 				volumeType = vt
 			}
 			if vs, vsOK := rbdMap["volumeSize"]; vsOK && vs != "" {
-				if size, err := strconv.Atoi(vs); err == nil && size > 0 {
+				if size, sizeOK := parsePositiveIntField("rootBlockDevice.volumeSize", vs); sizeOK {
 					sizeGB = size
 				}
 			}
@@ -218,13 +234,13 @@ func ExtractRootVolumeFromTags(tags map[string]string) RootVolumeInfo {
 	}
 
 	// Individual tags override map-parsed values (higher priority)
-	if rvt, ok := tags["root_volume_type"]; ok && rvt != "" {
+	if rvt, rvtOK := tags["root_volume_type"]; rvtOK && rvt != "" {
 		hasSource = true
 		volumeType = rvt
 	}
-	if rvs, ok := tags["root_volume_size"]; ok && rvs != "" {
+	if rvs, rvsOK := tags["root_volume_size"]; rvsOK && rvs != "" {
 		hasSource = true
-		if size, err := strconv.Atoi(rvs); err == nil && size > 0 {
+		if size, sizeOK := parsePositiveIntField("root_volume_size", rvs); sizeOK {
 			sizeGB = size
 		}
 	}
@@ -290,7 +306,7 @@ func ExtractRootVolumeFromStruct(attrs *structpb.Struct) RootVolumeInfo {
 			volumeType = vt
 		}
 		if vs, vsOK := rbdMap["volumeSize"]; vsOK && vs != "" {
-			if size, err := strconv.Atoi(vs); err == nil && size > 0 {
+			if size, sizeOK := parsePositiveIntField("rootBlockDevice.volumeSize", vs); sizeOK {
 				sizeGB = size
 			}
 		}
@@ -322,18 +338,18 @@ func extractRootVolumeFromStructValue(s *structpb.Struct) (string, int) {
 	var volumeType string
 	var sizeGB int
 
-	if val, ok := s.GetFields()["volumeType"]; ok {
+	if val, vtOK := s.GetFields()["volumeType"]; vtOK {
 		volumeType = val.GetStringValue()
 	}
 
-	if val, ok := s.GetFields()["volumeSize"]; ok {
+	if val, vsOK := s.GetFields()["volumeSize"]; vsOK {
 		switch sv := val.GetKind().(type) {
 		case *structpb.Value_NumberValue:
 			if sv.NumberValue > 0 {
 				sizeGB = int(sv.NumberValue)
 			}
 		case *structpb.Value_StringValue:
-			if size, err := strconv.Atoi(sv.StringValue); err == nil && size > 0 {
+			if size, sizeOK := parsePositiveIntField("rootBlockDevice.volumeSize", sv.StringValue); sizeOK {
 				sizeGB = size
 			}
 		}

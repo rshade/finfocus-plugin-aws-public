@@ -148,7 +148,7 @@ func main() {
 	}
 
 	// Write the file
-	if writeErr := os.WriteFile(*output, []byte(content), 0o600); writeErr != nil {
+	if writeErr := os.WriteFile(*output, []byte(content), 0o644); writeErr != nil {
 		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", writeErr)
 		os.Exit(1)
 	}

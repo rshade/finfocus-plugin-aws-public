@@ -8,12 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk/mapping"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 const (
@@ -37,6 +38,10 @@ func normalizeResourceType(resourceType string) string {
 		// Special case: aws:ec2/volume is EBS
 		if strings.Contains(rt, "ec2/volume") {
 			return serviceEBS
+		}
+		// NAT Gateway must be detected before generic EC2 normalization.
+		if strings.Contains(rt, "ec2/natgateway") || strings.HasPrefix(rt, "aws:natgateway") {
+			return serviceNATGW
 		}
 
 		// IAM resources (prefix match)
@@ -347,13 +352,13 @@ func (p *AWSPublicPlugin) estimateEC2(
 
 	// Add root volume EBS carbon if applicable
 	var rootCarbonGrams float64
-	if rootVol.Present && rootVolumeCost > 0 {
+	if rootVol.Present {
 		ebsEstimator := carbon.NewEBSEstimator()
 		rootCarbon, rootCarbonOK := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
 			VolumeType: rootVol.VolumeType,
 			SizeGB:     float64(rootVol.SizeGB),
 			Region:     resource.GetRegion(),
-			Hours:      HoursPerMonthProd,
+			Hours:      carbon.HoursPerMonth,
 		})
 		if rootCarbonOK {
 			rootCarbonGrams = rootCarbon
@@ -409,13 +414,13 @@ func (p *AWSPublicPlugin) estimateEBS(
 
 	if resource.GetTags() != nil {
 		if sizeStr, sizeFound := resource.GetTags()["size"]; sizeFound {
-			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
-				sizeGB = size
+			if size := p.validateNonNegativeInt64(traceID, "size", sizeStr); size > 0 {
+				sizeGB = int(size)
 				sizeAssumed = false
 			}
 		} else if volSizeStr, volFound := resource.GetTags()["volume_size"]; volFound {
-			if size, err := strconv.Atoi(volSizeStr); err == nil && size > 0 {
-				sizeGB = size
+			if size := p.validateNonNegativeInt64(traceID, "volume_size", volSizeStr); size > 0 {
+				sizeGB = int(size)
 				sizeAssumed = false
 			}
 		}
@@ -496,6 +501,9 @@ func (p *AWSPublicPlugin) estimateS3(
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
 	storageClass := resource.GetSku()
+	if storageClass == "" {
+		storageClass = "STANDARD"
+	}
 
 	// Extract size from tags, default to 1GB
 	sizeGB := 1.0

@@ -20,6 +20,17 @@ const (
 	unitHours   = "Hrs"
 )
 
+// isHourlyUnit reports whether the AWS pricing unit represents an hourly rate.
+// AWS pricing data may use "hour", "hours", or "hrs" with varying capitalization.
+func isHourlyUnit(unit string) bool {
+	switch strings.ToLower(strings.TrimSpace(unit)) {
+	case "hour", "hours", "hrs":
+		return true
+	default:
+		return false
+	}
+}
+
 // elasticacheEngineNormalization maps user-input engine names (lowercase)
 // to AWS canonical engine names used in pricing data.
 // ElastiCache supports three engines: Redis, Memcached, and Valkey.
@@ -666,7 +677,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) {
 			if instClass != "" && engine != "" && deployOption == "Single-AZ" {
 				key := fmt.Sprintf("%s/%s", instClass, engine)
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				if found && unit == unitHours {
+				if found && isHourlyUnit(unit) {
 					c.rdsInstanceIndex[key] = rdsInstancePrice{
 						Unit:       unit,
 						HourlyRate: rate,
@@ -754,9 +765,8 @@ func (c *Client) parseEKSPricing(data []byte) (string, error) {
 			}
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			// AWS returns unit as "Hours", "Hrs", or "hours" depending on the product
-			unitLower := strings.ToLower(unit)
-			if found && (unitLower == "hrs" || unitLower == "hours") && rate > 0 {
+			// AWS returns unit as "Hours", "Hrs", or "hours" depending on the product.
+			if found && isHourlyUnit(unit) && rate > 0 {
 				if operation == "ExtendedSupport" || strings.Contains(usageType, "extendedSupport") {
 					c.eksPricing.ExtendedHourlyRate = rate
 				} else if operation == "CreateOperation" || strings.Contains(usageType, "perCluster") {
@@ -862,9 +872,9 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) {
 					}
 				case prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput"):
 					usageType := attrs["usagetype"]
-					if strings.Contains(usageType, "ReadCapacityUnit") && unit == unitHours {
+					if strings.Contains(usageType, "ReadCapacityUnit") && isHourlyUnit(unit) {
 						c.dynamoDBPricing.ProvisionedRCUPrice = rate
-					} else if strings.Contains(usageType, "WriteCapacityUnit") && unit == unitHours {
+					} else if strings.Contains(usageType, "WriteCapacityUnit") && isHourlyUnit(unit) {
 						c.dynamoDBPricing.ProvisionedWCUPrice = rate
 					}
 				case prod.ProductFamily == "Database Storage":
@@ -917,7 +927,7 @@ func (c *Client) parseELBPricing(data []byte) (string, error) {
 				switch prod.ProductFamily {
 				case "Load Balancer-Application":
 					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") &&
-						unit == unitHours {
+						isHourlyUnit(unit) {
 						c.elbPricing.ALBHourlyRate = rate
 					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") &&
 						unit == "LCU-Hrs" {
@@ -925,7 +935,7 @@ func (c *Client) parseELBPricing(data []byte) (string, error) {
 					}
 				case "Load Balancer-Network":
 					if strings.HasSuffix(usageType, "LoadBalancerUsage") && !strings.Contains(usageType, "TS-") &&
-						unit == unitHours {
+						isHourlyUnit(unit) {
 						c.elbPricing.NLBHourlyRate = rate
 					} else if strings.HasSuffix(usageType, "LCUUsage") && !strings.Contains(usageType, "Outposts-") && !strings.Contains(usageType, "Reserved") &&
 						unit == "LCU-Hrs" {
@@ -975,7 +985,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
 			if found {
-				if strings.Contains(usageType, "NatGateway-Hours") && unit == unitHours {
+				if strings.Contains(usageType, "NatGateway-Hours") && isHourlyUnit(unit) {
 					c.natGatewayPricing.HourlyRate = rate
 				} else if strings.Contains(usageType, "NatGateway-Bytes") && (unit == "Quantity" || unit == "GB") {
 					// AWS Pricing API returns "Quantity" as the unit for NatGateway-Bytes,
@@ -1110,8 +1120,8 @@ func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
 
 			if instanceType != "" && engine != "" {
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				// AWS returns unit as "Hrs" for hourly pricing
-				if found && strings.ToLower(unit) == "hrs" && rate > 0 {
+				// AWS returns unit as "Hrs" for hourly pricing.
+				if found && isHourlyUnit(unit) && rate > 0 {
 					// Index key: "instanceType:engine" (e.g., "cache.m5.large:Redis")
 					key := fmt.Sprintf("%s:%s", instanceType, engine)
 					c.elasticacheIndex[key] = elasticacheInstancePrice{

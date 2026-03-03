@@ -15,9 +15,6 @@ func NewEKSEstimator() *EKSEstimator {
 //  2. AWS Customer Carbon Footprint Tool excludes control plane from allocations
 //  3. Worker nodes should be estimated as EC2 instances separately
 //
-// Parameters:
-//   - config: EKS cluster configuration
-//
 // Returns (0, true) always - the billing detail explains worker node estimation.
 func (e *EKSEstimator) EstimateCarbonGrams(_ EKSClusterConfig) (float64, bool) {
 	// Control plane carbon is shared and not allocated to customers

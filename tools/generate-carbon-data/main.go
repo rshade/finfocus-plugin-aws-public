@@ -101,9 +101,7 @@ func main() {
 
 // fetchCCFData downloads the CCF AWS instances CSV from GitHub.
 func fetchCCFData() ([]byte, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	client := &http.Client{}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

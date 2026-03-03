@@ -15,6 +15,7 @@ func TestValidateRegion(t *testing.T) {
 		{"path traversal", "../us-east-1", false},
 		{"path separator", "us-east-1/../../x", false},
 		{"windows separator", "us-east-1\\x", false},
+		{"too long", "us-east-1-very-long-region-name-exceeding-limit", false},
 	}
 
 	for _, tt := range tests {

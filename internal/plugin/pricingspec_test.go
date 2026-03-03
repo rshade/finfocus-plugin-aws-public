@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 // TestGetPricingSpec_EC2 verifies EC2 pricing specification retrieval.

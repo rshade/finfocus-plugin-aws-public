@@ -6,6 +6,9 @@ import "strings"
 // Example: "t2.medium" → ("t2", "medium")
 // Returns empty strings if the format is invalid.
 func parseInstanceType(instanceType string) (string, string) {
+	if strings.Count(instanceType, ".") != 1 {
+		return "", ""
+	}
 	parts := strings.SplitN(instanceType, ".", 2)
 	if len(parts) != 2 {
 		return "", ""
@@ -97,6 +100,9 @@ func parseRDSInstanceType(instanceType string) (string, string) {
 	}
 	// Remove "db." prefix, then split on "."
 	trimmed := strings.TrimPrefix(instanceType, "db.")
+	if strings.Count(trimmed, ".") != 1 {
+		return "", ""
+	}
 	parts := strings.SplitN(trimmed, ".", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", ""

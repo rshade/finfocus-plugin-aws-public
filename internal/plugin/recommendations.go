@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
 
 const (
@@ -33,8 +34,8 @@ const (
 	defaultEBSVolumeGB = 100
 	// defaultMaxBatchSize is the default maximum number of resources to process in GetRecommendations.
 	defaultMaxBatchSize = 100
-	// maxMaxBatchSize is the absolute maximum allowed batch size to prevent OOM/abuse.
-	maxMaxBatchSize = 500
+	// maxMaxBatchSize is the protocol hard cap for TargetResources in one request.
+	maxMaxBatchSize = 100
 	// EnvMaxBatchSize is the environment variable to override defaultMaxBatchSize.
 	EnvMaxBatchSize = "FINFOCUS_MAX_BATCH_SIZE"
 	// EnvMaxBatchSizeDeprecated is the deprecated environment variable for backward compatibility.
@@ -802,15 +803,15 @@ func (p *AWSPublicPlugin) normalizeInput(req *pbc.GetRecommendationsRequest) *Pr
 
 	if len(req.GetTargetResources()) > 0 {
 		// Batch mode: deep copy each ResourceDescriptor to avoid mutating caller's objects
-		pctx.Scope = make([]*pbc.ResourceDescriptor, len(req.GetTargetResources()))
-		for i, res := range req.GetTargetResources() {
-			if cloned, ok := proto.Clone(res).(*pbc.ResourceDescriptor); ok {
-				pctx.Scope[i] = cloned
+		pctx.Scope = make([]*pbc.ResourceDescriptor, 0, len(req.GetTargetResources()))
+		for _, res := range req.GetTargetResources() {
+			if res == nil {
+				continue
 			}
-		}
-		// Normalize resource types (Issue #124) - now safe to mutate our copies
-		for _, res := range pctx.Scope {
-			res.ResourceType = normalizeResourceType(res.GetResourceType())
+			if cloned, ok := proto.Clone(res).(*pbc.ResourceDescriptor); ok && cloned != nil {
+				cloned.ResourceType = normalizeResourceType(cloned.GetResourceType())
+				pctx.Scope = append(pctx.Scope, cloned)
+			}
 		}
 	} else if req.GetFilter() != nil && req.GetFilter().GetSku() != "" {
 		// Legacy mode: construct single-item scope from Filter (already cloned above)
