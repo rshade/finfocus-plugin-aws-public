@@ -31,7 +31,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.26'
           cache: false # Disable cache - we clean between regions to save disk
 
       # 3. Install GoReleaser
