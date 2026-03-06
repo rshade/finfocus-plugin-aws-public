@@ -52,7 +52,7 @@ RUN set -ex; \
     echo "Successfully downloaded and verified all regional binaries"
 
 # Stage 2: Build metrics-aggregator
-FROM golang:1.25.5-alpine AS builder
+FROM golang:1.26.1-alpine AS builder
 
 WORKDIR /workspace
 
