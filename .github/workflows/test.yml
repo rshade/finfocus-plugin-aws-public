@@ -24,6 +24,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          check-latest: true
           cache: true
 
       - name: Generate pricing data
@@ -63,6 +64,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          check-latest: true
           cache: false # Disable cache - we clean between regions to save disk
 
       - name: Install GoReleaser

@@ -1,6 +1,6 @@
 module github.com/rshade/finfocus-plugin-aws-public/tools/generate-embeds
 
-go 1.25.5
+go 1.25.8
 
 require github.com/rshade/finfocus-plugin-aws-public v0.1.5
 

@@ -1,6 +1,6 @@
 module github.com/rshade/finfocus-plugin-aws-public
 
-go 1.25.7
+go 1.25.8
 
 require (
 	github.com/goccy/go-json v0.10.6
