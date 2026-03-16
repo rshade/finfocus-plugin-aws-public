@@ -3,7 +3,7 @@ module github.com/rshade/finfocus-plugin-aws-public
 go 1.25.7
 
 require (
-	github.com/goccy/go-json v0.10.5
+	github.com/goccy/go-json v0.10.6
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.34.0
