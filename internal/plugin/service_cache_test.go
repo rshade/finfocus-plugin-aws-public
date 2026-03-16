@@ -21,7 +21,7 @@ import (
 //   - No external dependencies or setup required
 //   - Pure unit test with no side effects
 //
-// Run with: go test -v ./internal/plugin/... -run TestNewServiceResolver
+// Run with: go test -v ./internal/plugin/... -run TestNewServiceResolver.
 func TestNewServiceResolver(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -86,41 +86,41 @@ func TestNewServiceResolver(t *testing.T) {
 //   - No external dependencies or setup required
 //   - Pure unit test with no side effects
 //
-// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_LazyInitialization
+// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_LazyInitialization.
 func TestServiceResolver_LazyInitialization(t *testing.T) {
 	tests := []struct {
-		name                 string
-		resourceType         string
-		expectedNormalized   string
-		expectedService      string
+		name                  string
+		resourceType          string
+		expectedNormalized    string
+		expectedService       string
 		accessNormalizedFirst bool
 	}{
 		{
-			name:                 "access ServiceType first - ec2",
-			resourceType:         "ec2",
-			expectedNormalized:   "ec2",
-			expectedService:      "ec2",
+			name:                  "access ServiceType first - ec2",
+			resourceType:          "ec2",
+			expectedNormalized:    "ec2",
+			expectedService:       "ec2",
 			accessNormalizedFirst: false,
 		},
 		{
-			name:                 "access NormalizedType first - ec2",
-			resourceType:         "ec2",
-			expectedNormalized:   "ec2",
-			expectedService:      "ec2",
+			name:                  "access NormalizedType first - ec2",
+			resourceType:          "ec2",
+			expectedNormalized:    "ec2",
+			expectedService:       "ec2",
 			accessNormalizedFirst: true,
 		},
 		{
-			name:                 "pulumi format eks - service first",
-			resourceType:         "aws:eks/cluster:Cluster",
-			expectedNormalized:   "eks",
-			expectedService:      "eks",
+			name:                  "pulumi format eks - service first",
+			resourceType:          "aws:eks/cluster:Cluster",
+			expectedNormalized:    "eks",
+			expectedService:       "eks",
 			accessNormalizedFirst: false,
 		},
 		{
-			name:                 "pulumi format ebs - normalized first",
-			resourceType:         "aws:ec2/volume:Volume",
-			expectedNormalized:   "ebs",
-			expectedService:      "ebs",
+			name:                  "pulumi format ebs - normalized first",
+			resourceType:          "aws:ec2/volume:Volume",
+			expectedNormalized:    "ebs",
+			expectedService:       "ebs",
 			accessNormalizedFirst: true,
 		},
 	}
@@ -181,7 +181,7 @@ func TestServiceResolver_LazyInitialization(t *testing.T) {
 //   - No external dependencies or setup required
 //   - Pure unit test with no side effects
 //
-// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_Memoization
+// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_Memoization.
 func TestServiceResolver_Memoization(t *testing.T) {
 	resolver := newServiceResolver("aws:rds/instance:Instance")
 
@@ -225,7 +225,7 @@ func TestServiceResolver_Memoization(t *testing.T) {
 //   - No external dependencies or setup required
 //   - Pure unit test with no side effects
 //
-// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_EdgeCases
+// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_EdgeCases.
 func TestServiceResolver_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -314,7 +314,7 @@ func TestServiceResolver_EdgeCases(t *testing.T) {
 //   - No external dependencies or setup required
 //   - Pure unit test with no side effects
 //
-// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_EmptyStringBehavior
+// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_EmptyStringBehavior.
 func TestServiceResolver_EmptyStringBehavior(t *testing.T) {
 	resolver := newServiceResolver("")
 
@@ -350,7 +350,7 @@ func TestServiceResolver_EmptyStringBehavior(t *testing.T) {
 //   - Pure unit test with no side effects
 //   - Test expectations must be updated if detectService() mappings change
 //
-// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_AllSupportedServices
+// Run with: go test -v ./internal/plugin/... -run TestServiceResolver_AllSupportedServices.
 func TestServiceResolver_AllSupportedServices(t *testing.T) {
 	tests := []struct {
 		resourceType    string
@@ -383,11 +383,12 @@ func TestServiceResolver_AllSupportedServices(t *testing.T) {
 		{"aws:dynamodb/table:Table", "dynamodb"},
 		{"aws:cloudwatch/logGroup:LogGroup", "cloudwatch"},
 		{"aws:elasticache/cluster:Cluster", "elasticache"},
-		// Note: aws:ec2/natGateway:NatGateway currently resolves to "ec2" because
-		// normalizeResourceType() extracts just the service prefix ("ec2"), not the
-		// subresource. This is consistent with the two-step normalization pattern.
-		// Use "natgw" or "nat_gateway" for explicit NAT Gateway resource types.
-		{"aws:ec2/natGateway:NatGateway", "ec2"},
+		// NAT Gateway Pulumi type must map to natgw (not generic ec2).
+		{"aws:ec2/natGateway:NatGateway", "natgw"},
+		// NAT Gateway plain-string aliases (must resolve via detectService fast path)
+		{"nat_gateway", "natgw"},
+		{"nat-gateway", "natgw"},
+		{"natgateway", "natgw"},
 	}
 
 	for _, tt := range tests {

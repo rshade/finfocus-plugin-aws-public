@@ -23,12 +23,12 @@ func GetUtilization(requestUtil float64, perResourceUtil *float64) float64 {
 }
 
 // Clamp returns v constrained to the inclusive range [min, max]. If v is less than min, Clamp returns min; if v is greater than max, Clamp returns max; otherwise it returns v.
-func Clamp(v, min, max float64) float64 {
-	if v < min {
-		return min
+func Clamp(v, minVal, maxVal float64) float64 {
+	if v < minVal {
+		return minVal
 	}
-	if v > max {
-		return max
+	if v > maxVal {
+		return maxVal
 	}
 	return v
 }

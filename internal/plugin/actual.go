@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -81,7 +82,7 @@ func isImportedResource(tags map[string]string) bool {
 }
 
 // formatSourceWithConfidence creates the source string with embedded confidence.
-// Format: "aws-public-fallback[confidence:LEVEL] optional_note"
+// Format: "aws-public-fallback[confidence:LEVEL] optional_note".
 func formatSourceWithConfidence(confidence ConfidenceLevel, note string) string {
 	base := fmt.Sprintf("aws-public-fallback[confidence:%s]", confidence)
 	if note != "" {
@@ -227,7 +228,11 @@ func calculateRuntimeHours(from, to time.Time) (float64, error) {
 //
 // The resolver parameter is optional. If provided, it's used to get the cached
 // service type. If nil, a new resolver is created internally (for backward compatibility).
-func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.ResourceDescriptor, resolver *serviceResolver) (*pbc.GetProjectedCostResponse, error) {
+func (p *AWSPublicPlugin) getProjectedForResource(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+	resolver *serviceResolver,
+) (*pbc.GetProjectedCostResponse, error) {
 	// Defensive nil check - callers should validate, but be safe
 	if resource == nil {
 		return nil, errors.New("resource descriptor is nil (caller must validate)")
@@ -243,38 +248,41 @@ func (p *AWSPublicPlugin) getProjectedForResource(traceID string, resource *pbc.
 	// For GetActualCost, we construct a minimal request with just the resource.
 	// This means UtilizationPercentage is 0, which falls through to default (50%).
 	switch serviceType {
-	case "ec2":
+	case serviceEC2:
 		return p.estimateEC2(traceID, resource, &pbc.GetProjectedCostRequest{Resource: resource})
-	case "ebs":
+	case serviceEBS:
 		return p.estimateEBS(traceID, resource)
-	case "eks":
+	case serviceEKS:
 		return p.estimateEKS(traceID, resource)
-	case "elb":
+	case serviceELB:
 		return p.estimateELB(traceID, resource)
-	case "natgw":
+	case serviceNATGW:
 		return p.estimateNATGateway(traceID, resource)
-	case "cloudwatch":
+	case serviceCloudWatch:
 		return p.estimateCloudWatch(traceID, resource)
-	case "elasticache":
+	case serviceElastiCache:
 		return p.estimateElastiCache(traceID, resource)
-	case "s3":
+	case serviceS3:
 		return p.estimateS3(traceID, resource)
-	case "lambda":
+	case serviceLambda:
 		return p.estimateLambda(traceID, resource)
-	case "rds":
+	case serviceRDS:
 		return p.estimateRDS(traceID, resource)
-	case "dynamodb":
+	case serviceDynamoDB:
 		return p.estimateDynamoDB(traceID, resource)
-	case "vpc", "securitygroup", "subnet", "iam":
-		// Zero-cost AWS networking and IAM resources - no direct charges
+	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
+		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		return p.estimateZeroCostResource(traceID, resource, serviceType), nil
 	default:
 		// Unknown resource type - return $0 with explanation
 		return &pbc.GetProjectedCostResponse{
-			CostPerMonth:  0,
-			UnitPrice:     0,
-			Currency:      "USD",
-			BillingDetail: fmt.Sprintf("Resource type %q not supported for cost estimation", resource.GetResourceType()),
+			CostPerMonth: 0,
+			UnitPrice:    0,
+			Currency:     "USD",
+			BillingDetail: fmt.Sprintf(
+				"Resource type %q not supported for cost estimation",
+				resource.GetResourceType(),
+			),
 		}, nil
 	}
 }

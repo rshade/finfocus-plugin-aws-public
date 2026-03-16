@@ -33,8 +33,8 @@ func (e ExpectedCostRange) Max() float64 {
 // Keys are formatted as "resourceType:sku:region" for efficient lookup.
 var ExpectedCostRanges = map[string]ExpectedCostRange{
 	// EC2 t3.micro in us-east-1 - Standard E2E test resource
-	"ec2:t3.micro:us-east-1": {
-		ResourceType:     "ec2",
+	serviceEC2 + ":t3.micro:us-east-1": {
+		ResourceType:     serviceEC2,
 		SKU:              "t3.micro",
 		Region:           "us-east-1",
 		UnitPrice:        0.0104, // $/hour
@@ -43,8 +43,8 @@ var ExpectedCostRanges = map[string]ExpectedCostRange{
 		ReferenceDate:    "2025-12-01",
 	},
 	// EBS gp2 in us-east-1 - Standard E2E test resource (8GB default)
-	"ebs:gp2:us-east-1": {
-		ResourceType:     "ebs",
+	serviceEBS + ":gp2:us-east-1": {
+		ResourceType:     serviceEBS,
 		SKU:              "gp2",
 		Region:           "us-east-1",
 		UnitPrice:        0.10, // $/GB-month

@@ -20,10 +20,20 @@ import (
 // can be lenient since they're informational. This prevents accidental silent filtering of cost estimates.
 func (p *AWSPublicPlugin) validateProvider(traceID string, provider string) error {
 	if provider == "" {
-		return p.newErrorWithID(traceID, codes.InvalidArgument, "provider is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"provider is required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 	if provider != providerAWS {
-		return p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("only %q provider is supported", providerAWS), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			fmt.Sprintf("only %q provider is supported", providerAWS),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 	return nil
 }
@@ -48,29 +58,37 @@ func isZeroCostResourceWithResolver(resolver *serviceResolver) bool {
 
 // ValidateProjectedCostRequest validates the request using SDK helpers and custom region checks.
 // Returns the extracted resource descriptor if valid.
-func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req *pbc.GetProjectedCostRequest) (*pbc.ResourceDescriptor, error) {
+func (p *AWSPublicPlugin) ValidateProjectedCostRequest(
+	ctx context.Context,
+	req *pbc.GetProjectedCostRequest,
+) (*pbc.ResourceDescriptor, error) {
 	traceID := p.getTraceID(ctx)
 
 	// Basic nil checks before any validation
-	if req == nil || req.Resource == nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if req == nil || req.GetResource() == nil {
+		return nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"request and resource are required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
-	resource := req.Resource
+	resource := req.GetResource()
 
 	// Check if this is a zero-cost resource BEFORE SDK validation.
 	// Zero-cost resources (VPC, Security Groups, Subnets) don't require a SKU
 	// since they always return $0 cost estimates.
 	// Note: isZeroCostResource() guarantees a non-empty, known type via
 	// normalizeResourceType() and detectService(), so no separate empty check needed.
-	if isZeroCostResource(resource.ResourceType) {
+	if isZeroCostResource(resource.GetResourceType()) {
 		// Validate provider and region manually (skip SDK's SKU requirement)
-		if err := p.validateProvider(traceID, resource.Provider); err != nil {
+		if err := p.validateProvider(traceID, resource.GetProvider()); err != nil {
 			return nil, err
 		}
 
 		// Region check for zero-cost resources
-		effectiveRegion := resource.Region
+		effectiveRegion := resource.GetRegion()
 		if effectiveRegion == "" {
 			// Zero-cost networking resources (VPC, SecurityGroup, Subnet) are technically regional,
 			// but since their cost is always $0 regardless of region, we can safely default to the
@@ -88,24 +106,34 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req 
 	// SDK validation (checks nil request, required fields including SKU)
 	if err := pluginsdk.ValidateProjectedCostRequest(req); err != nil {
 		// Map SDK error to gRPC status with ErrorDetail
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			err.Error(),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Comprehensive field validation (T011)
-	if err := p.validateProvider(traceID, resource.Provider); err != nil {
+	if err := p.validateProvider(traceID, resource.GetProvider()); err != nil {
 		return nil, err
 	}
-	if resource.ResourceType == "" {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "resource_type is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if resource.GetResourceType() == "" {
+		return nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"resource_type is required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Custom region check
-	effectiveRegion := resource.Region
-	normalizedResourceType := normalizeResourceType(resource.ResourceType)
+	effectiveRegion := resource.GetRegion()
+	normalizedResourceType := normalizeResourceType(resource.GetResourceType())
 	service := detectService(normalizedResourceType)
 
 	// For global services with empty region, use the plugin's region (T012)
-	if effectiveRegion == "" && (service == "s3" || service == "iam") {
+	if effectiveRegion == "" && (service == serviceS3 || service == serviceIAM) {
 		effectiveRegion = p.region
 		// Note: We do not mutate the incoming request. The effective region is used
 		// only for validation, not returned to the caller.
@@ -124,28 +152,37 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(ctx context.Context, req 
 //
 // The resolver parameter must be created from resource.ResourceType before calling this function.
 // This is an optimization for SC-002: single detectService call per request.
-func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(ctx context.Context, req *pbc.GetProjectedCostRequest, resolver *serviceResolver) (*pbc.ResourceDescriptor, error) {
+func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(
+	ctx context.Context,
+	req *pbc.GetProjectedCostRequest,
+	resolver *serviceResolver,
+) (*pbc.ResourceDescriptor, error) {
 	traceID := p.getTraceID(ctx)
 
 	// Basic nil checks before any validation
 	// Note: The caller should have already validated req and req.Resource before creating the resolver,
 	// but we keep this check for safety.
-	if req == nil || req.Resource == nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request and resource are required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if req == nil || req.GetResource() == nil {
+		return nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"request and resource are required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
-	resource := req.Resource
+	resource := req.GetResource()
 
 	// Check if this is a zero-cost resource BEFORE SDK validation.
 	// Use resolver to avoid redundant detectService() calls.
 	if isZeroCostResourceWithResolver(resolver) {
 		// Validate provider and region manually (skip SDK's SKU requirement)
-		if err := p.validateProvider(traceID, resource.Provider); err != nil {
+		if err := p.validateProvider(traceID, resource.GetProvider()); err != nil {
 			return nil, err
 		}
 
 		// Region check for zero-cost resources
-		effectiveRegion := resource.Region
+		effectiveRegion := resource.GetRegion()
 		if effectiveRegion == "" {
 			effectiveRegion = p.region
 		}
@@ -158,23 +195,33 @@ func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(ctx context.C
 
 	// SDK validation (checks nil request, required fields including SKU)
 	if err := pluginsdk.ValidateProjectedCostRequest(req); err != nil {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			err.Error(),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Comprehensive field validation
-	if err := p.validateProvider(traceID, resource.Provider); err != nil {
+	if err := p.validateProvider(traceID, resource.GetProvider()); err != nil {
 		return nil, err
 	}
-	if resource.ResourceType == "" {
-		return nil, p.newErrorWithID(traceID, codes.InvalidArgument, "resource_type is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if resource.GetResourceType() == "" {
+		return nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"resource_type is required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Custom region check using cached service type from resolver
-	effectiveRegion := resource.Region
+	effectiveRegion := resource.GetRegion()
 	service := resolver.ServiceType()
 
 	// For global services with empty region, use the plugin's region
-	if effectiveRegion == "" && (service == "s3" || service == "iam") {
+	if effectiveRegion == "" && (service == serviceS3 || service == serviceIAM) {
 		effectiveRegion = p.region
 	}
 
@@ -203,27 +250,40 @@ func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(ctx context.C
 //  1. req.Arn - Parse AWS ARN and extract region/service (SKU must come from tags)
 //  2. req.ResourceId as JSON - JSON-encoded ResourceDescriptor
 //  3. req.Tags - Extract provider, resource_type, sku, region from tags
-func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.ResourceDescriptor, *TimestampResolution, error) {
+func (p *AWSPublicPlugin) ValidateActualCostRequest(
+	ctx context.Context,
+	req *pbc.GetActualCostRequest,
+) (*pbc.ResourceDescriptor, *TimestampResolution, error) {
 	traceID := p.getTraceID(ctx)
 
 	// Basic nil check
 	if req == nil {
-		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, "request is required", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"request is required",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Resolve timestamps BEFORE validation (Feature 016)
 	// This populates req.Start/End from tags if not explicitly provided
 	resolution, err := resolveTimestamps(req)
 	if err != nil {
-		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		return nil, nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			err.Error(),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Populate request timestamps from resolution for downstream validation
 	// Note: This mutates the request but is safe since we're within validation
-	if req.Start == nil {
+	if req.GetStart() == nil {
 		req.Start = timestamppb.New(resolution.Start)
 	}
-	if req.End == nil {
+	if req.GetEnd() == nil {
 		req.End = timestamppb.New(resolution.End)
 	}
 
@@ -237,29 +297,39 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 		Msg("timestamps resolved")
 
 	// Validate timestamps (now guaranteed non-nil after resolution)
-	if err := validateTimestamps(req); err != nil {
-		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if tsErr := validateTimestamps(req); tsErr != nil {
+		return nil, nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			tsErr.Error(),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// FR-018: Check ARN first (highest priority)
-	if req.Arn != "" {
-		resource, err := p.parseResourceFromARN(req)
-		if err != nil {
-			msg := fmt.Sprintf("failed to parse ARN %q: %v", req.Arn, err)
-			return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, msg, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if req.GetArn() != "" {
+		resource, arnErr := p.parseResourceFromARN(req)
+		if arnErr != nil {
+			msg := fmt.Sprintf("failed to parse ARN %q: %v", req.GetArn(), arnErr)
+			return nil, nil, p.newErrorWithID(
+				traceID,
+				codes.InvalidArgument,
+				msg,
+				pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+			)
 		}
 
 		// Custom region check (ARN region vs plugin binary region)
 		// Note: Global services (like S3) may have empty region in ARN
-		effectiveRegion := resource.Region
-		normalizedResourceType := normalizeResourceType(resource.ResourceType)
+		effectiveRegion := resource.GetRegion()
+		normalizedResourceType := normalizeResourceType(resource.GetResourceType())
 		service := detectService(normalizedResourceType)
-		if effectiveRegion == "" && (service == "s3" || service == "iam") {
+		if effectiveRegion == "" && (service == serviceS3 || service == serviceIAM) {
 			effectiveRegion = p.region
 			// Set resource region so caller knows the effective region
 			resource.Region = p.region
 			p.logger.Debug().
-				Str("resource_type", resource.ResourceType).
+				Str("resource_type", resource.GetResourceType()).
 				Str("assigned_region", p.region).
 				Msg("assigned plugin region to global service with empty ARN region")
 		}
@@ -272,28 +342,38 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 	}
 
 	// For non-ARN requests, use SDK validation (requires ResourceId)
-	if err := pluginsdk.ValidateActualCostRequest(req); err != nil {
-		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	if sdkErr := pluginsdk.ValidateActualCostRequest(req); sdkErr != nil {
+		return nil, nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			sdkErr.Error(),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// FR-019: Fallback to JSON ResourceId or Tags extraction
-	resource, err := p.parseResourceFromRequest(req)
-	if err != nil {
-		return nil, nil, p.newErrorWithID(traceID, codes.InvalidArgument, err.Error(), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	resource, parseErr := p.parseResourceFromRequest(req)
+	if parseErr != nil {
+		return nil, nil, p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			parseErr.Error(),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 	}
 
 	// Custom region check (consistent with ValidateProjectedCostRequest)
-	effectiveRegion := resource.Region
-	normalizedResourceType := normalizeResourceType(resource.ResourceType)
+	effectiveRegion := resource.GetRegion()
+	normalizedResourceType := normalizeResourceType(resource.GetResourceType())
 	service := detectService(normalizedResourceType)
 
 	// For global services with empty region, use the plugin's region
-	if effectiveRegion == "" && (service == "s3" || service == "iam") {
+	if effectiveRegion == "" && (service == serviceS3 || service == serviceIAM) {
 		effectiveRegion = p.region
 		// Set resource region so caller knows the effective region
 		resource.Region = p.region
 		p.logger.Debug().
-			Str("resource_type", resource.ResourceType).
+			Str("resource_type", resource.GetResourceType()).
 			Str("assigned_region", p.region).
 			Msg("assigned plugin region to global service with empty region")
 	}
@@ -307,13 +387,13 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest(ctx context.Context, req *pb
 
 // validateTimestamps checks that start/end timestamps are present and valid.
 func validateTimestamps(req *pbc.GetActualCostRequest) error {
-	if req.Start == nil {
+	if req.GetStart() == nil {
 		return status.Error(codes.InvalidArgument, "start_time is required")
 	}
-	if req.End == nil {
+	if req.GetEnd() == nil {
 		return status.Error(codes.InvalidArgument, "end_time is required")
 	}
-	if !req.End.AsTime().After(req.Start.AsTime()) {
+	if !req.GetEnd().AsTime().After(req.GetStart().AsTime()) {
 		return status.Error(codes.InvalidArgument, "end_time must be after start_time")
 	}
 	return nil
@@ -327,32 +407,53 @@ func validateTimestamps(req *pbc.GetActualCostRequest) error {
 //   - Validate ARN format strictly (prevent malformed ARN injection)
 //   - Enforce reasonable length limits (prevent DoS via huge ARNs)
 //   - Reject path traversal attempts or special sequences
+//
 // Tag values are extracted from user input and should be treated as untrusted.
 func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*pbc.ResourceDescriptor, error) {
-	arn, err := ParseARN(req.Arn)
+	arn, err := ParseARN(req.GetArn())
 	if err != nil {
 		return nil, err
 	}
 
+	// Map ARN service to Pulumi resource type
+	resourceType := arn.ToPulumiResourceType()
+	canonicalService := detectService(normalizeResourceType(resourceType))
+
+	// Zero-cost resources (VPC, Subnet, SecurityGroup, IAM, LaunchTemplate, etc.)
+	// don't need a SKU - skip extraction and return immediately with empty SKU.
+	if IsZeroCostService(canonicalService) {
+		tags := make(map[string]string)
+		for k, v := range req.GetTags() {
+			tags[k] = v
+		}
+		return &pbc.ResourceDescriptor{
+			Provider:     providerAWS,
+			ResourceType: canonicalService,
+			Sku:          "",
+			Region:       arn.Region,
+			Tags:         tags,
+		}, nil
+	}
+
 	// Extract SKU from tags (ARN doesn't contain instance type/SKU)
 	sku := ""
-	if req.Tags != nil {
-		sku = req.Tags["sku"]
+	if tags := req.GetTags(); tags != nil {
+		sku = tags["sku"]
 		if sku == "" {
-			sku = extractAWSSKU(req.Tags)
+			sku = extractAWSSKU(tags)
 		}
 	}
 	if sku == "" {
 		// Return simple error - caller wraps with newErrorWithID for trace correlation
-		return nil, fmt.Errorf("ARN provided (%s) but tags missing 'sku' (instance type, volume type, etc.)", req.Arn)
+		return nil, fmt.Errorf(
+			"ARN provided (%s) but tags missing 'sku' (instance type, volume type, etc.)",
+			req.GetArn(),
+		)
 	}
-
-	// Map ARN service to Pulumi resource type
-	resourceType := arn.ToPulumiResourceType()
 
 	// Copy remaining tags (excluding fields we've extracted)
 	tags := make(map[string]string)
-	for k, v := range req.Tags {
+	for k, v := range req.GetTags() {
 		switch k {
 		case "sku", "instanceType", "instance_class", "type", "volumeType", "volume_type":
 			// Skip - already extracted for SKU

@@ -6,7 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetUtilization_Priority tests the priority order: perResource > request > default (T033 support)
+// TestGetUtilization_Priority verifies utilization source precedence (T033):
+// per-resource override > request-level utilization > default utilization.
+// Why: callers can provide utilization at different layers and the precedence order
+// must remain stable to avoid cost/carbon regressions.
+// Workflow: table-driven cases cover nil/zero/non-zero combinations.
+// Run: go test ./internal/carbon -run TestGetUtilization_Priority -v.
 func TestGetUtilization_Priority(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -54,7 +59,7 @@ func TestGetUtilization_Priority(t *testing.T) {
 	}
 }
 
-// TestClamp tests value clamping to 0.0-1.0 range (T034)
+// TestClamp tests value clamping to 0.0-1.0 range (T034).
 func TestClamp(t *testing.T) {
 	tests := []struct {
 		name string
@@ -79,7 +84,10 @@ func TestClamp(t *testing.T) {
 	}
 }
 
-// TestGetUtilization_Clamping tests that utilization values are clamped to 0.0-1.0 (T034)
+// TestGetUtilization_Clamping verifies out-of-range utilization is normalized to valid bounds (T034).
+// Why: utilization feeds carbon calculations and must never exceed [0,1].
+// Workflow: exercise request-level and per-resource values above/below bounds.
+// Run: go test ./internal/carbon -run TestGetUtilization_Clamping -v.
 func TestGetUtilization_Clamping(t *testing.T) {
 	tests := []struct {
 		name           string

@@ -65,6 +65,23 @@ func (r *ChildRegistry) getRegionMutex(region string) *sync.Mutex {
 // GetOrLaunch returns a ready client for the given region, launching the child if needed.
 // It uses per-region locking to prevent concurrent duplicate launches.
 func (r *ChildRegistry) GetOrLaunch(ctx context.Context, region string) (*pluginsdk.Client, error) {
+	if err := validateRegion(region); err != nil {
+		return nil, err
+	}
+
+	// In offline mode, avoid creating per-region mutexes for unknown regions.
+	if r.offline {
+		r.mu.RLock()
+		_, exists := r.children[region]
+		r.mu.RUnlock()
+		if !exists {
+			return nil, fmt.Errorf(
+				"region %s not available. Install with: finfocus plugin install aws-public --metadata=region=%s",
+				region, region,
+			)
+		}
+	}
+
 	// Per-region mutex ensures only one goroutine launches a child at a time
 	regionMu := r.getRegionMutex(region)
 	regionMu.Lock()
@@ -77,6 +94,10 @@ func (r *ChildRegistry) GetOrLaunch(ctx context.Context, region string) (*plugin
 
 	if exists && child.State() == ChildStateReady {
 		return child.Client(), nil
+	}
+
+	if exists && child.State() == ChildStateLaunching {
+		return nil, fmt.Errorf("child for region %s is already launching", region)
 	}
 
 	// Handle unhealthy child with restart retry logic

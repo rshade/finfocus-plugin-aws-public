@@ -274,9 +274,9 @@ func TestEstimateCost_EC2(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "USD", resp.Currency)
+	assert.Equal(t, "USD", resp.GetCurrency())
 	// 0.0104 * 730 = 7.592
-	assert.InDelta(t, 7.592, resp.CostMonthly, 0.001)
+	assert.InDelta(t, 7.592, resp.GetCostMonthly(), 0.001)
 }
 
 // TestEstimateCost_EBS verifies EBS volume cost estimation via EstimateCost API.
@@ -298,9 +298,9 @@ func TestEstimateCost_EBS(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "USD", resp.Currency)
+	assert.Equal(t, "USD", resp.GetCurrency())
 	// 0.08 * 100 = 8.0
-	assert.InDelta(t, 8.0, resp.CostMonthly, 0.001)
+	assert.InDelta(t, 8.0, resp.GetCostMonthly(), 0.001)
 }
 
 // TestEstimateCost_EBS_DefaultSize verifies EBS defaults to 8GB when size not specified.
@@ -323,7 +323,7 @@ func TestEstimateCost_EBS_DefaultSize(t *testing.T) {
 
 	require.NoError(t, err)
 	// 0.10 * 8 (default) = 0.80
-	assert.InDelta(t, 0.80, resp.CostMonthly, 0.001)
+	assert.InDelta(t, 0.80, resp.GetCostMonthly(), 0.001)
 }
 
 // TestEstimateCost_RegionFromAvailabilityZone verifies region extraction from AZ.
@@ -345,7 +345,7 @@ func TestEstimateCost_RegionFromAvailabilityZone(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.InDelta(t, 7.592, resp.CostMonthly, 0.001)
+	assert.InDelta(t, 7.592, resp.GetCostMonthly(), 0.001)
 }
 
 // TestEstimateCost_WrongRegion verifies $0 is returned for wrong region.
@@ -367,7 +367,7 @@ func TestEstimateCost_WrongRegion(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
 }
 
 // TestEstimateCost_NonAWSProvider verifies $0 for non-AWS providers.
@@ -382,7 +382,7 @@ func TestEstimateCost_NonAWSProvider(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
 }
 
 // TestEstimateCost_UnsupportedModule verifies $0 for unsupported AWS modules.
@@ -397,7 +397,7 @@ func TestEstimateCost_UnsupportedModule(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
 }
 
 // TestEstimateCost_NilRequest verifies error handling for nil request.
@@ -460,7 +460,7 @@ func TestEstimateCost_NilAttributes(t *testing.T) {
 
 	// Should not error, but return $0 since no instanceType specified
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
 }
 
 // TestEstimateCost_MissingInstanceType verifies $0 when EC2 has no instanceType.
@@ -482,7 +482,7 @@ func TestEstimateCost_MissingInstanceType(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
 }
 
 // TestEstimateCost_UnknownInstanceType verifies $0 for unknown instance types.
@@ -503,7 +503,92 @@ func TestEstimateCost_UnknownInstanceType(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
+}
+
+// TestEstimateCost_EC2_WithRootVolume verifies EC2 estimate includes root EBS volume
+// cost when rootBlockDevice attribute is present.
+func TestEstimateCost_EC2_WithRootVolume(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	mock.ebsPrices["gp2"] = 0.10
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	attrs, err := structpb.NewStruct(map[string]interface{}{
+		"instanceType": "t3.micro",
+		"rootBlockDevice": map[string]interface{}{
+			"volumeType": "gp2",
+			"volumeSize": float64(8),
+		},
+	})
+	require.NoError(t, err)
+
+	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
+		ResourceType: "aws:ec2/instance:Instance",
+		Attributes:   attrs,
+	})
+
+	require.NoError(t, err)
+	// Compute: 0.0104 * 730 = 7.592
+	// Root EBS: 0.10 * 8 = 0.80
+	// Total: 8.392
+	assert.InDelta(t, 8.392, resp.GetCostMonthly(), 0.001)
+}
+
+// TestEstimateCost_EC2_WithRootVolume_LargerDisk verifies root volume cost
+// scales with disk size.
+func TestEstimateCost_EC2_WithRootVolume_LargerDisk(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	mock.ebsPrices["gp3"] = 0.08
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	attrs, err := structpb.NewStruct(map[string]interface{}{
+		"instanceType": "m5.large",
+		"rootBlockDevice": map[string]interface{}{
+			"volumeType": "gp3",
+			"volumeSize": float64(100),
+		},
+	})
+	require.NoError(t, err)
+
+	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
+		ResourceType: "aws:ec2/instance:Instance",
+		Attributes:   attrs,
+	})
+
+	require.NoError(t, err)
+	// Compute: 0.096 * 730 = 70.08
+	// Root EBS: 0.08 * 100 = 8.00
+	// Total: 78.08
+	assert.InDelta(t, 78.08, resp.GetCostMonthly(), 0.001)
+}
+
+// TestEstimateCost_EC2_WithoutRootVolume_BackwardCompat verifies EC2 estimate
+// is compute-only when no rootBlockDevice attribute is present.
+func TestEstimateCost_EC2_WithoutRootVolume_BackwardCompat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	mock.ebsPrices["gp2"] = 0.10 // Available but should not be used
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	attrs, err := structpb.NewStruct(map[string]interface{}{
+		"instanceType": "t3.micro",
+		// No rootBlockDevice
+	})
+	require.NoError(t, err)
+
+	resp, err := plugin.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
+		ResourceType: "aws:ec2/instance:Instance",
+		Attributes:   attrs,
+	})
+
+	require.NoError(t, err)
+	// Compute only: 0.0104 * 730 = 7.592
+	assert.InDelta(t, 7.592, resp.GetCostMonthly(), 0.001)
 }
 
 // TestEstimateCost_NonInstanceEC2Resource verifies $0 for non-Instance EC2 resources.
@@ -519,5 +604,5 @@ func TestEstimateCost_NonInstanceEC2Resource(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), resp.CostMonthly)
+	assert.Equal(t, float64(0), resp.GetCostMonthly())
 }

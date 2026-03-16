@@ -31,7 +31,7 @@ help: ## Show this help message
 ensure: ## Install development dependencies (goreleaser, golangci-lint)
 	@echo "Installing development dependencies..."
 	@go install github.com/goreleaser/goreleaser/v2@latest
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	@echo "Dependencies installed successfully"
 
 .PHONY: develop

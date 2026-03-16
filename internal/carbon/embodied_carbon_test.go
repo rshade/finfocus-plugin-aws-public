@@ -101,10 +101,10 @@ func TestEmbodiedCarbonEstimator_GetTotalCarbonGrams(t *testing.T) {
 	e := NewEmbodiedCarbonEstimator()
 
 	opCarbon, embodiedCarbon, totalCarbon, ok := e.GetTotalCarbonGrams(
-		"m5.large",   // instanceType
-		"us-east-1",  // region
-		0.5,          // utilization
-		730,          // hours (1 month)
+		"m5.large",  // instanceType
+		"us-east-1", // region
+		0.5,         // utilization
+		730,         // hours (1 month)
 	)
 
 	require.True(t, ok, "GetTotalCarbonGrams should succeed")
@@ -175,11 +175,11 @@ func TestParseInstanceFamily(t *testing.T) {
 		{"g4dn.xlarge", "g4dn"},
 		{"c5n.18xlarge", "c5n"},
 		// Edge cases
-		{"", ""},                     // Empty string
-		{"nodot", "nodot"},           // No dot separator
-		{".leadingdot", ""},          // Leading dot
-		{"trailing.", "trailing"},    // Trailing dot
-		{"a.b.c", "a"},               // Multiple dots - takes first part
+		{"", ""},                  // Empty string
+		{"nodot", "nodot"},        // No dot separator
+		{".leadingdot", ""},       // Leading dot
+		{"trailing.", "trailing"}, // Trailing dot
+		{"a.b.c", "a"},            // Multiple dots - takes first part
 	}
 
 	for _, tt := range tests {
@@ -194,8 +194,8 @@ func TestParseInstanceFamily(t *testing.T) {
 func TestEmbodiedCarbonEstimator_CustomValues(t *testing.T) {
 	// Custom estimator with different values
 	e := &EmbodiedCarbonEstimator{
-		EmbodiedCarbonPerServerKg: 500,  // Lower embodied carbon
-		ServerLifespanMonths:      60,   // Longer lifespan
+		EmbodiedCarbonPerServerKg: 500, // Lower embodied carbon
+		ServerLifespanMonths:      60,  // Longer lifespan
 	}
 
 	carbonKg, ok := e.EstimateEmbodiedCarbonKg("m5.24xlarge", 1)

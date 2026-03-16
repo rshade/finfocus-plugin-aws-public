@@ -74,8 +74,9 @@ func TestDiscover_EmptyDirectory(t *testing.T) {
 // a directory that doesn't exist.
 func TestDiscover_NonExistentDirectory(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
+	nonExistentDir := filepath.Join(t.TempDir(), "nonexistent")
 
-	result := Discover("/nonexistent/path", logger)
+	result := Discover(nonExistentDir, logger)
 
 	assert.Empty(t, result)
 }

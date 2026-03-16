@@ -2,7 +2,7 @@ package plugin
 
 import pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 
-// ServiceClassification defines metadata for cost estimation enrichment
+// ServiceClassification defines metadata for cost estimation enrichment.
 type ServiceClassification struct {
 	// GrowthType specifies the cost growth pattern for forecasting
 	GrowthType pbc.GrowthType
@@ -20,7 +20,7 @@ type ServiceClassification struct {
 	Relationship string
 }
 
-// serviceClassifications is a read-only map of AWS service types to their metadata
+// serviceClassifications is a read-only map of AWS service types to their metadata.
 var serviceClassifications = map[string]ServiceClassification{
 	"aws:ec2:instance": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,

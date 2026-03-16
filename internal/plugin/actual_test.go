@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 // mockPricingClientActual implements pricing.PricingClient for actual cost testing.
@@ -248,8 +249,8 @@ func TestMergeTagsFromRequest(t *testing.T) {
 			wantContains: []string{TagPulumiCreated, TagPulumiExternal, "custom_tag"},
 		},
 		{
-			name: "empty request",
-			req:  &pbc.GetActualCostRequest{},
+			name:     "empty request",
+			req:      &pbc.GetActualCostRequest{},
 			wantTags: map[string]string{},
 		},
 		{
@@ -433,20 +434,20 @@ func TestGetActualCostEC2(t *testing.T) {
 				t.Errorf("GetActualCost() returned nil response")
 				return
 			}
-			if len(resp.Results) == 0 {
+			if len(resp.GetResults()) == 0 {
 				t.Errorf("GetActualCost() returned empty results")
 				return
 			}
 
-			result := resp.Results[0]
+			result := resp.GetResults()[0]
 
 			// Allow 0.01% tolerance for floating point
 			tolerance := tt.wantCost * 0.0001
-			if diff := result.Cost - tt.wantCost; diff > tolerance || diff < -tolerance {
-				t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.Cost, tt.wantCost, tolerance)
+			if diff := result.GetCost() - tt.wantCost; diff > tolerance || diff < -tolerance {
+				t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.GetCost(), tt.wantCost, tolerance)
 			}
 
-			if result.Source == "" {
+			if result.GetSource() == "" {
 				t.Errorf("GetActualCost() source (billing_detail) is empty")
 			}
 		})
@@ -478,22 +479,22 @@ func TestGetActualCostEC2_PulumiFormat(t *testing.T) {
 		t.Errorf("GetActualCost() returned nil response")
 		return
 	}
-	if len(resp.Results) == 0 {
+	if len(resp.GetResults()) == 0 {
 		t.Errorf("GetActualCost() returned empty results")
 		return
 	}
 
-	result := resp.Results[0]
+	result := resp.GetResults()[0]
 
 	// $0.0104/hr * 730 hrs = $7.592/month
 	// $7.592 * (24/730) = $0.2496
 	expectedCost := 0.2496
 	tolerance := expectedCost * 0.0001 // 0.01% tolerance
-	if diff := result.Cost - expectedCost; diff > tolerance || diff < -tolerance {
-		t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.Cost, expectedCost, tolerance)
+	if diff := result.GetCost() - expectedCost; diff > tolerance || diff < -tolerance {
+		t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.GetCost(), expectedCost, tolerance)
 	}
 
-	if result.Source == "" {
+	if result.GetSource() == "" {
 		t.Errorf("GetActualCost() source (billing_detail) is empty")
 	}
 }
@@ -509,9 +510,15 @@ func TestGetActualCostEBS_PulumiFormat(t *testing.T) {
 
 	// Use ResourceId JSON with tags for size and Pulumi resource type format
 	req := &pbc.GetActualCostRequest{
-		ResourceId: makeResourceJSON("aws", "aws:ebs/volume:Volume", "gp3", "us-east-1", map[string]string{"size": "100"}),
-		Start:      timestamppb.New(from),
-		End:        timestamppb.New(to),
+		ResourceId: makeResourceJSON(
+			"aws",
+			"aws:ebs/volume:Volume",
+			"gp3",
+			"us-east-1",
+			map[string]string{"size": "100"},
+		),
+		Start: timestamppb.New(from),
+		End:   timestamppb.New(to),
 	}
 
 	resp, err := plugin.GetActualCost(ctx, req)
@@ -523,22 +530,22 @@ func TestGetActualCostEBS_PulumiFormat(t *testing.T) {
 		t.Errorf("GetActualCost() returned nil response")
 		return
 	}
-	if len(resp.Results) == 0 {
+	if len(resp.GetResults()) == 0 {
 		t.Errorf("GetActualCost() returned empty results")
 		return
 	}
 
-	result := resp.Results[0]
+	result := resp.GetResults()[0]
 
 	// $0.08/GB-month * 100GB = $8.00/month
 	// $8.00 * (168/730) = $1.8411
 	expectedCost := 1.8410958904109589
 	tolerance := expectedCost * 0.0001 // 0.01% tolerance
-	if diff := result.Cost - expectedCost; diff > tolerance || diff < -tolerance {
-		t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.Cost, expectedCost, tolerance)
+	if diff := result.GetCost() - expectedCost; diff > tolerance || diff < -tolerance {
+		t.Errorf("GetActualCost() cost = %v, want %v (tolerance %v)", result.GetCost(), expectedCost, tolerance)
 	}
 
-	if result.Source == "" {
+	if result.GetSource() == "" {
 		t.Errorf("GetActualCost() source (billing_detail) is empty")
 	}
 }
@@ -582,9 +589,15 @@ func TestGetActualCostEBS(t *testing.T) {
 
 			// Use ResourceId JSON with tags for size
 			req := &pbc.GetActualCostRequest{
-				ResourceId: makeResourceJSON("aws", "ebs", tt.volumeType, "us-east-1", map[string]string{"size": tt.sizeGB}),
-				Start:      timestamppb.New(from),
-				End:        timestamppb.New(to),
+				ResourceId: makeResourceJSON(
+					"aws",
+					"ebs",
+					tt.volumeType,
+					"us-east-1",
+					map[string]string{"size": tt.sizeGB},
+				),
+				Start: timestamppb.New(from),
+				End:   timestamppb.New(to),
 			}
 
 			resp, err := plugin.GetActualCost(ctx, req)
@@ -596,17 +609,17 @@ func TestGetActualCostEBS(t *testing.T) {
 				t.Errorf("GetActualCost() returned nil response")
 				return
 			}
-			if len(resp.Results) == 0 {
+			if len(resp.GetResults()) == 0 {
 				t.Errorf("GetActualCost() returned empty results")
 				return
 			}
 
-			result := resp.Results[0]
+			result := resp.GetResults()[0]
 
 			// Allow 0.01% tolerance for floating point
 			tolerance := tt.wantCost * 0.0001
-			if diff := result.Cost - tt.wantCost; diff > tolerance || diff < -tolerance {
-				t.Errorf("GetActualCost() cost = %v, want %v", result.Cost, tt.wantCost)
+			if diff := result.GetCost() - tt.wantCost; diff > tolerance || diff < -tolerance {
+				t.Errorf("GetActualCost() cost = %v, want %v", result.GetCost(), tt.wantCost)
 			}
 		})
 	}
@@ -763,9 +776,15 @@ func TestGetActualCost_ConcurrentCalls(t *testing.T) {
 					}
 				} else {
 					req = &pbc.GetActualCostRequest{
-						ResourceId: makeResourceJSON("aws", "ebs", "gp3", "us-east-1", map[string]string{"size": "100"}),
-						Start:      timestamppb.New(from),
-						End:        timestamppb.New(to),
+						ResourceId: makeResourceJSON(
+							"aws",
+							"ebs",
+							"gp3",
+							"us-east-1",
+							map[string]string{"size": "100"},
+						),
+						Start: timestamppb.New(from),
+						End:   timestamppb.New(to),
 					}
 				}
 
@@ -823,11 +842,9 @@ func TestGetActualCostWithInvalidResourceJSON(t *testing.T) {
 	_, err := plugin.GetActualCost(ctx, req)
 	if err == nil {
 		t.Error("Expected error for invalid JSON ResourceId with no Tags, got nil")
-	} else {
-		// Should fail in parseResourceFromRequest
-		if !strings.Contains(err.Error(), "missing resource information") {
-			t.Errorf("Expected 'missing resource information' error, got: %v", err)
-		}
+	} else if !strings.Contains(err.Error(), "missing resource information") {
+		// Should fail in parseResourceFromRequest.
+		t.Errorf("Expected 'missing resource information' error, got: %v", err)
 	}
 }
 
@@ -980,7 +997,7 @@ func TestIsImportedResource(t *testing.T) {
 }
 
 // TestResolveTimestamps tests the resolveTimestamps() function priority logic.
-// This validates Feature 016 timestamp resolution: explicit > pulumi:created > error
+// This validates Feature 016 timestamp resolution: explicit > pulumi:created > error.
 func TestResolveTimestamps(t *testing.T) {
 	// Helper time values
 	explicitStart := time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC)
@@ -1040,8 +1057,8 @@ func TestResolveTimestamps(t *testing.T) {
 			errMsg:    "start time required",
 		},
 		{
-			name: "nil request - error",
-			req:  nil,
+			name:      "nil request - error",
+			req:       nil,
 			wantError: true,
 			errMsg:    "request is nil",
 		},
@@ -1305,24 +1322,24 @@ func TestGetActualCost_WithPulumiCreated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActualCost() unexpected error: %v", err)
 	}
-	if resp == nil || len(resp.Results) == 0 {
+	if resp == nil || len(resp.GetResults()) == 0 {
 		t.Fatal("GetActualCost() returned empty response")
 	}
 
-	result := resp.Results[0]
+	result := resp.GetResults()[0]
 
 	// Should use pulumi:created for start, so runtime = 168 hours
 	// $0.0104/hr * 730 hrs = $7.592/month
 	// $7.592 * (168/730) = $1.7472
 	expectedCost := 1.7472
 	tolerance := expectedCost * 0.0001
-	if diff := result.Cost - expectedCost; diff > tolerance || diff < -tolerance {
-		t.Errorf("GetActualCost() cost = %v, want %v", result.Cost, expectedCost)
+	if diff := result.GetCost() - expectedCost; diff > tolerance || diff < -tolerance {
+		t.Errorf("GetActualCost() cost = %v, want %v", result.GetCost(), expectedCost)
 	}
 
 	// Verify confidence is encoded in source (Feature 016)
-	if !strings.Contains(result.Source, "[confidence:") {
-		t.Errorf("Source should contain confidence encoding, got: %s", result.Source)
+	if !strings.Contains(result.GetSource(), "[confidence:") {
+		t.Errorf("Source should contain confidence encoding, got: %s", result.GetSource())
 	}
 }
 
@@ -1348,20 +1365,20 @@ func TestGetActualCost_ImportedResourceConfidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActualCost() unexpected error: %v", err)
 	}
-	if resp == nil || len(resp.Results) == 0 {
+	if resp == nil || len(resp.GetResults()) == 0 {
 		t.Fatal("GetActualCost() returned empty response")
 	}
 
-	result := resp.Results[0]
+	result := resp.GetResults()[0]
 
 	// Imported resource with pulumi:created should show MEDIUM confidence
-	if !strings.Contains(result.Source, "[confidence:MEDIUM]") {
-		t.Errorf("Imported resource should have MEDIUM confidence, got: %s", result.Source)
+	if !strings.Contains(result.GetSource(), "[confidence:MEDIUM]") {
+		t.Errorf("Imported resource should have MEDIUM confidence, got: %s", result.GetSource())
 	}
 
 	// Should also include "imported resource" note
-	if !strings.Contains(result.Source, "imported resource") {
-		t.Errorf("Source should mention 'imported resource', got: %s", result.Source)
+	if !strings.Contains(result.GetSource(), "imported resource") {
+		t.Errorf("Source should mention 'imported resource', got: %s", result.GetSource())
 	}
 }
 
@@ -1389,24 +1406,28 @@ func TestGetActualCost_ExplicitOverridesPulumiCreated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActualCost() unexpected error: %v", err)
 	}
-	if resp == nil || len(resp.Results) == 0 {
+	if resp == nil || len(resp.GetResults()) == 0 {
 		t.Fatal("GetActualCost() returned empty response")
 	}
 
-	result := resp.Results[0]
+	result := resp.GetResults()[0]
 
 	// Should use explicit timestamps (168 hours), NOT pulumi:created (would be ~730 hours)
 	// $0.0104/hr * 730 hrs = $7.592/month
 	// $7.592 * (168/730) = $1.7472
 	expectedCost := 1.7472
 	tolerance := expectedCost * 0.0001
-	if diff := result.Cost - expectedCost; diff > tolerance || diff < -tolerance {
-		t.Errorf("GetActualCost() cost = %v, want %v (explicit should override pulumi:created)", result.Cost, expectedCost)
+	if diff := result.GetCost() - expectedCost; diff > tolerance || diff < -tolerance {
+		t.Errorf(
+			"GetActualCost() cost = %v, want %v (explicit should override pulumi:created)",
+			result.GetCost(),
+			expectedCost,
+		)
 	}
 
 	// Explicit timestamps get HIGH confidence
-	if !strings.Contains(result.Source, "[confidence:HIGH]") {
-		t.Errorf("Explicit timestamps should have HIGH confidence, got: %s", result.Source)
+	if !strings.Contains(result.GetSource(), "[confidence:HIGH]") {
+		t.Errorf("Explicit timestamps should have HIGH confidence, got: %s", result.GetSource())
 	}
 }
 
@@ -1436,8 +1457,8 @@ func TestGetActualCost_PricingUnavailable(t *testing.T) {
 	}
 
 	// FR-004: MUST contain 0 results for missing pricing
-	if len(resp.Results) != 0 {
-		t.Errorf("GetActualCost() results = %d, want 0 for unavailable pricing", len(resp.Results))
+	if len(resp.GetResults()) != 0 {
+		t.Errorf("GetActualCost() results = %d, want 0 for unavailable pricing", len(resp.GetResults()))
 	}
 }
 
@@ -1463,17 +1484,30 @@ func TestGetActualCost_ZeroCostResource(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetActualCost() unexpected error for %s: %v", rt, err)
 			}
+			if resp == nil {
+				t.Fatalf("GetActualCost() returned nil response for %s", rt)
+			}
 
-			if len(resp.Results) == 0 {
+			if len(resp.GetResults()) == 0 {
 				t.Fatalf("GetActualCost() returned 0 results for %s", rt)
 			}
+			result := resp.GetResults()[0]
 
-			if resp.Results[0].Cost != 0 {
-				t.Errorf("GetActualCost() cost = %v, want 0 for zero-cost resource %s", resp.Results[0].Cost, rt)
+			if diff := result.GetCost(); diff > 0.000001 || diff < -0.000001 {
+				t.Errorf(
+					"GetActualCost() cost = %v, want 0 for zero-cost resource %s",
+					result.GetCost(),
+					rt,
+				)
 			}
 
-			if !strings.Contains(resp.Results[0].Source, "no direct") && !strings.Contains(resp.Results[0].Source, "free") {
-				t.Errorf("GetActualCost() source = %q, want explanation for zero-cost resource %s", resp.Results[0].Source, rt)
+			if !strings.Contains(result.GetSource(), "no direct") &&
+				!strings.Contains(result.GetSource(), "free") {
+				t.Errorf(
+					"GetActualCost() source = %q, want explanation for zero-cost resource %s",
+					result.GetSource(),
+					rt,
+				)
 			}
 		})
 	}
@@ -1503,9 +1537,15 @@ func TestGetActualCost_RoutingFix(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetActualCost(S3) failed: %v", err)
 		}
+		if resp == nil {
+			t.Fatal("GetActualCost(S3) returned nil response")
+		}
+		if len(resp.GetResults()) == 0 {
+			t.Fatal("GetActualCost(S3) returned empty results")
+		}
 		// $0.023/GB * 100GB = $2.30
-		if resp.Results[0].Cost != 2.30 {
-			t.Errorf("S3 cost = %v, want 2.30", resp.Results[0].Cost)
+		if diff := resp.GetResults()[0].GetCost() - 2.30; diff > 0.0001 || diff < -0.0001 {
+			t.Errorf("S3 cost = %v, want 2.30", resp.GetResults()[0].GetCost())
 		}
 	})
 
@@ -1522,14 +1562,72 @@ func TestGetActualCost_RoutingFix(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetActualCost(Lambda) failed: %v", err)
 		}
+		if resp == nil {
+			t.Fatal("GetActualCost(Lambda) returned nil response")
+		}
+		if len(resp.GetResults()) == 0 {
+			t.Fatal("GetActualCost(Lambda) returned empty results")
+		}
 		// Requests: 1M * $0.0000002 = $0.20
 		// Compute: (128/1024) * 0.1s * 1M * $0.0000166667 = $0.2083
 		// Total: $0.4083
 		expected := 0.40833375
-		if diff := resp.Results[0].Cost - expected; diff > 0.0001 || diff < -0.0001 {
-			t.Errorf("Lambda cost = %v, want %v", resp.Results[0].Cost, expected)
+		if diff := resp.GetResults()[0].GetCost() - expected; diff > 0.0001 || diff < -0.0001 {
+			t.Errorf("Lambda cost = %v, want %v", resp.GetResults()[0].GetCost(), expected)
 		}
 	})
+}
+
+// TestGetActualCost_ZeroCostARN verifies that zero-cost resources sent via ARN
+// (VPC, Subnet, SecurityGroup, IAM) return $0 without "tags missing sku" errors.
+// This is a regression test for issue #293.
+func TestGetActualCost_ZeroCostARN(t *testing.T) {
+	plugin := newTestPluginForActual()
+	ctx := context.Background()
+
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
+	tests := []struct {
+		name string
+		arn  string
+	}{
+		{"VPC", "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-abc123"},
+		{"Subnet", "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-abc123"},
+		{"SecurityGroup", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-abc123"},
+		{"IAM Role", "arn:aws:iam::123456789012:role/my-role"},
+		{"LaunchTemplate", "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-abc123"},
+		{
+			"LaunchConfiguration",
+			"arn:aws:autoscaling:us-east-1:123456789012:launch-configuration/launch-config-abc123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetActualCostRequest{
+				Arn:   tt.arn,
+				Start: timestamppb.New(from),
+				End:   timestamppb.New(to),
+			}
+
+			resp, err := plugin.GetActualCost(ctx, req)
+			if err != nil {
+				t.Fatalf("GetActualCost(%s) unexpected error: %v", tt.name, err)
+			}
+			if resp == nil {
+				t.Fatalf("GetActualCost(%s) returned nil response", tt.name)
+			}
+
+			if len(resp.GetResults()) == 0 {
+				t.Fatalf("GetActualCost(%s) returned 0 results, want non-empty", tt.name)
+			}
+
+			if diff := resp.GetResults()[0].GetCost(); diff > 0.000001 || diff < -0.000001 {
+				t.Errorf("GetActualCost(%s) cost = %v, want 0", tt.name, resp.GetResults()[0].GetCost())
+			}
+		})
+	}
 }
 
 // TestGetActualCost_MixedBatch tests that in a batch request, resources with missing
@@ -1563,8 +1661,11 @@ func TestGetActualCost_MixedBatch(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetActualCost failed: %v", err)
 			}
-			if len(resp.Results) != tt.wantRes {
-				t.Errorf("sku %s: got %d results, want %d", tt.sku, len(resp.Results), tt.wantRes)
+			if resp == nil {
+				t.Fatalf("GetActualCost returned nil response for sku %s", tt.sku)
+			}
+			if len(resp.GetResults()) != tt.wantRes {
+				t.Errorf("sku %s: got %d results, want %d", tt.sku, len(resp.GetResults()), tt.wantRes)
 			}
 		})
 	}

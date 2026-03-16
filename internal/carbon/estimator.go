@@ -48,7 +48,10 @@ func (e *Estimator) EstimateCarbonGrams(instanceType, region string, utilization
 //   - cpuCarbon: Carbon from CPU power consumption (gCO2e)
 //   - gpuCarbon: Carbon from GPU power consumption (gCO2e)
 //   - ok: Whether the calculation succeeded
-func (e *Estimator) EstimateCarbonGramsWithBreakdown(instanceType, region string, utilization, hours float64) (cpuCarbon, gpuCarbon float64, ok bool) {
+func (e *Estimator) EstimateCarbonGramsWithBreakdown(
+	instanceType, region string,
+	utilization, hours float64,
+) (float64, float64, bool) {
 	spec, found := GetInstanceSpec(instanceType)
 	if !found {
 		return 0, 0, false
@@ -57,7 +60,7 @@ func (e *Estimator) EstimateCarbonGramsWithBreakdown(instanceType, region string
 	gridFactor := GetGridFactor(region)
 
 	// Calculate CPU carbon
-	cpuCarbon = CalculateCarbonGrams(
+	cpuCarbon := CalculateCarbonGrams(
 		spec.MinWatts,
 		spec.MaxWatts,
 		spec.VCPUCount,
@@ -67,6 +70,7 @@ func (e *Estimator) EstimateCarbonGramsWithBreakdown(instanceType, region string
 	)
 
 	// Calculate GPU carbon if enabled and instance has GPUs
+	var gpuCarbon float64
 	if e.IncludeGPU {
 		gpuPowerWatts := CalculateGPUPowerWatts(instanceType, utilization)
 		if gpuPowerWatts > 0 {
@@ -90,7 +94,11 @@ func (e *Estimator) EstimateCarbonGramsWithBreakdown(instanceType, region string
 //   - hours: Operating hours
 //
 // Returns the estimated carbon emissions in grams of CO2e.
-func CalculateCarbonGrams(minWatts, maxWatts float64, vCPUCount int, utilization, gridIntensity, hours float64) float64 {
+func CalculateCarbonGrams(
+	minWatts, maxWatts float64,
+	vCPUCount int,
+	utilization, gridIntensity, hours float64,
+) float64 {
 	// Step 1: Average watts based on utilization (linear interpolation)
 	avgWatts := minWatts + (utilization * (maxWatts - minWatts))
 

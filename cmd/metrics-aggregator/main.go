@@ -78,10 +78,10 @@ func main() {
 // Partial metrics are still returned in this case so operators can investigate.
 //
 // Parameters:
-//  - w: the http.ResponseWriter used to write the aggregated metrics response.
-//  - r: the incoming HTTP request (unused except for context lifecycle).
-//  - config: configuration specifying StartPort, EndPort, and Timeout used for collection.
-//  - httpClient: HTTP client with configured timeout for making requests.
+//   - w: the http.ResponseWriter used to write the aggregated metrics response.
+//   - r: the incoming HTTP request (unused except for context lifecycle).
+//   - config: configuration specifying StartPort, EndPort, and Timeout used for collection.
+//   - httpClient: HTTP client with configured timeout for making requests.
 func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Config, httpClient *http.Client) {
 	ctx, cancel := context.WithTimeout(r.Context(), config.Timeout)
 	defer cancel()
@@ -106,7 +106,10 @@ func aggregatedMetricsHandler(w http.ResponseWriter, r *http.Request, config *Co
 	// Return HTTP 503 if more than 50% of regions failed
 	if successCount*2 < totalRegions {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		log.Warn().Int("success", successCount).Int("total", totalRegions).Msg("Metrics aggregation degraded: >50% of regions failed")
+		log.Warn().
+			Int("success", successCount).
+			Int("total", totalRegions).
+			Msg("Metrics aggregation degraded: >50% of regions failed")
 	}
 
 	if _, err := w.Write([]byte(allMetrics.String())); err != nil {

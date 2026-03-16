@@ -11,7 +11,10 @@ import (
 
 // GetPricingSpec returns detailed pricing specification for a resource type.
 // This provides information about how a resource is billed without calculating the actual cost.
-func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricingSpecRequest) (*pbc.GetPricingSpecResponse, error) {
+func (p *AWSPublicPlugin) GetPricingSpec(
+	ctx context.Context,
+	req *pbc.GetPricingSpecRequest,
+) (*pbc.GetPricingSpecResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
@@ -19,7 +22,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 	// GetPricingSpecRequest wraps GetProjectedCostRequest internally
 	projReq := &pbc.GetProjectedCostRequest{Resource: nil}
 	if req != nil {
-		projReq.Resource = req.Resource
+		projReq.Resource = req.GetResource()
 	}
 	if _, err := p.ValidateProjectedCostRequest(ctx, projReq); err != nil {
 		p.traceLogger(traceID, "GetPricingSpec").Error().
@@ -28,52 +31,55 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 		return nil, err
 	}
 
-	resource := req.Resource
+	resource := req.GetResource()
 
 	// Use serviceResolver for consistent normalization (optimization: compute once per request)
-	resolver := newServiceResolver(resource.ResourceType)
+	resolver := newServiceResolver(resource.GetResourceType())
 	serviceType := resolver.ServiceType()
 
 	var spec *pbc.PricingSpec
 
 	switch serviceType {
-	case "ec2":
+	case serviceEC2:
 		spec = p.ec2PricingSpec(resource)
-	case "ebs":
+	case serviceEBS:
 		spec = p.ebsPricingSpec(resource)
-	case "s3":
+	case serviceS3:
 		spec = p.s3PricingSpec(resource)
-	case "lambda":
+	case serviceLambda:
 		spec = p.lambdaPricingSpec(resource)
-	case "rds":
+	case serviceRDS:
 		spec = p.rdsPricingSpec(resource)
-	case "dynamodb":
+	case serviceDynamoDB:
 		spec = p.dynamoDBPricingSpec(resource)
-	case "eks":
+	case serviceEKS:
 		spec = p.eksPricingSpec(resource)
-	case "elb", "alb", "nlb":
+	case serviceELB, serviceALB, serviceNLB:
 		spec = p.elbPricingSpec(resource)
-	case "natgw", "nat_gateway", "nat-gateway":
+	case serviceNATGW:
 		spec = p.natGatewayPricingSpec(resource)
-	case "cloudwatch":
+	case serviceCloudWatch:
 		spec = p.cloudWatchPricingSpec(resource)
 	default:
 		spec = &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
-			Sku:          resource.Sku,
-			Region:       resource.Region,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          resource.GetSku(),
+			Region:       resource.GetRegion(),
 			BillingMode:  "unknown",
 			RatePerUnit:  0,
 			Currency:     "USD",
-			Description:  fmt.Sprintf("Resource type %q not supported for pricing specification", resource.ResourceType),
-			Source:       "aws-public",
+			Description: fmt.Sprintf(
+				"Resource type %q not supported for pricing specification",
+				resource.GetResourceType(),
+			),
+			Source: "aws-public",
 		}
 	}
 
 	p.traceLogger(traceID, "GetPricingSpec").Info().
-		Str(pluginsdk.FieldResourceType, resource.ResourceType).
-		Str("aws_region", resource.Region).
+		Str(pluginsdk.FieldResourceType, resource.GetResourceType()).
+		Str("aws_region", resource.GetRegion()).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 		Msg("pricing spec retrieved")
 
@@ -84,17 +90,17 @@ func (p *AWSPublicPlugin) GetPricingSpec(ctx context.Context, req *pbc.GetPricin
 
 // ec2PricingSpec returns the pricing specification for an EC2 instance.
 func (p *AWSPublicPlugin) ec2PricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	instanceType := resource.Sku
-	os := "Linux"
-	tenancy := "Shared"
+	instanceType := resource.GetSku()
+	os := defaultOS
+	tenancy := defaultTenancy
 
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, os, tenancy)
 	if !found {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
-			Sku:          resource.Sku,
-			Region:       resource.Region,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          resource.GetSku(),
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_hour",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -106,10 +112,10 @@ func (p *AWSPublicPlugin) ec2PricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
-		Sku:          resource.Sku,
-		Region:       resource.Region,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
+		Sku:          resource.GetSku(),
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_hour",
 		RatePerUnit:  hourlyRate,
 		Currency:     "USD",
@@ -127,15 +133,15 @@ func (p *AWSPublicPlugin) ec2PricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 // ebsPricingSpec returns the pricing specification for an EBS volume.
 func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	volumeType := resource.Sku
+	volumeType := resource.GetSku()
 
 	ratePerGBMonth, found := p.pricing.EBSPricePerGBMonth(volumeType)
 	if !found {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
-			Sku:          resource.Sku,
-			Region:       resource.Region,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          resource.GetSku(),
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_gb_month",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -147,10 +153,10 @@ func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
-		Sku:          resource.Sku,
-		Region:       resource.Region,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
+		Sku:          resource.GetSku(),
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_gb_month",
 		RatePerUnit:  ratePerGBMonth,
 		Currency:     "USD",
@@ -166,7 +172,7 @@ func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 // s3PricingSpec returns the pricing specification for S3 storage.
 func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	storageClass := resource.Sku
+	storageClass := resource.GetSku()
 	if storageClass == "" {
 		storageClass = "STANDARD"
 	}
@@ -174,10 +180,10 @@ func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.P
 	ratePerGBMonth, found := p.pricing.S3PricePerGBMonth(storageClass)
 	if !found {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          storageClass,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_gb_month",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -189,10 +195,10 @@ func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.P
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
 		Sku:          storageClass,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_gb_month",
 		RatePerUnit:  ratePerGBMonth,
 		Currency:     "USD",
@@ -209,11 +215,11 @@ func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.P
 
 // lambdaPricingSpec returns the pricing specification for Lambda functions.
 func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	arch := "x86_64"
-	if resource.Sku != "" {
-		arch = resource.Sku
+	arch := archX86
+	if resource.GetSku() != "" {
+		arch = resource.GetSku()
 	}
-	if a, ok := resource.Tags["architecture"]; ok && a != "" {
+	if a, ok := resource.GetTags()["architecture"]; ok && a != "" {
 		arch = a
 	}
 
@@ -222,10 +228,10 @@ func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *p
 
 	if !requestFound || !gbSecFound {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          arch,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_request_and_gb_second",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -236,10 +242,10 @@ func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *p
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
 		Sku:          arch,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_request_and_gb_second",
 		RatePerUnit:  gbSecRate, // Primary rate is GB-second (compute)
 		Currency:     "USD",
@@ -257,19 +263,19 @@ func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *p
 
 // rdsPricingSpec returns the pricing specification for RDS instances.
 func (p *AWSPublicPlugin) rdsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	instanceType := resource.Sku
-	engine := "mysql"
-	if e, ok := resource.Tags["engine"]; ok && e != "" {
+	instanceType := resource.GetSku()
+	engine := defaultRDSEngine
+	if e, ok := resource.GetTags()["engine"]; ok && e != "" {
 		engine = e
 	}
 
 	hourlyRate, found := p.pricing.RDSOnDemandPricePerHour(instanceType, engine)
 	if !found {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          instanceType,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_hour",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -281,10 +287,10 @@ func (p *AWSPublicPlugin) rdsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
 		Sku:          instanceType,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_hour",
 		RatePerUnit:  hourlyRate,
 		Currency:     "USD",
@@ -303,7 +309,7 @@ func (p *AWSPublicPlugin) rdsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 // dynamoDBPricingSpec returns the pricing specification for DynamoDB tables.
 func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	mode := resource.Sku
+	mode := resource.GetSku()
 	if mode == "" {
 		mode = "on-demand"
 	}
@@ -317,10 +323,10 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 
 		if !rcuFound || !wcuFound || !storageFound {
 			return &pbc.PricingSpec{
-				Provider:     resource.Provider,
-				ResourceType: resource.ResourceType,
+				Provider:     resource.GetProvider(),
+				ResourceType: resource.GetResourceType(),
 				Sku:          mode,
-				Region:       resource.Region,
+				Region:       resource.GetRegion(),
 				BillingMode:  "provisioned_capacity",
 				RatePerUnit:  0,
 				Currency:     "USD",
@@ -331,10 +337,10 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 		}
 
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          mode,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "provisioned_capacity",
 			RatePerUnit:  rcuPrice, // Primary rate is RCU
 			Currency:     "USD",
@@ -358,10 +364,10 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 
 	if !readFound || !writeFound || !storageFound {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          mode,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "on_demand",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -372,10 +378,10 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
 		Sku:          mode,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 		BillingMode:  "on_demand",
 		RatePerUnit:  storagePrice, // Primary rate for on-demand is storage
 		Currency:     "USD",
@@ -395,7 +401,7 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 // eksPricingSpec returns the pricing specification for EKS clusters.
 func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
 	supportType := "standard"
-	if s, ok := resource.Tags["support_type"]; ok && s != "" {
+	if s, ok := resource.GetTags()["support_type"]; ok && s != "" {
 		supportType = s
 	}
 
@@ -404,10 +410,10 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 	if !found {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          supportType,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_hour",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -419,10 +425,10 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
 		Sku:          supportType,
-		Region:       resource.Region,
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_hour",
 		RatePerUnit:  hourlyRate,
 		Currency:     "USD",
@@ -440,12 +446,12 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 // elbPricingSpec returns the pricing specification for Elastic Load Balancers.
 func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	lbType := resource.Sku
+	lbType := resource.GetSku()
 	if lbType == "" {
-		lbType = "alb"
+		lbType = serviceALB
 	}
 
-	isNLB := lbType == "nlb" || lbType == "NLB" || lbType == "network"
+	isNLB := lbType == serviceNLB || lbType == "NLB" || lbType == "network"
 
 	if isNLB {
 		hourlyRate, hourlyFound := p.pricing.NLBPricePerHour()
@@ -453,10 +459,10 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 		if !hourlyFound || !nlcuFound {
 			return &pbc.PricingSpec{
-				Provider:     resource.Provider,
-				ResourceType: resource.ResourceType,
-				Sku:          "nlb",
-				Region:       resource.Region,
+				Provider:     resource.GetProvider(),
+				ResourceType: resource.GetResourceType(),
+				Sku:          serviceNLB,
+				Region:       resource.GetRegion(),
 				BillingMode:  "per_hour_plus_nlcu",
 				RatePerUnit:  0,
 				Currency:     "USD",
@@ -467,10 +473,10 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		}
 
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
-			Sku:          "nlb",
-			Region:       resource.Region,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          serviceNLB,
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_hour_plus_nlcu",
 			RatePerUnit:  hourlyRate,
 			Currency:     "USD",
@@ -492,10 +498,10 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 	if !hourlyFound || !lcuFound {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
-			Sku:          "alb",
-			Region:       resource.Region,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          serviceALB,
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_hour_plus_lcu",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -506,10 +512,10 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
-		Sku:          "alb",
-		Region:       resource.Region,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
+		Sku:          serviceALB,
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_hour_plus_lcu",
 		RatePerUnit:  hourlyRate,
 		Currency:     "USD",
@@ -531,10 +537,10 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 
 	if !found || pricing == nil {
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
-			Sku:          resource.Sku,
-			Region:       resource.Region,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          resource.GetSku(),
+			Region:       resource.GetRegion(),
 			BillingMode:  "per_hour_plus_data",
 			RatePerUnit:  0,
 			Currency:     "USD",
@@ -545,10 +551,10 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 	}
 
 	return &pbc.PricingSpec{
-		Provider:     resource.Provider,
-		ResourceType: resource.ResourceType,
-		Sku:          resource.Sku,
-		Region:       resource.Region,
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
+		Sku:          resource.GetSku(),
+		Region:       resource.GetRegion(),
 		BillingMode:  "per_hour_plus_data",
 		RatePerUnit:  pricing.HourlyRate,
 		Currency:     "USD",
@@ -566,7 +572,7 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 
 // cloudWatchPricingSpec returns the pricing specification for CloudWatch.
 func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	sku := resource.Sku
+	sku := resource.GetSku()
 	if sku == "" {
 		sku = "logs"
 	}
@@ -576,10 +582,10 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor
 		tiers, found := p.pricing.CloudWatchMetricsTiers()
 		if !found || len(tiers) == 0 {
 			return &pbc.PricingSpec{
-				Provider:     resource.Provider,
-				ResourceType: resource.ResourceType,
+				Provider:     resource.GetProvider(),
+				ResourceType: resource.GetResourceType(),
 				Sku:          sku,
-				Region:       resource.Region,
+				Region:       resource.GetRegion(),
 				BillingMode:  "tiered_per_metric",
 				RatePerUnit:  0,
 				Currency:     "USD",
@@ -593,18 +599,24 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor
 		prevBound := 0.0
 		for _, tier := range tiers {
 			if tier.UpTo < 1e15 { // Has an upper bound
-				assumptions = append(assumptions, fmt.Sprintf("  %.0f-%.0f metrics: $%.4f/metric", prevBound, tier.UpTo, tier.Rate))
+				assumptions = append(
+					assumptions,
+					fmt.Sprintf("  %.0f-%.0f metrics: $%.4f/metric", prevBound, tier.UpTo, tier.Rate),
+				)
 				prevBound = tier.UpTo
 			} else { // No upper bound (final tier)
-				assumptions = append(assumptions, fmt.Sprintf("  Above %.0f metrics: $%.4f/metric", prevBound, tier.Rate))
+				assumptions = append(
+					assumptions,
+					fmt.Sprintf("  Above %.0f metrics: $%.4f/metric", prevBound, tier.Rate),
+				)
 			}
 		}
 
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          sku,
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "tiered_per_metric",
 			RatePerUnit:  tiers[0].Rate, // First tier rate
 			Currency:     "USD",
@@ -620,10 +632,10 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor
 
 		if !ingestionFound || !storageFound {
 			return &pbc.PricingSpec{
-				Provider:     resource.Provider,
-				ResourceType: resource.ResourceType,
+				Provider:     resource.GetProvider(),
+				ResourceType: resource.GetResourceType(),
 				Sku:          "logs",
-				Region:       resource.Region,
+				Region:       resource.GetRegion(),
 				BillingMode:  "tiered_ingestion_plus_storage",
 				RatePerUnit:  0,
 				Currency:     "USD",
@@ -640,7 +652,10 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor
 		prevBound := 0.0
 		for _, tier := range ingestionTiers {
 			if tier.UpTo < 1e15 { // Has an upper bound
-				assumptions = append(assumptions, fmt.Sprintf("  %.0f-%.0f GB: $%.4f/GB", prevBound, tier.UpTo, tier.Rate))
+				assumptions = append(
+					assumptions,
+					fmt.Sprintf("  %.0f-%.0f GB: $%.4f/GB", prevBound, tier.UpTo, tier.Rate),
+				)
 				prevBound = tier.UpTo
 			} else { // No upper bound (final tier)
 				assumptions = append(assumptions, fmt.Sprintf("  Above %.0f GB: $%.4f/GB", prevBound, tier.Rate))
@@ -654,10 +669,10 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor
 		}
 
 		return &pbc.PricingSpec{
-			Provider:     resource.Provider,
-			ResourceType: resource.ResourceType,
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
 			Sku:          "logs",
-			Region:       resource.Region,
+			Region:       resource.GetRegion(),
 			BillingMode:  "tiered_ingestion_plus_storage",
 			RatePerUnit:  firstTierRate,
 			Currency:     "USD",

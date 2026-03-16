@@ -2,10 +2,12 @@ package router
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -28,6 +31,9 @@ const (
 	// maxBinarySize is the maximum allowed size for extracted binaries (500 MB).
 	// This prevents decompression bomb attacks.
 	maxBinarySize = 500 * 1024 * 1024
+
+	// downloadTimeout is the HTTP client timeout for downloading release artifacts.
+	downloadTimeout = 5 * time.Minute
 )
 
 // Downloader handles binary download, SHA256 verification, and extraction.
@@ -44,22 +50,25 @@ type Downloader struct {
 // NewDownloader creates a new Downloader for the given version.
 func NewDownloader(version, targetDir string, logger zerolog.Logger) *Downloader {
 	return &Downloader{
-		version:    version,
-		baseURL:    defaultBaseURL,
-		targetDir:  targetDir,
-		httpClient: &http.Client{},
-		logger:     logger.With().Str("component", "downloader").Logger(),
+		version:   version,
+		baseURL:   defaultBaseURL,
+		targetDir: targetDir,
+		httpClient: &http.Client{
+			Timeout: downloadTimeout,
+		},
+		logger: logger.With().Str("component", "downloader").Logger(),
 	}
 }
 
 // Download downloads, verifies, and extracts a region binary.
 // It returns the absolute path to the extracted binary.
 func (d *Downloader) Download(ctx context.Context, region string) (string, error) {
+	if err := validateRegion(region); err != nil {
+		return "", err
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
-
-	goos := runtime.GOOS
-	goarch := runtime.GOARCH
 
 	// Ensure checksums are loaded
 	if d.checksums == nil {
@@ -69,26 +78,25 @@ func (d *Downloader) Download(ctx context.Context, region string) (string, error
 	}
 
 	// Construct tarball filename
-	tarballName := fmt.Sprintf("finfocus-plugin-aws-public_%s_%s_%s_%s.tar.gz",
-		d.version, titleCase(goos), goarch, region)
+	archiveName := d.archiveName(region)
 
-	// Download the tarball
-	tarballURL := fmt.Sprintf("%s/v%s/%s", d.baseURL, d.version, tarballName)
+	// Download the release archive.
+	tarballURL := fmt.Sprintf("%s/v%s/%s", d.baseURL, d.version, archiveName)
 	d.logger.Info().
 		Str("url", tarballURL).
 		Str("region", region).
 		Msg("downloading region binary")
 
-	tarballPath := filepath.Join(d.targetDir, tarballName)
+	tarballPath := filepath.Join(d.targetDir, archiveName)
 	if err := d.downloadFile(ctx, tarballURL, tarballPath); err != nil {
 		return "", fmt.Errorf("download failed: %w", err)
 	}
 
 	// Verify SHA256
-	expectedHash, ok := d.checksums[tarballName]
+	expectedHash, ok := d.checksums[archiveName]
 	if !ok {
 		_ = os.Remove(tarballPath)
-		return "", fmt.Errorf("no checksum found for %s", tarballName)
+		return "", fmt.Errorf("no checksum found for %s", archiveName)
 	}
 
 	if err := d.verify(tarballPath, expectedHash); err != nil {
@@ -96,7 +104,7 @@ func (d *Downloader) Download(ctx context.Context, region string) (string, error
 		return "", err
 	}
 
-	d.logger.Debug().Str("file", tarballName).Msg("SHA256 verification passed")
+	d.logger.Debug().Str("file", archiveName).Msg("SHA256 verification passed")
 
 	// Extract binary from tarball
 	binaryPath, err := d.extractBinary(tarballPath, region)
@@ -122,6 +130,30 @@ func (d *Downloader) Download(ctx context.Context, region string) (string, error
 	return binaryPath, nil
 }
 
+func (d *Downloader) archiveName(region string) string {
+	goos := runtime.GOOS
+	goarch := runtime.GOARCH
+	extension := ".tar.gz"
+	if goos == "windows" {
+		extension = ".zip"
+	}
+	releaseArch := goarch
+	switch goarch {
+	case "amd64":
+		releaseArch = "x86_64"
+	case "386":
+		releaseArch = "i386"
+	}
+	return fmt.Sprintf(
+		"finfocus-plugin-aws-public_%s_%s_%s_%s%s",
+		d.version,
+		titleCase(goos),
+		releaseArch,
+		region,
+		extension,
+	)
+}
+
 // fetchChecksums downloads and parses the checksums.txt file from the release.
 func (d *Downloader) fetchChecksums(ctx context.Context) error {
 	url := fmt.Sprintf("%s/v%s/checksums.txt", d.baseURL, d.version)
@@ -142,7 +174,8 @@ func (d *Downloader) fetchChecksums(ctx context.Context) error {
 		return fmt.Errorf("checksums download returned status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	const maxChecksumsSize = 1 * 1024 * 1024 // 1MB max for checksums.txt
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxChecksumsSize))
 	if err != nil {
 		return fmt.Errorf("failed to read checksums: %w", err)
 	}
@@ -214,15 +247,38 @@ func (d *Downloader) downloadFile(ctx context.Context, url, destPath string) err
 	}
 	defer out.Close()
 
-	if _, copyErr := io.Copy(out, resp.Body); copyErr != nil {
+	if resp.ContentLength > maxBinarySize {
+		_ = out.Close()
+		_ = os.Remove(destPath)
+		return fmt.Errorf("download too large: %d bytes", resp.ContentLength)
+	}
+
+	limited := io.LimitReader(resp.Body, maxBinarySize+1)
+	written, copyErr := io.Copy(out, limited)
+	if copyErr != nil {
+		_ = out.Close()
+		_ = os.Remove(destPath)
 		return fmt.Errorf("failed to write file: %w", copyErr)
+	}
+	if written > maxBinarySize {
+		_ = out.Close()
+		_ = os.Remove(destPath)
+		return errors.New("download exceeded maximum allowed size")
 	}
 
 	return nil
 }
 
-// extractBinary extracts the region binary from a tar.gz archive.
+// extractBinary extracts the region binary from a release archive.
 func (d *Downloader) extractBinary(tarballPath, region string) (string, error) {
+	if strings.HasSuffix(strings.ToLower(tarballPath), ".zip") {
+		return d.extractBinaryFromZip(tarballPath, region)
+	}
+	return d.extractBinaryFromTarGz(tarballPath, region)
+}
+
+// extractBinaryFromTarGz extracts the region binary from a tar.gz archive.
+func (d *Downloader) extractBinaryFromTarGz(tarballPath, region string) (string, error) {
 	f, err := os.Open(tarballPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open tarball: %w", err)
@@ -252,29 +308,82 @@ func (d *Downloader) extractBinary(tarballPath, region string) (string, error) {
 			continue
 		}
 
-		return d.extractTarEntry(tr, baseName)
+		return d.extractTarEntry(tr, baseName, header.Size)
+	}
+
+	return "", fmt.Errorf("binary %s not found in archive", expectedBinaryName)
+}
+
+// extractBinaryFromZip extracts the region binary from a zip archive.
+func (d *Downloader) extractBinaryFromZip(archivePath, region string) (string, error) {
+	zr, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open zip archive: %w", err)
+	}
+	defer zr.Close()
+
+	expectedBinaryName := fmt.Sprintf("finfocus-plugin-aws-public-%s", region)
+	for _, file := range zr.File {
+		baseName := filepath.Base(file.Name)
+		if baseName != expectedBinaryName && baseName != expectedBinaryName+".exe" {
+			continue
+		}
+
+		if file.UncompressedSize64 > maxBinarySize {
+			return "", fmt.Errorf("binary %s is too large: %d bytes", baseName, file.UncompressedSize64)
+		}
+
+		rc, openErr := file.Open()
+		if openErr != nil {
+			return "", fmt.Errorf("failed to open zip entry %s: %w", baseName, openErr)
+		}
+		// Safe: UncompressedSize64 is bounded by maxBinarySize (500MB) above,
+		// which fits in int64.
+		entrySize := int64(file.UncompressedSize64)
+		destPath, extractErr := d.extractTarEntry(rc, baseName, entrySize)
+		closeErr := rc.Close()
+		if extractErr != nil {
+			return "", extractErr
+		}
+		if closeErr != nil {
+			return "", fmt.Errorf("failed to close zip entry %s: %w", baseName, closeErr)
+		}
+		return destPath, nil
 	}
 
 	return "", fmt.Errorf("binary %s not found in archive", expectedBinaryName)
 }
 
 // extractTarEntry writes a single tar entry to the target directory with size limits.
-func (d *Downloader) extractTarEntry(r io.Reader, baseName string) (string, error) {
+func (d *Downloader) extractTarEntry(r io.Reader, baseName string, size int64) (string, error) {
+	if size > maxBinarySize {
+		return "", fmt.Errorf("binary %s is too large: %d bytes", baseName, size)
+	}
+
 	destPath := filepath.Join(d.targetDir, baseName)
 	out, createErr := os.Create(destPath)
 	if createErr != nil {
 		return "", fmt.Errorf("failed to create binary: %w", createErr)
 	}
 
-	// Limit extraction size to prevent decompression bombs
-	limitedReader := io.LimitReader(r, maxBinarySize)
-	if _, copyErr := io.Copy(out, limitedReader); copyErr != nil {
-		if closeErr := out.Close(); closeErr != nil {
-			d.logger.Warn().Err(closeErr).Msg("failed to close file after copy error")
-		}
+	// Copy exactly the expected entry size and fail if the archive stream is truncated.
+	limitedReader := io.LimitReader(r, size)
+	written, copyErr := io.Copy(out, limitedReader)
+	if copyErr != nil {
+		_ = out.Close()
+		_ = os.Remove(destPath)
 		return "", fmt.Errorf("failed to extract binary: %w", copyErr)
 	}
+	if written != size {
+		_ = out.Close()
+		_ = os.Remove(destPath)
+		return "", fmt.Errorf(
+			"binary %s truncated during extraction: expected %d bytes, got %d",
+			baseName, size, written,
+		)
+	}
 	if closeErr := out.Close(); closeErr != nil {
+		_ = os.Remove(destPath)
 		return "", fmt.Errorf("failed to close extracted binary: %w", closeErr)
 	}
 

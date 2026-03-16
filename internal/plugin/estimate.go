@@ -2,33 +2,48 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/structpb"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
 
 // EstimateCost returns an estimated monthly cost for a resource based on its
 // type and configuration attributes. This is the preferred method for pre-deployment
 // cost estimation as it works with Pulumi resource types directly.
-func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCostRequest) (*pbc.EstimateCostResponse, error) {
+func (p *AWSPublicPlugin) EstimateCost(
+	ctx context.Context,
+	req *pbc.EstimateCostRequest,
+) (*pbc.EstimateCostResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 
 	if req == nil {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing request", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		err := p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"missing request",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 		p.logErrorWithID(traceID, "EstimateCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
 
 	if req.GetResourceType() == "" {
-		err := p.newErrorWithID(traceID, codes.InvalidArgument, "missing resource_type", pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		err := p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			"missing resource_type",
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 		p.logErrorWithID(traceID, "EstimateCost", err, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, err
 	}
@@ -36,13 +51,18 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 	// Parse Pulumi resource type (e.g., "aws:ec2/instance:Instance")
 	resourceInfo, err := parsePulumiResourceType(req.GetResourceType())
 	if err != nil {
-		statusErr := p.newErrorWithID(traceID, codes.InvalidArgument, fmt.Sprintf("invalid resource_type format: %v", err), pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+		statusErr := p.newErrorWithID(
+			traceID,
+			codes.InvalidArgument,
+			fmt.Sprintf("invalid resource_type format: %v", err),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		)
 		p.logErrorWithID(traceID, "EstimateCost", statusErr, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
 		return nil, statusErr
 	}
 
 	// Only support AWS resources
-	if resourceInfo.provider != "aws" {
+	if resourceInfo.provider != providerAWS {
 		return &pbc.EstimateCostResponse{
 			Currency:    "USD",
 			CostMonthly: 0,
@@ -59,7 +79,7 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 	region := p.region
 	if regionVal, ok := getStringAttr(attrs, "region"); ok && regionVal != "" {
 		region = regionVal
-	} else if availZone, ok := getStringAttr(attrs, "availabilityZone"); ok && availZone != "" {
+	} else if availZone, azFound := getStringAttr(attrs, "availabilityZone"); azFound && availZone != "" {
 		// Extract region from AZ (e.g., "us-east-1a" -> "us-east-1")
 		if len(availZone) > 1 {
 			region = availZone[:len(availZone)-1]
@@ -78,9 +98,9 @@ func (p *AWSPublicPlugin) EstimateCost(ctx context.Context, req *pbc.EstimateCos
 	var costMonthly float64
 
 	switch resourceInfo.module {
-	case "ec2":
+	case serviceEC2:
 		costMonthly = p.estimateEC2FromAttrs(traceID, resourceInfo.resource, attrs)
-	case "ebs":
+	case serviceEBS:
 		costMonthly = p.estimateEBSFromAttrs(traceID, resourceInfo.resource, attrs)
 	default:
 		// Unsupported module - return $0
@@ -108,12 +128,12 @@ type resourceTypeInfo struct {
 }
 
 // parsePulumiResourceType parses a Pulumi resource type string.
-// Format: "provider:module/resource:Type" (e.g., "aws:ec2/instance:Instance")
+// Format: "provider:module/resource:Type" (e.g., "aws:ec2/instance:Instance").
 func parsePulumiResourceType(resourceType string) (*resourceTypeInfo, error) {
 	// Split by first ":"
 	parts := strings.SplitN(resourceType, ":", 2)
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid format: expected 'provider:module/resource:Type'")
+		return nil, errors.New("invalid format: expected 'provider:module/resource:Type'")
 	}
 
 	provider := parts[0]
@@ -122,7 +142,7 @@ func parsePulumiResourceType(resourceType string) (*resourceTypeInfo, error) {
 	rest := parts[1]
 	moduleParts := strings.SplitN(rest, "/", 2)
 	if len(moduleParts) != 2 {
-		return nil, fmt.Errorf("invalid format: expected module/resource:Type")
+		return nil, errors.New("invalid format: expected module/resource:Type")
 	}
 
 	module := moduleParts[0]
@@ -130,7 +150,7 @@ func parsePulumiResourceType(resourceType string) (*resourceTypeInfo, error) {
 	// Split resource:Type
 	resourceParts := strings.SplitN(moduleParts[1], ":", 2)
 	if len(resourceParts) != 2 {
-		return nil, fmt.Errorf("invalid format: expected resource:Type")
+		return nil, errors.New("invalid format: expected resource:Type")
 	}
 
 	return &resourceTypeInfo{
@@ -142,10 +162,10 @@ func parsePulumiResourceType(resourceType string) (*resourceTypeInfo, error) {
 
 // getStringAttr extracts a string attribute from a protobuf Struct.
 func getStringAttr(attrs *structpb.Struct, key string) (string, bool) {
-	if attrs == nil || attrs.Fields == nil {
+	if attrs == nil || attrs.GetFields() == nil {
 		return "", false
 	}
-	if val, ok := attrs.Fields[key]; ok {
+	if val, ok := attrs.GetFields()[key]; ok {
 		if strVal := val.GetStringValue(); strVal != "" {
 			return strVal, true
 		}
@@ -161,10 +181,10 @@ func getStringAttr(attrs *structpb.Struct, key string) (string, bool) {
 // Returns (value, true) if the key exists with a valid number (including zero).
 // Returns (0, false) if the key is missing or cannot be parsed as a number.
 func getNumberAttr(attrs *structpb.Struct, key string) (float64, bool) {
-	if attrs == nil || attrs.Fields == nil {
+	if attrs == nil || attrs.GetFields() == nil {
 		return 0, false
 	}
-	if val, ok := attrs.Fields[key]; ok {
+	if val, ok := attrs.GetFields()[key]; ok {
 		// Check if this is a number value (including zero)
 		switch v := val.GetKind().(type) {
 		case *structpb.Value_NumberValue:
@@ -205,7 +225,17 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 		return 0
 	}
 
-	return hourlyRate * carbon.HoursPerMonth
+	costMonthly := hourlyRate * carbon.HoursPerMonth
+
+	// Add root EBS volume cost when rootBlockDevice attribute is present
+	rootVol := ExtractRootVolumeFromStruct(attrs)
+	if rootVol.Present {
+		if ebsRate, ebsFound := p.pricing.EBSPricePerGBMonth(rootVol.VolumeType); ebsFound {
+			costMonthly += ebsRate * float64(rootVol.SizeGB)
+		}
+	}
+
+	return costMonthly
 }
 
 // estimateEBSFromAttrs calculates EBS cost from Pulumi attributes.
@@ -218,12 +248,12 @@ func (p *AWSPublicPlugin) estimateEBSFromAttrs(traceID, resourceName string, att
 	// Get volume type from attributes (default to gp2)
 	volumeType, ok := getStringAttr(attrs, "type")
 	if !ok || volumeType == "" {
-		volumeType = "gp2"
+		volumeType = defaultRootVolumeType
 	}
 
 	// Get size from attributes (default to 8 GB)
 	sizeGB := float64(defaultEBSGB)
-	if size, ok := getNumberAttr(attrs, "size"); ok && size > 0 {
+	if size, sizeFound := getNumberAttr(attrs, "size"); sizeFound && size > 0 {
 		sizeGB = size
 	}
 

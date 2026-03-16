@@ -98,6 +98,18 @@ func TestParseARN(t *testing.T) {
 			},
 		},
 		{
+			name: "Auto Scaling launch configuration with mixed separators",
+			arn:  "arn:aws:autoscaling:us-east-1:123456789012:launchConfiguration:uuid:launchConfigurationName/my-config",
+			expected: &ARNComponents{
+				Partition:    "aws",
+				Service:      "autoscaling",
+				Region:       "us-east-1",
+				AccountID:    "123456789012",
+				ResourceType: "launchConfiguration",
+				ResourceID:   "uuid:launchConfigurationName/my-config",
+			},
+		},
+		{
 			name: "China partition",
 			arn:  "arn:aws-cn:ec2:cn-north-1:123456789012:instance/i-abc123",
 			expected: &ARNComponents{

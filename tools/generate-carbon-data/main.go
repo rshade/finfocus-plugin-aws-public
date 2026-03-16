@@ -16,7 +16,9 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,7 +33,7 @@ import (
 const (
 	// ccfDataURL is the raw GitHub URL for the CCF AWS instances CSV.
 	// Source: https://github.com/cloud-carbon-footprint/cloud-carbon-coefficients
-	// License: Apache 2.0
+	// License: Apache 2.0.
 	ccfDataURL = "https://raw.githubusercontent.com/cloud-carbon-footprint/cloud-carbon-coefficients/main/data/aws-instances.csv"
 
 	// outputFileName is the name of the generated CSV file.
@@ -68,42 +70,48 @@ func main() {
 
 	// Validate if requested
 	if *validate {
-		if err := validateCSV(data); err != nil {
-			fmt.Fprintf(os.Stderr, "Validation error: %v\n", err)
+		if valErr := validateCSV(data); valErr != nil {
+			fmt.Fprintf(os.Stderr, "Validation error: %v\n", valErr)
 			os.Exit(1)
 		}
 		fmt.Println("Validation passed")
 	}
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(*outDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
+	if mkdirErr := os.MkdirAll(*outDir, 0o750); mkdirErr != nil {
+		fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", mkdirErr)
 		os.Exit(1)
 	}
 
 	// Write the CSV file
 	outPath := filepath.Join(*outDir, outputFileName)
-	if err := os.WriteFile(outPath, data, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", err)
+	if writeErr := os.WriteFile(outPath, data, 0o600); writeErr != nil {
+		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", writeErr)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Successfully wrote %s (%d bytes)\n", outPath, len(data))
 
 	// Write static GPU and storage specs
-	if err := writeStaticSpecs(*outDir); err != nil {
-		fmt.Fprintf(os.Stderr, "Error writing static specs: %v\n", err)
+	if specErr := writeStaticSpecs(*outDir); specErr != nil {
+		fmt.Fprintf(os.Stderr, "Error writing static specs: %v\n", specErr)
 		os.Exit(1)
 	}
 }
 
 // fetchCCFData downloads the CCF AWS instances CSV from GitHub.
 func fetchCCFData() ([]byte, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
+	client := &http.Client{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ccfDataURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	resp, err := client.Get(ccfDataURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
@@ -142,11 +150,11 @@ func validateCSV(data []byte) error {
 	totalRows := 0
 
 	for {
-		record, err := reader.Read()
-		if err == io.EOF {
+		record, readErr := reader.Read()
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
-		if err != nil {
+		if readErr != nil {
 			parseErrors++
 			continue
 		}
@@ -165,8 +173,8 @@ func validateCSV(data []byte) error {
 
 		// Check vCPU is a valid integer
 		vcpuStr := strings.TrimSpace(record[colVCPUCount])
-		vcpu, err := strconv.Atoi(vcpuStr)
-		if err != nil || vcpu < 1 {
+		vcpu, atoiErr := strconv.Atoi(vcpuStr)
+		if atoiErr != nil || vcpu < 1 {
 			continue
 		}
 
@@ -239,7 +247,7 @@ trn1n.32xlarge,Trainium,16,175
 // storageSpecsCSV is the static storage specifications data.
 // Source: Cloud Carbon Footprint methodology.
 // Power coefficients in Wh/TB-hour, replication factors for durability.
-// Format: service_type,storage_class,technology,replication_factor,power_coefficient
+// Format: service_type,storage_class,technology,replication_factor,power_coefficient.
 const storageSpecsCSV = `service_type,storage_class,technology,replication_factor,power_coefficient
 ebs,gp2,SSD,2,1.2
 ebs,gp3,SSD,2,1.2
@@ -257,14 +265,14 @@ dynamodb,DYNAMODB,SSD,3,1.2
 func writeStaticSpecs(outDir string) error {
 	// Write GPU specs
 	gpuPath := filepath.Join(outDir, "gpu_specs.csv")
-	if err := os.WriteFile(gpuPath, []byte(gpuSpecsCSV), 0644); err != nil {
+	if err := os.WriteFile(gpuPath, []byte(gpuSpecsCSV), 0o600); err != nil {
 		return fmt.Errorf("failed to write GPU specs: %w", err)
 	}
 	fmt.Printf("Successfully wrote %s (%d bytes)\n", gpuPath, len(gpuSpecsCSV))
 
 	// Write storage specs
 	storagePath := filepath.Join(outDir, "storage_specs.csv")
-	if err := os.WriteFile(storagePath, []byte(storageSpecsCSV), 0644); err != nil {
+	if err := os.WriteFile(storagePath, []byte(storageSpecsCSV), 0o600); err != nil {
 		return fmt.Errorf("failed to write storage specs: %w", err)
 	}
 	fmt.Printf("Successfully wrote %s (%d bytes)\n", storagePath, len(storageSpecsCSV))
