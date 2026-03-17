@@ -213,6 +213,7 @@ func (r *ChildRegistry) restartChild(ctx context.Context, child *ChildProcess) (
 }
 
 // downloadAndLaunch downloads a region binary and launches it.
+// Caller (GetOrLaunch) does NOT hold r.mu; this method acquires it to register the child.
 func (r *ChildRegistry) downloadAndLaunch(ctx context.Context, region string) (*pluginsdk.Client, error) {
 	r.logger.Info().Str("region", region).Msg("downloading region binary")
 
