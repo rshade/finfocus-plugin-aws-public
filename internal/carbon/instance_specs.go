@@ -74,7 +74,7 @@ func init() {
 // The function reads the CSV, skips the header, and loads rows with:
 //   - Non-empty instance type
 //   - vCPU count >= 1
-//   - Valid power values (MinWatts >= 0, MaxWatts >= MinWatts)
+//   - Valid power values (MinWatts > 0, MaxWatts >= MinWatts)
 //
 // European-formatted decimals (comma as decimal separator) are accepted.
 // Malformed or incomplete rows are skipped. This function should be invoked
