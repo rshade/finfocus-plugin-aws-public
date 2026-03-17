@@ -73,6 +73,7 @@ type ChildProcess struct {
 	port       int
 	client     *pluginsdk.Client
 	state      ChildState
+	cancel     context.CancelFunc // Cancels the child process context, triggering process kill
 	mu         sync.Mutex
 	logger     zerolog.Logger
 }
@@ -118,10 +119,17 @@ func (c *ChildProcess) Launch(ctx context.Context) error {
 	env := os.Environ()
 	env = append(env, "FINFOCUS_PLUGIN_WEB_ENABLED=true", "PORT=0")
 
-	// Use a long-lived context for the process lifetime; the request ctx is only used
-	// to bound the startup wait.
+	// Create a child-scoped context for the process lifetime. This context is independent
+	// of the request ctx (which only bounds the startup wait). Cancelling childCtx kills
+	// the process via exec.CommandContext, which also unblocks the io.Copy drain goroutine
+	// by closing the stdout pipe.
+	childCtx, cancel := context.WithCancel(context.Background())
+	c.mu.Lock()
+	c.cancel = cancel
+	c.mu.Unlock()
+
 	//nolint:gosec // G204: binaryPath is from trusted discovery, not user input
-	cmd := exec.CommandContext(context.Background(), c.binaryPath)
+	cmd := exec.CommandContext(childCtx, c.binaryPath)
 	cmd.Env = env
 	cmd.Stderr = os.Stderr // Inherit stderr for child logging
 
@@ -230,6 +238,7 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 	c.mu.Lock()
 	cmd := c.cmd
 	client := c.client
+	cancel := c.cancel
 	c.mu.Unlock()
 
 	if client != nil {
@@ -237,6 +246,10 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 	}
 
 	if cmd == nil || cmd.Process == nil {
+		// Cancel the child context even if process is nil (belt-and-suspenders)
+		if cancel != nil {
+			cancel()
+		}
 		return nil
 	}
 
@@ -244,8 +257,12 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 
 	// Send SIGTERM for graceful shutdown
 	if err := cmd.Process.Signal(os.Interrupt); err != nil {
-		// Process may have already exited
+		// Process may have already exited; cancel context and reap to avoid zombie
 		c.logger.Debug().Err(err).Msg("signal failed, process may have exited")
+		if cancel != nil {
+			cancel()
+		}
+		_ = cmd.Wait()
 		return nil
 	}
 
@@ -258,11 +275,16 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 	select {
 	case <-done:
 		c.logger.Info().Msg("child process exited gracefully")
+		if cancel != nil {
+			cancel()
+		}
 		return nil
 	case <-ctx.Done():
-		// Force kill if context expires
+		// Cancel the child context to force kill via exec.CommandContext
 		c.logger.Warn().Msg("forcing child process kill")
-		_ = cmd.Process.Kill()
+		if cancel != nil {
+			cancel()
+		}
 		<-done
 		return nil
 	}
