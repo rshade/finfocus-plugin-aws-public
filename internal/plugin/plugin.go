@@ -533,9 +533,12 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	}
 
 	// Validate required fields.
-	// Region may be empty for tag-derived requests so global services (S3/IAM)
-	// can use plugin-region fallback during validation.
-	allowEmptyRegion := len(req.GetTags()) > 0
+	// Region may be empty only for global services (S3/IAM) and zero-cost resources,
+	// which use plugin-region fallback during downstream validation.
+	// Regional services (EC2/EBS/RDS/etc.) must always specify a region.
+	normalizedType := normalizeResourceType(resource.GetResourceType())
+	service := detectService(normalizedType)
+	allowEmptyRegion := service == serviceS3 || service == serviceIAM || IsZeroCostService(service)
 	if resource.GetProvider() == "" || resource.GetResourceType() == "" || resource.GetSku() == "" ||
 		(!allowEmptyRegion && resource.GetRegion() == "") {
 		return nil, status.Error(
