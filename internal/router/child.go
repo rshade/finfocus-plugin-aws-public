@@ -257,11 +257,12 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 
 	// Send SIGTERM for graceful shutdown
 	if err := cmd.Process.Signal(os.Interrupt); err != nil {
-		// Process may have already exited; cancel context to clean up
+		// Process may have already exited; cancel context and reap to avoid zombie
 		c.logger.Debug().Err(err).Msg("signal failed, process may have exited")
 		if cancel != nil {
 			cancel()
 		}
+		_ = cmd.Wait()
 		return nil
 	}
 

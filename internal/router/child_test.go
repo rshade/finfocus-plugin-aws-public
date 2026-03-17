@@ -2,7 +2,7 @@ package router
 
 import (
 	"context"
-	"os"
+	"io"
 	"os/exec"
 	"testing"
 	"time"
@@ -97,24 +97,27 @@ func TestChildProcess_HealthCheck_NilClient(t *testing.T) {
 	assert.Equal(t, ChildStateUnhealthy, child.State())
 }
 
-// TestChildProcess_Shutdown_CancelsContext verifies that Shutdown cancels the child context,
-// which terminates the child process via exec.CommandContext. This prevents orphan processes
-// when the router shuts down.
+// TestChildProcess_Shutdown_CancelsContext verifies that Shutdown force-kills the child
+// process via context cancellation when the graceful shutdown timeout expires.
 //
 // Test workflow:
-//  1. Starts a long-running "sleep" process using exec.CommandContext with a cancellable context
+//  1. Starts a shell process that traps and ignores SIGINT (so graceful shutdown cannot work)
 //  2. Simulates the child being in Ready state with the process running
-//  3. Calls Shutdown with a short timeout to force context cancellation path
-//  4. Verifies the process exits promptly (Shutdown returns without hanging)
+//  3. Calls Shutdown with a 50ms timeout — SIGINT is ignored, so the timeout expires
+//  4. Context cancellation triggers exec.CommandContext to SIGKILL the process
+//  5. Verifies Shutdown completes promptly without hanging
 func TestChildProcess_Shutdown_CancelsContext(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 
-	// Create a child with a real sleep process to verify context cancellation kills it
-	child := NewChildProcess("us-east-1", "/bin/sleep", logger)
+	// Create a child with a process that ignores SIGINT to exercise the force-kill path.
+	// /bin/sleep exits on SIGINT, so we use a shell that traps INT and keeps sleeping.
+	child := NewChildProcess("us-east-1", "/bin/sh", logger)
 
 	childCtx, cancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(childCtx, "/bin/sleep", "300")
-	cmd.Stderr = os.Stderr
+	// exec replaces the shell with sleep, so there's only one process.
+	// sleep inherits SIG_IGN for SIGINT from the shell's trap, per POSIX.
+	cmd := exec.CommandContext(childCtx, "/bin/sh", "-c", `trap "" INT; exec sleep 300`)
+	cmd.Stderr = io.Discard
 
 	require.NoError(t, cmd.Start(), "failed to start sleep process")
 	pid := cmd.Process.Pid
@@ -125,11 +128,15 @@ func TestChildProcess_Shutdown_CancelsContext(t *testing.T) {
 	child.state = ChildStateReady
 	child.mu.Unlock()
 
-	t.Logf("started sleep process with pid %d", pid)
+	t.Logf("started SIGINT-ignoring process with pid %d", pid)
+
+	// Allow the shell time to execute the trap command before sending SIGINT.
+	// Without this, SIGINT arrives before the trap is installed and kills the process.
+	time.Sleep(100 * time.Millisecond)
 
 	// Use a very short shutdown context to trigger the force-kill path:
-	// Shutdown sends SIGINT, but sleep(300) won't exit in 50ms, so the
-	// shutdown context expires and cancel() is called — which triggers
+	// Shutdown sends SIGINT, but the shell ignores it, so the shutdown
+	// context expires and cancel() is called — which triggers
 	// exec.CommandContext to SIGKILL the process.
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer shutdownCancel()
@@ -163,7 +170,7 @@ func TestChildProcess_CancelFunc_StoredOnLaunchFailure(t *testing.T) {
 	cancel := child.cancel
 	child.mu.Unlock()
 
-	assert.NotNil(t, cancel, "cancel func should be stored even on launch failure")
+	require.NotNil(t, cancel, "cancel func should be stored even on launch failure")
 	// Calling cancel should be safe (no panic)
 	cancel()
 }
