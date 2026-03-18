@@ -28,6 +28,7 @@ type AWSPublicPlugin struct {
 	version          string
 	pricing          pricing.PricingClient
 	carbonEstimator  carbon.CarbonEstimator
+	ebsEstimator     *carbon.EBSEstimator
 	logger           zerolog.Logger // logger is immutable (copy-on-write)
 	testMode         bool           // true when FINFOCUS_TEST_MODE=true
 	maxBatchSize     int            // configured max batch size for recommendations (read-only after init)
@@ -111,6 +112,7 @@ func NewAWSPublicPlugin(
 		version:          version,
 		pricing:          pricingClient,
 		carbonEstimator:  carbon.NewEstimator(),
+		ebsEstimator:     carbon.NewEBSEstimator(),
 		logger:           logger,
 		testMode:         testMode,
 		maxBatchSize:     maxBatchSize,

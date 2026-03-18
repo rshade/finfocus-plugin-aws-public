@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"sync"
 	"testing"
 	"time"
 
@@ -95,6 +96,31 @@ func TestChildProcess_HealthCheck_NilClient(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "client is nil")
 	assert.Equal(t, ChildStateUnhealthy, child.State())
+}
+
+// TestChildProcess_ConcurrentStateRead verifies that concurrent calls to State()
+// and Client() do not race. This test is meaningful under -race detection because
+// sync.RWMutex allows concurrent readers without serialization.
+func TestChildProcess_ConcurrentStateRead(t *testing.T) {
+	logger := zerolog.Nop()
+	child := NewChildProcess("us-east-1", "/usr/bin/true", logger)
+
+	const goroutines = 10
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 2)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = child.State()
+		}()
+		go func() {
+			defer wg.Done()
+			_ = child.Client()
+		}()
+	}
+
+	wg.Wait()
 }
 
 // TestChildProcess_Shutdown_CancelsContext verifies that Shutdown force-kills the child

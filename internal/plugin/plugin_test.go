@@ -275,6 +275,10 @@ func TestNewAWSPublicPlugin(t *testing.T) {
 	if plugin.pricing != mock {
 		t.Error("Pricing client not set correctly")
 	}
+
+	if plugin.ebsEstimator == nil {
+		t.Error("EBS estimator not initialized")
+	}
 }
 
 func TestName(t *testing.T) {
