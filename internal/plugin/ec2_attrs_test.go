@@ -498,6 +498,15 @@ func TestParseGoMapString(t *testing.T) {
 			input: "  map[volumeSize:8 volumeType:gp2]  ",
 			want:  map[string]string{"volumeSize": "8", "volumeType": "gp2"},
 		},
+		{
+			// Documents known limitation: values with spaces are silently truncated
+			// because strings.Fields splits on whitespace. "My Volume" becomes two
+			// tokens: "name:My" (parsed as name→My) and "Volume" (no colon, skipped).
+			// This is acceptable because Pulumi's rootBlockDevice only uses scalar values.
+			name:  "space in value truncates silently",
+			input: "map[name:My Volume volumeType:gp2]",
+			want:  map[string]string{"name": "My", "volumeType": "gp2"},
+		},
 	}
 
 	for _, tt := range tests {

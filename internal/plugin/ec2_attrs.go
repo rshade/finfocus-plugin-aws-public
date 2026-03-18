@@ -151,6 +151,12 @@ type RootVolumeInfo struct {
 // For each space-separated token, the first colon splits key from value.
 // Values containing colons are preserved (e.g., "arn:aws:..." keeps the full ARN).
 // Returns an empty map for empty or malformed input.
+//
+// Limitation: values containing spaces are not supported and will be silently
+// mis-parsed because strings.Fields splits on all whitespace. For example,
+// "map[name:My Volume]" yields {"name": "My"} with "Volume" dropped (no colon).
+// This is sufficient for Pulumi's rootBlockDevice serialization which only
+// produces simple scalar values (type strings, booleans, integers).
 func parseGoMapString(s string) map[string]string {
 	result := make(map[string]string)
 
@@ -181,8 +187,9 @@ func parseGoMapString(s string) map[string]string {
 	return result
 }
 
-// parsePositiveIntField parses positive integer tag values used for root volume size fields.
-// It logs a warning for malformed or non-positive values.
+// parsePositiveIntField parses strictly positive (> 0) integer tag values used for root
+// volume size fields. Zero is rejected (treated as non-positive). It logs a warning
+// for malformed or non-positive values and returns (0, false).
 func parsePositiveIntField(fieldName, raw string) (int, bool) {
 	size, err := strconv.Atoi(raw)
 	if err != nil || size <= 0 {
