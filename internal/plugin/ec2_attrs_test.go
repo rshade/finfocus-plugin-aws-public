@@ -446,6 +446,39 @@ func mustStruct(m map[string]interface{}) *structpb.Struct {
 	return s
 }
 
+// TestParsePositiveIntField verifies that parsePositiveIntField correctly rejects
+// zero, negative, and non-numeric values while accepting valid positive integers.
+// This directly tests the boundary behavior documented in the function's docstring:
+// values ≤ 0 (including zero) return (0, false) with a warning log.
+func TestParsePositiveIntField(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantVal int
+		wantOK  bool
+	}{
+		{name: "positive integer", input: "10", wantVal: 10, wantOK: true},
+		{name: "one", input: "1", wantVal: 1, wantOK: true},
+		{name: "zero is rejected", input: "0", wantVal: 0, wantOK: false},
+		{name: "negative is rejected", input: "-5", wantVal: 0, wantOK: false},
+		{name: "non-numeric is rejected", input: "abc", wantVal: 0, wantOK: false},
+		{name: "empty string is rejected", input: "", wantVal: 0, wantOK: false},
+		{name: "float is rejected", input: "10.5", wantVal: 0, wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			val, ok := parsePositiveIntField("test_field", tt.input)
+			if ok != tt.wantOK {
+				t.Errorf("parsePositiveIntField(%q) ok = %v, want %v", tt.input, ok, tt.wantOK)
+			}
+			if val != tt.wantVal {
+				t.Errorf("parsePositiveIntField(%q) val = %d, want %d", tt.input, val, tt.wantVal)
+			}
+		})
+	}
+}
+
 // TestParseGoMapString verifies parsing of Go's fmt.Sprint map format strings.
 func TestParseGoMapString(t *testing.T) {
 	tests := []struct {
