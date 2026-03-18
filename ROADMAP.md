@@ -28,8 +28,8 @@ security overhead of cloud credentials.
     registry.go (#325) [S]
   - **Doc Clarification:** Clarify `parsePositiveIntField` and
     `parseGoMapString` limitations (#317, #315) [S]
-  - **RWMutex Optimization:** Use `RWMutex` for child getters and reuse EBS
-    estimator (#322) [S]
+  - ~~**RWMutex Optimization:** Use `RWMutex` for child getters and reuse EBS
+    estimator (#322) [S]~~ ✅
   - **Service Constants:** Use service constants in `ZeroCostServices` and
     `ZeroCostPulumiPatterns` maps (#321) [S]
   - **Lint Directives:** Replace global threshold increases with targeted

@@ -74,7 +74,7 @@ type ChildProcess struct {
 	client     *pluginsdk.Client
 	state      ChildState
 	cancel     context.CancelFunc // Cancels the child process context, triggering process kill
-	mu         sync.Mutex
+	mu         sync.RWMutex
 	logger     zerolog.Logger
 }
 
@@ -90,15 +90,15 @@ func NewChildProcess(region, binaryPath string, logger zerolog.Logger) *ChildPro
 
 // State returns the current lifecycle state of the child process.
 func (c *ChildProcess) State() ChildState {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.state
 }
 
 // Client returns the pluginsdk.Client for delegating RPCs to this child.
 func (c *ChildProcess) Client() *pluginsdk.Client {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.client
 }
 

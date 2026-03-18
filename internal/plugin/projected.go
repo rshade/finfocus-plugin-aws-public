@@ -353,8 +353,7 @@ func (p *AWSPublicPlugin) estimateEC2(
 	// Add root volume EBS carbon if applicable
 	var rootCarbonGrams float64
 	if rootVol.Present {
-		ebsEstimator := carbon.NewEBSEstimator()
-		rootCarbon, rootCarbonOK := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
+		rootCarbon, rootCarbonOK := p.ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
 			VolumeType: rootVol.VolumeType,
 			SizeGB:     float64(rootVol.SizeGB),
 			Region:     resource.GetRegion(),
@@ -464,8 +463,7 @@ func (p *AWSPublicPlugin) estimateEBS(
 	}
 
 	// Carbon estimation for EBS volume
-	ebsEstimator := carbon.NewEBSEstimator()
-	carbonGrams, carbonOK := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
+	carbonGrams, carbonOK := p.ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
 		VolumeType: volumeType,
 		SizeGB:     float64(sizeGB),
 		Region:     resource.GetRegion(),
