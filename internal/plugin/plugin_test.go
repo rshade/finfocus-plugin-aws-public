@@ -706,3 +706,115 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 		})
 	}
 }
+
+// TestParseResourceFromRequest_ServiceAwareRegionValidation verifies that
+// parseResourceFromRequest uses service-aware logic for region validation.
+//
+// Previously, the function allowed empty region for ANY tag-derived request
+// (allowEmptyRegion := len(req.GetTags()) > 0). This was too broad — regional
+// services like EC2/EBS/RDS should require a region even when tags are present.
+// Only truly global services (S3, IAM) and zero-cost services should be allowed
+// to omit region.
+//
+// Bug: https://github.com/rshade/finfocus-plugin-aws-public/issues/324
+func TestParseResourceFromRequest_ServiceAwareRegionValidation(t *testing.T) {
+	logger := zerolog.Nop()
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
+
+	tests := []struct {
+		name      string
+		tags      map[string]string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "EC2 with tags but no region should fail",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ec2",
+				"sku":           "t3.micro",
+			},
+			wantErr:   true,
+			errSubstr: "resource information incomplete",
+		},
+		{
+			name: "EBS with tags but no region should fail",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ebs",
+				"sku":           "gp3",
+			},
+			wantErr:   true,
+			errSubstr: "resource information incomplete",
+		},
+		{
+			name: "RDS with tags but no region should fail",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "rds",
+				"sku":           "db.t3.micro",
+			},
+			wantErr:   true,
+			errSubstr: "resource information incomplete",
+		},
+		{
+			name: "S3 with tags but no region should succeed",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "s3",
+				"sku":           "STANDARD",
+			},
+			wantErr: false,
+		},
+		{
+			name: "IAM with tags but no region should succeed",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "iam",
+				"sku":           "role",
+			},
+			wantErr: false,
+		},
+		{
+			name: "VPC (zero-cost) with tags but no region should succeed",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "vpc",
+				"sku":           "default",
+			},
+			wantErr: false,
+		},
+		{
+			name: "EC2 with tags and region should succeed",
+			tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ec2",
+				"sku":           "t3.micro",
+				"region":        "us-east-1",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &pbc.GetActualCostRequest{
+				ResourceId: "invalid-json",
+				Tags:       tt.tags,
+			}
+
+			resource, err := p.parseResourceFromRequest(req)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil (resource: %v)", tt.errSubstr, resource)
+				} else if !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("expected error containing %q, got: %v", tt.errSubstr, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
