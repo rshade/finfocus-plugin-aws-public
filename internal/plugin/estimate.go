@@ -228,7 +228,7 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 	costMonthly := hourlyRate * carbon.HoursPerMonth
 
 	// Add root EBS volume cost when rootBlockDevice attribute is present
-	rootVol := ExtractRootVolumeFromStruct(attrs)
+	rootVol := ExtractRootVolumeFromStruct(attrs, *p.traceLogger(traceID, "EstimateCost"))
 	if rootVol.Present {
 		if ebsRate, ebsFound := p.pricing.EBSPricePerGBMonth(rootVol.VolumeType); ebsFound {
 			costMonthly += ebsRate * float64(rootVol.SizeGB)

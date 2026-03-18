@@ -309,7 +309,7 @@ func (p *AWSPublicPlugin) estimateEC2(
 	billingDetail := fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", ec2Attrs.OS, ec2Attrs.Tenancy)
 
 	// Root EBS volume cost: Include root volume storage when tag info is present
-	rootVol := ExtractRootVolumeFromTags(resource.GetTags())
+	rootVol := ExtractRootVolumeFromTags(resource.GetTags(), *p.traceLogger(traceID, "GetProjectedCost"))
 	var rootVolumeCost float64
 	if rootVol.Present {
 		if ebsRate, ebsFound := p.pricing.EBSPricePerGBMonth(rootVol.VolumeType); ebsFound {
