@@ -3,9 +3,9 @@ package router
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -375,8 +375,8 @@ func extractRegionFromActualCostRequest(req *pbc.GetActualCostRequest) string {
 	}
 
 	// ARN format: arn:partition:service:region:account:resource
-	if parts := strings.SplitN(resourceID, ":", 6); len(parts) >= 4 && parts[0] == "arn" && parts[3] != "" {
-		return parts[3]
+	if parsed, err := arn.Parse(resourceID); err == nil && parsed.Region != "" {
+		return parsed.Region
 	}
 
 	return ""

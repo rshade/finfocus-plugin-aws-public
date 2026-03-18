@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
 // ARNComponents represents the parsed components of an AWS ARN.
@@ -33,64 +35,42 @@ type ARNComponents struct {
 //   - arn:aws:rds:us-west-2:123456789012:db:mydb
 //   - arn:aws:lambda:eu-west-1:123456789012:function:my-function
 func ParseARN(arnString string) (*ARNComponents, error) {
-	if arnString == "" {
-		return nil, errors.New("ARN is empty")
+	parsed, err := arn.Parse(arnString)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ARN: %w", err)
 	}
 
-	// Split by ":" - ARNs have at least 6 parts
-	parts := strings.SplitN(arnString, ":", 6)
-	if len(parts) < 6 {
-		return nil, fmt.Errorf("invalid ARN format: expected at least 6 colon-separated parts, got %d", len(parts))
-	}
-
-	// Validate "arn" prefix
-	if parts[0] != "arn" {
-		return nil, fmt.Errorf("invalid ARN: must start with 'arn:', got %q", parts[0])
-	}
-
-	// Validate partition
-	partition := parts[1]
-	if partition == "" {
-		return nil, errors.New("invalid ARN: partition is empty")
-	}
-	if !isValidPartition(partition) {
-		// Provide specific guidance for isolated partitions
-		if partition == "aws-iso" || partition == "aws-iso-b" {
-			return nil, fmt.Errorf(
-				"unsupported ARN partition %q: isolated partitions (aws-iso, aws-iso-b) do not have public pricing data available",
-				partition,
-			)
-		}
-		return nil, fmt.Errorf("invalid ARN partition: %q", partition)
-	}
-
-	// Validate service
-	service := parts[2]
-	if service == "" {
+	// The SDK accepts empty service and resource; validate them for our use case.
+	if parsed.Service == "" {
 		return nil, errors.New("invalid ARN: service is empty")
 	}
-
-	// Region can be empty (e.g., S3 buckets, IAM)
-	region := parts[3]
-
-	// Account ID can be empty (e.g., S3 buckets)
-	accountID := parts[4]
-
-	// Resource part - may contain "/" or ":" as separator
-	resourcePart := parts[5]
-	if resourcePart == "" {
+	if parsed.Resource == "" {
 		return nil, errors.New("invalid ARN: resource part is empty")
 	}
 
-	// Parse resource type and ID
-	// Try "/" separator first (more common), then ":" separator
-	resourceType, resourceID := parseResourcePart(resourcePart)
+	// Validate partition - only commercial partitions are supported because
+	// this plugin uses AWS public pricing data, which is not available for
+	// isolated partitions (aws-iso, aws-iso-b).
+	if !isValidPartition(parsed.Partition) {
+		if parsed.Partition == "aws-iso" || parsed.Partition == "aws-iso-b" {
+			return nil, fmt.Errorf(
+				"unsupported ARN partition %q: isolated partitions (aws-iso, aws-iso-b) do not have public pricing data available",
+				parsed.Partition,
+			)
+		}
+		return nil, fmt.Errorf("invalid ARN partition: %q", parsed.Partition)
+	}
+
+	// Parse resource type and ID from the combined Resource field.
+	// The SDK keeps everything after the 5th colon as a single Resource string,
+	// but we need to split it into type and ID (e.g., "instance/i-abc123" → "instance", "i-abc123").
+	resourceType, resourceID := parseResourcePart(parsed.Resource)
 
 	return &ARNComponents{
-		Partition:    partition,
-		Service:      service,
-		Region:       region,
-		AccountID:    accountID,
+		Partition:    parsed.Partition,
+		Service:      parsed.Service,
+		Region:       parsed.Region,
+		AccountID:    parsed.AccountID,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 	}, nil
