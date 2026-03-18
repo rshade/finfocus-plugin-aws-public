@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/goccy/go-json"
@@ -359,16 +360,25 @@ func extractRegionFromActualCostRequest(req *pbc.GetActualCostRequest) string {
 		return ""
 	}
 
+	resourceID := req.GetResourceId()
+
 	var resource pbc.ResourceDescriptor
-	if err := json.Unmarshal([]byte(req.GetResourceId()), &resource); err != nil {
-		return ""
+	if err := json.Unmarshal([]byte(resourceID), &resource); err == nil {
+		if region := resource.GetRegion(); region != "" {
+			return region
+		}
+		if tags := resource.GetTags(); tags != nil {
+			if region := tags["region"]; region != "" {
+				return region
+			}
+		}
 	}
-	if region := resource.GetRegion(); region != "" {
-		return region
+
+	// ARN format: arn:partition:service:region:account:resource
+	if parts := strings.SplitN(resourceID, ":", 6); len(parts) >= 4 && parts[0] == "arn" && parts[3] != "" {
+		return parts[3]
 	}
-	if tags := resource.GetTags(); tags != nil {
-		return tags["region"]
-	}
+
 	return ""
 }
 

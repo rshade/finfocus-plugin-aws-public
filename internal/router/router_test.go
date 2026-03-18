@@ -146,6 +146,49 @@ func TestExtractRegionFromActualCostRequest(t *testing.T) {
 			expected: "",
 		},
 		{
+			name: "region from ARN-format resource id",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
+			},
+			expected: "us-east-1",
+		},
+		{
+			name: "region from ARN with different region",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "arn:aws:rds:ap-southeast-1:123456789012:db:mydb",
+			},
+			expected: "ap-southeast-1",
+		},
+		{
+			name: "region from GovCloud ARN",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "arn:aws-us-gov:ec2:us-gov-west-1:123456789012:instance/i-abc123",
+			},
+			expected: "us-gov-west-1",
+		},
+		{
+			name: "tags take precedence over ARN region",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
+				Tags:       map[string]string{"region": "us-west-2"},
+			},
+			expected: "us-west-2",
+		},
+		{
+			name: "ARN with empty region (S3 global)",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "arn:aws:s3:::my-bucket",
+			},
+			expected: "",
+		},
+		{
+			name: "non-ARN non-JSON resource id",
+			req: &pbc.GetActualCostRequest{
+				ResourceId: "i-abc123",
+			},
+			expected: "",
+		},
+		{
 			name: "invalid resource id json",
 			req: &pbc.GetActualCostRequest{
 				ResourceId: "{invalid",

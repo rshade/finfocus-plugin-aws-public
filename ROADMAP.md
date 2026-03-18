@@ -11,22 +11,40 @@ security overhead of cloud credentials.
 ## Immediate Focus [In Progress / Planned]
 
 - **[In Progress] Bug Fixes:**
-  - **LaunchTemplate Pricing:** LaunchTemplate incorrectly priced as EC2
-    instance (~$35/mo) (#294).
-  - **GetActualCost Zero-Cost:** `GetActualCost` should handle zero-cost
-    resources (VPC, Subnet, SecurityGroup) without error (#293).
   - **Sparse OldState:** Handle sparse `OldState` properties for cost diff
-    accuracy (#292).
+    accuracy (#292) [M]
+  - **ARN Region Extraction:** Extract region from ARN-format resource IDs in
+    `GetActualCost` routing (#320) [M]
+  - **Context Propagation:** Restore context propagation for child process
+    lifecycle (#314) [M]
+  - **Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
+    switch (#319) [S]
+  - **allowEmptyRegion:** Make `allowEmptyRegion` service-aware in
+    `parseResourceFromRequest` (#324) [S]
+  - **Logger Injection:** Replace global logger in `parsePositiveIntField`
+    with injected logger (#323) [S]
+- **[In Progress] Code Quality (PR #305 Follow-ups):**
+  - **Doc Fixes:** Fix doc/code mismatches in instance_specs, client.go,
+    registry.go (#325) [S]
+  - **Doc Clarification:** Clarify `parsePositiveIntField` and
+    `parseGoMapString` limitations (#317, #315) [S]
+  - **RWMutex Optimization:** Use `RWMutex` for child getters and reuse EBS
+    estimator (#322) [S]
+  - **Service Constants:** Use service constants in `ZeroCostServices` and
+    `ZeroCostPulumiPatterns` maps (#321) [S]
+  - **Lint Directives:** Replace global threshold increases with targeted
+    `nolint` directives (#316) [S]
+  - **Gosec Narrowing:** Narrow gosec suppression for tools/ to specific
+    rules (#318) [S]
+  - **golangci-lint Upgrade:** Upgrade from v2.5.0 to v2.8.0 (#291) [S]
+- **[Planned] Build Infrastructure:**
+  - **Region Mapping Consolidation:** Consolidate all region-to-tag mappings
+    to use `regions.yaml` as single source of truth, eliminating hardcoded
+    duplicates in shell scripts (#287) [M]
 - **[Planned] Service Breadth Expansion:**
   - **Route53:** Hosted zones and basic query volume estimation.
   - **CloudFront:** Basic data transfer and request pricing (based on regional
     estimates).
-- **[Planned] Build Infrastructure:**
-  - **Region Mapping Consolidation:** Consolidate all region-to-tag mappings
-    to use `regions.yaml` as single source of truth, eliminating hardcoded
-    duplicates in shell scripts (#287).
-  - **Linter Compliance:** Resolve all golangci-lint issues and protect
-    `.golangci.yml` configuration (#289).
 
 ---
 
@@ -34,10 +52,10 @@ security overhead of cloud credentials.
 
 - **[Planned] Service Breadth (New Services):**
   - **ASG Estimator:** Add estimator for
-    `aws:autoscaling/group:Group` (#295).
+    `aws:autoscaling/group:Group` (#295) [L]
 - **[Researching] Memory Optimization:** Implementing lazy-loading or
   memory-mapped access for embedded JSON files to reduce the runtime memory
-  footprint without moving to an external database (#84).
+  footprint without moving to an external database (#84) [L]
 - **[Planned] Service Depth (Phase 2):**
   - **EBS Depth:** Adding IOPS and Throughput pricing for `gp3`, `io1`, and
     `io2`.
@@ -47,7 +65,7 @@ security overhead of cloud credentials.
 - **[Planned] Additional Regions:** Expansion to include GovCloud
   (us-gov-west-1, us-gov-east-1) and specialized regions (Beijing/Ningxia,
   EU-North-1) as public pricing data parity allows. Infrastructure exists but
-  regions.yaml catalog incomplete (#271, #272).
+  regions.yaml catalog incomplete (#271, #272) [M]
 - **[Planned] Forecasting Intelligence:**
   - **Growth Hints:** Implement logic to return `GrowthType` (Linear) for
     accumulation-based resources (S3, ECR, Backup) to support Core forecasting.
@@ -57,7 +75,22 @@ security overhead of cloud credentials.
     support "Blast Radius" visualization.
 - **[Planned] Capability Discovery Enhancements:**
   - **Dual-Layer Discovery:** Service-level and resource-level capability
-    introspection for richer client integration (#258).
+    introspection for richer client integration (#258) [L]
+- **[Planned] Testing & Quality:**
+  - **E2E Integration Tests:** Pulumi YAML fixture-based end-to-end
+    tests (#216) [L]
+  - **Memory Profiling:** CI memory usage tracking for parsing (#182) [M]
+  - **Pricing Metadata Validation:** Cross-service consistency checks
+    (#181) [M]
+  - **gRPCurl Integration Tests:** Pricing verification via gRPCurl (#174) [M]
+  - **Pricing Client Refactor:** Better maintainability for initialization
+    (#83) [M]
+- **[Planned] Small Improvements:**
+  - Test cleanup: #267, #266, #227, #185, #184, #144, #129 [S]
+  - Perf: traceLogger optimization (#265) [S]
+  - Refactor: nolint conditionals (#264), port dedup (#259) [S]
+  - Docker: configurable metrics threshold (#260) [S]
+  - CloudWatch validation warnings (#212) [S]
 
 ---
 
@@ -65,6 +98,12 @@ security overhead of cloud credentials.
 
 ### Q1 2026
 
+- **LaunchTemplate Fix:** LaunchTemplate no longer incorrectly priced as EC2
+  instance (#294).
+- **GetActualCost Zero-Cost:** `GetActualCost` now handles zero-cost resources
+  (VPC, Subnet, SecurityGroup) without error (#293).
+- **Linter Compliance:** Resolved all golangci-lint issues and protected
+  `.golangci.yml` configuration (#289).
 - **Multi-Region Router:** Single-port entry point that auto-discovers and
   delegates to region-specific child processes. Supports parallel fan-out
   for multi-region recommendations and automatic binary downloads from
