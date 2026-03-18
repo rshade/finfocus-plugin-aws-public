@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -187,17 +187,13 @@ func parseGoMapString(s string) map[string]string {
 	return result
 }
 
-// parsePositiveIntField parses strictly positive (> 0) integer tag values used for root
-// volume size fields. Zero is rejected (treated as non-positive). It logs a warning
-// for malformed or non-positive values and returns (0, false).
-func parsePositiveIntField(fieldName, raw string) (int, bool) {
+// parsePositiveInt parses strictly positive (> 0) integer values used for root
+// volume size fields. Zero is rejected (treated as non-positive). Returns (0, false)
+// for malformed or non-positive values; callers are responsible for logging with
+// trace-aware context.
+func parsePositiveInt(raw string) (int, bool) {
 	size, err := strconv.Atoi(raw)
 	if err != nil || size <= 0 {
-		log.Warn().
-			Str("field", fieldName).
-			Str("value", raw).
-			Err(err).
-			Msg("invalid root volume size value")
 		return 0, false
 	}
 	return size, true
@@ -205,6 +201,7 @@ func parsePositiveIntField(fieldName, raw string) (int, bool) {
 
 // ExtractRootVolumeFromTags extracts root EBS volume configuration from a
 // ResourceDescriptor.Tags map. This is used by the GetProjectedCost path.
+// The logger parameter enables trace-aware warning logs for invalid volume sizes.
 //
 // Tag priority:
 //  1. Individual tags "root_volume_type" and "root_volume_size" (explicit overrides)
@@ -215,7 +212,7 @@ func parsePositiveIntField(fieldName, raw string) (int, bool) {
 //   - If no root volume source found → RootVolumeInfo{Present: false} (no cost added)
 //   - If source present but missing type → defaults to "gp2"
 //   - If source present but missing/invalid size → defaults to 8 GB
-func ExtractRootVolumeFromTags(tags map[string]string) RootVolumeInfo {
+func ExtractRootVolumeFromTags(tags map[string]string, logger zerolog.Logger) RootVolumeInfo {
 	if tags == nil {
 		return RootVolumeInfo{}
 	}
@@ -233,8 +230,13 @@ func ExtractRootVolumeFromTags(tags map[string]string) RootVolumeInfo {
 				volumeType = vt
 			}
 			if vs, vsOK := rbdMap["volumeSize"]; vsOK && vs != "" {
-				if size, sizeOK := parsePositiveIntField("rootBlockDevice.volumeSize", vs); sizeOK {
+				if size, sizeOK := parsePositiveInt(vs); sizeOK {
 					sizeGB = size
+				} else {
+					logger.Warn().
+						Str("field", "rootBlockDevice.volumeSize").
+						Str("value", vs).
+						Msg("invalid root volume size value")
 				}
 			}
 		}
@@ -247,8 +249,13 @@ func ExtractRootVolumeFromTags(tags map[string]string) RootVolumeInfo {
 	}
 	if rvs, rvsOK := tags["root_volume_size"]; rvsOK && rvs != "" {
 		hasSource = true
-		if size, sizeOK := parsePositiveIntField("root_volume_size", rvs); sizeOK {
+		if size, sizeOK := parsePositiveInt(rvs); sizeOK {
 			sizeGB = size
+		} else {
+			logger.Warn().
+				Str("field", "root_volume_size").
+				Str("value", rvs).
+				Msg("invalid root volume size value")
 		}
 	}
 
@@ -273,13 +280,14 @@ func ExtractRootVolumeFromTags(tags map[string]string) RootVolumeInfo {
 
 // ExtractRootVolumeFromStruct extracts root EBS volume configuration from a
 // protobuf Struct (used in the EstimateCost path). Checks the "rootBlockDevice"
-// attribute for volume type and size.
+// attribute for volume type and size. The logger parameter enables trace-aware
+// warning logs for invalid volume sizes.
 //
 // Default behavior matches ExtractRootVolumeFromTags:
 //   - If no rootBlockDevice attribute → RootVolumeInfo{Present: false}
 //   - If present but missing type → defaults to "gp2"
 //   - If present but missing/invalid size → defaults to 8 GB
-func ExtractRootVolumeFromStruct(attrs *structpb.Struct) RootVolumeInfo {
+func ExtractRootVolumeFromStruct(attrs *structpb.Struct, logger zerolog.Logger) RootVolumeInfo {
 	if attrs == nil || attrs.GetFields() == nil {
 		return RootVolumeInfo{}
 	}
@@ -295,12 +303,12 @@ func ExtractRootVolumeFromStruct(attrs *structpb.Struct) RootVolumeInfo {
 
 	switch v := rbdVal.GetKind().(type) {
 	case *structpb.Value_StructValue:
-		volumeType, sizeGB = extractRootVolumeFromStructValue(v.StructValue)
+		volumeType, sizeGB = extractRootVolumeFromStructValue(v.StructValue, logger)
 	case *structpb.Value_ListValue:
 		// Take the first element if it's a list
 		if v.ListValue != nil && len(v.ListValue.GetValues()) > 0 {
 			if sv := v.ListValue.GetValues()[0].GetStructValue(); sv != nil {
-				volumeType, sizeGB = extractRootVolumeFromStructValue(sv)
+				volumeType, sizeGB = extractRootVolumeFromStructValue(sv, logger)
 			}
 		}
 	case *structpb.Value_StringValue:
@@ -313,8 +321,13 @@ func ExtractRootVolumeFromStruct(attrs *structpb.Struct) RootVolumeInfo {
 			volumeType = vt
 		}
 		if vs, vsOK := rbdMap["volumeSize"]; vsOK && vs != "" {
-			if size, sizeOK := parsePositiveIntField("rootBlockDevice.volumeSize", vs); sizeOK {
+			if size, sizeOK := parsePositiveInt(vs); sizeOK {
 				sizeGB = size
+			} else {
+				logger.Warn().
+					Str("field", "rootBlockDevice.volumeSize").
+					Str("value", vs).
+					Msg("invalid root volume size value")
 			}
 		}
 	default:
@@ -337,7 +350,7 @@ func ExtractRootVolumeFromStruct(attrs *structpb.Struct) RootVolumeInfo {
 }
 
 // extractRootVolumeFromStructValue extracts volume type and size from a structpb.Struct.
-func extractRootVolumeFromStructValue(s *structpb.Struct) (string, int) {
+func extractRootVolumeFromStructValue(s *structpb.Struct, logger zerolog.Logger) (string, int) {
 	if s == nil {
 		return "", 0
 	}
@@ -356,8 +369,13 @@ func extractRootVolumeFromStructValue(s *structpb.Struct) (string, int) {
 				sizeGB = int(sv.NumberValue)
 			}
 		case *structpb.Value_StringValue:
-			if size, sizeOK := parsePositiveIntField("rootBlockDevice.volumeSize", sv.StringValue); sizeOK {
+			if size, sizeOK := parsePositiveInt(sv.StringValue); sizeOK {
 				sizeGB = size
+			} else {
+				logger.Warn().
+					Str("field", "rootBlockDevice.volumeSize").
+					Str("value", sv.StringValue).
+					Msg("invalid root volume size value")
 			}
 		}
 	}

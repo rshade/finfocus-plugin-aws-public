@@ -3,6 +3,7 @@ package plugin
 import (
 	"testing"
 
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -531,7 +532,7 @@ func TestExtractRootVolumeFromTags_GoMapFormat(t *testing.T) {
 	tags := map[string]string{
 		"rootBlockDevice": "map[volumeSize:20 volumeType:gp3]",
 	}
-	rv := ExtractRootVolumeFromTags(tags)
+	rv := ExtractRootVolumeFromTags(tags, zerolog.Nop())
 
 	if !rv.Present {
 		t.Fatal("Expected Present=true for rootBlockDevice tag")
@@ -551,7 +552,7 @@ func TestExtractRootVolumeFromTags_IndividualTags(t *testing.T) {
 		"root_volume_type": "io1",
 		"root_volume_size": "100",
 	}
-	rv := ExtractRootVolumeFromTags(tags)
+	rv := ExtractRootVolumeFromTags(tags, zerolog.Nop())
 
 	if !rv.Present {
 		t.Fatal("Expected Present=true for individual tags")
@@ -572,7 +573,7 @@ func TestExtractRootVolumeFromTags_IndividualOverridesMap(t *testing.T) {
 		"root_volume_type": "gp3",
 		"root_volume_size": "50",
 	}
-	rv := ExtractRootVolumeFromTags(tags)
+	rv := ExtractRootVolumeFromTags(tags, zerolog.Nop())
 
 	if !rv.Present {
 		t.Fatal("Expected Present=true")
@@ -601,7 +602,7 @@ func TestExtractRootVolumeFromTags_NoInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rv := ExtractRootVolumeFromTags(tt.tags)
+			rv := ExtractRootVolumeFromTags(tt.tags, zerolog.Nop())
 			if rv.Present {
 				t.Errorf("Expected Present=false for tags %v", tt.tags)
 			}
@@ -664,7 +665,7 @@ func TestExtractRootVolumeFromTags_Defaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rv := ExtractRootVolumeFromTags(tt.tags)
+			rv := ExtractRootVolumeFromTags(tt.tags, zerolog.Nop())
 			if !rv.Present {
 				t.Fatal("Expected Present=true")
 			}
@@ -756,7 +757,7 @@ func TestExtractRootVolumeFromStruct(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rv := ExtractRootVolumeFromStruct(tt.attrs)
+			rv := ExtractRootVolumeFromStruct(tt.attrs, zerolog.Nop())
 			if rv.Present != tt.wantPresent {
 				t.Fatalf("Present = %v, want %v", rv.Present, tt.wantPresent)
 			}
