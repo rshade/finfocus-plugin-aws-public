@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -359,16 +360,25 @@ func extractRegionFromActualCostRequest(req *pbc.GetActualCostRequest) string {
 		return ""
 	}
 
+	resourceID := req.GetResourceId()
+
 	var resource pbc.ResourceDescriptor
-	if err := json.Unmarshal([]byte(req.GetResourceId()), &resource); err != nil {
-		return ""
+	if err := json.Unmarshal([]byte(resourceID), &resource); err == nil {
+		if region := resource.GetRegion(); region != "" {
+			return region
+		}
+		if tags := resource.GetTags(); tags != nil {
+			if region := tags["region"]; region != "" {
+				return region
+			}
+		}
 	}
-	if region := resource.GetRegion(); region != "" {
-		return region
+
+	// ARN format: arn:partition:service:region:account:resource
+	if parsed, err := arn.Parse(resourceID); err == nil && parsed.Region != "" {
+		return parsed.Region
 	}
-	if tags := resource.GetTags(); tags != nil {
-		return tags["region"]
-	}
+
 	return ""
 }
 

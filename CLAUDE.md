@@ -35,6 +35,7 @@ Go 1.25+: Follow standard conventions
 - **No Dummy Data:** Do not create dummy, fake, or hardcoded placeholder data for core functionality (especially pricing). Always implement fetchers for real authoritative data sources (e.g., AWS Price List API).
 - **Validation Pattern:** For parsing numeric tags with bounds checking, use validation helper methods that return validated values and log warnings for invalid inputs. Example: `validateNonNegativeFloat64(traceID, "tag_name", value)` returns 0 and logs warning if value is negative or unparseable. This ensures consistent error handling across all tag parsing.
 - **Zero-Cost Resources:** AWS resources with no direct cost (VPC, Security Groups, Subnets) return $0 estimates gracefully instead of SKU errors.
+- **Prefer SDK Parsers:** Use battle-tested SDK packages (e.g., `github.com/aws/aws-sdk-go-v2/aws/arn`) over hand-rolled implementations for standard formats. "Air-gapped" means no runtime network calls, not no compile-time dependencies — imported packages compile to static code with zero network capability. Layer domain-specific validation on top of SDK parsing.
 
 ## Roadmap
 **Important** Keep Roadmap up to date with every PR
