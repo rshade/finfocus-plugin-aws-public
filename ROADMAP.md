@@ -11,6 +11,18 @@ security overhead of cloud credentials.
 ## Immediate Focus [In Progress / Planned]
 
 - **[In Progress] Bug Fixes:**
+  - **Sparse OldState:** Handle sparse `OldState` properties for cost diff
+    accuracy (#292) [M]
+  - **ARN Region Extraction:** Extract region from ARN-format resource IDs in
+    `GetActualCost` routing (#320) [M]
+  - **Context Propagation:** Restore context propagation for child process
+    lifecycle (#314) [M]
+  - ~~**Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
+    switch (#319) [S]~~ ✅
+  - **allowEmptyRegion:** Make `allowEmptyRegion` service-aware in
+    `parseResourceFromRequest` (#324) [S]
+  - **Logger Injection:** Replace global logger in `parsePositiveIntField`
+    with injected logger (#323) [S]
   - **Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
     switch (#319) [S]
 - **[In Progress] Code Quality (PR #305 Follow-ups):**
@@ -88,6 +100,9 @@ security overhead of cloud credentials.
 
 ### Q1 2026
 
+- **Zero-Cost PricingSpec:** `GetPricingSpec` now returns `BillingMode: "zero_cost"`
+  for VPC, Security Groups, Subnets, IAM, Launch Templates, and Launch
+  Configurations instead of falling through to "unknown" (#319).
 - **Sparse OldState Defaults Metadata:** Populate `Metadata` field with
   `defaults_applied` and `estimate_quality` on `GetProjectedCostResponse`,
   enabling cost diff engine to distinguish "real $0" from "defaulted $0"
