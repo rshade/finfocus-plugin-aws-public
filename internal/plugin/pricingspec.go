@@ -582,7 +582,7 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 	}
 
 	switch sku {
-	case "metrics":
+	case skuMetrics:
 		tiers, found := p.pricing.CloudWatchMetricsTiers()
 		if !found || len(tiers) == 0 {
 			return &pbc.PricingSpec{

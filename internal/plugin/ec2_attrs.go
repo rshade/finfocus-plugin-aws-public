@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	defaultRootVolumeType   = "gp2"
-	defaultRootVolumeSizeGB = 8
+	defaultRootVolumeType      = "gp2"
+	defaultRootVolumeSizeGB    = 8
+	defaultRootVolumeSizeGBStr = "8"
 )
 
 // EC2Attributes contains extracted EC2 configuration for pricing lookups.
@@ -139,9 +140,11 @@ func normalizeTenancy(tenancy string) string {
 // RootVolumeInfo contains extracted root EBS volume configuration for an EC2 instance.
 // When Present is true, the root volume cost should be included in EC2 cost estimates.
 type RootVolumeInfo struct {
-	VolumeType string // EBS volume type (e.g., "gp2", "gp3")
-	SizeGB     int    // Volume size in GB
-	Present    bool   // Whether root volume info was found in tags
+	VolumeType    string // EBS volume type (e.g., "gp2", "gp3")
+	SizeGB        int    // Volume size in GB
+	Present       bool   // Whether root volume info was found in tags
+	TypeDefaulted bool   // Whether VolumeType was defaulted (not specified by user)
+	SizeDefaulted bool   // Whether SizeGB was defaulted (not specified by user)
 }
 
 // parseGoMapString parses Go's fmt.Sprint map format ("map[key1:val1 key2:val2]")
@@ -261,17 +264,22 @@ func ExtractRootVolumeFromTags(tags map[string]string, logger zerolog.Logger) Ro
 	}
 
 	// Apply defaults for present-but-missing fields
+	var typeDefaulted, sizeDefaulted bool
 	if volumeType == "" {
 		volumeType = defaultRootVolumeType
+		typeDefaulted = true
 	}
 	if sizeGB <= 0 {
 		sizeGB = defaultRootVolumeSizeGB
+		sizeDefaulted = true
 	}
 
 	return RootVolumeInfo{
-		VolumeType: volumeType,
-		SizeGB:     sizeGB,
-		Present:    true,
+		VolumeType:    volumeType,
+		SizeGB:        sizeGB,
+		Present:       true,
+		TypeDefaulted: typeDefaulted,
+		SizeDefaulted: sizeDefaulted,
 	}
 }
 
@@ -332,17 +340,22 @@ func ExtractRootVolumeFromStruct(attrs *structpb.Struct, logger zerolog.Logger) 
 	}
 
 	// Apply defaults
+	var typeDefaulted, sizeDefaulted bool
 	if volumeType == "" {
 		volumeType = defaultRootVolumeType
+		typeDefaulted = true
 	}
 	if sizeGB <= 0 {
 		sizeGB = defaultRootVolumeSizeGB
+		sizeDefaulted = true
 	}
 
 	return RootVolumeInfo{
-		VolumeType: volumeType,
-		SizeGB:     sizeGB,
-		Present:    true,
+		VolumeType:    volumeType,
+		SizeGB:        sizeGB,
+		Present:       true,
+		TypeDefaulted: typeDefaulted,
+		SizeDefaulted: sizeDefaulted,
 	}
 }
 
