@@ -447,11 +447,11 @@ func mustStruct(m map[string]interface{}) *structpb.Struct {
 	return s
 }
 
-// TestParsePositiveIntField verifies that parsePositiveIntField correctly rejects
+// TestParsePositiveInt verifies that parsePositiveInt correctly rejects
 // zero, negative, and non-numeric values while accepting valid positive integers.
 // This directly tests the boundary behavior documented in the function's docstring:
-// values ≤ 0 (including zero) return (0, false) with a warning log.
-func TestParsePositiveIntField(t *testing.T) {
+// values ≤ 0 (including zero) return (0, false).
+func TestParsePositiveInt(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
@@ -469,12 +469,12 @@ func TestParsePositiveIntField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			val, ok := parsePositiveIntField("test_field", tt.input)
+			val, ok := parsePositiveInt(tt.input)
 			if ok != tt.wantOK {
-				t.Errorf("parsePositiveIntField(%q) ok = %v, want %v", tt.input, ok, tt.wantOK)
+				t.Errorf("parsePositiveInt(%q) ok = %v, want %v", tt.input, ok, tt.wantOK)
 			}
 			if val != tt.wantVal {
-				t.Errorf("parsePositiveIntField(%q) val = %d, want %d", tt.input, val, tt.wantVal)
+				t.Errorf("parsePositiveInt(%q) val = %d, want %d", tt.input, val, tt.wantVal)
 			}
 		})
 	}
