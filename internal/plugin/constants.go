@@ -94,12 +94,12 @@ const RelationshipManagedBy = "managed_by"
 // 1. Add the canonical service name here
 // 2. Add the Pulumi pattern to ZeroCostPulumiPatterns below, OR implement dedicated prefix matching in normalizeResourceType().
 var ZeroCostServices = map[string]bool{
-	serviceVPC:            true,
-	serviceSecurityGroup:  true,
-	serviceSubnet:         true,
-	"iam":                 true,
-	"launchtemplate":      true,
-	"launchconfiguration": true,
+	serviceVPC:           true,
+	serviceSecurityGroup: true,
+	serviceSubnet:        true,
+	serviceIAM:           true,
+	serviceLaunchTmpl:    true,
+	serviceLaunchConfig:  true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
@@ -109,8 +109,8 @@ var ZeroCostPulumiPatterns = map[string]string{
 	"ec2/vpc":                 serviceVPC,
 	"ec2/securitygroup":       serviceSecurityGroup,
 	"ec2/subnet":              serviceSubnet,
-	"ec2/launchtemplate":      "launchtemplate",
-	"ec2/launchconfiguration": "launchconfiguration",
+	"ec2/launchtemplate":      serviceLaunchTmpl,
+	"ec2/launchconfiguration": serviceLaunchConfig,
 }
 
 // IsZeroCostService returns true if the canonical service name has no direct AWS charges.
