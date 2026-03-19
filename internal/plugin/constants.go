@@ -42,6 +42,12 @@ const archARM64 = "arm64"
 // skuLogs is the CloudWatch logs SKU identifier.
 const skuLogs = "logs"
 
+// skuMetrics is the CloudWatch custom metrics SKU identifier.
+const skuMetrics = "metrics"
+
+// skuCombined is the CloudWatch combined (logs + metrics) SKU identifier.
+const skuCombined = "combined"
+
 // serviceSecurityGroup is the canonical name for security group zero-cost resources.
 const serviceSecurityGroup = "securitygroup"
 

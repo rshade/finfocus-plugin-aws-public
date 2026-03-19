@@ -4657,3 +4657,384 @@ func TestGetProjectedCost_PricingUnavailable(t *testing.T) {
 		t.Errorf("BillingDetail should explain missing pricing, got: %s", resp.GetBillingDetail())
 	}
 }
+
+// --- Metadata / Defaults Tracking Tests ---
+
+// assertMetadata is a test helper that verifies metadata fields on a response.
+func assertMetadata(t *testing.T, resp *pbc.GetProjectedCostResponse, wantQuality string, wantNil bool) {
+	t.Helper()
+	m := resp.GetMetadata()
+	if wantNil {
+		if m != nil {
+			t.Errorf("Metadata = %v, want nil (no defaults applied)", m)
+		}
+		return
+	}
+	if m == nil {
+		t.Fatalf("Metadata is nil, want quality=%q", wantQuality)
+	}
+	if got := m["estimate_quality"]; got != wantQuality {
+		t.Errorf("estimate_quality = %q, want %q", got, wantQuality)
+	}
+	if _, ok := m["defaults_applied"]; !ok {
+		t.Error("defaults_applied key missing from metadata")
+	}
+}
+
+// TestGetProjectedCost_EBS_Metadata verifies that EBS with no tags returns
+// "medium" quality (size defaulted to 8GB), and explicit size returns nil metadata.
+func TestGetProjectedCost_EBS_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.ebsPrices["gp2"] = 0.10
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	// No tags → size defaulted → "medium"
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ebs",
+			Sku:          "gp2",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "medium", false)
+	if !strings.Contains(resp.GetMetadata()["defaults_applied"], "size=8") {
+		t.Errorf("defaults_applied = %q, want to contain 'size=8'", resp.GetMetadata()["defaults_applied"])
+	}
+
+	// Explicit size → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ebs",
+			Sku:          "gp2",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"size": "100"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
+}
+
+// TestGetProjectedCost_S3_Metadata verifies that S3 with no tags returns
+// "medium" quality (size defaulted; storage_class from SKU).
+func TestGetProjectedCost_S3_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.s3Prices["STANDARD"] = 0.023
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "s3",
+			Sku:          "STANDARD",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "medium", false)
+}
+
+// TestGetProjectedCost_RDS_Metadata verifies that RDS with no tags returns
+// "medium" quality (engine, storage_type, storage_size defaulted).
+func TestGetProjectedCost_RDS_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.rdsInstancePrices["db.t3.micro/MySQL"] = 0.017
+	mock.rdsStoragePrices["gp2"] = 0.115
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "rds",
+			Sku:          "db.t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "medium", false)
+	da := resp.GetMetadata()["defaults_applied"]
+	for _, want := range []string{"engine=mysql", "storage_type=gp2", "storage_size=20"} {
+		if !strings.Contains(da, want) {
+			t.Errorf("defaults_applied = %q, want to contain %q", da, want)
+		}
+	}
+}
+
+// TestGetProjectedCost_Lambda_Metadata verifies that Lambda with no tags returns
+// "low" quality (requests_per_month=0 is UsageZero).
+func TestGetProjectedCost_Lambda_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.lambdaPrices["request"] = 0.0000002
+	mock.lambdaPrices["gb-second"] = 0.0000166667
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "lambda",
+			Sku:          "128",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero requests_per_month → not treated as default → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "lambda",
+			Sku:          "128",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"requests_per_month": "0", "avg_duration_ms": "100", "arch": "x86_64"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
+}
+
+// TestGetProjectedCost_DynamoDB_Metadata verifies that provisioned DynamoDB
+// with no RCU/WCU tags returns "low" quality.
+func TestGetProjectedCost_DynamoDB_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.dynamoDBPrices["provisioned-rcu"] = 0.00013
+	mock.dynamoDBPrices["provisioned-wcu"] = 0.00065
+	mock.dynamoDBPrices["storage"] = 0.25
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero RCU/WCU/storage → not treated as defaults → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"read_capacity_units": "0", "write_capacity_units": "0", "storage_gb": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
+}
+
+// TestGetProjectedCost_ELB_Metadata verifies that ELB with no capacity tags
+// returns "low" quality (capacity_units=0 is UsageZero).
+func TestGetProjectedCost_ELB_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.albHourlyPrice = 0.0225
+	mock.albLCUPrice = 0.008
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elb",
+			Sku:          "alb",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero capacity_units → not treated as default → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elb",
+			Sku:          "alb",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"capacity_units": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
+}
+
+// TestGetProjectedCost_NATGateway_Metadata verifies that NAT Gateway with no
+// data_processed_gb tag returns "low" quality.
+func TestGetProjectedCost_NATGateway_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.natgwHourlyPrice = 0.045
+	mock.natgwDataPrice = 0.045
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "nat_gateway",
+			Sku:          "natgw",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero data_processed_gb → not treated as default → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "nat_gateway",
+			Sku:          "natgw",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"data_processed_gb": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
+}
+
+// TestGetProjectedCost_CloudWatch_Metadata verifies that CloudWatch with no
+// usage tags returns "low" quality.
+func TestGetProjectedCost_CloudWatch_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.cwLogsIngestionTiers = []pricing.TierRate{{UpTo: 1e12, Rate: 0.50}}
+	mock.cwLogsStorageRate = 0.03
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "cloudwatch",
+			Sku:          "logs",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero usage tags with explicit SKU → not treated as defaults → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "cloudwatch",
+			Sku:          "logs",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"log_ingestion_gb": "0", "log_storage_gb": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
+}
+
+// TestGetProjectedCost_ElastiCache_Metadata verifies that ElastiCache with
+// default engine and num_nodes returns "medium" quality.
+func TestGetProjectedCost_ElastiCache_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elasticache",
+			Sku:          "cache.t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "medium", false)
+	da := resp.GetMetadata()["defaults_applied"]
+	if !strings.Contains(da, "engine=redis") {
+		t.Errorf("defaults_applied = %q, want to contain 'engine=redis'", da)
+	}
+}
+
+// TestGetProjectedCost_EKS_Metadata verifies that EKS with no support_type
+// returns "medium" quality (support_type defaulted to standard).
+func TestGetProjectedCost_EKS_Metadata(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.eksStandardPrice = 0.10
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "eks",
+			Sku:          "eks",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertMetadata(t, resp, "medium", false)
+	if !strings.Contains(resp.GetMetadata()["defaults_applied"], "support_type=standard") {
+		t.Errorf("defaults_applied = %q, want 'support_type=standard'",
+			resp.GetMetadata()["defaults_applied"])
+	}
+}
+
+// TestGetProjectedCost_Metadata_BackwardCompat verifies that explicit tags
+// produce nil metadata (no overhead for fully-specified resources).
+func TestGetProjectedCost_Metadata_BackwardCompat(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.Disabled)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// EC2 with no root volume → no defaults → nil metadata
+	assertMetadata(t, resp, "", true)
+}
