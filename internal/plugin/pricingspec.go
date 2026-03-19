@@ -60,6 +60,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.natGatewayPricingSpec(resource)
 	case serviceCloudWatch:
 		spec = p.cloudWatchPricingSpec(resource)
+	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
+		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:
 		spec = &pbc.PricingSpec{
 			Provider:     resource.GetProvider(),
@@ -683,5 +685,32 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 			Source:       "aws-public",
 			Assumptions:  assumptions,
 		}
+	}
+}
+
+// zeroCostPricingSpec returns a pricing specification for AWS resources with no direct charges.
+// These include VPC, Security Groups, Subnets, IAM resources, Launch Templates, and Launch Configurations.
+// The description is sourced from the shared zeroCostResourceDescriptions map for consistency
+// with GetProjectedCost and GetActualCost responses.
+func (p *AWSPublicPlugin) zeroCostPricingSpec(
+	resource *pbc.ResourceDescriptor,
+	serviceType string,
+) *pbc.PricingSpec {
+	description, ok := zeroCostResourceDescriptions[serviceType]
+	if !ok {
+		description = fmt.Sprintf("%s has no direct AWS charge", serviceType)
+	}
+
+	return &pbc.PricingSpec{
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
+		Sku:          resource.GetSku(),
+		Region:       resource.GetRegion(),
+		BillingMode:  "zero_cost",
+		RatePerUnit:  0,
+		Currency:     "USD",
+		Description:  description,
+		Source:       "aws-public",
+		Assumptions:  []string{"No direct AWS charges for this resource type"},
 	}
 }

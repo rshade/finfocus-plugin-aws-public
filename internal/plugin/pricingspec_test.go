@@ -653,3 +653,54 @@ func TestGetPricingSpec_AllVolumeTypes(t *testing.T) {
 		})
 	}
 }
+
+// TestGetPricingSpec_ZeroCostResources verifies that zero-cost resources (VPC, Security Groups,
+// Subnets, IAM, Launch Templates, Launch Configurations) return a proper pricing specification
+// with BillingMode "zero_cost" instead of falling through to the "unknown" default branch.
+//
+// This covers both canonical resource type names and Pulumi-format resource types to ensure
+// consistent behavior across all input formats. Prior to this fix, these resources returned
+// BillingMode "unknown" with a "not supported" description, despite being fully supported
+// by Supports() and GetProjectedCost().
+func TestGetPricingSpec_ZeroCostResources(t *testing.T) {
+	tests := []struct {
+		name         string
+		resourceType string
+	}{
+		{"vpc canonical", "vpc"},
+		{"securitygroup canonical", "securitygroup"},
+		{"subnet canonical", "subnet"},
+		{"iam canonical", "iam"},
+		{"launchtemplate canonical", "launchtemplate"},
+		{"launchconfiguration canonical", "launchconfiguration"},
+		{"vpc pulumi format", "aws:ec2/vpc:Vpc"},
+		{"securitygroup pulumi format", "aws:ec2/securityGroup:SecurityGroup"},
+		{"subnet pulumi format", "aws:ec2/subnet:Subnet"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+			resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: tt.resourceType,
+					Region:       "us-east-1",
+				},
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, resp.GetSpec())
+			assert.Equal(t, "zero_cost", resp.GetSpec().GetBillingMode())
+			assert.Equal(t, float64(0), resp.GetSpec().GetRatePerUnit())
+			assert.Equal(t, "USD", resp.GetSpec().GetCurrency())
+			assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
+			assert.NotEmpty(t, resp.GetSpec().GetDescription())
+			assert.NotContains(t, resp.GetSpec().GetDescription(), "not supported")
+			assert.NotEmpty(t, resp.GetSpec().GetAssumptions())
+		})
+	}
+}

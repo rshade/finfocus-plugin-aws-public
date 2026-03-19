@@ -17,8 +17,8 @@ security overhead of cloud credentials.
     `GetActualCost` routing (#320) [M]
   - **Context Propagation:** Restore context propagation for child process
     lifecycle (#314) [M]
-  - **Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
-    switch (#319) [S]
+  - ~~**Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
+    switch (#319) [S]~~ ✅
   - **allowEmptyRegion:** Make `allowEmptyRegion` service-aware in
     `parseResourceFromRequest` (#324) [S]
   - **Logger Injection:** Replace global logger in `parsePositiveIntField`
@@ -98,6 +98,9 @@ security overhead of cloud credentials.
 
 ### Q1 2026
 
+- **Zero-Cost PricingSpec:** `GetPricingSpec` now returns `BillingMode: "zero_cost"`
+  for VPC, Security Groups, Subnets, IAM, Launch Templates, and Launch
+  Configurations instead of falling through to "unknown" (#319).
 - **LaunchTemplate Fix:** LaunchTemplate no longer incorrectly priced as EC2
   instance (#294).
 - **GetActualCost Zero-Cost:** `GetActualCost` now handles zero-cost resources
