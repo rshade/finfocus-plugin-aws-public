@@ -19,9 +19,11 @@ import (
 
 const (
 	defaultEBSGB      = 8
+	defaultEBSGBStr   = "8"
 	defaultRDSEngine  = "mysql"
 	defaultRDSStorage = "gp2"
 	defaultRDSSizeGB  = 20
+	defaultRDSSizeStr = "20"
 )
 
 // normalizeResourceType converts various resource type formats to a canonical form.
@@ -332,12 +334,24 @@ func (p *AWSPublicPlugin) estimateEC2( //nolint:funlen
 		}
 	}
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if rootVol.Present {
+		if rootVol.TypeDefaulted {
+			dt.Add("root_volume_type", defaultRootVolumeType, KindConfig)
+		}
+		if rootVol.SizeDefaulted {
+			dt.Add("root_volume_size", defaultRootVolumeSizeGBStr, KindConfig)
+		}
+	}
+
 	// FR-022, FR-023, FR-024: Return response with all required fields
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation: Calculate carbon footprint for EC2 instance
@@ -454,12 +468,19 @@ func (p *AWSPublicPlugin) estimateEBS(
 		billingDetail = fmt.Sprintf("%s volume, %d GB, $%.4f/GB-month", volumeType, sizeGB, ratePerGBMonth)
 	}
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if sizeAssumed {
+		dt.Add("size", defaultEBSGBStr, KindConfig)
+	}
+
 	// FR-022, FR-023, FR-024: Build response
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation for EBS volume
@@ -550,11 +571,21 @@ func (p *AWSPublicPlugin) estimateS3(
 		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB, $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
 	}
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if resource.GetSku() == "" {
+		dt.Add("storage_class", "STANDARD", KindConfig)
+	}
+	if sizeAssumed {
+		dt.Add("size", "1", KindConfig)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation for S3 storage
@@ -635,17 +666,21 @@ func (p *AWSPublicPlugin) validateNonNegativeFloat64(traceID, tagName, value str
 }
 
 // estimateDynamoDB calculates projected monthly cost for DynamoDB tables.
-func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
+func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length from defaults tracking across two capacity modes
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
+	var dt DefaultsTracker
+
 	capacityMode := strings.ToLower(resource.GetSku())
 	if capacityMode == "" {
 		capacityMode = "on-demand"
+		dt.Add("capacity_mode", "on-demand", KindConfig)
 	}
 
 	var readUnits, writeUnits int64
 	var storageGB float64
+	storageTagPresent := false
 	var billingDetail string
 	var unitPrice float64
 
@@ -653,7 +688,11 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
 	if resource.GetTags() != nil {
 		if s, ok := resource.GetTags()["storage_gb"]; ok {
 			storageGB = p.validateNonNegativeFloat64(traceID, "storage_gb", s)
+			storageTagPresent = true
 		}
+	}
+	if !storageTagPresent {
+		dt.Add("storage_gb", "0", KindUsageZero)
 	}
 
 	storagePrice, storageFound := p.pricing.DynamoDBStoragePricePerGBMonth()
@@ -669,13 +708,22 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
 
 	if capacityMode == "provisioned" {
 		// Provisioned Mode
+		rcuTagPresent, wcuTagPresent := false, false
 		if resource.GetTags() != nil {
 			if s, ok := resource.GetTags()["read_capacity_units"]; ok {
 				readUnits = p.validateNonNegativeInt64(traceID, "read_capacity_units", s)
+				rcuTagPresent = true
 			}
 			if s, ok := resource.GetTags()["write_capacity_units"]; ok {
 				writeUnits = p.validateNonNegativeInt64(traceID, "write_capacity_units", s)
+				wcuTagPresent = true
 			}
+		}
+		if !rcuTagPresent {
+			dt.Add("read_capacity_units", "0", KindUsageZero)
+		}
+		if !wcuTagPresent {
+			dt.Add("write_capacity_units", "0", KindUsageZero)
 		}
 
 		rcuPrice, rcuFound := p.pricing.DynamoDBProvisionedRCUPrice()
@@ -726,6 +774,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
 			UnitPrice:     unitPrice,
 			Currency:      "USD",
 			BillingDetail: billingDetail,
+			Metadata:      dt.Metadata(),
 		}
 
 		// Carbon estimation for DynamoDB (storage-based)
@@ -759,13 +808,22 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
 	}
 
 	// Default to On-Demand Mode
+	readTagPresent, writeTagPresent := false, false
 	if resource.GetTags() != nil {
 		if s, ok := resource.GetTags()["read_requests_per_month"]; ok {
 			readUnits = p.validateNonNegativeInt64(traceID, "read_requests_per_month", s)
+			readTagPresent = true
 		}
 		if s, ok := resource.GetTags()["write_requests_per_month"]; ok {
 			writeUnits = p.validateNonNegativeInt64(traceID, "write_requests_per_month", s)
+			writeTagPresent = true
 		}
+	}
+	if !readTagPresent {
+		dt.Add("read_requests_per_month", "0", KindUsageZero)
+	}
+	if !writeTagPresent {
+		dt.Add("write_requests_per_month", "0", KindUsageZero)
 	}
 
 	readPrice, readFound := p.pricing.DynamoDBOnDemandReadPrice()
@@ -817,6 +875,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
 		UnitPrice:     unitPrice,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation for DynamoDB (storage-based)
@@ -946,11 +1005,18 @@ func (p *AWSPublicPlugin) estimateELB( //nolint:gocognit
 		Float64("total_cost", totalMonthly).
 		Msg("ELB cost estimated")
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if capacityUnits == 0 && !tagFound {
+		dt.Add("capacity_units", "0", KindUsageZero)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalMonthly,
 		UnitPrice:     fixedRate, // Using fixed hourly as primary unit price
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Apply growth hint enrichment
@@ -1084,11 +1150,24 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 			instanceType, normalizedEngine, storageSizeGB, storageType)
 	}
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if engineDefaulted {
+		dt.Add("engine", defaultRDSEngine, KindConfig)
+	}
+	if storageDefaulted {
+		dt.Add("storage_type", defaultRDSStorage, KindConfig)
+	}
+	if sizeDefaulted {
+		dt.Add("storage_size", defaultRDSSizeStr, KindConfig)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCostPerMonth,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation for RDS instance (compute + storage)
@@ -1212,6 +1291,8 @@ func (p *AWSPublicPlugin) estimateEKS(
 	// Determine support type from resource SKU or tags
 	// SKU = "cluster" (standard) or "cluster-extended" (extended support)
 	// OR use tags: tags["support_type"] == "extended" (case-insensitive)
+	supportTypeExplicit := resource.GetSku() == "cluster-extended" || resource.GetSku() == "cluster" ||
+		(resource.GetTags() != nil && resource.GetTags()["support_type"] != "")
 	extendedSupport := resource.GetSku() == "cluster-extended" ||
 		(resource.GetTags() != nil && strings.EqualFold(resource.GetTags()["support_type"], "extended"))
 
@@ -1241,6 +1322,12 @@ func (p *AWSPublicPlugin) estimateEKS(
 		supportType = "extended support"
 	}
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if !supportTypeExplicit {
+		dt.Add("support_type", "standard", KindConfig)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth: costPerMonth,
 		UnitPrice:    hourlyRate,
@@ -1249,6 +1336,7 @@ func (p *AWSPublicPlugin) estimateEKS(
 			"EKS cluster (%s), 730 hrs/month (control plane only, excludes worker nodes)",
 			supportType,
 		),
+		Metadata: dt.Metadata(),
 	}
 
 	// Carbon estimation for EKS (control plane is shared, returns 0)
@@ -1393,11 +1481,27 @@ func (p *AWSPublicPlugin) estimateLambda( //nolint:gocognit,funlen
 		Float64("total_cost", totalCost).
 		Msg("Lambda cost estimated")
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if memoryDefaulted {
+		dt.Add("memory_mb", "128", KindConfig)
+	}
+	if archDefaulted {
+		dt.Add("arch", archX86, KindConfig)
+	}
+	if durationDefaulted {
+		dt.Add("avg_duration_ms", "100", KindConfig)
+	}
+	if requestsDefaulted {
+		dt.Add("requests_per_month", "0", KindUsageZero)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     gbSecPrice, // Using GB-second price as unit price
 		Currency:      "USD",
 		BillingDetail: detail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation for Lambda function
@@ -1508,11 +1612,18 @@ func (p *AWSPublicPlugin) estimateNATGateway(
 		Float64("total_cost", totalCost).
 		Msg("NAT Gateway cost estimated")
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if !tagPresent {
+		dt.Add("data_processed_gb", "0", KindUsageZero)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     pricing.HourlyRate, // Using hourly rate as primary unit price
 		Currency:      "USD",
 		BillingDetail: detail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Apply growth hint enrichment
@@ -1579,10 +1690,13 @@ func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
 //   - log_ingestion_gb: GB of logs ingested per month
 //   - log_storage_gb: GB of logs stored
 //   - custom_metrics: Number of custom metrics
-func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,funlen
+func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,funlen // complexity from defaults tracking
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
+	var dt DefaultsTracker
+
+	skuDefaulted := resource.GetSku() == ""
 	sku := strings.ToLower(resource.GetSku())
 	if sku == "" {
 		sku = skuLogs // Default to logs estimation
@@ -1592,10 +1706,14 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,funlen
 	logIngestionGB := 0.0
 	logStorageGB := 0.0
 	customMetrics := 0.0
+	logIngestionTagPresent := false
+	logStorageTagPresent := false
+	customMetricsTagPresent := false
 
 	if resource.GetTags() != nil {
 		// Parse log_ingestion_gb
 		if val, ok := resource.GetTags()["log_ingestion_gb"]; ok && val != "" {
+			logIngestionTagPresent = true
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1612,6 +1730,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,funlen
 
 		// Parse log_storage_gb
 		if val, ok := resource.GetTags()["log_storage_gb"]; ok && val != "" {
+			logStorageTagPresent = true
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1628,6 +1747,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,funlen
 
 		// Parse custom_metrics
 		if val, ok := resource.GetTags()["custom_metrics"]; ok && val != "" {
+			customMetricsTagPresent = true
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1717,11 +1837,26 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,funlen
 		Float64("total_cost", totalCost).
 		Msg("CloudWatch cost estimated")
 
+	// Track defaults for metadata enrichment
+	if skuDefaulted {
+		dt.Add("sku", skuLogs, KindConfig)
+	}
+	if !logIngestionTagPresent {
+		dt.Add("log_ingestion_gb", "0", KindUsageZero)
+	}
+	if !logStorageTagPresent {
+		dt.Add("log_storage_gb", "0", KindUsageZero)
+	}
+	if !customMetricsTagPresent {
+		dt.Add("custom_metrics", "0", KindUsageZero)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     0, // No single unit price for CloudWatch (multi-component)
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Apply growth hint enrichment
@@ -1763,14 +1898,17 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 
 	// Extract engine (default: redis)
 	engine := "redis"
+	engineDefaulted := true
 	if resource.GetTags() != nil {
 		if val, ok := resource.GetTags()["engine"]; ok && val != "" {
 			engine = strings.ToLower(val)
+			engineDefaulted = false
 		}
 	}
 
 	// Extract number of nodes (default: 1)
 	numNodes := 1
+	nodesDefaulted := true
 	if resource.GetTags() != nil {
 		// Try num_nodes first, then num_cache_nodes
 		nodeCountStr := ""
@@ -1780,6 +1918,7 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 			nodeCountStr = cacheVal
 		}
 		if nodeCountStr != "" {
+			nodesDefaulted = false
 			parsed, err := strconv.Atoi(nodeCountStr)
 			if err != nil {
 				return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -1824,11 +1963,21 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 		Float64("monthly_cost", monthlyCost).
 		Msg("ElastiCache cost estimated")
 
+	// Track defaults for metadata enrichment
+	var dt DefaultsTracker
+	if engineDefaulted {
+		dt.Add("engine", "redis", KindConfig)
+	}
+	if nodesDefaulted {
+		dt.Add("num_nodes", "1", KindConfig)
+	}
+
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  monthlyCost,
 		UnitPrice:     hourlyRate,
 		Currency:      "USD",
 		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
 	}
 
 	// Carbon estimation for ElastiCache cluster

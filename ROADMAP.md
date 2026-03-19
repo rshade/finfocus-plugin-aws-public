@@ -11,23 +11,13 @@ security overhead of cloud credentials.
 ## Immediate Focus [In Progress / Planned]
 
 - **[In Progress] Bug Fixes:**
-  - **Sparse OldState:** Handle sparse `OldState` properties for cost diff
-    accuracy (#292) [M]
-  - **ARN Region Extraction:** Extract region from ARN-format resource IDs in
-    `GetActualCost` routing (#320) [M]
-  - **Context Propagation:** Restore context propagation for child process
-    lifecycle (#314) [M]
   - **Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
     switch (#319) [S]
-  - **allowEmptyRegion:** Make `allowEmptyRegion` service-aware in
-    `parseResourceFromRequest` (#324) [S]
-  - **Logger Injection:** Replace global logger in `parsePositiveIntField`
-    with injected logger (#323) [S]
 - **[In Progress] Code Quality (PR #305 Follow-ups):**
-  - **Doc Fixes:** Fix doc/code mismatches in instance_specs, client.go,
-    registry.go (#325) [S]
-  - **Doc Clarification:** Clarify `parsePositiveIntField` and
-    `parseGoMapString` limitations (#317, #315) [S]
+  - ~~**Doc Fixes:** Fix doc/code mismatches in instance_specs, client.go,
+    registry.go (#325) [S]~~ ✅
+  - ~~**Doc Clarification:** Clarify `parsePositiveIntField` and
+    `parseGoMapString` limitations (#317, #315) [S]~~ ✅
   - ~~**RWMutex Optimization:** Use `RWMutex` for child getters and reuse EBS
     estimator (#322) [S]~~ ✅
   - **Service Constants:** Use service constants in `ZeroCostServices` and
@@ -98,6 +88,22 @@ security overhead of cloud credentials.
 
 ### Q1 2026
 
+- **Sparse OldState Defaults Metadata:** Populate `Metadata` field with
+  `defaults_applied` and `estimate_quality` on `GetProjectedCostResponse`,
+  enabling cost diff engine to distinguish "real $0" from "defaulted $0"
+  (#292).
+- **ARN Region Extraction:** Extract region from ARN-format resource IDs in
+  `GetActualCost` routing (#320).
+- **Context Propagation:** Restored context propagation for child process
+  lifecycle (#314).
+- **allowEmptyRegion:** Made `allowEmptyRegion` service-aware in
+  `parseResourceFromRequest` (#324).
+- **Logger Injection:** Replaced global logger in `parsePositiveIntField`
+  with injected logger (#323).
+- **Doc Fixes:** Fixed doc/code mismatches in instance_specs, client.go,
+  registry.go (#325).
+- **Doc Clarification:** Clarified `parsePositiveIntField` and
+  `parseGoMapString` limitations (#317, #315).
 - **LaunchTemplate Fix:** LaunchTemplate no longer incorrectly priced as EC2
   instance (#294).
 - **GetActualCost Zero-Cost:** `GetActualCost` now handles zero-cost resources
