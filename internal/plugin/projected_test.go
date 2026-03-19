@@ -4794,6 +4794,21 @@ func TestGetProjectedCost_Lambda_Metadata(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero requests_per_month → not treated as default → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "lambda",
+			Sku:          "128",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"requests_per_month": "0", "avg_duration_ms": "100", "arch": "x86_64"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
 }
 
 // TestGetProjectedCost_DynamoDB_Metadata verifies that provisioned DynamoDB
@@ -4818,6 +4833,21 @@ func TestGetProjectedCost_DynamoDB_Metadata(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero RCU/WCU/storage → not treated as defaults → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "dynamodb",
+			Sku:          "provisioned",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"read_capacity_units": "0", "write_capacity_units": "0", "storage_gb": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
 }
 
 // TestGetProjectedCost_ELB_Metadata verifies that ELB with no capacity tags
@@ -4841,6 +4871,21 @@ func TestGetProjectedCost_ELB_Metadata(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero capacity_units → not treated as default → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "elb",
+			Sku:          "alb",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"capacity_units": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
 }
 
 // TestGetProjectedCost_NATGateway_Metadata verifies that NAT Gateway with no
@@ -4864,6 +4909,21 @@ func TestGetProjectedCost_NATGateway_Metadata(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero data_processed_gb → not treated as default → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "nat_gateway",
+			Sku:          "natgw",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"data_processed_gb": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
 }
 
 // TestGetProjectedCost_CloudWatch_Metadata verifies that CloudWatch with no
@@ -4887,6 +4947,21 @@ func TestGetProjectedCost_CloudWatch_Metadata(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	assertMetadata(t, resp, "low", false)
+
+	// Explicit zero usage tags with explicit SKU → not treated as defaults → nil metadata
+	resp2, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "cloudwatch",
+			Sku:          "logs",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"log_ingestion_gb": "0", "log_storage_gb": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("explicit zero: unexpected error: %v", err)
+	}
+	assertMetadata(t, resp2, "", true)
 }
 
 // TestGetProjectedCost_ElastiCache_Metadata verifies that ElastiCache with

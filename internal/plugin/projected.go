@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk/mapping"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
@@ -908,8 +910,64 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 	return resp, nil
 }
 
+// parseNonNegativeTag parses a tag value as a non-negative float64.
+// Returns the parsed value and true if the tag exists and is valid.
+func parseNonNegativeTag(tags map[string]string, key string) (float64, bool) {
+	s, ok := tags[key]
+	if !ok {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil || v < 0 {
+		return 0, false
+	}
+	return v, true
+}
+
+// extractCapacityUnits reads capacity unit values from resource tags for ELB pricing.
+// For ALB it looks for lcu_per_hour, for NLB it looks for nlcu_per_hour, with a
+// generic capacity_units fallback. Returns the parsed value and whether a tag was found.
+func extractCapacityUnits(
+	tags map[string]string, lbType string, logger zerolog.Logger, traceID string,
+) (float64, bool) {
+	if tags == nil {
+		return 0, false
+	}
+
+	// Specific tags take precedence
+	specificTag := "nlcu_per_hour"
+	if lbType == serviceALB {
+		specificTag = "lcu_per_hour"
+	}
+
+	if v, ok := parseNonNegativeTag(tags, specificTag); ok {
+		warnHighCapacityUnits(v, logger, traceID)
+		return v, true
+	}
+
+	// Generic fallback
+	if v, ok := parseNonNegativeTag(tags, "capacity_units"); ok {
+		warnHighCapacityUnits(v, logger, traceID)
+		return v, true
+	}
+
+	return 0, false
+}
+
+// warnHighCapacityUnits logs a warning if capacity units exceed the threshold.
+func warnHighCapacityUnits(capacityUnits float64, logger zerolog.Logger, traceID string) {
+	const warnCapacityUnitThreshold = 1000.0
+	if capacityUnits > warnCapacityUnitThreshold {
+		logger.Warn().
+			Str(pluginsdk.FieldTraceID, traceID).
+			Float64("capacity_units", capacityUnits).
+			Float64("threshold", warnCapacityUnitThreshold).
+			Msg("Capacity units unusually high - verify this is intentional")
+	}
+}
+
 // estimateELB calculates projected monthly cost for load balancers.
-func (p *AWSPublicPlugin) estimateELB( //nolint:gocognit
+func (p *AWSPublicPlugin) estimateELB(
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -924,45 +982,7 @@ func (p *AWSPublicPlugin) estimateELB( //nolint:gocognit
 	}
 
 	// 2. Extract Capacity Units from Tags
-	capacityUnits := 0.0
-	tagFound := false
-	if resource.GetTags() != nil {
-		// Specific tags take precedence
-		if lbType == serviceALB {
-			if s, ok := resource.GetTags()["lcu_per_hour"]; ok {
-				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
-					capacityUnits = v
-					tagFound = true
-				}
-			}
-		} else {
-			if s, ok := resource.GetTags()["nlcu_per_hour"]; ok {
-				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
-					capacityUnits = v
-					tagFound = true
-				}
-			}
-		}
-
-		// Generic fallback if specific tag not found or invalid
-		if !tagFound {
-			if s, ok := resource.GetTags()["capacity_units"]; ok {
-				if v, err := strconv.ParseFloat(s, 64); err == nil && v >= 0 {
-					capacityUnits = v
-				}
-			}
-		}
-	}
-
-	// Warn if capacity units are unusually high (#165)
-	const warnCapacityUnitThreshold = 1000.0
-	if capacityUnits > warnCapacityUnitThreshold {
-		p.logger.Warn().
-			Str(pluginsdk.FieldTraceID, traceID).
-			Float64("capacity_units", capacityUnits).
-			Float64("threshold", warnCapacityUnitThreshold).
-			Msg("Capacity units unusually high - verify this is intentional")
-	}
+	capacityUnits, tagFound := extractCapacityUnits(resource.GetTags(), lbType, p.logger, traceID)
 
 	// 3. Lookup Pricing
 	var fixedRate, cuRate float64
@@ -1768,7 +1788,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 	var details []string
 
 	// Logs cost calculation
-	if sku == skuLogs || sku == "combined" {
+	if sku == skuLogs || sku == skuCombined {
 		ingestionCost := 0.0
 		storageCost := 0.0
 
@@ -1804,7 +1824,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 	}
 
 	// Metrics cost calculation
-	if sku == "metrics" || sku == "combined" {
+	if sku == skuMetrics || sku == skuCombined {
 		metricsCost := 0.0
 
 		if customMetrics > 0 {
@@ -1841,13 +1861,13 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 	if skuDefaulted {
 		dt.Add("sku", skuLogs, KindConfig)
 	}
-	if !logIngestionTagPresent {
+	if (sku == skuLogs || sku == skuCombined) && !logIngestionTagPresent {
 		dt.Add("log_ingestion_gb", "0", KindUsageZero)
 	}
-	if !logStorageTagPresent {
+	if (sku == skuLogs || sku == skuCombined) && !logStorageTagPresent {
 		dt.Add("log_storage_gb", "0", KindUsageZero)
 	}
-	if !customMetricsTagPresent {
+	if (sku == skuMetrics || sku == skuCombined) && !customMetricsTagPresent {
 		dt.Add("custom_metrics", "0", KindUsageZero)
 	}
 
