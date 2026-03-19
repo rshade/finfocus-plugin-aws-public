@@ -291,52 +291,52 @@ func TestExtractEC2AttributesFromStruct_PlatformNormalization(t *testing.T) {
 	}{
 		{
 			name:   "windows lowercase",
-			attrs:  mustStruct(map[string]interface{}{"platform": "windows"}),
+			attrs:  mustStruct(map[string]any{"platform": "windows"}),
 			wantOS: "Windows",
 		},
 		{
 			name:   "windows uppercase",
-			attrs:  mustStruct(map[string]interface{}{"platform": "WINDOWS"}),
+			attrs:  mustStruct(map[string]any{"platform": "WINDOWS"}),
 			wantOS: "Windows",
 		},
 		{
 			name:   "linux lowercase",
-			attrs:  mustStruct(map[string]interface{}{"platform": "linux"}),
+			attrs:  mustStruct(map[string]any{"platform": "linux"}),
 			wantOS: "Linux",
 		},
 		{
 			name:   "rhel lowercase",
-			attrs:  mustStruct(map[string]interface{}{"platform": "rhel"}),
+			attrs:  mustStruct(map[string]any{"platform": "rhel"}),
 			wantOS: "RHEL",
 		},
 		{
 			name:   "rhel with version",
-			attrs:  mustStruct(map[string]interface{}{"platform": "RHEL-8"}),
+			attrs:  mustStruct(map[string]any{"platform": "RHEL-8"}),
 			wantOS: "RHEL",
 		},
 		{
 			name:   "red hat enterprise linux",
-			attrs:  mustStruct(map[string]interface{}{"platform": "Red Hat Enterprise Linux"}),
+			attrs:  mustStruct(map[string]any{"platform": "Red Hat Enterprise Linux"}),
 			wantOS: "RHEL",
 		},
 		{
 			name:   "suse lowercase",
-			attrs:  mustStruct(map[string]interface{}{"platform": "suse"}),
+			attrs:  mustStruct(map[string]any{"platform": "suse"}),
 			wantOS: "SUSE",
 		},
 		{
 			name:   "suse linux enterprise server",
-			attrs:  mustStruct(map[string]interface{}{"platform": "SUSE Linux Enterprise Server"}),
+			attrs:  mustStruct(map[string]any{"platform": "SUSE Linux Enterprise Server"}),
 			wantOS: "SUSE",
 		},
 		{
 			name:   "empty platform",
-			attrs:  mustStruct(map[string]interface{}{"platform": ""}),
+			attrs:  mustStruct(map[string]any{"platform": ""}),
 			wantOS: "Linux",
 		},
 		{
 			name:   "missing platform",
-			attrs:  mustStruct(map[string]interface{}{}),
+			attrs:  mustStruct(map[string]any{}),
 			wantOS: "Linux",
 		},
 	}
@@ -361,27 +361,27 @@ func TestExtractEC2AttributesFromStruct_TenancyNormalization(t *testing.T) {
 	}{
 		{
 			name:        "dedicated lowercase",
-			attrs:       mustStruct(map[string]interface{}{"tenancy": "dedicated"}),
+			attrs:       mustStruct(map[string]any{"tenancy": "dedicated"}),
 			wantTenancy: "Dedicated",
 		},
 		{
 			name:        "host lowercase",
-			attrs:       mustStruct(map[string]interface{}{"tenancy": "host"}),
+			attrs:       mustStruct(map[string]any{"tenancy": "host"}),
 			wantTenancy: "Host",
 		},
 		{
 			name:        "shared lowercase",
-			attrs:       mustStruct(map[string]interface{}{"tenancy": "shared"}),
+			attrs:       mustStruct(map[string]any{"tenancy": "shared"}),
 			wantTenancy: "Shared",
 		},
 		{
 			name:        "unknown value",
-			attrs:       mustStruct(map[string]interface{}{"tenancy": "unknown"}),
+			attrs:       mustStruct(map[string]any{"tenancy": "unknown"}),
 			wantTenancy: "Shared",
 		},
 		{
 			name:        "missing tenancy",
-			attrs:       mustStruct(map[string]interface{}{}),
+			attrs:       mustStruct(map[string]any{}),
 			wantTenancy: "Shared",
 		},
 	}
@@ -439,7 +439,7 @@ func TestExtractEC2AttributesFromStruct_NilAndEmpty(t *testing.T) {
 
 // mustStruct creates a structpb.Struct from a map, panicking on error.
 // This is a test helper for creating test data.
-func mustStruct(m map[string]interface{}) *structpb.Struct {
+func mustStruct(m map[string]any) *structpb.Struct {
 	s, err := structpb.NewStruct(m)
 	if err != nil {
 		panic(err)
@@ -447,11 +447,11 @@ func mustStruct(m map[string]interface{}) *structpb.Struct {
 	return s
 }
 
-// TestParsePositiveIntField verifies that parsePositiveIntField correctly rejects
+// TestParsePositiveInt verifies that parsePositiveInt correctly rejects
 // zero, negative, and non-numeric values while accepting valid positive integers.
 // This directly tests the boundary behavior documented in the function's docstring:
-// values ≤ 0 (including zero) return (0, false) with a warning log.
-func TestParsePositiveIntField(t *testing.T) {
+// values ≤ 0 (including zero) return (0, false).
+func TestParsePositiveInt(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
@@ -469,12 +469,12 @@ func TestParsePositiveIntField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			val, ok := parsePositiveIntField("test_field", tt.input)
+			val, ok := parsePositiveInt(tt.input)
 			if ok != tt.wantOK {
-				t.Errorf("parsePositiveIntField(%q) ok = %v, want %v", tt.input, ok, tt.wantOK)
+				t.Errorf("parsePositiveInt(%q) ok = %v, want %v", tt.input, ok, tt.wantOK)
 			}
 			if val != tt.wantVal {
-				t.Errorf("parsePositiveIntField(%q) val = %d, want %d", tt.input, val, tt.wantVal)
+				t.Errorf("parsePositiveInt(%q) val = %d, want %d", tt.input, val, tt.wantVal)
 			}
 		})
 	}
@@ -728,13 +728,13 @@ func TestExtractRootVolumeFromStruct(t *testing.T) {
 		},
 		{
 			name:        "no rootBlockDevice",
-			attrs:       mustStruct(map[string]interface{}{"instanceType": "t3.micro"}),
+			attrs:       mustStruct(map[string]any{"instanceType": "t3.micro"}),
 			wantPresent: false,
 		},
 		{
 			name: "rootBlockDevice as struct",
-			attrs: mustStruct(map[string]interface{}{
-				"rootBlockDevice": map[string]interface{}{
+			attrs: mustStruct(map[string]any{
+				"rootBlockDevice": map[string]any{
 					"volumeType": "gp3",
 					"volumeSize": float64(20),
 				},
@@ -745,9 +745,9 @@ func TestExtractRootVolumeFromStruct(t *testing.T) {
 		},
 		{
 			name: "rootBlockDevice as list",
-			attrs: mustStruct(map[string]interface{}{
-				"rootBlockDevice": []interface{}{
-					map[string]interface{}{
+			attrs: mustStruct(map[string]any{
+				"rootBlockDevice": []any{
+					map[string]any{
 						"volumeType": "io1",
 						"volumeSize": float64(100),
 					},
@@ -759,7 +759,7 @@ func TestExtractRootVolumeFromStruct(t *testing.T) {
 		},
 		{
 			name: "rootBlockDevice as Go map string",
-			attrs: mustStruct(map[string]interface{}{
+			attrs: mustStruct(map[string]any{
 				"rootBlockDevice": "map[volumeSize:30 volumeType:gp2]",
 			}),
 			wantPresent: true,
@@ -768,8 +768,8 @@ func TestExtractRootVolumeFromStruct(t *testing.T) {
 		},
 		{
 			name: "rootBlockDevice struct with defaults",
-			attrs: mustStruct(map[string]interface{}{
-				"rootBlockDevice": map[string]interface{}{},
+			attrs: mustStruct(map[string]any{
+				"rootBlockDevice": map[string]any{},
 			}),
 			wantPresent: true,
 			wantType:    "gp2",
@@ -777,8 +777,8 @@ func TestExtractRootVolumeFromStruct(t *testing.T) {
 		},
 		{
 			name: "rootBlockDevice struct with type only",
-			attrs: mustStruct(map[string]interface{}{
-				"rootBlockDevice": map[string]interface{}{
+			attrs: mustStruct(map[string]any{
+				"rootBlockDevice": map[string]any{
 					"volumeType": "gp3",
 				},
 			}),

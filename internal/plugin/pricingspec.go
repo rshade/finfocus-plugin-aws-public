@@ -571,7 +571,9 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 }
 
 // cloudWatchPricingSpec returns the pricing specification for CloudWatch.
-func (p *AWSPublicPlugin) cloudWatchPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
+func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
+	resource *pbc.ResourceDescriptor,
+) *pbc.PricingSpec {
 	sku := resource.GetSku()
 	if sku == "" {
 		sku = "logs"

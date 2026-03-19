@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -397,7 +398,7 @@ func TestSupportsLogsContainRequiredFields(t *testing.T) {
 	}
 
 	// Parse log output and verify required fields
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
 		t.Fatalf("Failed to parse log output as JSON: %v", err)
 	}
@@ -676,15 +677,7 @@ func TestSupports_EC2_SupportedMetrics(t *testing.T) {
 		t.Fatal("SupportedMetrics should not be empty for EC2")
 	}
 
-	foundCarbon := false
-	for _, m := range resp.GetSupportedMetrics() {
-		if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			foundCarbon = true
-			break
-		}
-	}
-
-	if !foundCarbon {
+	if !slices.Contains(resp.GetSupportedMetrics(), pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT) {
 		t.Errorf("SupportedMetrics should contain METRIC_KIND_CARBON_FOOTPRINT, got %v", resp.GetSupportedMetrics())
 	}
 }
@@ -713,14 +706,7 @@ func TestSupports_DynamoDB_HasCarbonSupport(t *testing.T) {
 	}
 
 	// DynamoDB has carbon estimation (storage-based, SSD × 3× replication)
-	hasCarbon := false
-	for _, m := range resp.GetSupportedMetrics() {
-		if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-			hasCarbon = true
-			break
-		}
-	}
-	if !hasCarbon {
+	if !slices.Contains(resp.GetSupportedMetrics(), pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT) {
 		t.Errorf("SupportedMetrics should include CARBON_FOOTPRINT for DynamoDB, got %v", resp.GetSupportedMetrics())
 	}
 }
@@ -764,13 +750,7 @@ func TestSupports_AllResourceTypes_SupportedMetrics(t *testing.T) {
 				t.Fatalf("Supports() returned error: %v", err)
 			}
 
-			hasCarbon := false
-			for _, m := range resp.GetSupportedMetrics() {
-				if m == pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT {
-					hasCarbon = true
-					break
-				}
-			}
+			hasCarbon := slices.Contains(resp.GetSupportedMetrics(), pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT)
 
 			if hasCarbon != tt.wantCarbon {
 				t.Errorf("carbon in SupportedMetrics = %v, want %v", hasCarbon, tt.wantCarbon)

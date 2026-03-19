@@ -90,7 +90,7 @@ func TestChildRegistry_ConcurrentGetRegionMutex(t *testing.T) {
 	mutexes := make([]*sync.Mutex, 10)
 
 	// Launch 10 goroutines requesting the same region mutex
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -114,7 +114,7 @@ func TestChildRegistry_ConcurrentGetOrLaunch_Offline(t *testing.T) {
 	var wg sync.WaitGroup
 	errors := make([]error, 10)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
@@ -124,7 +124,7 @@ func TestChildRegistry_ConcurrentGetOrLaunch_Offline(t *testing.T) {
 	wg.Wait()
 
 	// All should return an error (no binary in offline mode)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		assert.Error(t, errors[i])
 	}
 }

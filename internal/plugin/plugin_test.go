@@ -349,7 +349,7 @@ func TestTraceIDPropagationWithProvidedTraceID(t *testing.T) {
 	scanner := bufio.NewScanner(&logBuf)
 	found := false
 	for scanner.Scan() {
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		if err := json.Unmarshal(scanner.Bytes(), &logEntry); err != nil {
 			continue
 		}
@@ -392,7 +392,7 @@ func TestTraceIDGenerationWhenMissing(t *testing.T) {
 	}
 
 	// Parse log output and verify a UUID-format trace_id was generated
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
 		t.Fatalf("Failed to parse log output as JSON: %v", err)
 	}
@@ -420,7 +420,7 @@ func TestConcurrentRequestsWithDifferentTraceIDs(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make(chan string, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
@@ -476,7 +476,7 @@ func TestErrorLogsContainErrorCode(t *testing.T) {
 	}
 
 	// Parse log output and verify error_code field
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
 		t.Fatalf("Failed to parse log output as JSON: %v", err)
 	}
@@ -578,7 +578,7 @@ func TestStartupLogFormat(t *testing.T) {
 		Msg("plugin started")
 
 	// Parse and verify
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
 		t.Fatalf("Failed to parse log output as JSON: %v", err)
 	}

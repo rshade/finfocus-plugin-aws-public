@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
@@ -250,7 +251,7 @@ func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(
 //  1. req.Arn - Parse AWS ARN and extract region/service (SKU must come from tags)
 //  2. req.ResourceId as JSON - JSON-encoded ResourceDescriptor
 //  3. req.Tags - Extract provider, resource_type, sku, region from tags
-func (p *AWSPublicPlugin) ValidateActualCostRequest(
+func (p *AWSPublicPlugin) ValidateActualCostRequest( //nolint:gocognit,funlen
 	ctx context.Context,
 	req *pbc.GetActualCostRequest,
 ) (*pbc.ResourceDescriptor, *TimestampResolution, error) {
@@ -422,10 +423,8 @@ func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*
 	// Zero-cost resources (VPC, Subnet, SecurityGroup, IAM, LaunchTemplate, etc.)
 	// don't need a SKU - skip extraction and return immediately with empty SKU.
 	if IsZeroCostService(canonicalService) {
-		tags := make(map[string]string)
-		for k, v := range req.GetTags() {
-			tags[k] = v
-		}
+		tags := make(map[string]string, len(req.GetTags()))
+		maps.Copy(tags, req.GetTags())
 		return &pbc.ResourceDescriptor{
 			Provider:     providerAWS,
 			ResourceType: canonicalService,

@@ -26,12 +26,12 @@ var errNoLogEntries = errors.New("no log entries found in buffer")
 // parseLastLogEntry parses the last non-empty JSON line from a log buffer.
 // This handles cases where the logger emits multiple entries during a test.
 // Returns the parsed map and any error encountered.
-func parseLastLogEntry(buf *bytes.Buffer) (map[string]interface{}, error) {
+func parseLastLogEntry(buf *bytes.Buffer) (map[string]any, error) {
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	if len(lines) == 0 || lines[len(lines)-1] == "" {
 		return nil, errNoLogEntries
 	}
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &logEntry); err != nil {
 		return nil, err
 	}
@@ -1130,7 +1130,7 @@ func TestGetRecommendations_SummaryLogging(t *testing.T) {
 		if line == "" {
 			continue
 		}
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
 			t.Fatalf("Failed to parse log line as JSON: %v\nLine: %s", err, line)
 		}

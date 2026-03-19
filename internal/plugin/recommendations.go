@@ -72,7 +72,7 @@ type BatchStats struct {
 // For each matching resource, it populates correlation info (Id and Name) in the recommendation
 // object by extracting the "resource_id" and "name" tags from the input ResourceDescriptor.
 // This allows the caller to correlate recommendations back to their infrastructure definitions.
-func (p *AWSPublicPlugin) GetRecommendations(
+func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 	ctx context.Context,
 	req *pbc.GetRecommendationsRequest,
 ) (*pbc.GetRecommendationsResponse, error) {
