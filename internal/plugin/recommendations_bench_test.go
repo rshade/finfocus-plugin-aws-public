@@ -27,7 +27,7 @@ func BenchmarkGetRecommendations_100Resources(b *testing.B) {
 
 	// Create 100 EC2 resources for the batch
 	resources := make([]*pbc.ResourceDescriptor, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		resources[i] = &pbc.ResourceDescriptor{
 			Provider:     "aws",
 			ResourceType: "aws:ec2/instance:Instance", // Pulumi format to exercise normalization
@@ -43,7 +43,7 @@ func BenchmarkGetRecommendations_100Resources(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := plugin.GetRecommendations(ctx, req)
 		if err != nil {
 			b.Fatalf("GetRecommendations failed: %v", err)
@@ -79,7 +79,7 @@ func BenchmarkGetRecommendations_MixedResourceTypes(b *testing.B) {
 
 	// Create 98 resources (14 of each type to get close to 100)
 	resources := make([]*pbc.ResourceDescriptor, 0, 98)
-	for i := 0; i < 14; i++ {
+	for range 14 {
 		for _, rt := range resourceTypes {
 			resources = append(resources, &pbc.ResourceDescriptor{
 				Provider:     "aws",
@@ -97,7 +97,7 @@ func BenchmarkGetRecommendations_MixedResourceTypes(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := plugin.GetRecommendations(ctx, req)
 		if err != nil {
 			b.Fatalf("GetRecommendations failed: %v", err)

@@ -181,7 +181,7 @@ func newTestPluginForActual() *AWSPublicPlugin {
 
 // makeResourceJSON creates a JSON-encoded ResourceDescriptor for testing.
 func makeResourceJSON(provider, resourceType, sku, region string, tags map[string]string) string {
-	rd := map[string]interface{}{
+	rd := map[string]any{
 		"provider":      provider,
 		"resource_type": resourceType,
 		"sku":           sku,
@@ -762,9 +762,9 @@ func TestGetActualCost_ConcurrentCalls(t *testing.T) {
 	to := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	// Launch concurrent goroutines making GetActualCost calls
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
-			for j := 0; j < callsPerGoroutine; j++ {
+			for j := range callsPerGoroutine {
 				var req *pbc.GetActualCostRequest
 
 				// Alternate between EC2 and EBS requests
@@ -799,7 +799,7 @@ func TestGetActualCost_ConcurrentCalls(t *testing.T) {
 
 	// Wait for all calls to complete
 	errorCount := 0
-	for i := 0; i < totalCalls; i++ {
+	for range totalCalls {
 		<-done
 	}
 

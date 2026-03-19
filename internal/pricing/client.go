@@ -202,7 +202,7 @@ func NewClient(logger zerolog.Logger) (*Client, error) {
 
 // init parses embedded pricing data exactly once.
 // Parsing is parallelized across services for faster initialization.
-func (c *Client) init() error {
+func (c *Client) init() error { //nolint:gocognit,funlen
 	c.once.Do(func() {
 		// Initialize indexes
 		c.currency = "USD"
@@ -251,9 +251,7 @@ func (c *Client) init() error {
 
 		// 1. Parse EC2 pricing (includes EBS volumes) - largest file, start first
 		// EC2 is CRITICAL - failure to parse means $0 for all compute estimates
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if region, meta, err := c.parseEC2Pricing(rawEC2JSON); err != nil {
 				parseErrMu.Lock()
 				parseErrs = append(parseErrs, fmt.Errorf("EC2: %w", err))
@@ -266,88 +264,70 @@ func (c *Client) init() error {
 				ec2Metadata = meta
 				regionMu.Unlock()
 			}
-		}()
+		})
 
 		// 2. Parse S3 pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseS3Pricing(rawS3JSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse S3 pricing")
 			}
-		}()
+		})
 
 		// 3. Parse RDS pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseRDSPricing(rawRDSJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse RDS pricing")
 			}
-		}()
+		})
 
 		// 4. Parse EKS pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseEKSPricing(rawEKSJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse EKS pricing")
 			}
-		}()
+		})
 
 		// 5. Parse Lambda pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseLambdaPricing(rawLambdaJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse Lambda pricing")
 			}
-		}()
+		})
 
 		// 6. Parse DynamoDB pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseDynamoDBPricing(rawDynamoDBJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse DynamoDB pricing")
 			}
-		}()
+		})
 
 		// 7. Parse ELB pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseELBPricing(rawELBJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse ELB pricing")
 			}
-		}()
+		})
 
 		// 8. Parse NAT Gateway pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseNATGatewayPricing(rawVPCJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse NAT Gateway pricing")
 			}
-		}()
+		})
 
 		// 9. Parse CloudWatch pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseCloudWatchPricing(rawCloudWatchJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse CloudWatch pricing")
 			}
-		}()
+		})
 
 		// 10. Parse ElastiCache pricing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if _, err := c.parseElastiCachePricing(rawElastiCacheJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse ElastiCache pricing")
 			}
-		}()
+		})
 
 		// Wait for all parsing to complete
 		wg.Wait()
@@ -530,7 +510,7 @@ func getOnDemandPrice(data *awsPricing, sku string) (float64, string, bool) {
 
 // parseEC2Pricing parses EC2 pricing data including EBS volumes.
 // Returns the detected region, pricing metadata, and any parsing error.
-func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) {
+func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", nil, fmt.Errorf("failed to parse EC2 JSON: %w", err)
@@ -646,7 +626,7 @@ func (c *Client) parseS3Pricing(data []byte) (string, error) {
 
 // parseRDSPricing parses RDS pricing data.
 // Returns the detected region and any parsing error.
-func (c *Client) parseRDSPricing(data []byte) (string, error) {
+func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse RDS JSON: %w", err)
@@ -731,7 +711,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) {
 
 // parseEKSPricing parses EKS pricing data.
 // Returns the detected region and any parsing error.
-func (c *Client) parseEKSPricing(data []byte) (string, error) {
+func (c *Client) parseEKSPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse EKS JSON: %w", err)
@@ -781,7 +761,7 @@ func (c *Client) parseEKSPricing(data []byte) (string, error) {
 
 // parseLambdaPricing parses Lambda pricing data.
 // Returns the detected region and any parsing error.
-func (c *Client) parseLambdaPricing(data []byte) (string, error) {
+func (c *Client) parseLambdaPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse Lambda JSON: %w", err)
@@ -830,7 +810,7 @@ func (c *Client) parseLambdaPricing(data []byte) (string, error) {
 
 // parseDynamoDBPricing parses DynamoDB pricing data.
 // Returns the detected region and any parsing error.
-func (c *Client) parseDynamoDBPricing(data []byte) (string, error) {
+func (c *Client) parseDynamoDBPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse DynamoDB JSON: %w", err)
@@ -891,7 +871,7 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) {
 
 // parseELBPricing parses ELB pricing data.
 // Returns the detected region and any parsing error.
-func (c *Client) parseELBPricing(data []byte) (string, error) {
+func (c *Client) parseELBPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse ELB JSON: %w", err)
@@ -952,7 +932,7 @@ func (c *Client) parseELBPricing(data []byte) (string, error) {
 
 // parseNATGatewayPricing parses VPC pricing data for NAT Gateways.
 // Returns the detected region and any parsing error.
-func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
+func (c *Client) parseNATGatewayPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse VPC JSON: %w", err)
@@ -1007,7 +987,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 //   - Log Storage: productFamily="Storage Snapshot", usagetype contains "TimedStorage-ByteHrs"
 //   - Metrics: productFamily="Metric", group="Metric", usagetype="CW:MetricMonitorUsage"
 //   - Metrics use tiered pricing with beginRange/endRange in priceDimensions
-func (c *Client) parseCloudWatchPricing(data []byte) (string, error) {
+func (c *Client) parseCloudWatchPricing(data []byte) (string, error) { //nolint:gocognit
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse CloudWatch JSON: %w", err)

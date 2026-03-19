@@ -197,10 +197,7 @@ func sanitizeTagsForLogging(tags map[string]string) map[string]string {
 		return nil
 	}
 	// Pre-allocate with bounded capacity
-	capacity := len(tags)
-	if capacity > maxTagsToLog {
-		capacity = maxTagsToLog
-	}
+	capacity := min(len(tags), maxTagsToLog)
 	sanitized := make(map[string]string, capacity)
 	count := 0
 	for k, v := range tags {
@@ -308,7 +305,7 @@ func (p *AWSPublicPlugin) GetPluginInfo(
 // The proto API uses ResourceId (string) which we expect to be a JSON-encoded
 // ResourceDescriptor. If ResourceId is empty, we fall back to extracting
 // resource info from the Tags map.
-func (p *AWSPublicPlugin) GetActualCost(
+func (p *AWSPublicPlugin) GetActualCost( //nolint:funlen
 	ctx context.Context,
 	req *pbc.GetActualCostRequest,
 ) (*pbc.GetActualCostResponse, error) {

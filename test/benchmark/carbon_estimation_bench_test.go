@@ -396,10 +396,8 @@ func TestConcurrentLatency(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, goroutines)
 
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range goroutines {
+		wg.Go(func() {
 			// Run a representative estimator call.
 			start := time.Now()
 			e := carbon.NewEstimator()
@@ -407,7 +405,7 @@ func TestConcurrentLatency(t *testing.T) {
 			if time.Since(start).Milliseconds() > maxLatencyMs {
 				errs <- errors.New("exceeded latency under concurrent load")
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

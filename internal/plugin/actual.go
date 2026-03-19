@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
@@ -103,17 +104,13 @@ func mergeTagsFromRequest(req *pbc.GetActualCostRequest) map[string]string {
 			Tags map[string]string `json:"tags"`
 		}
 		if json.Unmarshal([]byte(req.GetResourceId()), &resource) == nil && resource.Tags != nil {
-			for k, v := range resource.Tags {
-				merged[k] = v
-			}
+			maps.Copy(merged, resource.Tags)
 		}
 	}
 
 	// Then overlay req.Tags (takes precedence)
 	if req.GetTags() != nil {
-		for k, v := range req.GetTags() {
-			merged[k] = v
-		}
+		maps.Copy(merged, req.GetTags())
 	}
 
 	return merged

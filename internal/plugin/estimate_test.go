@@ -263,7 +263,7 @@ func TestEstimateCost_EC2(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType": "t3.micro",
 	})
 	require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestEstimateCost_EBS(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"type": "gp3",
 		"size": float64(100),
 	})
@@ -310,7 +310,7 @@ func TestEstimateCost_EBS_DefaultSize(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"type": "gp2",
 		// no size specified
 	})
@@ -333,7 +333,7 @@ func TestEstimateCost_RegionFromAvailabilityZone(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType":     "t3.micro",
 		"availabilityZone": "us-east-1a",
 	})
@@ -355,7 +355,7 @@ func TestEstimateCost_WrongRegion(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType": "t3.micro",
 		"region":       "eu-west-1", // different from plugin region
 	})
@@ -470,7 +470,7 @@ func TestEstimateCost_MissingInstanceType(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"ami": "ami-12345678",
 		// missing instanceType
 	})
@@ -492,7 +492,7 @@ func TestEstimateCost_UnknownInstanceType(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType": "unknown.type",
 	})
 	require.NoError(t, err)
@@ -515,9 +515,9 @@ func TestEstimateCost_EC2_WithRootVolume(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType": "t3.micro",
-		"rootBlockDevice": map[string]interface{}{
+		"rootBlockDevice": map[string]any{
 			"volumeType": "gp2",
 			"volumeSize": float64(8),
 		},
@@ -545,9 +545,9 @@ func TestEstimateCost_EC2_WithRootVolume_LargerDisk(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType": "m5.large",
-		"rootBlockDevice": map[string]interface{}{
+		"rootBlockDevice": map[string]any{
 			"volumeType": "gp3",
 			"volumeSize": float64(100),
 		},
@@ -575,7 +575,7 @@ func TestEstimateCost_EC2_WithoutRootVolume_BackwardCompat(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	attrs, err := structpb.NewStruct(map[string]interface{}{
+	attrs, err := structpb.NewStruct(map[string]any{
 		"instanceType": "t3.micro",
 		// No rootBlockDevice
 	})

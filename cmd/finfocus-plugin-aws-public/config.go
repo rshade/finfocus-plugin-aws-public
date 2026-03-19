@@ -12,7 +12,7 @@ import (
 
 // parseWebConfig parses environment variables to configure the web server.
 // It returns a WebConfig struct and an error if the configuration is invalid.
-func parseWebConfig(enabled bool, logger zerolog.Logger) (pluginsdk.WebConfig, error) {
+func parseWebConfig(enabled bool, logger zerolog.Logger) (pluginsdk.WebConfig, error) { //nolint:gocognit
 	if !enabled {
 		return pluginsdk.WebConfig{}, nil
 	}
@@ -24,8 +24,7 @@ func parseWebConfig(enabled bool, logger zerolog.Logger) (pluginsdk.WebConfig, e
 	// FR-001: Allowed Origins
 	hasWildcard := false
 	if origins := os.Getenv("FINFOCUS_CORS_ALLOWED_ORIGINS"); origins != "" {
-		rawOrigins := strings.Split(origins, ",")
-		for _, o := range rawOrigins {
+		for o := range strings.SplitSeq(origins, ",") {
 			trimmed := strings.TrimSpace(o)
 			if trimmed == "*" {
 				hasWildcard = true

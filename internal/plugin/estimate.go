@@ -131,32 +131,27 @@ type resourceTypeInfo struct {
 // Format: "provider:module/resource:Type" (e.g., "aws:ec2/instance:Instance").
 func parsePulumiResourceType(resourceType string) (*resourceTypeInfo, error) {
 	// Split by first ":"
-	parts := strings.SplitN(resourceType, ":", 2)
-	if len(parts) != 2 {
+	provider, rest, found := strings.Cut(resourceType, ":")
+	if !found {
 		return nil, errors.New("invalid format: expected 'provider:module/resource:Type'")
 	}
 
-	provider := parts[0]
-
 	// Split rest by "/" and ":"
-	rest := parts[1]
-	moduleParts := strings.SplitN(rest, "/", 2)
-	if len(moduleParts) != 2 {
+	moduleName, resourceAndType, found := strings.Cut(rest, "/")
+	if !found {
 		return nil, errors.New("invalid format: expected module/resource:Type")
 	}
 
-	module := moduleParts[0]
-
 	// Split resource:Type
-	resourceParts := strings.SplitN(moduleParts[1], ":", 2)
-	if len(resourceParts) != 2 {
+	_, typeName, found := strings.Cut(resourceAndType, ":")
+	if !found {
 		return nil, errors.New("invalid format: expected resource:Type")
 	}
 
 	return &resourceTypeInfo{
 		provider: provider,
-		module:   module,
-		resource: resourceParts[1],
+		module:   moduleName,
+		resource: typeName,
 	}, nil
 }
 

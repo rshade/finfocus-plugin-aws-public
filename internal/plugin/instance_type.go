@@ -9,15 +9,11 @@ func parseInstanceType(instanceType string) (string, string) {
 	if strings.Count(instanceType, ".") != 1 {
 		return "", ""
 	}
-	parts := strings.SplitN(instanceType, ".", 2)
-	if len(parts) != 2 {
+	family, size, found := strings.Cut(instanceType, ".")
+	if !found || family == "" || size == "" {
 		return "", ""
 	}
-	// Validate both parts are non-empty (handles edge case like "." input)
-	if parts[0] == "" || parts[1] == "" {
-		return "", ""
-	}
-	return parts[0], parts[1]
+	return family, size
 }
 
 // generationUpgradeMap maps old instance families to newer generations.
@@ -103,11 +99,11 @@ func parseRDSInstanceType(instanceType string) (string, string) {
 	if strings.Count(trimmed, ".") != 1 {
 		return "", ""
 	}
-	parts := strings.SplitN(trimmed, ".", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	family, size, found := strings.Cut(trimmed, ".")
+	if !found || family == "" || size == "" {
 		return "", ""
 	}
-	return "db." + parts[0], parts[1]
+	return "db." + family, size
 }
 
 // rdsGenerationUpgradeMap maps old RDS families to newer generations.

@@ -10,7 +10,10 @@ import (
 )
 
 // Supports checks if this plugin can estimate costs for the given resource.
-func (p *AWSPublicPlugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error) {
+func (p *AWSPublicPlugin) Supports( //nolint:funlen
+	ctx context.Context,
+	req *pbc.SupportsRequest,
+) (*pbc.SupportsResponse, error) {
 	start := time.Now()
 	traceID := p.getTraceID(ctx)
 

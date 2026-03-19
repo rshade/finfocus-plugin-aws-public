@@ -30,7 +30,7 @@ const (
 //   - "aws:ebs:Volume" -> "ebs"
 //   - "aws:ec2/vpc:Vpc" -> "vpc"
 //   - "ec2" -> "ec2"
-func normalizeResourceType(resourceType string) string {
+func normalizeResourceType(resourceType string) string { //nolint:gocognit
 	rt := strings.ToLower(resourceType)
 
 	// Pattern: aws:<service>/...:... or aws:<service>:...
@@ -141,7 +141,7 @@ var validRDSStorageTypes = map[string]bool{
 }
 
 // GetProjectedCost estimates the monthly cost for the given resource.
-func (p *AWSPublicPlugin) GetProjectedCost(
+func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 	ctx context.Context,
 	req *pbc.GetProjectedCostRequest,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -271,7 +271,7 @@ func (p *AWSPublicPlugin) GetProjectedCost(
 
 // estimateEC2 calculates the projected monthly cost for an EC2 instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateEC2(
+func (p *AWSPublicPlugin) estimateEC2( //nolint:funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 	req *pbc.GetProjectedCostRequest,
@@ -635,7 +635,7 @@ func (p *AWSPublicPlugin) validateNonNegativeFloat64(traceID, tagName, value str
 }
 
 // estimateDynamoDB calculates projected monthly cost for DynamoDB tables.
-func (p *AWSPublicPlugin) estimateDynamoDB(
+func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -850,7 +850,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB(
 }
 
 // estimateELB calculates projected monthly cost for load balancers.
-func (p *AWSPublicPlugin) estimateELB(
+func (p *AWSPublicPlugin) estimateELB( //nolint:gocognit
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -965,7 +965,7 @@ func (p *AWSPublicPlugin) estimateELB(
 
 // estimateRDS calculates the projected monthly cost for an RDS instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateRDS(
+func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -1281,7 +1281,7 @@ func (p *AWSPublicPlugin) estimateEKS(
 
 // estimateLambda calculates projected monthly cost for Lambda functions.
 // Uses request count and GB-seconds from resource tags.
-func (p *AWSPublicPlugin) estimateLambda(
+func (p *AWSPublicPlugin) estimateLambda( //nolint:gocognit,funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -1579,7 +1579,7 @@ func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
 //   - log_ingestion_gb: GB of logs ingested per month
 //   - log_storage_gb: GB of logs stored
 //   - custom_metrics: Number of custom metrics
-func (p *AWSPublicPlugin) estimateCloudWatch(
+func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -1745,7 +1745,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch(
 // Optional tags:
 //   - "engine": Cache engine - "redis" (default), "memcached", or "valkey" (open-source Redis fork)
 //   - "num_nodes" or "num_cache_nodes": Number of cache nodes (default: 1)
-func (p *AWSPublicPlugin) estimateElastiCache(
+func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {

@@ -131,13 +131,13 @@ const httpRequestTimeout = 5 * time.Minute
 // awsPricingResponse represents the structure of AWS Price List API response.
 // We use this to filter terms while preserving the raw structure.
 type awsPricingResponse struct {
-	FormatVersion   string                            `json:"formatVersion"`
-	Disclaimer      string                            `json:"disclaimer"`
-	OfferCode       string                            `json:"offerCode"`
-	Version         string                            `json:"version"`
-	PublicationDate string                            `json:"publicationDate"`
-	Products        map[string]json.RawMessage        `json:"products"`
-	Terms           map[string]map[string]interface{} `json:"terms"`
+	FormatVersion   string                     `json:"formatVersion"`
+	Disclaimer      string                     `json:"disclaimer"`
+	OfferCode       string                     `json:"offerCode"`
+	Version         string                     `json:"version"`
+	PublicationDate string                     `json:"publicationDate"`
+	Products        map[string]json.RawMessage `json:"products"`
+	Terms           map[string]map[string]any  `json:"terms"`
 }
 
 // fetchServicePricingRaw retrieves AWS pricing data for the specified service and region.
@@ -212,7 +212,7 @@ func fetchServicePricingRaw(region, service string) ([]byte, error) {
 	//
 	// Why filter? Reduces file size from ~400MB to ~154MB for EC2 alone.
 	// The plugin only supports on-demand pricing for v1.
-	filteredTerms := make(map[string]map[string]interface{})
+	filteredTerms := make(map[string]map[string]any)
 	for termType, skuTerms := range pricing.Terms {
 		if termType == "OnDemand" {
 			filteredTerms[termType] = skuTerms

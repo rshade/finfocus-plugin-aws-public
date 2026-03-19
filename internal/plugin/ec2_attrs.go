@@ -171,14 +171,11 @@ func parseGoMapString(s string) map[string]string {
 	}
 
 	// Split by space, then split each token on first ":"
-	tokens := strings.Fields(s)
-	for _, token := range tokens {
-		idx := strings.Index(token, ":")
-		if idx < 0 {
+	for token := range strings.FieldsSeq(s) {
+		key, value, found := strings.Cut(token, ":")
+		if !found {
 			continue // No colon found, skip malformed token
 		}
-		key := token[:idx]
-		value := token[idx+1:]
 		if key != "" {
 			result[key] = value
 		}
@@ -212,7 +209,7 @@ func parsePositiveInt(raw string) (int, bool) {
 //   - If no root volume source found → RootVolumeInfo{Present: false} (no cost added)
 //   - If source present but missing type → defaults to "gp2"
 //   - If source present but missing/invalid size → defaults to 8 GB
-func ExtractRootVolumeFromTags(tags map[string]string, logger zerolog.Logger) RootVolumeInfo {
+func ExtractRootVolumeFromTags(tags map[string]string, logger zerolog.Logger) RootVolumeInfo { //nolint:gocognit
 	if tags == nil {
 		return RootVolumeInfo{}
 	}
@@ -287,7 +284,7 @@ func ExtractRootVolumeFromTags(tags map[string]string, logger zerolog.Logger) Ro
 //   - If no rootBlockDevice attribute → RootVolumeInfo{Present: false}
 //   - If present but missing type → defaults to "gp2"
 //   - If present but missing/invalid size → defaults to 8 GB
-func ExtractRootVolumeFromStruct(attrs *structpb.Struct, logger zerolog.Logger) RootVolumeInfo {
+func ExtractRootVolumeFromStruct(attrs *structpb.Struct, logger zerolog.Logger) RootVolumeInfo { //nolint:gocognit
 	if attrs == nil || attrs.GetFields() == nil {
 		return RootVolumeInfo{}
 	}

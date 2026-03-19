@@ -37,11 +37,9 @@ func TestConcurrentAccess_EC2Estimator(t *testing.T) {
 	errors := make(chan error, numGoroutines*numIterations)
 	results := make(chan float64, numGoroutines*numIterations)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < numIterations; j++ {
+	for range numGoroutines {
+		wg.Go(func() {
+			for range numIterations {
 				carbonGrams, ok := estimator.EstimateCarbonGrams(
 					"m5.large", "us-east-1", 0.5, 730)
 				if !ok {
@@ -50,7 +48,7 @@ func TestConcurrentAccess_EC2Estimator(t *testing.T) {
 				}
 				results <- carbonGrams
 			}
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -85,12 +83,10 @@ func TestConcurrentAccess_EBSEstimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
 					VolumeType: "gp3",
 					SizeGB:     100,
@@ -102,7 +98,7 @@ func TestConcurrentAccess_EBSEstimator(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -124,12 +120,10 @@ func TestConcurrentAccess_S3Estimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateCarbonGrams(carbon.S3StorageConfig{
 					StorageClass: "STANDARD",
 					SizeGB:       100,
@@ -141,7 +135,7 @@ func TestConcurrentAccess_S3Estimator(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -163,12 +157,10 @@ func TestConcurrentAccess_LambdaEstimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateCarbonGrams(carbon.LambdaFunctionConfig{
 					MemoryMB:     1792,
 					DurationMs:   500,
@@ -181,7 +173,7 @@ func TestConcurrentAccess_LambdaEstimator(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -203,12 +195,10 @@ func TestConcurrentAccess_RDSEstimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateCarbonGrams(carbon.RDSInstanceConfig{
 					InstanceType:  "db.m5.large",
 					Region:        "us-east-1",
@@ -223,7 +213,7 @@ func TestConcurrentAccess_RDSEstimator(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -245,12 +235,10 @@ func TestConcurrentAccess_DynamoDBEstimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
 					SizeGB: 50,
 					Region: "us-east-1",
@@ -261,7 +249,7 @@ func TestConcurrentAccess_DynamoDBEstimator(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -283,12 +271,10 @@ func TestConcurrentAccess_EKSEstimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateCarbonGrams(carbon.EKSClusterConfig{
 					Region: "us-east-1",
 				})
@@ -297,7 +283,7 @@ func TestConcurrentAccess_EKSEstimator(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -319,19 +305,17 @@ func TestConcurrentAccess_EmbodiedCarbonEstimator(t *testing.T) {
 	var wg sync.WaitGroup
 	successCount := make(chan int, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range numGoroutines {
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				_, ok := estimator.EstimateEmbodiedCarbonKg("m5.large", 1.0)
 				if ok {
 					success++
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -362,26 +346,22 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 	successCount := make(chan int, numGoroutines*8)
 
 	// Launch goroutines for each estimator type
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		// EC2
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := ec2Estimator.EstimateCarbonGrams("m5.large", "us-east-1", 0.5, 730); ok {
 					success++
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// EBS
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := ebsEstimator.EstimateCarbonGrams(carbon.EBSVolumeConfig{
 					VolumeType: "gp3", SizeGB: 100, Region: "us-east-1", Hours: 730,
 				}); ok {
@@ -389,14 +369,12 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// S3
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := s3Estimator.EstimateCarbonGrams(carbon.S3StorageConfig{
 					StorageClass: "STANDARD", SizeGB: 100, Region: "us-east-1", Hours: 730,
 				}); ok {
@@ -404,14 +382,12 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// Lambda
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := lambdaEstimator.EstimateCarbonGrams(carbon.LambdaFunctionConfig{
 					MemoryMB: 1792, DurationMs: 500, Invocations: 1000000, Architecture: "x86_64", Region: "us-east-1",
 				}); ok {
@@ -419,14 +395,12 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// RDS
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := rdsEstimator.EstimateCarbonGrams(carbon.RDSInstanceConfig{
 					InstanceType: "db.m5.large", Region: "us-east-1", MultiAZ: false,
 					StorageType: "gp3", StorageSizeGB: 100, Utilization: 0.5, Hours: 730,
@@ -435,14 +409,12 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// DynamoDB
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := dynamoEstimator.EstimateCarbonGrams(carbon.DynamoDBTableConfig{
 					SizeGB: 50, Region: "us-east-1", Hours: 730,
 				}); ok {
@@ -450,14 +422,12 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// EKS
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := eksEstimator.EstimateCarbonGrams(carbon.EKSClusterConfig{
 					Region: "us-east-1",
 				}); ok {
@@ -465,20 +435,18 @@ func TestConcurrentAccess_MixedEstimators(t *testing.T) {
 				}
 			}
 			successCount <- success
-		}()
+		})
 
 		// Embodied
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			success := 0
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				if _, ok := embodiedEstimator.EstimateEmbodiedCarbonKg("m5.large", 1.0); ok {
 					success++
 				}
 			}
 			successCount <- success
-		}()
+		})
 	}
 
 	wg.Wait()
@@ -504,17 +472,15 @@ func TestConcurrentAccess_GridFactorLookup(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make(chan float64, numGoroutines*numIterations*len(regions))
 
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < numIterations; j++ {
+	for range numGoroutines {
+		wg.Go(func() {
+			for range numIterations {
 				for _, region := range regions {
 					factor := carbon.GetGridFactor(region)
 					results <- factor
 				}
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

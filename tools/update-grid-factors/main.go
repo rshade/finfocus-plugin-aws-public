@@ -147,7 +147,8 @@ func main() {
 		return
 	}
 
-	// Write the file
+	// Write the file (0o644 is intentional: generated Go source needs read permission for go build).
+	//nolint:gosec // G306: generated Go source file needs 0o644 for go build
 	if writeErr := os.WriteFile(*output, []byte(content), 0o644); writeErr != nil {
 		fmt.Fprintf(os.Stderr, "Error writing file: %v\n", writeErr)
 		os.Exit(1)
@@ -181,8 +182,8 @@ func fetchGridFactors() ([]GridFactor, error) {
 	}
 
 	var ccfData []CCFGridData
-	if err := json.NewDecoder(resp.Body).Decode(&ccfData); err != nil {
-		return nil, fmt.Errorf("failed to decode JSON: %w", err)
+	if decodeErr := json.NewDecoder(resp.Body).Decode(&ccfData); decodeErr != nil {
+		return nil, fmt.Errorf("failed to decode JSON: %w", decodeErr)
 	}
 
 	var factors []GridFactor

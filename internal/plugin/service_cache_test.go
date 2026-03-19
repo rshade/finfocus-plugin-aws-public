@@ -190,7 +190,7 @@ func TestServiceResolver_Memoization(t *testing.T) {
 	normalized1 := resolver.NormalizedType()
 
 	// Multiple subsequent accesses
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		service := resolver.ServiceType()
 		normalized := resolver.NormalizedType()
 

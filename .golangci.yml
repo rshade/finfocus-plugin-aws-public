@@ -1,7 +1,7 @@
 # This file is licensed under the terms of the MIT license https://opensource.org/license/mit
 # Copyright (c) 2021-2025 Marat Reymers
 
-## Golden config for golangci-lint v2.5.0
+## Golden config for golangci-lint v2.9.0
 #
 # This is the best config for golangci-lint based on my experience and opinion.
 # It is very strict, but not extremely strict.
@@ -121,14 +121,16 @@ linters:
     - usetesting # reports uses of functions with replacement inside the testing package
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
+    - zerologlint # detects wrong usage of zerolog (missing dispatch)
+    - exhaustruct # checks all structure fields are initialized
+    - godox # detects FIXME, TODO and other keywords
+    - modernize # modern Go idioms
 
     ## you may want to enable
     #- arangolint # opinionated best practices for arangodb client
     #- decorder # checks declaration order and count of types, constants, variables and functions
-    #- exhaustruct # [highly recommend to enable] checks if all structure fields are initialized
     #- ginkgolinter # [if you use ginkgo/gomega] enforces standards of using ginkgo and gomega
-    #- godox # detects usage of FIXME, TODO and other keywords inside comments
-    #- goheader # checks is file header matches to pattern
+    #- goheader # checks file header matches pattern
     #- inamedparam # [great idea, but too strict, need to ignore a lot of cases by default] reports interfaces with unnamed method parameters
     #- interfacebloat # checks the number of methods inside an interface
     #- ireturn # accept interfaces, return concrete types
@@ -137,7 +139,6 @@ linters:
     #- tagalign # checks that struct tags are well aligned
     #- varnamelen # [great idea, but too many false positives] checks that the length of a variable's name matches its scope
     #- wrapcheck # checks that errors returned from external packages are wrapped
-    #- zerologlint # detects the wrong usage of zerolog that a user forgets to dispatch zerolog.Event
 
     ## disabled
     #- containedctx # detects struct contained context.Context field
@@ -266,6 +267,21 @@ linters:
         - ^golang.org/x/tools/go/analysis.Analyzer$
         - ^google.golang.org/protobuf/.+Options$
         - ^gopkg.in/yaml.v3.Node$
+        # project proto types (generated, many optional fields)
+        - ^github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1\..+
+        # project SDK types (config structs with optional fields)
+        - ^github.com/rshade/finfocus-spec/sdk/go/pluginsdk\..+
+        # internal types with intentional zero-value defaults
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/plugin\.RootVolumeInfo$
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/plugin\.ServiceClassification$
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/plugin\.TimestampResolution$
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/plugin\.ProcessingContext$
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/plugin\.serviceResolver$
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/carbon\.StorageSpec$
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/pricing\..+
+        - ^github.com/rshade/finfocus-plugin-aws-public/internal/router\..+
+        - ^main\.Config$
+        - ^github.com/rshade/finfocus-plugin-aws-public/cmd/.+\.Config$
 
     funcorder:
       # Checks if the exported methods of a structure are placed before the non-exported ones.
@@ -276,14 +292,11 @@ linters:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.
       # Default: 60
-      # Raised to 220: estimation functions (estimateDynamoDB, estimateRDS)
-      # and pricing parsers (Client.init) are long due to multi-service
-      # dispatch and multi-field AWS pricing data extraction.
-      lines: 220
+      lines: 100
       # Checks the number of statements in a function.
       # If lower than 0, disable the check.
       # Default: 40
-      statements: 80
+      statements: 50
 
     gochecksumtype:
       # Presence of `default` case in switch statements satisfies exhaustiveness, if all members are not listed.
@@ -293,10 +306,14 @@ linters:
     gocognit:
       # Minimal code complexity to report.
       # Default: 30 (but we recommend 10-20)
-      # Raised to 80: pricing parsers (parseRDSPricing, Client.init) and
-      # estimators (estimateCloudWatch) are inherently complex due to
-      # multi-field extraction from AWS pricing data structures.
-      min-complexity: 80
+      min-complexity: 20
+
+    godox:
+      keywords:
+        - TODO
+        - FIXME
+        - BUG
+        - HACK
 
     gocritic:
       # Settings passed to gocritic.
@@ -454,9 +471,12 @@ linters:
           - bodyclose
           - dupl
           - errcheck
+          - exhaustruct
           - funlen
           - gocognit
           - goconst
+          - godox
+
           - gosec
           - govet
           - intrange
@@ -473,31 +493,34 @@ linters:
           - bodyclose
           - dupl
           - errcheck
+          - exhaustruct
           - funlen
           - gocognit
           - goconst
+          - godox
+
           - gosec
           - govet
           - intrange
           - mnd
           - noctx
           - revive
-          - staticcheck
           - testableexamples
           - testifylint
           - testpackage
           - usetesting
           - wrapcheck
-      # CLI tools legitimately use fmt.Print for user-facing output,
-      # need broader file permissions, and use domain-specific constants.
+      # CLI tools legitimately use fmt.Print for user-facing output
+      # and use domain-specific constants.
       - path: 'tools/'
         linters:
+          - exhaustruct
           - forbidigo
-          - gosec
           - gochecknoglobals
           - gochecknoinits
+          - godox
+
           - mnd
-          - govet
       # Package-level variables (maps, sync.Once, constants) are
       # intentional for configuration, caching, and lookup tables.
       - path: 'internal/'

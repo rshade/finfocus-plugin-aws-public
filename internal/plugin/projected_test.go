@@ -684,11 +684,11 @@ func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 	done := make(chan bool, totalCalls)
 
 	// Launch concurrent goroutines making gRPC calls
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
-			for j := 0; j < callsPerGoroutine; j++ {
+			for j := range callsPerGoroutine {
 				// Alternate between EC2 and EBS requests
-				var resp interface{}
+				var resp any
 				var err error
 
 				if (id+j)%2 == 0 {
@@ -728,7 +728,7 @@ func TestGetProjectedCost_ConcurrentCalls(t *testing.T) {
 
 	// Wait for all calls to complete
 	errorCount := 0
-	for i := 0; i < totalCalls; i++ {
+	for range totalCalls {
 		<-done
 	}
 
@@ -789,7 +789,7 @@ func TestGetProjectedCost_RegionMismatchLatency(t *testing.T) {
 	const samples = 100
 	var totalDuration int64
 
-	for i := 0; i < samples; i++ {
+	for range samples {
 		start := time.Now()
 		_, err := plugin.GetProjectedCost(context.Background(), req)
 		duration := time.Since(start)
@@ -984,7 +984,7 @@ func TestGetProjectedCostLogsContainRequiredFields(t *testing.T) {
 	}
 
 	// Parse log output and verify required fields
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(logBuf.Bytes(), &logEntry); err != nil {
 		t.Fatalf("Failed to parse log output as JSON: %v", err)
 	}
@@ -1072,7 +1072,7 @@ func TestDebugLogsContainInstanceTypeForEC2(t *testing.T) {
 		if len(line) == 0 {
 			continue
 		}
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		if err := json.Unmarshal(line, &logEntry); err != nil {
 			continue // Skip invalid lines
 		}
@@ -1124,7 +1124,7 @@ func TestDebugLogsContainStorageTypeForEBS(t *testing.T) {
 		if len(line) == 0 {
 			continue
 		}
-		var logEntry map[string]interface{}
+		var logEntry map[string]any
 		if err := json.Unmarshal(line, &logEntry); err != nil {
 			continue // Skip invalid lines
 		}

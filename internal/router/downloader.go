@@ -189,7 +189,7 @@ func (d *Downloader) fetchChecksums(ctx context.Context) error {
 // Format: <hash>  <filename> (two spaces between hash and filename).
 func parseChecksums(content string) map[string]string {
 	result := make(map[string]string)
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
