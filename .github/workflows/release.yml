@@ -70,6 +70,14 @@ jobs:
             df -h / | tail -1
           done
 
+      # 5.5. Build router binary (no pricing data, no build tags)
+      - name: Build router binary
+        run: |
+          echo "Building router binary..."
+          bash ./scripts/release-router.sh
+          echo "Router archives:"
+          ls -lh dist/finfocus-plugin-aws-public_* | grep -v -- '-[a-z]' || true
+
       # 6. Verify all binaries have real pricing embedded
       - name: Verify binaries have embedded pricing
         run: bash ./scripts/verify-release-binaries.sh dist/
