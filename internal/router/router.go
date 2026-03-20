@@ -332,6 +332,12 @@ func (r *Plugin) HandleDryRun(_ *pbc.DryRunRequest) (*pbc.DryRunResponse, error)
 	), nil
 }
 
+// WarmUp eagerly launches all discovered children in parallel.
+// It returns immediately (fire-and-forget goroutines).
+func (r *Plugin) WarmUp(ctx context.Context) {
+	r.registry.WarmUp(ctx)
+}
+
 // ShutdownAll gracefully terminates all child processes.
 func (r *Plugin) ShutdownAll(ctx context.Context) {
 	r.registry.ShutdownAll(ctx)
