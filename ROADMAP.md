@@ -129,6 +129,9 @@ security overhead of cloud credentials.
   delegates to region-specific child processes. Supports parallel fan-out
   for multi-region recommendations and automatic binary downloads from
   GitHub Releases (#245).
+- **Router Binary Entrypoint:** Created `cmd/finfocus-plugin-aws-public-router`
+  entry point with eager warm-up of discovered region binaries. Release
+  pipeline builds router archive alongside region archives.
 - **Service Type Caching:** `serviceResolver` with lazy initialization
   pattern to memoize `normalizeResourceType()` and `detectService()` results,
   reducing redundant calls across all RPC methods (#157).

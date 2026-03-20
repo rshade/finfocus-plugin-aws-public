@@ -43,6 +43,7 @@ internal/carbon/data/*.csv
 # Plugin binaries
 finfocus-plugin-aws-public*
 !finfocus-plugin-aws-public/
+!finfocus-plugin-aws-public-router/
 
 # GoReleaser artifacts
 vendor/
