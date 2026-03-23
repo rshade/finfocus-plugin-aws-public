@@ -76,7 +76,14 @@ jobs:
           echo "Building router binary..."
           bash ./scripts/release-router.sh
           echo "Router archives:"
-          ls -lh dist/finfocus-plugin-aws-public_* | grep -v -- '-[a-z]' || true
+          found=false
+          for f in dist/finfocus-plugin-aws-public_*; do
+            [ -e "$f" ] || continue
+            case "$(basename "$f")" in *-[a-z]*) continue;; esac
+            ls -lh "$f"
+            found=true
+          done
+          [ "$found" = true ] || echo "No router archives found"
 
       # 6. Verify all binaries have real pricing embedded
       - name: Verify binaries have embedded pricing

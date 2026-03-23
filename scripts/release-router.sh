@@ -73,4 +73,11 @@ rm -rf _build
 rm -f .goreleaser.router.yaml
 
 echo "=== Router build complete ==="
-ls -lh dist/finfocus-plugin-aws-public_* 2>/dev/null | grep -v -- '-[a-z]' || echo "No router archives found"
+found=false
+for f in dist/finfocus-plugin-aws-public_*; do
+  [ -e "$f" ] || continue
+  case "$(basename "$f")" in *-[a-z]*) continue;; esac
+  ls -lh "$f"
+  found=true
+done
+[ "$found" = true ] || echo "No router archives found"

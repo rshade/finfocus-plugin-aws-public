@@ -45,7 +45,7 @@ func run() error {
 	// Determine binary directory from own executable path
 	execPath, err := os.Executable()
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to determine executable path")
+		logger.Error().Err(err).Msg("failed to determine executable path")
 		return err
 	}
 	binaryDir := filepath.Dir(execPath)
@@ -98,7 +98,7 @@ func run() error {
 	// Configure web serving
 	webConfig, err := parseWebConfig(webEnabled, logger)
 	if err != nil {
-		logger.Fatal().Err(err).Msg("failed to parse web configuration")
+		logger.Error().Err(err).Msg("failed to parse web configuration")
 		return err
 	}
 
