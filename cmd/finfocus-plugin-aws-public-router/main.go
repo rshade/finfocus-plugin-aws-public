@@ -40,7 +40,7 @@ func run() error {
 		}
 	}
 
-	logger := pluginsdk.NewPluginLogger("aws-public-router", version, level, nil)
+	logger := pluginsdk.NewPluginLogger("aws-public", version, level, nil)
 
 	// Determine binary directory from own executable path
 	execPath, err := os.Executable()
