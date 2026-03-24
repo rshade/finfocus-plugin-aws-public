@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.1.6](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.5...v0.1.6) (2026-03-24)
+
+
+### Features
+
+* add multi-region router and resolve correctness bugs ([#305](https://github.com/rshade/finfocus-plugin-aws-public/issues/305)) ([b282acf](https://github.com/rshade/finfocus-plugin-aws-public/commit/b282acf1fcb306d12e98afdb6381dab7309541dd))
+* **plugin:** populate defaults metadata on GetProjectedCostResponse ([#335](https://github.com/rshade/finfocus-plugin-aws-public/issues/335)) ([26f3639](https://github.com/rshade/finfocus-plugin-aws-public/commit/26f3639cc8044681a8712e143c013e001b81b673))
+* **router:** add multi-region router with child process orchestration ([#296](https://github.com/rshade/finfocus-plugin-aws-public/issues/296)) ([afd4702](https://github.com/rshade/finfocus-plugin-aws-public/commit/afd47023d6fc52a5d1ff6cf38be0c8590a7814d3)), closes [#245](https://github.com/rshade/finfocus-plugin-aws-public/issues/245)
+* **router:** create router binary entrypoint with eager warm-up ([#341](https://github.com/rshade/finfocus-plugin-aws-public/issues/341)) ([1e6faad](https://github.com/rshade/finfocus-plugin-aws-public/commit/1e6faad893ba420f1264bea856e3882d0a459d34))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/goccy/go-json to v0.10.6 ([#311](https://github.com/rshade/finfocus-plugin-aws-public/issues/311)) ([8a64298](https://github.com/rshade/finfocus-plugin-aws-public/commit/8a64298f9fa9e6c790297cb7c023193f6a6933b0))
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.5 ([#302](https://github.com/rshade/finfocus-plugin-aws-public/issues/302)) ([39a97c8](https://github.com/rshade/finfocus-plugin-aws-public/commit/39a97c8306390a412f811426c65e596e065e0d3a))
+* **deps:** update module github.com/rshade/finfocus-spec to v0.5.7 ([#297](https://github.com/rshade/finfocus-plugin-aws-public/issues/297)) ([f33bad8](https://github.com/rshade/finfocus-plugin-aws-public/commit/f33bad8188ea66e51c2846ee164eee98da510c34))
+* **deps:** update module google.golang.org/grpc to v1.79.2 ([#303](https://github.com/rshade/finfocus-plugin-aws-public/issues/303)) ([cbef734](https://github.com/rshade/finfocus-plugin-aws-public/commit/cbef73408017a1eceec017593a6f38a5db809386))
+* **deps:** update module google.golang.org/grpc to v1.79.3 ([#328](https://github.com/rshade/finfocus-plugin-aws-public/issues/328)) ([3702ac8](https://github.com/rshade/finfocus-plugin-aws-public/commit/3702ac846a42d878cfbb357f054b491dbab31fbc))
+* **plugin:** add zero-cost branch to GetPricingSpec switch ([#339](https://github.com/rshade/finfocus-plugin-aws-public/issues/339)) ([b0c4c8c](https://github.com/rshade/finfocus-plugin-aws-public/commit/b0c4c8c0271ed004c19c804286d4d9359bcdba90)), closes [#319](https://github.com/rshade/finfocus-plugin-aws-public/issues/319)
+* **plugin:** make allowEmptyRegion service-aware in parseResourceFromRequest ([#331](https://github.com/rshade/finfocus-plugin-aws-public/issues/331)) ([eff0b4f](https://github.com/rshade/finfocus-plugin-aws-public/commit/eff0b4fcd41a2fca98b0256d8c0bd44ba5a87e8e)), closes [#324](https://github.com/rshade/finfocus-plugin-aws-public/issues/324)
+* **plugin:** replace global logger in parsePositiveIntField with injected logger ([#333](https://github.com/rshade/finfocus-plugin-aws-public/issues/333)) ([d67b237](https://github.com/rshade/finfocus-plugin-aws-public/commit/d67b2372765e6e45bf51a9356c67fad0b33563d9)), closes [#323](https://github.com/rshade/finfocus-plugin-aws-public/issues/323)
+* **plugin:** update TestParsePositiveIntField to match renamed function ([#336](https://github.com/rshade/finfocus-plugin-aws-public/issues/336)) ([2306559](https://github.com/rshade/finfocus-plugin-aws-public/commit/2306559c0cf87daaaf3dbffa42dccb40701c60e5))
+* **release:** add exact artifact count validation in release-router.sh ([#345](https://github.com/rshade/finfocus-plugin-aws-public/issues/345)) ([f7bd08e](https://github.com/rshade/finfocus-plugin-aws-public/commit/f7bd08e0f496edde9eaac023535cf34ef0af9d3d)), closes [#343](https://github.com/rshade/finfocus-plugin-aws-public/issues/343)
+* **router:** align logger plugin_name with region binary convention ([5f9ea3d](https://github.com/rshade/finfocus-plugin-aws-public/commit/5f9ea3d94f3acbf18b955da24ba321034a9ca891)), closes [#344](https://github.com/rshade/finfocus-plugin-aws-public/issues/344)
+* **router:** extract region from ARN-format resource IDs in GetActual… ([#330](https://github.com/rshade/finfocus-plugin-aws-public/issues/330)) ([35db9b3](https://github.com/rshade/finfocus-plugin-aws-public/commit/35db9b3c4ad1482d18a8a7b890a4e15035a04c8e)), closes [#320](https://github.com/rshade/finfocus-plugin-aws-public/issues/320)
+* **router:** restore context propagation for child process lifecycle ([#326](https://github.com/rshade/finfocus-plugin-aws-public/issues/326)) ([66b7c55](https://github.com/rshade/finfocus-plugin-aws-public/commit/66b7c55d354a316122c16f0b161da2602ab942f3))
+
+
+### Documentation
+
+* **carbon,router:** fix MinWatts validation and add locking invariant ([#327](https://github.com/rshade/finfocus-plugin-aws-public/issues/327)) ([b5c12c9](https://github.com/rshade/finfocus-plugin-aws-public/commit/b5c12c903a1a0f37af58c9335dcfd25822d1f5b2)), closes [#325](https://github.com/rshade/finfocus-plugin-aws-public/issues/325)
+* **plugin:** document parseGoMapString space limitation and add defensive test ([#329](https://github.com/rshade/finfocus-plugin-aws-public/issues/329)) ([776ed8a](https://github.com/rshade/finfocus-plugin-aws-public/commit/776ed8abfb4849e2355e4230db874e621e47fbb3)), closes [#315](https://github.com/rshade/finfocus-plugin-aws-public/issues/315)
+
 ## [0.1.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.4...v0.1.5) (2026-01-24)
 
 
