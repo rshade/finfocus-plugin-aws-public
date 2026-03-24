@@ -124,9 +124,9 @@ build: ## ⚠️  Build with FALLBACK pricing (development only - do NOT release
 .PHONY: build-router
 build-router: ## Build the multi-region router binary (no pricing data)
 	@echo "Building router binary..."
-	@go build -ldflags "$(LDFLAGS)" -o finfocus-plugin-aws-public ./cmd/finfocus-plugin-aws-public-router
-	@echo "Router binary built: finfocus-plugin-aws-public"
-	@ls -lh finfocus-plugin-aws-public
+	@go build -ldflags "$(LDFLAGS)" -o finfocus-plugin-aws-public-router ./cmd/finfocus-plugin-aws-public-router
+	@echo "Router binary built: finfocus-plugin-aws-public-router"
+	@ls -lh finfocus-plugin-aws-public-router
 
 .PHONY: build-default-region
 build-default-region: ## Build us-east-1 with real AWS pricing (RECOMMENDED)

@@ -70,18 +70,18 @@ func run() error {
 		Bool("eager_warmup", eagerWarmup).
 		Msg("router starting")
 
-	// Setup context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Setup context for graceful shutdown using signal.NotifyContext.
+	// When SIGINT/SIGTERM is received, ctx is cancelled and Serve exits.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	// Handle shutdown signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	// Shutdown children when context is cancelled (signal or serve error).
+	// Use context.Background() so ShutdownAll gets its own independent 30s timeout
+	// rather than inheriting the already-cancelled ctx.
 	go func() {
-		<-sigChan
-		logger.Info().Msg("received shutdown signal")
-		routerPlugin.ShutdownAll(ctx)
-		cancel()
+		<-ctx.Done()
+		logger.Info().Msg("shutting down child processes")
+		routerPlugin.ShutdownAll(context.Background())
 	}()
 
 	// Eager warm-up: launch discovered children before serving

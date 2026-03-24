@@ -176,31 +176,35 @@ func (r *ChildRegistry) ShutdownAll(ctx context.Context) {
 // WarmUp launches all idle children in parallel background goroutines.
 // It returns immediately (fire-and-forget). Children that fail to start
 // remain available for retry on first actual request via GetOrLaunch().
+//
+// WarmUp routes through GetOrLaunch to use the same per-region mutex and
+// state machine, preventing race conditions where concurrent gRPC requests
+// would receive errors during the warm-up window.
 func (r *ChildRegistry) WarmUp(ctx context.Context) {
 	r.mu.RLock()
-	idle := make([]*ChildProcess, 0, len(r.children))
-	for _, child := range r.children {
+	regions := make([]string, 0, len(r.children))
+	for region, child := range r.children {
 		if child.State() == ChildStateIdle {
-			idle = append(idle, child)
+			regions = append(regions, region)
 		}
 	}
 	r.mu.RUnlock()
 
-	if len(idle) == 0 {
+	if len(regions) == 0 {
 		return
 	}
 
-	r.logger.Info().Int("count", len(idle)).Msg("warming up discovered children")
+	r.logger.Info().Int("count", len(regions)).Msg("warming up discovered children")
 
-	for _, child := range idle {
-		go func(c *ChildProcess) {
-			if err := c.Launch(ctx); err != nil {
+	for _, region := range regions {
+		go func(rgn string) {
+			if _, err := r.GetOrLaunch(ctx, rgn); err != nil {
 				r.logger.Warn().
-					Str("region", c.region).
+					Str("region", rgn).
 					Err(err).
 					Msg("warm-up failed, will retry on first request")
 			}
-		}(child)
+		}(region)
 	}
 }
 

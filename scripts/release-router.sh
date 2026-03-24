@@ -13,6 +13,9 @@ set -euo pipefail
 
 echo "=== Building router binary ==="
 
+# Ensure temp config is cleaned up on any exit (including set -e failures)
+trap 'rm -f .goreleaser.router.yaml' EXIT
+
 cat > ".goreleaser.router.yaml" << 'EOF'
 version: 2
 
@@ -69,9 +72,6 @@ mkdir -p dist
 mv _build/router/*.tar.gz _build/router/*.zip dist/ 2>/dev/null || true
 rm -rf _build
 
-# Clean up
-rm -f .goreleaser.router.yaml
-
 echo "=== Router build complete ==="
 found=false
 for f in dist/finfocus-plugin-aws-public_*; do
@@ -80,4 +80,4 @@ for f in dist/finfocus-plugin-aws-public_*; do
   ls -lh "$f"
   found=true
 done
-[ "$found" = true ] || echo "No router archives found"
+[ "$found" = true ] || { echo "ERROR: No router archives found" >&2; exit 1; }

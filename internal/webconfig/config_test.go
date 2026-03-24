@@ -1,4 +1,4 @@
-package main
+package webconfig
 
 import (
 	"testing"
@@ -56,7 +56,7 @@ func TestParseWebConfig(t *testing.T) {
 				"FINFOCUS_CORS_ALLOWED_ORIGINS": "*",
 			},
 			validate: func(t *testing.T, config pluginsdk.WebConfig) {
-				assert.Empty(t, config.AllowedOrigins)
+				assert.Equal(t, []string{"*"}, config.AllowedOrigins)
 			},
 		},
 		{
@@ -66,7 +66,7 @@ func TestParseWebConfig(t *testing.T) {
 				"FINFOCUS_CORS_ALLOWED_ORIGINS": "foo.com, *, bar.com",
 			},
 			validate: func(t *testing.T, config pluginsdk.WebConfig) {
-				assert.Equal(t, []string{"foo.com", "bar.com"}, config.AllowedOrigins)
+				assert.Equal(t, []string{"foo.com", "*", "bar.com"}, config.AllowedOrigins)
 			},
 		},
 		{
@@ -169,7 +169,7 @@ func TestParseWebConfig(t *testing.T) {
 			}
 
 			// Execute
-			config, err := parseWebConfig(tt.enabled, logger)
+			config, err := ParseWebConfig(tt.enabled, logger)
 
 			// Validate
 			if tt.expectedError != "" {

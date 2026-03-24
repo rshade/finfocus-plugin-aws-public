@@ -10,7 +10,8 @@ import (
 )
 
 // TestChildRegistry_WarmUp_LaunchesIdleChildren verifies that WarmUp
-// launches goroutines for all idle children without blocking.
+// launches goroutines for all idle children without blocking, and that
+// children actually attempt to transition out of Idle state.
 func TestChildRegistry_WarmUp_LaunchesIdleChildren(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 
@@ -27,17 +28,25 @@ func TestChildRegistry_WarmUp_LaunchesIdleChildren(t *testing.T) {
 
 	// WarmUp should return immediately (fire-and-forget goroutines)
 	ctx := context.Background()
-	done := make(chan struct{})
-	go func() {
-		registry.WarmUp(ctx)
-		close(done)
-	}()
+	start := time.Now()
+	registry.WarmUp(ctx)
+	elapsed := time.Since(start)
+	assert.Less(t, elapsed, 100*time.Millisecond, "WarmUp should return immediately")
 
-	select {
-	case <-done:
-		// WarmUp returned without blocking - correct
-	case <-time.After(1 * time.Second):
-		t.Fatal("WarmUp blocked for more than 1 second")
+	// Wait for background goroutines to complete (they fail fast on nonexistent binaries)
+	assert.Eventually(t, func() bool {
+		for _, region := range []string{"us-east-1", "us-west-2"} {
+			if registry.Get(region).State() == ChildStateIdle {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Second, 50*time.Millisecond, "children should transition out of Idle state")
+
+	// Verify children attempted launch and ended up Unhealthy (binary doesn't exist)
+	for _, region := range []string{"us-east-1", "us-west-2"} {
+		state := registry.Get(region).State()
+		assert.NotEqual(t, ChildStateIdle, state, "region %s should have left Idle state", region)
 	}
 }
 
