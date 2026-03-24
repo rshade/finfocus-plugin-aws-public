@@ -40,18 +40,75 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
+            ## Review Process
 
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+            1. Run `gh pr view $PR_NUMBER --repo $REPO` to understand the PR context
+            2. Run `gh pr diff $PR_NUMBER --repo $REPO` to get the full diff
+            3. Read CLAUDE.md for project architecture, conventions, and known pitfalls
+            4. Read .coderabbit.yaml for path-specific review instructions — especially the
+               `path_instructions` section which has per-directory guidance on test conventions,
+               validation patterns, and false-positive avoidance rules. Respect these rules
+               (e.g., don't flag split test coverage, don't flag createTestZip as dead code,
+               don't suggest replacing silent fallback with validateNonNegativeFloat64 in recommendations)
+            5. Read changed files in full (not just the diff) to understand surrounding context
+            6. Focus your review on the changeset — assume unchanged code was working before
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+            ## What to Review
+
+            **Bugs & Correctness:**
+            - Logic errors, off-by-one, nil/zero-value handling
+            - Thread safety (this is a concurrent gRPC server)
+            - Context propagation and cancellation
+            - Error handling using proto ErrorCode enum (not custom codes)
+
+            **Project-Specific Patterns (from CLAUDE.md):**
+            - Embed file sync: if new services added, BOTH `embed_template.go.tmpl` AND `embed_fallback.go` must be updated
+            - Build tag consistency across region-specific files
+            - Resource type normalization: all code paths must use `normalizeResourceType()` before `detectService()`
+            - Zero-cost resources (VPC, SG, Subnet, IAM) must return $0 gracefully, not errors
+            - Logging: stderr only via zerolog, stdout reserved for PORT announcement
+            - No pricing data filtering in generate-pricing (past regressions from this)
+            - Dual-path test coverage: if a helper is used by multiple callers, test ALL callers
+
+            **Code Quality:**
+            - Dead code, unreachable branches
+            - Code duplication that should be shared
+            - Missing or stale docstrings on exported functions
+            - Test quality (no "AI slop" — redundant cases, unused fields, over-complicated helpers)
+
+            ## Output Format
+
+            Post your ENTIRE review as a SINGLE `gh pr comment` using a heredoc — NEVER split into multiple comments.
+
+            Structure the comment as:
+            ```
+            ## Code Review: PR #<number> — <title>
+
+            <1-2 sentence overall assessment>
+
+            ### Bugs / Correctness
+            <numbered list with file:line references and code snippets>
+
+            ### Code Quality
+            <numbered list, lower severity>
+
+            ### What's Good
+            <bullet points — call out good patterns>
+
+            ### Summary
+            | Severity | Count |
+            |----------|-------|
+            | Critical | N     |
+            | High     | N     |
+            | Medium   | N     |
+            | Low/Nit  | N     |
+            ```
+
+            If a section has no findings, write "No issues found" — do not omit the section.
+            Always reference specific `file:line` locations.
+            Be constructive — explain WHY something is a problem and suggest a fix.
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          claude_args: '--allowed-tools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
 

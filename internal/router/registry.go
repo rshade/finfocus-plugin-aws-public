@@ -173,6 +173,44 @@ func (r *ChildRegistry) ShutdownAll(ctx context.Context) {
 	r.logger.Info().Msg("all children shut down")
 }
 
+// WarmUp launches all idle children in parallel background goroutines.
+// It returns immediately (fire-and-forget). Children that fail to start
+// remain available for retry on first actual request via GetOrLaunch().
+//
+// WarmUp routes through GetOrLaunch to use the same per-region mutex and
+// state machine, preventing race conditions where concurrent gRPC requests
+// would receive errors during the warm-up window.
+//
+// Warm-up goroutines use context.Background() so they are not cancelled
+// if the caller's context is cancelled (e.g., during shutdown).
+func (r *ChildRegistry) WarmUp(_ context.Context) {
+	r.mu.RLock()
+	regions := make([]string, 0, len(r.children))
+	for region, child := range r.children {
+		if child.State() == ChildStateIdle {
+			regions = append(regions, region)
+		}
+	}
+	r.mu.RUnlock()
+
+	if len(regions) == 0 {
+		return
+	}
+
+	r.logger.Info().Int("count", len(regions)).Msg("warming up discovered children")
+
+	for _, region := range regions {
+		go func(rgn string) { //nolint:gosec // G118: intentional — warm-up goroutines must outlive the caller context
+			if _, err := r.GetOrLaunch(context.Background(), rgn); err != nil {
+				r.logger.Warn().
+					Str("region", rgn).
+					Err(err).
+					Msg("warm-up failed, will retry on first request")
+			}
+		}(region)
+	}
+}
+
 // restartChild attempts to restart an unhealthy child with retry limits.
 func (r *ChildRegistry) restartChild(ctx context.Context, child *ChildProcess) (*pluginsdk.Client, error) {
 	for attempt := 1; attempt <= maxRetries; attempt++ {

@@ -89,10 +89,44 @@ reviews:
         not by feature. Check sibling test files before flagging gaps.
     - path: "internal/router/**"
       instructions: |
+        The router manages child processes (one per AWS region) with a
+        state machine: Idle → Launching → Ready/Unhealthy/Failed.
+
+        Concurrency rules:
+        - GetOrLaunch uses per-region mutexes (getRegionMutex) to serialize
+          launches. Any code that launches children MUST go through
+          GetOrLaunch, not call child.Launch() directly.
+        - WarmUp routes through GetOrLaunch for the same reason. If you
+          see a direct child.Launch() call outside of GetOrLaunch, flag it
+          as a race condition.
+        - ChildRegistry.mu (RWMutex) protects the children map. Per-region
+          mutexes (regionMutexes) serialize operations on individual children.
+          These are separate locks — do not confuse them.
+
+        Context propagation:
+        - Child processes use context.Background() for their lifetime (not
+          the request context). ShutdownAll also needs its own independent
+          context for the 30s timeout — do not pass a potentially cancelled
+          parent context.
+
         Archive format is platform-conditional: .tar.gz on Linux/macOS,
         .zip on Windows (runtime.GOOS in archiveName()). Both createTestZip
         and createTestTarball helpers exist; on Linux CI only tar.gz runs.
         Do not flag createTestZip as untested or dead code.
+    - path: "cmd/**"
+      instructions: |
+        Both cmd packages (plugin and router) share web config parsing via
+        internal/webconfig. If you see CORS or web config logic duplicated
+        between cmd packages, flag it — it should be in the shared package.
+
+        Shutdown pattern: the router uses signal.NotifyContext for graceful
+        shutdown. ShutdownAll must receive context.Background(), not the
+        serve context, because the serve context is already cancelled when
+        shutdown runs. Flag any ShutdownAll call that passes a derived or
+        cancellable context.
+
+        Avoid logger.Fatal() in run() functions — it calls os.Exit(1) and
+        bypasses defer cleanup. Use logger.Error() + return err instead.
     - path: "tools/**"
       instructions: |
         Build-time code generators, not production runtime code. These tools
