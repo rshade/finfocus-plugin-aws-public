@@ -75,11 +75,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Shutdown children when context is cancelled (signal or serve error).
+	// Shutdown children synchronously when run() returns (signal or serve error).
 	// Use context.Background() so ShutdownAll gets its own independent 30s timeout
 	// rather than inheriting the already-cancelled ctx.
-	go func() {
-		<-ctx.Done()
+	defer func() {
 		logger.Info().Msg("shutting down child processes")
 		routerPlugin.ShutdownAll(context.Background())
 	}()

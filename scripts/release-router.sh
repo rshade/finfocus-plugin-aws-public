@@ -69,15 +69,21 @@ goreleaser release --config .goreleaser.router.yaml --skip=validate,announce,pub
 
 # Move archives to main dist folder
 mkdir -p dist
-mv _build/router/*.tar.gz _build/router/*.zip dist/ 2>/dev/null || true
+shopt -s nullglob
+archives=(_build/router/*.tar.gz _build/router/*.zip)
+if [ "${#archives[@]}" -eq 0 ]; then
+  echo "ERROR: No archives generated in _build/router" >&2
+  exit 1
+fi
+mv "${archives[@]}" dist/
+shopt -u nullglob
 rm -rf _build
 
 echo "=== Router build complete ==="
 found=false
 for f in dist/finfocus-plugin-aws-public_*; do
   [ -e "$f" ] || continue
-  case "$(basename "$f")" in *-[a-z]*) continue;; esac
   ls -lh "$f"
   found=true
 done
-[ "$found" = true ] || { echo "ERROR: No router archives found" >&2; exit 1; }
+[ "$found" = true ] || { echo "ERROR: No router archives found in dist/" >&2; exit 1; }
