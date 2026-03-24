@@ -13,6 +13,10 @@ set -euo pipefail
 
 echo "=== Building router binary ==="
 
+# GoReleaser builds: linux/{amd64,arm64}, darwin/{amd64,arm64}, windows/{amd64,arm64}
+# = 4 tar.gz + 2 zip = 6 archives. Update if platform matrix changes.
+expected_count=6
+
 # Ensure temp config is cleaned up on any exit (including set -e failures)
 trap 'rm -f .goreleaser.router.yaml' EXIT
 
@@ -72,7 +76,13 @@ mkdir -p dist
 shopt -s nullglob
 archives=(_build/router/*.tar.gz _build/router/*.zip)
 if [ "${#archives[@]}" -eq 0 ]; then
-  echo "ERROR: No archives generated in _build/router" >&2
+  echo "ERROR: No archives found matching _build/router/*.tar.gz or _build/router/*.zip" >&2
+  exit 1
+fi
+if [ "${#archives[@]}" -ne "$expected_count" ]; then
+  echo "ERROR: Expected $expected_count archives but found ${#archives[@]} in _build/router/" >&2
+  echo "  Expected: 4 tar.gz (linux/darwin × amd64/arm64) + 2 zip (windows × amd64/arm64)" >&2
+  printf "  Found: %s\n" "${archives[@]}" >&2
   exit 1
 fi
 mv "${archives[@]}" dist/
@@ -80,10 +90,13 @@ shopt -u nullglob
 rm -rf _build
 
 echo "=== Router build complete ==="
-found=false
-for f in dist/finfocus-plugin-aws-public_*; do
-  [ -e "$f" ] || continue
+shopt -s nullglob
+dist_archives=(dist/finfocus-plugin-aws-public_*.tar.gz dist/finfocus-plugin-aws-public_*.zip)
+shopt -u nullglob
+if [ "${#dist_archives[@]}" -ne "$expected_count" ]; then
+  echo "ERROR: Expected $expected_count archives in dist/ but found ${#dist_archives[@]}" >&2
+  exit 1
+fi
+for f in "${dist_archives[@]}"; do
   ls -lh "$f"
-  found=true
 done
-[ "$found" = true ] || { echo "ERROR: No router archives found in dist/" >&2; exit 1; }
