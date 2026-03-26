@@ -90,11 +90,23 @@ shopt -u nullglob
 rm -rf _build
 
 echo "=== Router build complete ==="
+# Count only router archives (no region suffix after the arch field).
+# Region archives have a trailing _<region> (e.g., _us-east-1), so we exclude
+# any archive whose basename matches *_[a-z]*-[a-z]*-[0-9]*.{tar.gz,zip}.
 shopt -s nullglob
-dist_archives=(dist/finfocus-plugin-aws-public_*.tar.gz dist/finfocus-plugin-aws-public_*.zip)
+dist_archives=()
+for f in dist/finfocus-plugin-aws-public_*.tar.gz dist/finfocus-plugin-aws-public_*.zip; do
+  base="$(basename "$f")"
+  # Skip region-specific archives (contain region like us-east-1, eu-west-1, etc.)
+  case "$base" in
+    *_[a-z]*-[a-z]*-[0-9]*.tar.gz|*_[a-z]*-[a-z]*-[0-9]*.zip) continue ;;
+  esac
+  dist_archives+=("$f")
+done
 shopt -u nullglob
 if [ "${#dist_archives[@]}" -ne "$expected_count" ]; then
-  echo "ERROR: Expected $expected_count archives in dist/ but found ${#dist_archives[@]}" >&2
+  echo "ERROR: Expected $expected_count router archives in dist/ but found ${#dist_archives[@]}" >&2
+  printf "  Found: %s\n" "${dist_archives[@]}" >&2
   exit 1
 fi
 for f in "${dist_archives[@]}"; do

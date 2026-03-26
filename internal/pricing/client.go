@@ -20,6 +20,12 @@ const (
 	unitHours   = "Hrs"
 )
 
+// EC2 product family identifiers from AWS Price List API.
+const (
+	productFamilyComputeInstance          = "Compute Instance"
+	productFamilyComputeInstanceBareMetal = "Compute Instance (bare metal)"
+)
+
 // isHourlyUnit reports whether the AWS pricing unit represents an hourly rate.
 // AWS pricing data may use "hour", "hours", or "hrs" with varying capitalization.
 func isHourlyUnit(unit string) bool {
@@ -540,8 +546,9 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 			region = attrs["regionCode"]
 		}
 
-		// EC2 Instances
-		if prod.ProductFamily == "Compute Instance" {
+		// EC2 Instances (includes bare metal which uses a different product family)
+		if prod.ProductFamily == productFamilyComputeInstance ||
+			prod.ProductFamily == productFamilyComputeInstanceBareMetal {
 			instType := attrs["instanceType"]
 			os := attrs["operatingSystem"]
 			tenancy := attrs["tenancy"]

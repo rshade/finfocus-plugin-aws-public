@@ -932,3 +932,114 @@ func TestClient_parseELBPricing_Logic(t *testing.T) {
 		t.Errorf("expected NLB NLCU 0, got %v", client.elbPricing.NLBNLCURate)
 	}
 }
+
+// TestClient_parseEC2Pricing_BareMetalProductFamily verifies that parseEC2Pricing indexes
+// bare metal EC2 instances whose productFamily is "Compute Instance (bare metal)".
+//
+// AWS pricing data uses a different productFamily string for bare metal instances compared
+// to standard instances ("Compute Instance"). Without handling both families, all .metal
+// instance types silently return $0 cost.
+//
+// Workflow:
+//  1. Creates a minimal JSON fixture with productFamily "Compute Instance (bare metal)"
+//  2. Parses the fixture through parseEC2Pricing
+//  3. Verifies the bare metal instance is indexed and its price is correct
+//
+// Run with: go test -tags=region_use1 -run TestClient_parseEC2Pricing_BareMetalProductFamily ./internal/pricing/...
+func TestClient_parseEC2Pricing_BareMetalProductFamily(t *testing.T) {
+	jsonData := []byte(`{
+		"formatVersion": "v1.0",
+		"offerCode": "AmazonEC2",
+		"version": "test-version",
+		"publicationDate": "2025-01-01T00:00:00Z",
+		"products": {
+			"SKU_BARE_METAL": {
+				"sku": "SKU_BARE_METAL",
+				"productFamily": "Compute Instance (bare metal)",
+				"attributes": {
+					"instanceType": "c5.metal",
+					"operatingSystem": "Linux",
+					"tenancy": "Shared",
+					"regionCode": "us-west-2",
+					"capacitystatus": "Used",
+					"preInstalledSw": "NA"
+				}
+			},
+			"SKU_STANDARD": {
+				"sku": "SKU_STANDARD",
+				"productFamily": "Compute Instance",
+				"attributes": {
+					"instanceType": "c5.xlarge",
+					"operatingSystem": "Linux",
+					"tenancy": "Shared",
+					"regionCode": "us-west-2",
+					"capacitystatus": "Used",
+					"preInstalledSw": "NA"
+				}
+			}
+		},
+		"terms": {
+			"OnDemand": {
+				"SKU_BARE_METAL": {
+					"SKU_BARE_METAL.OFFER": {
+						"offerTermCode": "OFFER",
+						"sku": "SKU_BARE_METAL",
+						"priceDimensions": {
+							"SKU_BARE_METAL.OFFER.RATE": {
+								"rateCode": "SKU_BARE_METAL.OFFER.RATE",
+								"unit": "Hrs",
+								"pricePerUnit": { "USD": "4.0800" }
+							}
+						}
+					}
+				},
+				"SKU_STANDARD": {
+					"SKU_STANDARD.OFFER": {
+						"offerTermCode": "OFFER",
+						"sku": "SKU_STANDARD",
+						"priceDimensions": {
+							"SKU_STANDARD.OFFER.RATE": {
+								"rateCode": "SKU_STANDARD.OFFER.RATE",
+								"unit": "Hrs",
+								"pricePerUnit": { "USD": "0.1700" }
+							}
+						}
+					}
+				}
+			}
+		}
+	}`)
+
+	client := &Client{
+		logger:           zerolog.Nop(),
+		ec2Index:         make(map[string]ec2Price),
+		ebsIndex:         make(map[string]ebsPrice),
+		rdsInstanceIndex: make(map[string]rdsInstancePrice),
+		rdsStorageIndex:  make(map[string]rdsStoragePrice),
+		s3Index:          make(map[string]s3Price),
+	}
+
+	_, _, err := client.parseEC2Pricing(jsonData)
+	if err != nil {
+		t.Fatalf("parseEC2Pricing failed: %v", err)
+	}
+
+	// Standard instance should be indexed
+	standardKey := "c5.xlarge/Linux/Shared"
+	if _, found := client.ec2Index[standardKey]; !found {
+		t.Errorf("standard instance %s not found in index", standardKey)
+	}
+
+	// Bare metal instance MUST also be indexed
+	bareMetalKey := "c5.metal/Linux/Shared"
+	price, found := client.ec2Index[bareMetalKey]
+	if !found {
+		t.Fatalf("bare metal instance %s not found in ec2Index — productFamily 'Compute Instance (bare metal)' was not parsed", bareMetalKey)
+	}
+	if price.HourlyRate != 4.08 {
+		t.Errorf("expected bare metal price 4.08, got %v", price.HourlyRate)
+	}
+	if price.Currency != "USD" {
+		t.Errorf("expected currency USD, got %s", price.Currency)
+	}
+}
