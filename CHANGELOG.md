@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.6...v0.1.7) (2026-03-26)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.6 ([#346](https://github.com/rshade/finfocus-plugin-aws-public/issues/346)) ([45d6a8d](https://github.com/rshade/finfocus-plugin-aws-public/commit/45d6a8dc9e2cf7e55ae9453400ef2af1e9d173a4))
+* filter region archives from router validation & index bare metal EC2 pricing ([#348](https://github.com/rshade/finfocus-plugin-aws-public/issues/348)) ([e79734d](https://github.com/rshade/finfocus-plugin-aws-public/commit/e79734db090a32258df18aace592f625c7731e33)), closes [#347](https://github.com/rshade/finfocus-plugin-aws-public/issues/347)
+
 ## [0.1.6](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.5...v0.1.6) (2026-03-24)
 
 
