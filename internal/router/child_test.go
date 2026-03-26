@@ -212,3 +212,31 @@ func TestChildProcess_Shutdown_NilCancel(t *testing.T) {
 	err := child.Shutdown(context.Background())
 	assert.NoError(t, err)
 }
+
+// TestFilterEnv verifies that filterEnv removes entries matching given prefixes
+// while preserving all other environment variables.
+func TestFilterEnv(t *testing.T) {
+	env := []string{
+		"HOME=/home/user",
+		"PORT=36597",
+		"FINFOCUS_PLUGIN_PORT=36597",
+		"PATH=/usr/bin",
+		"FINFOCUS_PLUGIN_WEB_ENABLED=true",
+	}
+	filtered := filterEnv(env, "PORT=", "FINFOCUS_PLUGIN_PORT=")
+
+	assert.Len(t, filtered, 3)
+	assert.NotContains(t, filtered, "PORT=36597")
+	assert.NotContains(t, filtered, "FINFOCUS_PLUGIN_PORT=36597")
+	assert.Contains(t, filtered, "HOME=/home/user")
+	assert.Contains(t, filtered, "PATH=/usr/bin")
+	assert.Contains(t, filtered, "FINFOCUS_PLUGIN_WEB_ENABLED=true")
+}
+
+// TestFilterEnv_NoMatch verifies that filterEnv returns all entries when no
+// prefixes match.
+func TestFilterEnv_NoMatch(t *testing.T) {
+	env := []string{"HOME=/home/user", "PATH=/usr/bin"}
+	filtered := filterEnv(env, "PORT=")
+	assert.Equal(t, env, filtered)
+}

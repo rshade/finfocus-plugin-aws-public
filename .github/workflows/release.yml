@@ -93,7 +93,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum ./*.tar.gz ./*.zip > checksums.txt
+          sha256sum *.tar.gz *.zip > checksums.txt
           cat checksums.txt
 
       # 8. Upload release assets
