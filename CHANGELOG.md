@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.8](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.7...v0.1.8) (2026-03-26)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.7 ([#350](https://github.com/rshade/finfocus-plugin-aws-public/issues/350)) ([0fd8c3a](https://github.com/rshade/finfocus-plugin-aws-public/commit/0fd8c3a0b0bf85ed8c5e31fbc0ca34061231a374))
+* **router:** fix checksum verification and child process port conflict ([#352](https://github.com/rshade/finfocus-plugin-aws-public/issues/352)) ([62ab343](https://github.com/rshade/finfocus-plugin-aws-public/commit/62ab343a3793c94612095a7d79c68a479e39646f))
+
 ## [0.1.7](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.6...v0.1.7) (2026-03-26)
 
 
