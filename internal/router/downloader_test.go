@@ -316,6 +316,11 @@ func TestDownloader_Download_ChecksumsFetchError(t *testing.T) {
 	path, err := d.Download(context.Background(), region)
 	require.NoError(t, err, "checksums.txt fetch failure should warn, not fail")
 	assert.NotEmpty(t, path)
+
+	// Verify the extracted binary exists and has correct content
+	content, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, binaryContent, content)
 }
 
 func createTestArchive(t *testing.T, archiveName, filename string, content []byte) []byte {

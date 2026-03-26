@@ -71,10 +71,12 @@ func (d *Downloader) Download(ctx context.Context, region string) (string, error
 	defer d.mu.Unlock()
 
 	// Ensure checksums are loaded (best-effort — warn on failure).
+	// We retry on each Download call until a fetch succeeds, so a transient
+	// error during the first region download doesn't permanently disable
+	// verification for all subsequent regions.
 	if d.checksums == nil {
 		if err := d.fetchChecksums(ctx); err != nil {
 			d.logger.Warn().Err(err).Msg("failed to fetch checksums, skipping verification")
-			d.checksums = make(map[string]string)
 		}
 	}
 
