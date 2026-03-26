@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -115,8 +116,9 @@ func (c *ChildProcess) Launch(ctx context.Context) error {
 
 	c.logger.Info().Str("binary", c.binaryPath).Msg("launching child process")
 
-	// Build environment for child: enable Connect protocol, use ephemeral port
-	env := os.Environ()
+	// Build environment for child: filter inherited port assignments so the child
+	// doesn't try to bind to the router's port, then request an ephemeral port.
+	env := filterEnv(os.Environ(), "PORT=", "FINFOCUS_PLUGIN_PORT=")
 	env = append(env, "FINFOCUS_PLUGIN_WEB_ENABLED=true", "PORT=0")
 
 	// Create a child-scoped context for the process lifetime. This context is independent
@@ -304,4 +306,24 @@ func (c *ChildProcess) setStateUnhealthy(err error) {
 	defer c.mu.Unlock()
 	c.state = ChildStateUnhealthy
 	c.logger.Error().Err(err).Msg("child launch failed")
+}
+
+// filterEnv returns a copy of env with entries matching any of the given
+// prefixes removed. This prevents child processes from inheriting port
+// assignments meant for the parent router.
+func filterEnv(env []string, prefixes ...string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, kv := range env {
+		skip := false
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(kv, prefix) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			filtered = append(filtered, kv)
+		}
+	}
+	return filtered
 }

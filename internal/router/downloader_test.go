@@ -51,6 +51,26 @@ func TestParseChecksums_EmptyContent(t *testing.T) {
 	assert.Empty(t, result)
 }
 
+// TestParseChecksums_DotSlashPrefix verifies that "./" prefixes on filenames
+// are stripped, matching the output of "sha256sum ./*.tar.gz".
+func TestParseChecksums_DotSlashPrefix(t *testing.T) {
+	content := "abc123  ./file1.tar.gz\ndef456  ./file2.tar.gz\n"
+	result := parseChecksums(content)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "abc123", result["file1.tar.gz"])
+	assert.Equal(t, "def456", result["file2.tar.gz"])
+}
+
+// TestParseChecksums_MixedPrefixes verifies that files with and without "./"
+// prefixes are both handled correctly.
+func TestParseChecksums_MixedPrefixes(t *testing.T) {
+	content := "abc123  ./file1.tar.gz\ndef456  file2.tar.gz\n"
+	result := parseChecksums(content)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "abc123", result["file1.tar.gz"])
+	assert.Equal(t, "def456", result["file2.tar.gz"])
+}
+
 // TestTitleCase verifies OS name title-casing for GitHub release URLs.
 func TestTitleCase(t *testing.T) {
 	tests := []struct {
@@ -225,17 +245,19 @@ func TestDownloader_Download_ChecksumMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), "SHA256 mismatch")
 }
 
-// TestDownloader_Download_MissingChecksum verifies that download fails when
-// no checksum entry exists for the requested tarball.
+// TestDownloader_Download_MissingChecksum verifies that download succeeds with a
+// warning when no checksum entry exists for the requested tarball. This matches
+// finfocus-core's lenient verification policy: only a confirmed hash mismatch is fatal.
 func TestDownloader_Download_MissingChecksum(t *testing.T) {
 	targetDir := t.TempDir()
 	region := "us-east-1"
 	binaryName := fmt.Sprintf("finfocus-plugin-aws-public-%s", region)
+	binaryContent := []byte("#!/bin/sh\necho 'test binary'")
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	d := NewDownloader("1.0.0", targetDir, logger)
 	archiveName := d.archiveName(region)
 
-	archiveBytes := createTestArchive(t, archiveName, binaryName, []byte("binary"))
+	archiveBytes := createTestArchive(t, archiveName, binaryName, binaryContent)
 
 	// Checksums file has no entry for our archive.
 	checksumContent := "abc123  some-other-file.tar.gz\n"
@@ -254,9 +276,46 @@ func TestDownloader_Download_MissingChecksum(t *testing.T) {
 
 	d.baseURL = server.URL
 
-	_, err := d.Download(context.Background(), region)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no checksum found")
+	path, err := d.Download(context.Background(), region)
+	require.NoError(t, err, "missing checksum entry should warn, not fail")
+	assert.NotEmpty(t, path)
+
+	// Verify the extracted binary exists and has correct content
+	content, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, binaryContent, content)
+}
+
+// TestDownloader_Download_ChecksumsFetchError verifies that download succeeds
+// with a warning when checksums.txt cannot be fetched (e.g., 404).
+func TestDownloader_Download_ChecksumsFetchError(t *testing.T) {
+	targetDir := t.TempDir()
+	region := "us-east-1"
+	binaryName := fmt.Sprintf("finfocus-plugin-aws-public-%s", region)
+	binaryContent := []byte("#!/bin/sh\necho 'test binary'")
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	d := NewDownloader("1.0.0", targetDir, logger)
+	archiveName := d.archiveName(region)
+
+	archiveBytes := createTestArchive(t, archiveName, binaryName, binaryContent)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1.0.0/checksums.txt":
+			w.WriteHeader(http.StatusNotFound)
+		case "/v1.0.0/" + archiveName:
+			w.Write(archiveBytes)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	d.baseURL = server.URL
+
+	path, err := d.Download(context.Background(), region)
+	require.NoError(t, err, "checksums.txt fetch failure should warn, not fail")
+	assert.NotEmpty(t, path)
 }
 
 func createTestArchive(t *testing.T, archiveName, filename string, content []byte) []byte {
