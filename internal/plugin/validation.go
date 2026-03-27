@@ -39,22 +39,10 @@ func (p *AWSPublicPlugin) validateProvider(traceID string, provider string) erro
 	return nil
 }
 
-// isZeroCostResource checks if a resource type maps to a zero-cost resource.
-// Returns false for empty, malformed, or unrecognized resource types by design,
-// since normalizeResourceType() and detectService() will return empty strings
-// or the original input, which won't match any ZeroCostServices keys.
-//
-// Note: Zero-cost services are defined centrally in ZeroCostServices (constants.go).
-func isZeroCostResource(resourceType string) bool {
-	normalized := normalizeResourceType(resourceType)
-	service := detectService(normalized)
-	return IsZeroCostService(service)
-}
-
-// isZeroCostResourceWithResolver checks if a resource type maps to a zero-cost resource
-// using a pre-computed serviceResolver. This avoids redundant normalization and detection.
-func isZeroCostResourceWithResolver(resolver *serviceResolver) bool {
-	return IsZeroCostService(resolver.ServiceType())
+// allowsEmptySKU returns true for services that resolve their primary identifier from tags
+// rather than requiring it in the SKU field. These services bypass SDK SKU validation.
+func allowsEmptySKU(service string) bool {
+	return service == serviceASG
 }
 
 // ValidateProjectedCostRequest validates the request using SDK helpers and custom region checks.
@@ -77,24 +65,21 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(
 
 	resource := req.GetResource()
 
-	// Check if this is a zero-cost resource BEFORE SDK validation.
+	// Check if this is a zero-cost resource or tag-resolved service BEFORE SDK validation.
 	// Zero-cost resources (VPC, Security Groups, Subnets) don't require a SKU
 	// since they always return $0 cost estimates.
-	// Note: isZeroCostResource() guarantees a non-empty, known type via
-	// normalizeResourceType() and detectService(), so no separate empty check needed.
-	if isZeroCostResource(resource.GetResourceType()) {
+	// Tag-resolved services (ASG) resolve their primary identifier from tags.
+	normalizedRT := normalizeResourceType(resource.GetResourceType())
+	detectedSvc := detectService(normalizedRT)
+	if IsZeroCostService(detectedSvc) || allowsEmptySKU(detectedSvc) {
 		// Validate provider and region manually (skip SDK's SKU requirement)
 		if err := p.validateProvider(traceID, resource.GetProvider()); err != nil {
 			return nil, err
 		}
 
-		// Region check for zero-cost resources
+		// Region check
 		effectiveRegion := resource.GetRegion()
 		if effectiveRegion == "" {
-			// Zero-cost networking resources (VPC, SecurityGroup, Subnet) are technically regional,
-			// but since their cost is always $0 regardless of region, we can safely default to the
-			// plugin's current region to allow processing. This aligns with how we handle global
-			// services like S3 and IAM.
 			effectiveRegion = p.region
 		}
 		if effectiveRegion != p.region {
@@ -174,15 +159,16 @@ func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(
 
 	resource := req.GetResource()
 
-	// Check if this is a zero-cost resource BEFORE SDK validation.
+	// Check if this is a zero-cost resource or tag-resolved service BEFORE SDK validation.
 	// Use resolver to avoid redundant detectService() calls.
-	if isZeroCostResourceWithResolver(resolver) {
+	svcType := resolver.ServiceType()
+	if IsZeroCostService(svcType) || allowsEmptySKU(svcType) {
 		// Validate provider and region manually (skip SDK's SKU requirement)
 		if err := p.validateProvider(traceID, resource.GetProvider()); err != nil {
 			return nil, err
 		}
 
-		// Region check for zero-cost resources
+		// Region check
 		effectiveRegion := resource.GetRegion()
 		if effectiveRegion == "" {
 			effectiveRegion = p.region

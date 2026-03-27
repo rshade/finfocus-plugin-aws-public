@@ -53,6 +53,11 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			return serviceIAM
 		}
 
+		// ASG: aws:autoscaling/group:Group
+		if strings.Contains(rt, "autoscaling/group") {
+			return serviceASG
+		}
+
 		// Zero-cost EC2 networking resources (centralized in ZeroCostPulumiPatterns)
 		// Use token-aware matching to avoid false positives (e.g., "ec2/vpc" matching "ec2/vpcEndpoint")
 		awsSuffix := rt[4:] // Remove "aws:" prefix (already verified above)
@@ -218,6 +223,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateCloudWatch(traceID, resource)
 	case serviceElastiCache:
 		resp, err = p.estimateElastiCache(traceID, resource)
+	case serviceASG:
+		resp, err = p.estimateASG(traceID, resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
@@ -1226,6 +1233,81 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 	return resp, nil
 }
 
+// estimateASG calculates projected monthly cost for an Auto Scaling Group.
+// ASGs have no direct AWS charge; cost is the aggregate of managed EC2 instances:
+// cost = EC2 hourly rate × desired_capacity × 730 hours/month.
+func (p *AWSPublicPlugin) estimateASG(
+	traceID string,
+	resource *pbc.ResourceDescriptor,
+) (*pbc.GetProjectedCostResponse, error) {
+	attrs, dt, err := ExtractASGAttributes(resource)
+	if err != nil {
+		return nil, err
+	}
+
+	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(attrs.InstanceType, attrs.OS, defaultTenancy)
+	if !found {
+		return nil, &PricingUnavailableError{
+			Service:       "ASG",
+			SKU:           attrs.InstanceType,
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", attrs.InstanceType),
+		}
+	}
+
+	monthlyCost := hourlyRate * float64(attrs.DesiredCapacity) * HoursPerMonthProd
+
+	billingDetail := fmt.Sprintf("ASG: %d× %s On-demand %s, 730 hrs/month",
+		attrs.DesiredCapacity, attrs.InstanceType, attrs.OS)
+	if attrs.DesiredCapacity == 0 {
+		billingDetail += " (zero instances)"
+	}
+
+	tags := resource.GetTags()
+	if tags != nil {
+		if _, hasMixed := tags["mixed_instances_policy"]; hasMixed {
+			billingDetail += " (mixed instance policies not yet supported, using primary instance type)"
+		}
+	}
+
+	resp := &pbc.GetProjectedCostResponse{
+		CostPerMonth:  monthlyCost,
+		UnitPrice:     hourlyRate,
+		Currency:      "USD",
+		BillingDetail: billingDetail,
+		Metadata:      dt.Metadata(),
+	}
+
+	asgEstimator := carbon.NewASGEstimator()
+	totalCarbon, carbonOK := asgEstimator.EstimateCarbonGrams(carbon.ASGConfig{
+		InstanceType:    attrs.InstanceType,
+		Region:          resource.GetRegion(),
+		DesiredCapacity: attrs.DesiredCapacity,
+		Utilization:     carbon.DefaultUtilization,
+		Hours:           carbon.HoursPerMonth,
+	})
+	if carbonOK && totalCarbon > 0 {
+		resp.ImpactMetrics = []*pbc.ImpactMetric{
+			{
+				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
+				Value: totalCarbon,
+				Unit:  "gCO2e",
+			},
+		}
+		p.traceLogger(traceID, "estimateASG").Debug().
+			Float64("carbon_grams", totalCarbon).
+			Int("instance_count", attrs.DesiredCapacity).
+			Msg("ASG carbon estimation successful")
+	}
+
+	setGrowthHint(
+		p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(),
+		"aws:autoscaling:autoScalingGroup",
+		resp,
+	)
+
+	return resp, nil
+}
+
 // detectService maps a provider resource type string to a normalized service identifier.
 // The input resourceType is expected to be normalized by normalizeResourceType().
 func detectService(resourceType string) string {
@@ -1243,6 +1325,8 @@ func detectService(resourceType string) string {
 		serviceCloudWatch,
 		serviceElastiCache:
 		return resourceType
+	case serviceASG, "autoscaling":
+		return serviceASG
 	case serviceALB, serviceNLB:
 		return serviceELB
 	case "nat_gateway", "nat-gateway", "natgateway":
@@ -1297,6 +1381,9 @@ func detectService(resourceType string) string {
 	}
 	if strings.Contains(resourceTypeLower, "iam/") {
 		return serviceIAM
+	}
+	if strings.Contains(resourceTypeLower, "autoscaling/group") {
+		return serviceASG
 	}
 
 	return resourceType

@@ -60,6 +60,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.natGatewayPricingSpec(resource)
 	case serviceCloudWatch:
 		spec = p.cloudWatchPricingSpec(resource)
+	case serviceASG:
+		spec = p.asgPricingSpec(resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
 		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:
@@ -712,5 +714,66 @@ func (p *AWSPublicPlugin) zeroCostPricingSpec(
 		Description:  description,
 		Source:       "aws-public",
 		Assumptions:  []string{"No direct AWS charges for this resource type"},
+	}
+}
+
+// asgPricingSpec returns the pricing specification for Auto Scaling Groups.
+// ASGs delegate to EC2 instance pricing; the total cost is the per-instance rate × desired capacity.
+func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
+	instanceType := resource.GetSku()
+	if instanceType == "" {
+		if tags := resource.GetTags(); tags != nil {
+			instanceType = resolveInstanceType("", tags)
+		}
+	}
+
+	if instanceType == "" {
+		return &pbc.PricingSpec{
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Region:       resource.GetRegion(),
+			BillingMode:  "on_demand",
+			RatePerUnit:  0,
+			Currency:     "USD",
+			Unit:         "per-instance-hour",
+			Description:  "ASG instance type not specified: set 'sku' field or 'instance_type' tag",
+			Source:       "aws-public",
+		}
+	}
+
+	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, defaultOS, defaultTenancy)
+	if !found {
+		return &pbc.PricingSpec{
+			Provider:     resource.GetProvider(),
+			ResourceType: resource.GetResourceType(),
+			Sku:          instanceType,
+			Region:       resource.GetRegion(),
+			BillingMode:  "on_demand",
+			RatePerUnit:  0,
+			Currency:     "USD",
+			Unit:         "per-instance-hour",
+			Description:  fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", instanceType),
+			Source:       "aws-public",
+			Assumptions:  []string{"Instance type not found in embedded pricing data"},
+		}
+	}
+
+	return &pbc.PricingSpec{
+		Provider:     resource.GetProvider(),
+		ResourceType: resource.GetResourceType(),
+		Sku:          instanceType,
+		Region:       resource.GetRegion(),
+		BillingMode:  "on_demand",
+		RatePerUnit:  hourlyRate,
+		Currency:     "USD",
+		Unit:         "per-instance-hour",
+		Description:  fmt.Sprintf("ASG cost = %s hourly rate × desired_capacity × 730 hrs/month", instanceType),
+		Source:       "aws-public",
+		Assumptions: []string{
+			fmt.Sprintf("Instance type: %s", instanceType),
+			"On-demand Linux, shared tenancy",
+			"Cost = per-instance hourly rate × desired_capacity × 730",
+			"Worker instance costs only (ASG has no separate charge)",
+		},
 	}
 }

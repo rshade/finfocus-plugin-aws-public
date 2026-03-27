@@ -310,6 +310,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - S3 (Storage per GB-month by storage class)
 - Lambda (Requests + compute GB-seconds, x86_64/arm64 architecture support)
 - RDS (Instance hours + storage, Multi-engine support)
+- Auto Scaling Groups (EC2 pricing × desired capacity, carbon estimation)
 
 ## Directory Structure
 
@@ -450,6 +451,27 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - `cost_per_month`: unit_price × 730
 - `billing_detail`: "EKS cluster (<support_type> support), 730 hrs/month (control plane only, excludes worker nodes)"
 
+### Auto Scaling Groups (ASG)
+
+- `resource_type`: "asg", "autoscaling", or "aws:autoscaling/group:Group"
+- `sku`: Instance type (e.g., "m5.large") — optional, resolved from tags
+- Instance type resolution priority: `sku` → `instance_type` tag →
+  `launch_template.instance_type` → `launch_configuration.instance_type`
+- Capacity: Read from `tags["desired_capacity"]` or `tags["desiredCapacity"]`,
+  fallback to `tags["min_size"]` or `tags["minSize"]`, default 1
+- OS: Read from `tags["operating_system"]` or `tags["platform"]`, default
+  "Linux"
+- Assumptions (hardcoded for v1):
+  - `tenancy = "Shared"`
+  - `hoursPerMonth = 730` (24×7 on-demand)
+- `unit_price`: Per-instance EC2 hourly rate from pricing data
+- `cost_per_month`: unit_price × desired_capacity × 730
+- `billing_detail`: "ASG: N× <type> On-demand <OS>, 730 hrs/month"
+- No separate ASG charge — cost is entirely from managed EC2 instances
+- Root EBS volumes are excluded to avoid double-counting
+- Carbon estimation: EC2 carbon × desired_capacity (gCO2e)
+- SKU not required in request (resolved from tags); bypasses SDK SKU validation
+
 ### Elastic Load Balancing (ALB/NLB)
 
 - `resource_type`: "elb", "alb", or "nlb"
@@ -487,6 +509,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | S3 | Storage per GB-month by storage class | Requests, data transfer, lifecycle | ✅ gCO2e |
 | Lambda | Requests + compute (GB-seconds), x86_64/arm64 | Provisioned concurrency, Lambda@Edge | ✅ gCO2e |
 | DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ✅ gCO2e |
+| ASG | EC2 hourly rate × desired_capacity × 730 | Root EBS, spot/reserved, mixed instance policies | ✅ gCO2e |
 
 **Note:** EKS estimates control plane only ($0.10/hr standard, $0.50/hr extended). Estimate worker nodes separately as EC2.
 
@@ -787,6 +810,8 @@ Per CLAUDE.md performance goals: "startup < 1s, PORT < 1s, GetProjectedCost < 10
 ## Active Technologies
 - Go 1.25+ + `finfocus-spec` v0.5.6 (`pluginsdk`, `pbcconnect`), `connectrpc.com/connect` v1.19.1, `zerolog` (036-multi-region-router, 001-correctness-fixes)
 - N/A (in-memory child process registry only) (036-multi-region-router, 001-correctness-fixes)
+- Go 1.25+ + finfocus-spec v0.5.6 (pluginsdk, pbc, pbcconnect), (001-asg-estimator)
+- N/A (in-memory pricing data via `//go:embed`) (001-asg-estimator)
 
 - Go 1.25+ + gRPC (finfocus-spec/sdk/go/pluginsdk), zerolog (001-cache-service-type)
 - N/A (pure in-memory optimization, no persistence) (001-cache-service-type)

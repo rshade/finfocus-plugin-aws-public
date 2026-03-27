@@ -1670,3 +1670,31 @@ func TestGetActualCost_MixedBatch(t *testing.T) {
 		})
 	}
 }
+
+// TestGetActualCost_ASG_Routes verifies that GetActualCost routes ASG resources
+// through the ASG estimator (dual-path coverage per CLAUDE.md convention).
+func TestGetActualCost_ASG_Routes(t *testing.T) {
+	plugin := newTestPluginForActual()
+
+	now := time.Now()
+	start := timestamppb.New(now.Add(-24 * time.Hour))
+	end := timestamppb.New(now)
+
+	resourceJSON := makeResourceJSON("aws", "aws:autoscaling/group:Group", "t3.micro", "us-east-1",
+		map[string]string{"desired_capacity": "2"})
+
+	resp, err := plugin.GetActualCost(context.Background(), &pbc.GetActualCostRequest{
+		ResourceId: resourceJSON,
+		Start:      start,
+		End:        end,
+	})
+	if err != nil {
+		t.Fatalf("GetActualCost returned error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("GetActualCost returned nil response")
+	}
+	if len(resp.GetResults()) == 0 {
+		t.Error("expected at least one cost result for ASG")
+	}
+}

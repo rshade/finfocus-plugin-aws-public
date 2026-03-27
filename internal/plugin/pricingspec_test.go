@@ -704,3 +704,29 @@ func TestGetPricingSpec_ZeroCostResources(t *testing.T) {
 		})
 	}
 }
+
+// TestGetPricingSpec_ASG verifies the ASG pricing spec response format.
+func TestGetPricingSpec_ASG(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Sku:          "m5.large",
+			Region:       "us-east-1",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.GetSpec())
+	assert.Equal(t, "on_demand", resp.GetSpec().GetBillingMode())
+	assert.Equal(t, "per-instance-hour", resp.GetSpec().GetUnit())
+	assert.Equal(t, 0.096, resp.GetSpec().GetRatePerUnit())
+	assert.Equal(t, "USD", resp.GetSpec().GetCurrency())
+	assert.Equal(t, "aws-public", resp.GetSpec().GetSource())
+	assert.Contains(t, resp.GetSpec().GetDescription(), "m5.large")
+}

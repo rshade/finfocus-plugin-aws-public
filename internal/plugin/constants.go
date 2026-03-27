@@ -22,6 +22,7 @@ const (
 	serviceIAM          = "iam"
 	serviceLaunchTmpl   = "launchtemplate"
 	serviceLaunchConfig = "launchconfiguration"
+	serviceASG          = "asg"
 )
 
 // Default values for EC2 attributes.
