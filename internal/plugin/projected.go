@@ -1293,7 +1293,7 @@ func (p *AWSPublicPlugin) estimateASG(
 				Unit:  "gCO2e",
 			},
 		}
-		p.traceLogger(traceID, "estimateASG").Debug().
+		p.traceLogger(traceID, "GetProjectedCost").Debug().
 			Float64("carbon_grams", totalCarbon).
 			Int("instance_count", attrs.DesiredCapacity).
 			Msg("ASG carbon estimation successful")

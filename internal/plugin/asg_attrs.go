@@ -18,8 +18,10 @@ type ASGAttributes struct {
 // Instance type resolution priority (highest to lowest):
 //  1. resource.Sku field
 //  2. "instance_type" tag
-//  3. "launch_template.instance_type" tag
-//  4. "launch_configuration.instance_type" tag
+//  3. "launch_template.instance_type" tag (dot-notation)
+//  4. "launch_configuration.instance_type" tag (dot-notation)
+//  5. "launch_template" tag parsed as Go map string
+//  6. "launch_configuration" tag parsed as Go map string
 //
 // Capacity resolution priority:
 //  1. "desired_capacity" or "desiredCapacity" tag
@@ -64,6 +66,14 @@ func ExtractASGAttributes(resource *pbc.ResourceDescriptor) (ASGAttributes, *Def
 }
 
 // resolveInstanceType resolves the EC2 instance type using priority-based lookup.
+//
+// Resolution priority (highest to lowest):
+//  1. SKU field (resource.Sku)
+//  2. "instance_type" tag (flat tag)
+//  3. "launch_template.instance_type" tag (dot-notation from Pulumi flattening)
+//  4. "launch_configuration.instance_type" tag (dot-notation)
+//  5. "launch_template" tag parsed as Go map string (e.g., "map[instance_type:m5.large]")
+//  6. "launch_configuration" tag parsed as Go map string
 func resolveInstanceType(sku string, tags map[string]string) string {
 	if sku != "" {
 		return sku
@@ -77,6 +87,21 @@ func resolveInstanceType(sku string, tags map[string]string) string {
 	if v := tags["launch_configuration.instance_type"]; v != "" {
 		return v
 	}
+
+	// Pulumi may serialize nested objects as Go map strings (e.g., "map[instance_type:m5.large]").
+	// This mirrors how EC2's rootBlockDevice is parsed via parseGoMapString.
+	for _, key := range [...]string{"launch_template", "launch_configuration"} {
+		if raw := tags[key]; raw != "" {
+			m := parseGoMapString(raw)
+			if v := m["instance_type"]; v != "" {
+				return v
+			}
+			if v := m["instanceType"]; v != "" {
+				return v
+			}
+		}
+	}
+
 	return ""
 }
 
@@ -91,7 +116,7 @@ func resolveDesiredCapacity(tags map[string]string) (int, bool) {
 		if v := tags[key]; v != "" {
 			if n, err := strconv.Atoi(v); err == nil {
 				if n < 0 {
-					return 0, false
+					return 0, true
 				}
 				return n, false
 			}

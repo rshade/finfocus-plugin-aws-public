@@ -1695,6 +1695,13 @@ func TestGetActualCost_ASG_Routes(t *testing.T) {
 		t.Fatal("GetActualCost returned nil response")
 	}
 	if len(resp.GetResults()) == 0 {
-		t.Error("expected at least one cost result for ASG")
+		t.Fatal("expected at least one cost result for ASG")
+	}
+	result := resp.GetResults()[0]
+	if result.GetCost() <= 0 {
+		t.Errorf("expected positive cost for ASG, got %v", result.GetCost())
+	}
+	if result.GetSource() == "" {
+		t.Error("expected non-empty source for ASG result")
 	}
 }
