@@ -20,7 +20,7 @@
 ### 1. Initialize Go Module
 
 ```bash
-cd /mnt/c/GitHub/go/src/github.com/rshade/finfocus-plugin-aws-public
+cd $GOPATH/src/github.com/rshade/finfocus-plugin-aws-public
 
 go mod init github.com/rshade/finfocus-plugin-aws-public
 ```

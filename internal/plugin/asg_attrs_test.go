@@ -39,6 +39,29 @@ func TestExtractASGAttributes_InstanceType(t *testing.T) {
 			wantInstanceType: "r5.2xlarge",
 		},
 		{
+			name:             "launch_template Go map string with instance_type",
+			tags:             map[string]string{"launch_template": "map[instance_type:m5.xlarge]"},
+			wantInstanceType: "m5.xlarge",
+		},
+		{
+			name:             "launch_template Go map string with instanceType (camelCase)",
+			tags:             map[string]string{"launch_template": "map[instanceType:c5.2xlarge]"},
+			wantInstanceType: "c5.2xlarge",
+		},
+		{
+			name:             "launch_configuration Go map string",
+			tags:             map[string]string{"launch_configuration": "map[instance_type:t3.large]"},
+			wantInstanceType: "t3.large",
+		},
+		{
+			name: "dot-notation takes priority over Go map string",
+			tags: map[string]string{
+				"launch_template.instance_type": "c5.xlarge",
+				"launch_template":               "map[instance_type:m5.large]",
+			},
+			wantInstanceType: "c5.xlarge",
+		},
+		{
 			name:    "no instance type returns error",
 			tags:    map[string]string{"desired_capacity": "3"},
 			wantErr: true,
@@ -116,6 +139,7 @@ func TestExtractASGAttributes_DesiredCapacity(t *testing.T) {
 			name:         "negative capacity treated as zero",
 			tags:         map[string]string{"instance_type": "t3.micro", "desired_capacity": "-1"},
 			wantCapacity: 0,
+			wantDefault:  true,
 		},
 		{
 			name:         "non-numeric capacity falls through to default",

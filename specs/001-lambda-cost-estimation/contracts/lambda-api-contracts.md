@@ -197,4 +197,4 @@ message GetProjectedCostResponse {
 - **Gradual rollout**: Lambda support added without breaking changes
 - **Feature flag**: Could be controlled via build tags if needed
 - **Monitoring**: New Lambda-specific metrics added to existing logging</content>
-<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/contracts/lambda-api-contracts.md
+<parameter name="filePath">$GOPATH/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/contracts/lambda-api-contracts.md

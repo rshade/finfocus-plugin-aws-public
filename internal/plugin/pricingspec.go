@@ -741,7 +741,9 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		}
 	}
 
-	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, defaultOS, defaultTenancy)
+	os := resolveASGOS(resource.GetTags())
+
+	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, os, defaultTenancy)
 	if !found {
 		return &pbc.PricingSpec{
 			Provider:     resource.GetProvider(),
@@ -771,7 +773,7 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		Source:       "aws-public",
 		Assumptions: []string{
 			fmt.Sprintf("Instance type: %s", instanceType),
-			"On-demand Linux, shared tenancy",
+			fmt.Sprintf("On-demand %s, shared tenancy", os),
 			"Cost = per-instance hourly rate × desired_capacity × 730",
 			"Worker instance costs only (ASG has no separate charge)",
 		},

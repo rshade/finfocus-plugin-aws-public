@@ -316,6 +316,29 @@ func TestValidateActualCostRequest_ARN(t *testing.T) {
 			pbcCode:   pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
 		},
 		{
+			name: "ASG ARN with instance_type in tags (no SKU required)",
+			req: &pbc.GetActualCostRequest{
+				Arn:   "arn:aws:autoscaling:us-east-1:123456789012:autoScalingGroup:uuid:autoScalingGroupName/my-asg",
+				Start: timestamppb.New(now.Add(-1 * time.Hour)),
+				End:   timestamppb.New(now),
+				Tags: map[string]string{
+					"instance_type":    "m5.large",
+					"desired_capacity": "3",
+				},
+			},
+			wantError: false,
+			wantResource: &pbc.ResourceDescriptor{
+				Provider:     "aws",
+				ResourceType: "asg",
+				Sku:          "",
+				Region:       "us-east-1",
+				Tags: map[string]string{
+					"instance_type":    "m5.large",
+					"desired_capacity": "3",
+				},
+			},
+		},
+		{
 			name: "S3 global ARN (empty region) uses plugin region",
 			req: &pbc.GetActualCostRequest{
 				Arn:   "arn:aws:s3:::my-bucket",

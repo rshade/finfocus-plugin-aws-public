@@ -180,4 +180,4 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate functionality independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence</content>
-<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/tasks.md
+<parameter name="filePath">$GOPATH/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/tasks.md

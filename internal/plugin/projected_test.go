@@ -5105,13 +5105,14 @@ func TestEstimateASG_ZeroCapacity(t *testing.T) {
 	}
 }
 
-// TestEstimateASG_MissingInstanceType verifies that ASG without instance type returns error.
+// TestEstimateASG_MissingInstanceType verifies that ASG without instance type returns
+// a $0 response with a soft-failure billing detail (PricingUnavailableError is caught).
 func TestEstimateASG_MissingInstanceType(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	_, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
 		Resource: &pbc.ResourceDescriptor{
 			Provider:     "aws",
 			ResourceType: "aws:autoscaling/group:Group",
@@ -5122,6 +5123,16 @@ func TestEstimateASG_MissingInstanceType(t *testing.T) {
 	// PricingUnavailableError is caught and returns $0 response (not gRPC error)
 	if err != nil {
 		t.Fatalf("expected PricingUnavailableError to be caught, got gRPC error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response for missing instance type")
+	}
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth should be 0 for missing instance type, got %.2f", resp.GetCostPerMonth())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "cannot determine instance type") &&
+		!strings.Contains(resp.GetBillingDetail(), "not found") {
+		t.Errorf("BillingDetail should contain soft-failure message, got %q", resp.GetBillingDetail())
 	}
 }
 
@@ -5179,6 +5190,38 @@ func TestEstimateASG_DefaultCapacity(t *testing.T) {
 	}
 	if resp.GetMetadata()["estimate_quality"] != "medium" {
 		t.Errorf("estimate_quality = %q, want 'medium'", resp.GetMetadata()["estimate_quality"])
+	}
+}
+
+// TestEstimateASG_TagBasedInstanceTypeResolution verifies that ASG resolves instance type from tags
+// when Sku is empty, exercising the tag-resolution path through SDK validation bypass.
+func TestEstimateASG_TagBasedInstanceTypeResolution(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"instance_type":    "t3.micro",
+				"desired_capacity": "2",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedCost := 0.0104 * 2 * 730
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+		t.Errorf("CostPerMonth = %.2f, want %.2f", resp.GetCostPerMonth(), expectedCost)
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "t3.micro") {
+		t.Errorf("BillingDetail should contain resolved instance type: %q", resp.GetBillingDetail())
 	}
 }
 

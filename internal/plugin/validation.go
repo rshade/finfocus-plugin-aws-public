@@ -77,8 +77,17 @@ func (p *AWSPublicPlugin) ValidateProjectedCostRequest(
 			return nil, err
 		}
 
-		// Region check
+		// Region check: tag-resolved services must provide an explicit region
+		// to prevent silently defaulting to the plugin's region.
 		effectiveRegion := resource.GetRegion()
+		if effectiveRegion == "" && allowsEmptySKU(detectedSvc) {
+			return nil, p.newErrorWithID(
+				traceID,
+				codes.InvalidArgument,
+				"region is required for tag-resolved services",
+				pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+			)
+		}
 		if effectiveRegion == "" {
 			effectiveRegion = p.region
 		}
@@ -168,8 +177,17 @@ func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(
 			return nil, err
 		}
 
-		// Region check
+		// Region check: tag-resolved services must provide an explicit region
+		// to prevent silently defaulting to the plugin's region.
 		effectiveRegion := resource.GetRegion()
+		if effectiveRegion == "" && allowsEmptySKU(svcType) {
+			return nil, p.newErrorWithID(
+				traceID,
+				codes.InvalidArgument,
+				"region is required for tag-resolved services",
+				pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+			)
+		}
 		if effectiveRegion == "" {
 			effectiveRegion = p.region
 		}
@@ -409,6 +427,21 @@ func (p *AWSPublicPlugin) parseResourceFromARN(req *pbc.GetActualCostRequest) (*
 	// Zero-cost resources (VPC, Subnet, SecurityGroup, IAM, LaunchTemplate, etc.)
 	// don't need a SKU - skip extraction and return immediately with empty SKU.
 	if IsZeroCostService(canonicalService) {
+		tags := make(map[string]string, len(req.GetTags()))
+		maps.Copy(tags, req.GetTags())
+		return &pbc.ResourceDescriptor{
+			Provider:     providerAWS,
+			ResourceType: canonicalService,
+			Sku:          "",
+			Region:       arn.Region,
+			Tags:         tags,
+		}, nil
+	}
+
+	// Tag-resolved services (ASG) resolve their SKU from tags during estimation,
+	// not during validation. Pass all tags through with empty SKU so the estimator
+	// (e.g., ExtractASGAttributes) can resolve the instance type from tags.
+	if allowsEmptySKU(canonicalService) {
 		tags := make(map[string]string, len(req.GetTags()))
 		maps.Copy(tags, req.GetTags())
 		return &pbc.ResourceDescriptor{
