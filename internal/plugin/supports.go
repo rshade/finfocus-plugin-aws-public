@@ -84,7 +84,8 @@ func (p *AWSPublicPlugin) Supports( //nolint:funlen
 
 	// Check resource type
 	switch serviceType {
-	case serviceEC2, serviceRDS, serviceLambda, serviceS3, serviceEBS, serviceEKS, serviceDynamoDB, serviceElastiCache:
+	case serviceEC2, serviceRDS, serviceLambda, serviceS3, serviceEBS,
+		serviceEKS, serviceDynamoDB, serviceElastiCache, serviceASG:
 		// These services support cost estimation
 		// EC2 also supports carbon footprint estimation
 		supportedMetrics := getSupportedMetrics(serviceType)
@@ -179,6 +180,9 @@ func getSupportedMetrics(resourceType string) []pbc.MetricKind {
 		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
 	case serviceElastiCache:
 		// ElastiCache clusters: EC2-equivalent node carbon × cluster size
+		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
+	case serviceASG:
+		// ASG: EC2-equivalent carbon × desired capacity
 		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
 	default:
 		// ELB, NAT Gateway, CloudWatch: No carbon estimation yet

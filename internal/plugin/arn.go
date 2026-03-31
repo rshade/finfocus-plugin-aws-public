@@ -151,11 +151,14 @@ func (a *ARNComponents) ToPulumiResourceType() string {
 	case serviceIAM:
 		return serviceIAM
 	case "autoscaling":
-		// LaunchConfigurations are under autoscaling service
-		if a.ResourceType == "launchConfiguration" || a.ResourceType == "launch-configuration" {
+		switch a.ResourceType {
+		case "launchConfiguration", "launch-configuration":
 			return serviceLaunchConfig
+		case "autoScalingGroup", "auto-scaling-group":
+			return serviceASG
+		default:
+			return a.Service
 		}
-		return a.Service
 	default:
 		// Return the service name as-is for unsupported services
 		return a.Service

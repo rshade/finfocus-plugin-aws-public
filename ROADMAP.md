@@ -52,9 +52,6 @@ security overhead of cloud credentials.
 
 ## Future Vision [Researching / Planned]
 
-- **[Planned] Service Breadth (New Services):**
-  - **ASG Estimator:** Add estimator for
-    `aws:autoscaling/group:Group` (#295) [L]
 - **[Researching] Memory Optimization:** Implementing lazy-loading or
   memory-mapped access for embedded JSON files to reduce the runtime memory
   footprint without moving to an external database (#84) [L]
@@ -100,6 +97,12 @@ security overhead of cloud credentials.
 
 ### Q1 2026
 
+- **ASG Cost Estimator:** Added cost estimation for
+  `aws:autoscaling/group:Group` resources. Multiplies EC2 on-demand pricing
+  by desired capacity × 730 hours. Includes carbon estimation, service
+  discovery (Supports, GetPricingSpec, GetActualCost), and classification
+  metadata. Supports instance type resolution from SKU, tags, or launch
+  template/configuration properties (#295).
 - **Zero-Cost PricingSpec:** `GetPricingSpec` now returns `BillingMode: "zero_cost"`
   for VPC, Security Groups, Subnets, IAM, Launch Templates, and Launch
   Configurations instead of falling through to "unknown" (#319).

@@ -5038,3 +5038,228 @@ func TestGetProjectedCost_Metadata_BackwardCompat(t *testing.T) {
 	// EC2 with no root volume → no defaults → nil metadata
 	assertMetadata(t, resp, "", true)
 }
+
+// TestEstimateASG_BasicCostCalculation verifies that ASG cost estimation
+// correctly multiplies EC2 hourly rate × desired_capacity × 730 hours.
+func TestEstimateASG_BasicCostCalculation(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.medium/Linux/Shared"] = 0.0416
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Sku:          "t3.medium",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"desired_capacity": "3"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedCost := 0.0416 * 3 * 730
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+		t.Errorf("CostPerMonth = %.2f, want %.2f", resp.GetCostPerMonth(), expectedCost)
+	}
+	if math.Abs(resp.GetUnitPrice()-0.0416) > 0.0001 {
+		t.Errorf("UnitPrice = %.4f, want 0.0416", resp.GetUnitPrice())
+	}
+	if resp.GetCurrency() != "USD" {
+		t.Errorf("Currency = %q, want USD", resp.GetCurrency())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "ASG: 3×") {
+		t.Errorf("BillingDetail should contain instance count: %q", resp.GetBillingDetail())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "t3.medium") {
+		t.Errorf("BillingDetail should contain instance type: %q", resp.GetBillingDetail())
+	}
+}
+
+// TestEstimateASG_ZeroCapacity verifies that an ASG with zero desired capacity returns $0.
+func TestEstimateASG_ZeroCapacity(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["m5.large/Linux/Shared"] = 0.096
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "asg",
+			Sku:          "m5.large",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"desired_capacity": "0"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth = %.2f, want 0", resp.GetCostPerMonth())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "zero instances") {
+		t.Errorf("BillingDetail should note zero instances: %q", resp.GetBillingDetail())
+	}
+}
+
+// TestEstimateASG_MissingInstanceType verifies that ASG without instance type returns
+// a $0 response with a soft-failure billing detail (PricingUnavailableError is caught).
+func TestEstimateASG_MissingInstanceType(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"desired_capacity": "3"},
+		},
+	})
+	// PricingUnavailableError is caught and returns $0 response (not gRPC error)
+	if err != nil {
+		t.Fatalf("expected PricingUnavailableError to be caught, got gRPC error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response for missing instance type")
+	}
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth should be 0 for missing instance type, got %.2f", resp.GetCostPerMonth())
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "cannot determine instance type") &&
+		!strings.Contains(resp.GetBillingDetail(), "not found") {
+		t.Errorf("BillingDetail should contain soft-failure message, got %q", resp.GetBillingDetail())
+	}
+}
+
+// TestEstimateASG_UnknownInstanceType verifies that unknown instance type returns PricingUnavailableError.
+func TestEstimateASG_UnknownInstanceType(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	// No pricing added for "x9.mega"
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Sku:          "x9.mega",
+			Region:       "us-east-1",
+			Tags:         map[string]string{"desired_capacity": "2"},
+		},
+	})
+	// PricingUnavailableError is caught and returns $0 with billing detail
+	if err != nil {
+		t.Fatalf("expected PricingUnavailableError to be caught, got gRPC error: %v", err)
+	}
+	if resp.GetCostPerMonth() != 0 {
+		t.Errorf("CostPerMonth should be 0 for unknown instance type, got %.2f", resp.GetCostPerMonth())
+	}
+}
+
+// TestEstimateASG_DefaultCapacity verifies metadata tracking when capacity defaults to 1.
+func TestEstimateASG_DefaultCapacity(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should default to 1 instance with metadata tracking
+	expectedCost := 0.0104 * 1 * 730
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+		t.Errorf("CostPerMonth = %.2f, want %.2f", resp.GetCostPerMonth(), expectedCost)
+	}
+	if resp.GetMetadata() == nil {
+		t.Fatal("expected metadata to be set when defaults are applied")
+	}
+	if resp.GetMetadata()["estimate_quality"] != "medium" {
+		t.Errorf("estimate_quality = %q, want 'medium'", resp.GetMetadata()["estimate_quality"])
+	}
+}
+
+// TestEstimateASG_TagBasedInstanceTypeResolution verifies that ASG resolves instance type from tags
+// when Sku is empty, exercising the tag-resolution path through SDK validation bypass.
+func TestEstimateASG_TagBasedInstanceTypeResolution(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+	resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:autoscaling/group:Group",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"instance_type":    "t3.micro",
+				"desired_capacity": "2",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedCost := 0.0104 * 2 * 730
+	if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+		t.Errorf("CostPerMonth = %.2f, want %.2f", resp.GetCostPerMonth(), expectedCost)
+	}
+	if !strings.Contains(resp.GetBillingDetail(), "t3.micro") {
+		t.Errorf("BillingDetail should contain resolved instance type: %q", resp.GetBillingDetail())
+	}
+}
+
+// TestEstimateASG_AllResourceTypeFormats verifies consistent results across all resource type formats.
+func TestEstimateASG_AllResourceTypeFormats(t *testing.T) {
+	resourceTypes := []string{
+		"aws:autoscaling/group:Group",
+		"asg",
+		"autoscaling",
+	}
+
+	for _, rt := range resourceTypes {
+		t.Run(rt, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: rt,
+					Sku:          "t3.micro",
+					Region:       "us-east-1",
+					Tags:         map[string]string{"desired_capacity": "2"},
+				},
+			})
+			if err != nil {
+				t.Fatalf("unexpected error for resource type %q: %v", rt, err)
+			}
+
+			expectedCost := 0.0104 * 2 * 730
+			if math.Abs(resp.GetCostPerMonth()-expectedCost) > 0.01 {
+				t.Errorf(
+					"CostPerMonth = %.2f, want %.2f for resource type %q",
+					resp.GetCostPerMonth(), expectedCost, rt,
+				)
+			}
+		})
+	}
+}
