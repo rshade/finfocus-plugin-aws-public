@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.9](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.8...v0.1.9) (2026-03-31)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/aws/aws-sdk-go-v2 to v1.41.5 ([#356](https://github.com/rshade/finfocus-plugin-aws-public/issues/356)) ([d342d9b](https://github.com/rshade/finfocus-plugin-aws-public/commit/d342d9be11f24296d7c4a1b22aa70fa218e03485))
+* **deps:** update module github.com/rs/zerolog to v1.35.0 ([#358](https://github.com/rshade/finfocus-plugin-aws-public/issues/358)) ([70ab663](https://github.com/rshade/finfocus-plugin-aws-public/commit/70ab6633e80039b4aeb9f4603a019b9b77d3353d))
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.8 ([#354](https://github.com/rshade/finfocus-plugin-aws-public/issues/354)) ([4b47c3e](https://github.com/rshade/finfocus-plugin-aws-public/commit/4b47c3e6d79867e8bf82c28d376e760d7fd744f5))
+
 ## [0.1.8](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.7...v0.1.8) (2026-03-26)
 
 
