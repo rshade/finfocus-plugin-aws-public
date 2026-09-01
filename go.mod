@@ -7,7 +7,7 @@ require (
 	github.com/goccy/go-json v0.10.6
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rs/zerolog v1.35.0
+	github.com/rs/zerolog v1.35.1
 	github.com/rshade/finfocus-spec v0.6.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.79.3
