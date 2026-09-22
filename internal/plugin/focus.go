@@ -81,7 +81,7 @@ func buildFocusRecord(
 		RegionId: region,
 
 		// Currency (always USD for AWS public pricing)
-		BillingCurrency: "USD",
+		BillingCurrency: currencyUSD,
 
 		// Resource identification
 		ResourceType: resourceType,

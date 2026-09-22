@@ -14,6 +14,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// currencyUSD is the currency code for all AWS public pricing data.
+const currencyUSD = "USD"
+
 // Pricing unit constants from AWS Price List API.
 const (
 	unitGBMonth = "GB-Mo"
@@ -211,7 +214,7 @@ func NewClient(logger zerolog.Logger) (*Client, error) {
 func (c *Client) init() error { //nolint:gocognit,funlen
 	c.once.Do(func() {
 		// Initialize indexes
-		c.currency = "USD"
+		c.currency = currencyUSD
 		c.region = "unknown"
 
 		// Pre-allocate map capacities based on typical AWS pricing data volumes.
@@ -503,7 +506,7 @@ func getOnDemandPrice(data *awsPricing, sku string) (float64, string, bool) {
 	}
 	for _, term := range termMap {
 		for _, dim := range term.PriceDimensions {
-			if amountStr, hasUSD := dim.PricePerUnit["USD"]; hasUSD {
+			if amountStr, hasUSD := dim.PricePerUnit[currencyUSD]; hasUSD {
 				amount, err := strconv.ParseFloat(amountStr, 64)
 				if err == nil {
 					return amount, dim.Unit, true
@@ -564,7 +567,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 					c.ec2Index[key] = ec2Price{
 						Unit:       unit,
 						HourlyRate: rate,
-						Currency:   "USD",
+						Currency:   currencyUSD,
 					}
 				}
 			}
@@ -581,7 +584,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 				c.ebsIndex[volType] = ebsPrice{
 					Unit:           unit,
 					RatePerGBMonth: rate,
-					Currency:       "USD",
+					Currency:       currencyUSD,
 				}
 			}
 		}
@@ -623,7 +626,7 @@ func (c *Client) parseS3Pricing(data []byte) (string, error) {
 				c.s3Index[storageClass] = s3Price{
 					Unit:           unit,
 					RatePerGBMonth: rate,
-					Currency:       "USD",
+					Currency:       currencyUSD,
 				}
 			}
 		}
@@ -668,7 +671,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocogni
 					c.rdsInstanceIndex[key] = rdsInstancePrice{
 						Unit:       unit,
 						HourlyRate: rate,
-						Currency:   "USD",
+						Currency:   currencyUSD,
 					}
 				}
 			}
@@ -707,7 +710,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocogni
 					c.rdsStorageIndex[apiVolType] = rdsStoragePrice{
 						Unit:           unit,
 						RatePerGBMonth: rate,
-						Currency:       "USD",
+						Currency:       currencyUSD,
 					}
 				}
 			}
@@ -747,7 +750,7 @@ func (c *Client) parseEKSPricing(data []byte) (string, error) { //nolint:gocogni
 			if c.eksPricing == nil {
 				c.eksPricing = &eksPrice{
 					Unit:     unitHours,
-					Currency: "USD",
+					Currency: currencyUSD,
 				}
 			}
 
@@ -795,7 +798,7 @@ func (c *Client) parseLambdaPricing(data []byte) (string, error) { //nolint:goco
 
 			if c.lambdaPricing == nil {
 				c.lambdaPricing = &lambdaPrice{
-					Currency: "USD",
+					Currency: currencyUSD,
 				}
 			}
 
@@ -842,7 +845,7 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) { //nolint:go
 		if attrs["servicecode"] == "AmazonDynamoDB" {
 			if c.dynamoDBPricing == nil {
 				c.dynamoDBPricing = &dynamoDBPrice{
-					Currency: "USD",
+					Currency: currencyUSD,
 				}
 			}
 
@@ -905,7 +908,7 @@ func (c *Client) parseELBPricing(data []byte) (string, error) { //nolint:gocogni
 
 			if c.elbPricing == nil {
 				c.elbPricing = &elbPrice{
-					Currency: "USD",
+					Currency: currencyUSD,
 				}
 			}
 
@@ -966,7 +969,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) { //nolint:
 
 			if c.natGatewayPricing == nil {
 				c.natGatewayPricing = &NATGatewayPrice{
-					Currency: "USD",
+					Currency: currencyUSD,
 				}
 			}
 
@@ -1009,7 +1012,7 @@ func (c *Client) parseCloudWatchPricing(data []byte) (string, error) { //nolint:
 	}
 
 	c.cloudWatchPricing = &cloudWatchPrice{
-		Currency: "USD",
+		Currency: currencyUSD,
 	}
 
 	var region string
@@ -1114,7 +1117,7 @@ func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
 					c.elasticacheIndex[key] = elasticacheInstancePrice{
 						Unit:       unit,
 						HourlyRate: rate,
-						Currency:   "USD",
+						Currency:   currencyUSD,
 					}
 				}
 			}
@@ -1135,7 +1138,7 @@ func (c *Client) extractTieredPricing(data *awsPricing, sku string) []TierRate {
 	var tiers []TierRate
 	for _, term := range termMap {
 		for _, dim := range term.PriceDimensions {
-			amountStr, hasUSD := dim.PricePerUnit["USD"]
+			amountStr, hasUSD := dim.PricePerUnit[currencyUSD]
 			if !hasUSD {
 				continue
 			}

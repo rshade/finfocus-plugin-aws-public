@@ -22,8 +22,8 @@ import (
 const (
 	defaultEBSGB      = 8
 	defaultEBSGBStr   = "8"
-	defaultRDSEngine  = "mysql"
-	defaultRDSStorage = "gp2"
+	defaultRDSEngine  = rdsEngineMySQL
+	defaultRDSStorage = volumeTypeGP2
 	defaultRDSSizeGB  = 20
 	defaultRDSSizeStr = "20"
 )
@@ -121,27 +121,36 @@ func extractAWSRegion(tags map[string]string) string {
 	return mapping.ExtractAWSRegion(tags)
 }
 
+// AWS Price List API databaseEngine attribute values used for RDS pricing lookups.
+const (
+	awsEngineMySQL      = "MySQL"
+	awsEnginePostgreSQL = "PostgreSQL"
+	awsEngineMariaDB    = "MariaDB"
+	awsEngineOracle     = "Oracle"
+	awsEngineSQLServer  = "SQL Server"
+)
+
 // engineNormalization maps user-friendly engine names to AWS pricing API identifiers.
 // Multiple aliases (e.g., "postgres" and "postgresql") map to the same canonical name.
 var engineNormalization = map[string]string{
-	"mysql":        "MySQL",
-	"postgres":     "PostgreSQL",
-	"postgresql":   "PostgreSQL",
-	"mariadb":      "MariaDB",
-	"oracle":       "Oracle",
-	"oracle-se2":   "Oracle",
-	"sqlserver":    "SQL Server",
-	"sqlserver-ex": "SQL Server",
-	"sql-server":   "SQL Server",
+	rdsEngineMySQL:      awsEngineMySQL,
+	rdsEnginePostgres:   awsEnginePostgreSQL,
+	rdsEnginePostgreSQL: awsEnginePostgreSQL,
+	rdsEngineMariaDB:    awsEngineMariaDB,
+	rdsEngineOracle:     awsEngineOracle,
+	"oracle-se2":        awsEngineOracle,
+	rdsEngineSQLServer:  awsEngineSQLServer,
+	"sqlserver-ex":      awsEngineSQLServer,
+	"sql-server":        awsEngineSQLServer,
 }
 
 // validRDSStorageTypes contains the supported RDS storage volume types.
 var validRDSStorageTypes = map[string]bool{
-	"gp2":      true,
-	"gp3":      true,
-	"io1":      true,
-	"io2":      true,
-	"standard": true,
+	volumeTypeGP2: true,
+	volumeTypeGP3: true,
+	"io1":         true,
+	"io2":         true,
+	"standard":    true,
 }
 
 // GetProjectedCost estimates the monthly cost for the given resource.
@@ -226,7 +235,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp = &pbc.GetProjectedCostResponse{
 			CostPerMonth: 0,
 			UnitPrice:    0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			BillingDetail: fmt.Sprintf(
 				"Resource type %q not supported for cost estimation",
 				resource.GetResourceType(),
@@ -240,7 +249,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 			resp = &pbc.GetProjectedCostResponse{
 				CostPerMonth:  0,
 				UnitPrice:     0,
-				Currency:      "USD",
+				Currency:      currencyUSD,
 				BillingDetail: pue.BillingDetail,
 			}
 		} else {
@@ -351,7 +360,7 @@ func (p *AWSPublicPlugin) estimateEC2( //nolint:funlen
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     hourlyRate,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -386,7 +395,7 @@ func (p *AWSPublicPlugin) estimateEC2( //nolint:funlen
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: totalCarbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -480,7 +489,7 @@ func (p *AWSPublicPlugin) estimateEBS(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -498,7 +507,7 @@ func (p *AWSPublicPlugin) estimateEBS(
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: carbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -585,7 +594,7 @@ func (p *AWSPublicPlugin) estimateS3(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  costPerMonth,
 		UnitPrice:     ratePerGBMonth,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -604,7 +613,7 @@ func (p *AWSPublicPlugin) estimateS3(
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: carbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -774,7 +783,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 		resp := &pbc.GetProjectedCostResponse{
 			CostPerMonth:  totalCost,
 			UnitPrice:     unitPrice,
-			Currency:      "USD",
+			Currency:      currencyUSD,
 			BillingDetail: billingDetail,
 			Metadata:      dt.Metadata(),
 		}
@@ -792,7 +801,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 				{
 					Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 					Value: carbonGrams,
-					Unit:  "gCO2e",
+					Unit:  carbonUnitGCO2e,
 				},
 			}
 
@@ -875,7 +884,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     unitPrice,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -893,7 +902,7 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: carbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -1034,7 +1043,7 @@ func (p *AWSPublicPlugin) estimateELB(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalMonthly,
 		UnitPrice:     fixedRate, // Using fixed hourly as primary unit price
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -1075,7 +1084,7 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 	normalizedEngine, engineKnown := engineNormalization[engine]
 	if !engineKnown {
 		// Unknown engine - default to MySQL with note
-		normalizedEngine = "MySQL"
+		normalizedEngine = awsEngineMySQL
 		engineDefaulted = true
 	}
 
@@ -1185,7 +1194,7 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCostPerMonth,
 		UnitPrice:     hourlyRate,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -1207,7 +1216,7 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: carbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -1351,7 +1360,7 @@ func (p *AWSPublicPlugin) estimateEKS(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth: costPerMonth,
 		UnitPrice:    hourlyRate,
-		Currency:     "USD",
+		Currency:     currencyUSD,
 		BillingDetail: fmt.Sprintf(
 			"EKS cluster (%s), 730 hrs/month (control plane only, excludes worker nodes)",
 			supportType,
@@ -1372,7 +1381,7 @@ func (p *AWSPublicPlugin) estimateEKS(
 		{
 			Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 			Value: carbonGrams, // 0 for control plane
-			Unit:  "gCO2e",
+			Unit:  carbonUnitGCO2e,
 		},
 	}
 
@@ -1519,7 +1528,7 @@ func (p *AWSPublicPlugin) estimateLambda( //nolint:gocognit,funlen
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     gbSecPrice, // Using GB-second price as unit price
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: detail,
 		Metadata:      dt.Metadata(),
 	}
@@ -1539,7 +1548,7 @@ func (p *AWSPublicPlugin) estimateLambda( //nolint:gocognit,funlen
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: carbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -1641,7 +1650,7 @@ func (p *AWSPublicPlugin) estimateNATGateway(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     pricing.HourlyRate, // Using hourly rate as primary unit price
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: detail,
 		Metadata:      dt.Metadata(),
 	}
@@ -1874,7 +1883,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     0, // No single unit price for CloudWatch (multi-component)
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -1995,7 +2004,7 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  monthlyCost,
 		UnitPrice:     hourlyRate,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}
@@ -2016,7 +2025,7 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 			{
 				Kind:  pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT,
 				Value: carbonGrams,
-				Unit:  "gCO2e",
+				Unit:  carbonUnitGCO2e,
 			},
 		}
 
@@ -2066,7 +2075,7 @@ func (p *AWSPublicPlugin) estimateZeroCostResource(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  0,
 		UnitPrice:     0,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: description,
 	}
 

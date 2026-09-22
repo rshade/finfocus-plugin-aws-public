@@ -45,7 +45,7 @@ var ExpectedCostRanges = map[string]ExpectedCostRange{
 	// EBS gp2 in us-east-1 - Standard E2E test resource (8GB default)
 	serviceEBS + ":gp2:us-east-1": {
 		ResourceType:     serviceEBS,
-		SKU:              "gp2",
+		SKU:              volumeTypeGP2,
 		Region:           "us-east-1",
 		UnitPrice:        0.10, // $/GB-month
 		MonthlyEstimate:  0.80, // 0.10 * 8 GB

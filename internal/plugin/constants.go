@@ -39,6 +39,30 @@ const (
 // archARM64 is the full ARM64 architecture string used in Lambda tags.
 const archARM64 = "arm64"
 
+// currencyUSD is the currency code for all AWS public pricing data.
+const currencyUSD = "USD"
+
+// carbonUnitGCO2e is the unit for carbon footprint impact metrics (grams CO2 equivalent).
+const carbonUnitGCO2e = "gCO2e"
+
+// EBS/RDS storage volume types referenced in estimation and recommendation logic.
+const (
+	volumeTypeGP2 = "gp2"
+	volumeTypeGP3 = "gp3"
+)
+
+// RDS engine identifiers in canonical lowercase form, as used in tags and pricing lookups.
+const (
+	rdsEngineMySQL            = "mysql"
+	rdsEnginePostgres         = "postgres"
+	rdsEnginePostgreSQL       = "postgresql"
+	rdsEngineMariaDB          = "mariadb"
+	rdsEngineOracle           = "oracle"
+	rdsEngineSQLServer        = "sqlserver"
+	rdsEngineAuroraMySQL      = "aurora-mysql"
+	rdsEngineAuroraPostgreSQL = "aurora-postgresql"
+)
+
 // skuLogs is the CloudWatch logs SKU identifier.
 const skuLogs = "logs"
 

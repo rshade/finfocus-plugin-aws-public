@@ -9,6 +9,36 @@ import (
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 )
 
+// PricingSpec billing modes describing how each service is charged.
+const (
+	billingModePerHour             = "per_hour"
+	billingModePerHourPlusLCU      = "per_hour_plus_lcu"
+	billingModePerHourPlusNLCU     = "per_hour_plus_nlcu"
+	billingModePerHourPlusData     = "per_hour_plus_data"
+	billingModePerGBMonth          = "per_gb_month"
+	billingModePerRequestAndGBSec  = "per_request_and_gb_second"
+	billingModeProvisionedCapacity = "provisioned_capacity"
+	billingModeOnDemand            = "on_demand"
+	billingModeTieredPerMetric     = "tiered_per_metric"
+	billingModeTieredIngestStorage = "tiered_ingestion_plus_storage"
+	billingModeZeroCost            = "zero_cost"
+	billingModeUnknown             = "unknown"
+)
+
+// PricingSpec rate units.
+const (
+	unitHour        = "hour"
+	unitGBMonth     = "GB-month"
+	unitGBSecond    = "GB-second"
+	unitGBIngested  = "GB-ingested"
+	unitRCUHour     = "RCU-hour"
+	unitMetricMonth = "metric-month"
+)
+
+// assumptionDataTransferExcluded is the shared assumption note for services whose
+// data transfer charges are out of scope.
+const assumptionDataTransferExcluded = "Data transfer costs not included"
+
 // GetPricingSpec returns detailed pricing specification for a resource type.
 // This provides information about how a resource is billed without calculating the actual cost.
 func (p *AWSPublicPlugin) GetPricingSpec(
@@ -68,14 +98,14 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 			ResourceType: resource.GetResourceType(),
 			Sku:          resource.GetSku(),
 			Region:       resource.GetRegion(),
-			BillingMode:  "unknown",
+			BillingMode:  billingModeUnknown,
 			RatePerUnit:  0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			Description: fmt.Sprintf(
 				"Resource type %q not supported for pricing specification",
 				resource.GetResourceType(),
 			),
-			Source: "aws-public",
+			Source: sourceAWSPublic,
 		}
 	}
 
@@ -103,12 +133,12 @@ func (p *AWSPublicPlugin) ec2PricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          resource.GetSku(),
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_hour",
+			BillingMode:  billingModePerHour,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "hour",
+			Currency:     currencyUSD,
+			Unit:         unitHour,
 			Description:  fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", instanceType),
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"Instance type not found in embedded pricing data"},
 		}
 	}
@@ -118,12 +148,12 @@ func (p *AWSPublicPlugin) ec2PricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		ResourceType: resource.GetResourceType(),
 		Sku:          resource.GetSku(),
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_hour",
+		BillingMode:  billingModePerHour,
 		RatePerUnit:  hourlyRate,
-		Currency:     "USD",
-		Unit:         "hour",
+		Currency:     currencyUSD,
+		Unit:         unitHour,
 		Description:  fmt.Sprintf("On-demand %s EC2 instance with %s tenancy", os, tenancy),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Operating System: %s", os),
 			fmt.Sprintf("Tenancy: %s", tenancy),
@@ -144,12 +174,12 @@ func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          resource.GetSku(),
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_gb_month",
+			BillingMode:  billingModePerGBMonth,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "GB-month",
+			Currency:     currencyUSD,
+			Unit:         unitGBMonth,
 			Description:  fmt.Sprintf(PricingNotFoundTemplate, "EBS volume type", volumeType),
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"Volume type not found in embedded pricing data"},
 		}
 	}
@@ -159,12 +189,12 @@ func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		ResourceType: resource.GetResourceType(),
 		Sku:          resource.GetSku(),
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_gb_month",
+		BillingMode:  billingModePerGBMonth,
 		RatePerUnit:  ratePerGBMonth,
-		Currency:     "USD",
-		Unit:         "GB-month",
+		Currency:     currencyUSD,
+		Unit:         unitGBMonth,
 		Description:  fmt.Sprintf("EBS %s storage", volumeType),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			"Storage only (IOPS/throughput not included)",
 			"Standard provisioned capacity",
@@ -186,12 +216,12 @@ func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.P
 			ResourceType: resource.GetResourceType(),
 			Sku:          storageClass,
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_gb_month",
+			BillingMode:  billingModePerGBMonth,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "GB-month",
+			Currency:     currencyUSD,
+			Unit:         unitGBMonth,
 			Description:  fmt.Sprintf(PricingNotFoundTemplate, "S3 storage class", storageClass),
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"Storage class not found in embedded pricing data"},
 		}
 	}
@@ -201,12 +231,12 @@ func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.P
 		ResourceType: resource.GetResourceType(),
 		Sku:          storageClass,
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_gb_month",
+		BillingMode:  billingModePerGBMonth,
 		RatePerUnit:  ratePerGBMonth,
-		Currency:     "USD",
-		Unit:         "GB-month",
+		Currency:     currencyUSD,
+		Unit:         unitGBMonth,
 		Description:  fmt.Sprintf("S3 %s storage", storageClass),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			"Storage cost only",
 			"Requests and data transfer billed separately",
@@ -234,11 +264,11 @@ func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *p
 			ResourceType: resource.GetResourceType(),
 			Sku:          arch,
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_request_and_gb_second",
+			BillingMode:  billingModePerRequestAndGBSec,
 			RatePerUnit:  0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			Description:  "Lambda pricing not found in embedded data",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"Lambda pricing data not available"},
 		}
 	}
@@ -248,12 +278,12 @@ func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *p
 		ResourceType: resource.GetResourceType(),
 		Sku:          arch,
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_request_and_gb_second",
+		BillingMode:  billingModePerRequestAndGBSec,
 		RatePerUnit:  gbSecRate, // Primary rate is GB-second (compute)
-		Currency:     "USD",
-		Unit:         "GB-second",
+		Currency:     currencyUSD,
+		Unit:         unitGBSecond,
 		Description:  fmt.Sprintf("Lambda %s architecture", arch),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Request rate: $%.10f per request", requestRate),
 			fmt.Sprintf("Compute rate: $%.10f per GB-second (%s)", gbSecRate, arch),
@@ -278,12 +308,12 @@ func (p *AWSPublicPlugin) rdsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          instanceType,
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_hour",
+			BillingMode:  billingModePerHour,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "hour",
+			Currency:     currencyUSD,
+			Unit:         unitHour,
 			Description:  fmt.Sprintf(PricingNotFoundTemplate, "RDS instance", instanceType),
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{fmt.Sprintf("Instance type %s with engine %s not found", instanceType, engine)},
 		}
 	}
@@ -293,12 +323,12 @@ func (p *AWSPublicPlugin) rdsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		ResourceType: resource.GetResourceType(),
 		Sku:          instanceType,
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_hour",
+		BillingMode:  billingModePerHour,
 		RatePerUnit:  hourlyRate,
-		Currency:     "USD",
-		Unit:         "hour",
+		Currency:     currencyUSD,
+		Unit:         unitHour,
 		Description:  fmt.Sprintf("RDS %s instance with %s engine", instanceType, engine),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Database engine: %s", engine),
 			"Single-AZ deployment",
@@ -329,11 +359,11 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 				ResourceType: resource.GetResourceType(),
 				Sku:          mode,
 				Region:       resource.GetRegion(),
-				BillingMode:  "provisioned_capacity",
+				BillingMode:  billingModeProvisionedCapacity,
 				RatePerUnit:  0,
-				Currency:     "USD",
+				Currency:     currencyUSD,
 				Description:  "DynamoDB provisioned pricing not found",
-				Source:       "aws-public",
+				Source:       sourceAWSPublic,
 				Assumptions:  []string{"Provisioned capacity pricing data not available"},
 			}
 		}
@@ -343,12 +373,12 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 			ResourceType: resource.GetResourceType(),
 			Sku:          mode,
 			Region:       resource.GetRegion(),
-			BillingMode:  "provisioned_capacity",
+			BillingMode:  billingModeProvisionedCapacity,
 			RatePerUnit:  rcuPrice, // Primary rate is RCU
-			Currency:     "USD",
-			Unit:         "RCU-hour",
+			Currency:     currencyUSD,
+			Unit:         unitRCUHour,
 			Description:  "DynamoDB provisioned capacity mode",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions: []string{
 				fmt.Sprintf("Read Capacity Unit: $%.6f per hour", rcuPrice),
 				fmt.Sprintf("Write Capacity Unit: $%.6f per hour", wcuPrice),
@@ -370,11 +400,11 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 			ResourceType: resource.GetResourceType(),
 			Sku:          mode,
 			Region:       resource.GetRegion(),
-			BillingMode:  "on_demand",
+			BillingMode:  billingModeOnDemand,
 			RatePerUnit:  0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			Description:  "DynamoDB on-demand pricing not found",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"On-demand pricing data not available"},
 		}
 	}
@@ -384,12 +414,12 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 		ResourceType: resource.GetResourceType(),
 		Sku:          mode,
 		Region:       resource.GetRegion(),
-		BillingMode:  "on_demand",
+		BillingMode:  billingModeOnDemand,
 		RatePerUnit:  storagePrice, // Primary rate for on-demand is storage
-		Currency:     "USD",
-		Unit:         "GB-month",
+		Currency:     currencyUSD,
+		Unit:         unitGBMonth,
 		Description:  "DynamoDB on-demand capacity mode",
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Read request units: $%.6f per million", readPrice*1_000_000),
 			fmt.Sprintf("Write request units: $%.6f per million", writePrice*1_000_000),
@@ -416,12 +446,12 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          supportType,
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_hour",
+			BillingMode:  billingModePerHour,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "hour",
+			Currency:     currencyUSD,
+			Unit:         unitHour,
 			Description:  "EKS pricing not found in embedded data",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"EKS pricing data not available"},
 		}
 	}
@@ -431,17 +461,17 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		ResourceType: resource.GetResourceType(),
 		Sku:          supportType,
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_hour",
+		BillingMode:  billingModePerHour,
 		RatePerUnit:  hourlyRate,
-		Currency:     "USD",
-		Unit:         "hour",
+		Currency:     currencyUSD,
+		Unit:         unitHour,
 		Description:  fmt.Sprintf("EKS cluster with %s support", supportType),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			"Control plane costs only",
 			"Worker node EC2 instances billed separately",
 			"EKS add-ons may incur additional costs",
-			"Data transfer costs not included",
+			assumptionDataTransferExcluded,
 		},
 	}
 }
@@ -465,11 +495,11 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 				ResourceType: resource.GetResourceType(),
 				Sku:          serviceNLB,
 				Region:       resource.GetRegion(),
-				BillingMode:  "per_hour_plus_nlcu",
+				BillingMode:  billingModePerHourPlusNLCU,
 				RatePerUnit:  0,
-				Currency:     "USD",
+				Currency:     currencyUSD,
 				Description:  "NLB pricing not found in embedded data",
-				Source:       "aws-public",
+				Source:       sourceAWSPublic,
 				Assumptions:  []string{"NLB pricing data not available"},
 			}
 		}
@@ -479,16 +509,16 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          serviceNLB,
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_hour_plus_nlcu",
+			BillingMode:  billingModePerHourPlusNLCU,
 			RatePerUnit:  hourlyRate,
-			Currency:     "USD",
-			Unit:         "hour",
+			Currency:     currencyUSD,
+			Unit:         unitHour,
 			Description:  "Network Load Balancer",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions: []string{
 				fmt.Sprintf("Fixed hourly rate: $%.4f", hourlyRate),
 				fmt.Sprintf("NLCU rate: $%.4f per NLCU-hour", nlcuRate),
-				"Data transfer costs not included",
+				assumptionDataTransferExcluded,
 				"Cross-zone data transfer may incur additional costs",
 			},
 		}
@@ -504,11 +534,11 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          serviceALB,
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_hour_plus_lcu",
+			BillingMode:  billingModePerHourPlusLCU,
 			RatePerUnit:  0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			Description:  "ALB pricing not found in embedded data",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"ALB pricing data not available"},
 		}
 	}
@@ -518,16 +548,16 @@ func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		ResourceType: resource.GetResourceType(),
 		Sku:          serviceALB,
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_hour_plus_lcu",
+		BillingMode:  billingModePerHourPlusLCU,
 		RatePerUnit:  hourlyRate,
-		Currency:     "USD",
-		Unit:         "hour",
+		Currency:     currencyUSD,
+		Unit:         unitHour,
 		Description:  "Application Load Balancer",
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Fixed hourly rate: $%.4f", hourlyRate),
 			fmt.Sprintf("LCU rate: $%.4f per LCU-hour", lcuRate),
-			"Data transfer costs not included",
+			assumptionDataTransferExcluded,
 			"SSL/TLS termination included",
 		},
 	}
@@ -543,11 +573,11 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 			ResourceType: resource.GetResourceType(),
 			Sku:          resource.GetSku(),
 			Region:       resource.GetRegion(),
-			BillingMode:  "per_hour_plus_data",
+			BillingMode:  billingModePerHourPlusData,
 			RatePerUnit:  0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			Description:  "NAT Gateway pricing not found in embedded data",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"NAT Gateway pricing data not available"},
 		}
 	}
@@ -557,12 +587,12 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 		ResourceType: resource.GetResourceType(),
 		Sku:          resource.GetSku(),
 		Region:       resource.GetRegion(),
-		BillingMode:  "per_hour_plus_data",
+		BillingMode:  billingModePerHourPlusData,
 		RatePerUnit:  pricing.HourlyRate,
-		Currency:     "USD",
-		Unit:         "hour",
+		Currency:     currencyUSD,
+		Unit:         unitHour,
 		Description:  "NAT Gateway",
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Hourly rate: $%.4f", pricing.HourlyRate),
 			fmt.Sprintf("Data processing: $%.4f per GB", pricing.DataProcessingRate),
@@ -578,7 +608,7 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 ) *pbc.PricingSpec {
 	sku := resource.GetSku()
 	if sku == "" {
-		sku = "logs"
+		sku = skuLogs
 	}
 
 	switch sku {
@@ -590,11 +620,11 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 				ResourceType: resource.GetResourceType(),
 				Sku:          sku,
 				Region:       resource.GetRegion(),
-				BillingMode:  "tiered_per_metric",
+				BillingMode:  billingModeTieredPerMetric,
 				RatePerUnit:  0,
-				Currency:     "USD",
+				Currency:     currencyUSD,
 				Description:  "CloudWatch metrics pricing not found",
-				Source:       "aws-public",
+				Source:       sourceAWSPublic,
 				Assumptions:  []string{"Metrics pricing data not available"},
 			}
 		}
@@ -621,12 +651,12 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 			ResourceType: resource.GetResourceType(),
 			Sku:          sku,
 			Region:       resource.GetRegion(),
-			BillingMode:  "tiered_per_metric",
+			BillingMode:  billingModeTieredPerMetric,
 			RatePerUnit:  tiers[0].Rate, // First tier rate
-			Currency:     "USD",
-			Unit:         "metric-month",
+			Currency:     currencyUSD,
+			Unit:         unitMetricMonth,
 			Description:  "CloudWatch custom metrics",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  assumptions,
 		}
 
@@ -638,13 +668,13 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 			return &pbc.PricingSpec{
 				Provider:     resource.GetProvider(),
 				ResourceType: resource.GetResourceType(),
-				Sku:          "logs",
+				Sku:          skuLogs,
 				Region:       resource.GetRegion(),
-				BillingMode:  "tiered_ingestion_plus_storage",
+				BillingMode:  billingModeTieredIngestStorage,
 				RatePerUnit:  0,
-				Currency:     "USD",
+				Currency:     currencyUSD,
 				Description:  "CloudWatch logs pricing not found",
-				Source:       "aws-public",
+				Source:       sourceAWSPublic,
 				Assumptions:  []string{"Logs pricing data not available"},
 			}
 		}
@@ -675,14 +705,14 @@ func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 		return &pbc.PricingSpec{
 			Provider:     resource.GetProvider(),
 			ResourceType: resource.GetResourceType(),
-			Sku:          "logs",
+			Sku:          skuLogs,
 			Region:       resource.GetRegion(),
-			BillingMode:  "tiered_ingestion_plus_storage",
+			BillingMode:  billingModeTieredIngestStorage,
 			RatePerUnit:  firstTierRate,
-			Currency:     "USD",
-			Unit:         "GB-ingested",
+			Currency:     currencyUSD,
+			Unit:         unitGBIngested,
 			Description:  "CloudWatch Logs",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  assumptions,
 		}
 	}
@@ -706,11 +736,11 @@ func (p *AWSPublicPlugin) zeroCostPricingSpec(
 		ResourceType: resource.GetResourceType(),
 		Sku:          resource.GetSku(),
 		Region:       resource.GetRegion(),
-		BillingMode:  "zero_cost",
+		BillingMode:  billingModeZeroCost,
 		RatePerUnit:  0,
-		Currency:     "USD",
+		Currency:     currencyUSD,
 		Description:  description,
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions:  []string{"No direct AWS charges for this resource type"},
 	}
 }
