@@ -19,6 +19,8 @@ func parseInstanceType(instanceType string) (string, string) {
 // generationUpgradeMap maps old instance families to newer generations.
 // Only includes mappings where the newer generation is typically the same price
 // or cheaper with better performance.
+//
+//nolint:goconst // instance family names are lookup-table data, not identifiers
 var generationUpgradeMap = map[string]string{
 	// T-series (burstable general purpose)
 	"t2": "t3",  // 2014 → 2018
@@ -54,6 +56,8 @@ var generationUpgradeMap = map[string]string{
 
 // gravitonMap maps x86 instance families to Graviton (ARM) equivalents.
 // Graviton instances typically offer ~20% cost savings with comparable performance.
+//
+//nolint:goconst // instance family names are lookup-table data, not identifiers
 var gravitonMap = map[string]string{
 	// M-series → M6g/M7g
 	"m5":  "m6g",
@@ -108,6 +112,8 @@ func parseRDSInstanceType(instanceType string) (string, string) {
 
 // rdsGenerationUpgradeMap maps old RDS families to newer generations.
 // Note: RDS instance availability depends on the database engine.
+//
+//nolint:goconst // instance family names are lookup-table data, not identifiers
 var rdsGenerationUpgradeMap = map[string]string{
 	// T-series (burstable)
 	"db.t2": "db.t3",
@@ -142,11 +148,11 @@ var rdsGravitonMap = map[string]string{
 // rdsGravitonSupportedEngines lists engines that support Graviton instances.
 // Used to filter out Graviton recommendations for unsupported engines.
 var rdsGravitonSupportedEngines = map[string]bool{
-	"mysql":             true,
-	"postgres":          true,
-	"postgresql":        true,
-	"mariadb":           true,
-	"aurora":            true, // Aurora MySQL/PostgreSQL
-	"aurora-mysql":      true,
-	"aurora-postgresql": true,
+	rdsEngineMySQL:            true,
+	rdsEnginePostgres:         true,
+	rdsEnginePostgreSQL:       true,
+	rdsEngineMariaDB:          true,
+	"aurora":                  true, // Aurora MySQL/PostgreSQL
+	rdsEngineAuroraMySQL:      true,
+	rdsEngineAuroraPostgreSQL: true,
 }

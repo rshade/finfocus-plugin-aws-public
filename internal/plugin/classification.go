@@ -20,6 +20,16 @@ type ServiceClassification struct {
 	Relationship string
 }
 
+// parentTypeVPC is the parent resource type for services contained within a VPC.
+const parentTypeVPC = "aws:ec2:vpc:Vpc"
+
+// Tag keys consulted when extracting a parent resource identifier.
+const (
+	parentTagInstanceID = "instance_id"
+	parentTagVPCID      = "vpc_id"
+	parentTagSubnetID   = "subnet_id"
+)
+
 // serviceClassifications is a read-only map of AWS service types to their metadata.
 var serviceClassifications = map[string]ServiceClassification{
 	"aws:ec2:instance": {
@@ -30,7 +40,7 @@ var serviceClassifications = map[string]ServiceClassification{
 	"aws:ebs:volume": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: false, // Storage is not time-based
-		ParentTagKeys:     []string{"instance_id"},
+		ParentTagKeys:     []string{parentTagInstanceID},
 		ParentType:        "aws:ec2:instance:Instance",
 		Relationship:      RelationshipAttachedTo,
 	},
@@ -57,15 +67,15 @@ var serviceClassifications = map[string]ServiceClassification{
 	"aws:elasticloadbalancing:loadbalancer": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Load balancer hours
-		ParentTagKeys:     []string{"vpc_id"},
-		ParentType:        "aws:ec2:vpc:Vpc",
+		ParentTagKeys:     []string{parentTagVPCID},
+		ParentType:        parentTypeVPC,
 		Relationship:      RelationshipWithin,
 	},
 	"aws:ec2:nat-gateway": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Gateway hours
-		ParentTagKeys:     []string{"vpc_id", "subnet_id"},
-		ParentType:        "aws:ec2:vpc:Vpc",
+		ParentTagKeys:     []string{parentTagVPCID, parentTagSubnetID},
+		ParentType:        parentTypeVPC,
 		Relationship:      RelationshipWithin,
 	},
 	"aws:cloudwatch:metric": {
@@ -76,15 +86,15 @@ var serviceClassifications = map[string]ServiceClassification{
 	"aws:elasticache:cluster": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Node hours
-		ParentTagKeys:     []string{"vpc_id"},
-		ParentType:        "aws:ec2:vpc:Vpc",
+		ParentTagKeys:     []string{parentTagVPCID},
+		ParentType:        parentTypeVPC,
 		Relationship:      RelationshipWithin,
 	},
 	"aws:rds:instance": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Instance hours
-		ParentTagKeys:     []string{"vpc_id"},
-		ParentType:        "aws:ec2:vpc:Vpc",
+		ParentTagKeys:     []string{parentTagVPCID},
+		ParentType:        parentTypeVPC,
 		Relationship:      RelationshipWithin,
 	},
 }

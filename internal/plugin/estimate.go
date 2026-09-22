@@ -64,7 +64,7 @@ func (p *AWSPublicPlugin) EstimateCost(
 	// Only support AWS resources
 	if resourceInfo.provider != providerAWS {
 		return &pbc.EstimateCostResponse{
-			Currency:    "USD",
+			Currency:    currencyUSD,
 			CostMonthly: 0,
 		}, nil
 	}
@@ -90,7 +90,7 @@ func (p *AWSPublicPlugin) EstimateCost(
 	if region != p.region {
 		// Return $0 for wrong region (let the correct plugin handle it)
 		return &pbc.EstimateCostResponse{
-			Currency:    "USD",
+			Currency:    currencyUSD,
 			CostMonthly: 0,
 		}, nil
 	}
@@ -115,7 +115,7 @@ func (p *AWSPublicPlugin) EstimateCost(
 		Msg("cost estimated")
 
 	return &pbc.EstimateCostResponse{
-		Currency:    "USD",
+		Currency:    currencyUSD,
 		CostMonthly: costMonthly,
 	}, nil
 }

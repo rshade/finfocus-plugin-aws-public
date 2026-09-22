@@ -275,7 +275,7 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return &pbc.GetProjectedCostResponse{
 			CostPerMonth: 0,
 			UnitPrice:    0,
-			Currency:     "USD",
+			Currency:     currencyUSD,
 			BillingDetail: fmt.Sprintf(
 				"Resource type %q not supported for cost estimation",
 				resource.GetResourceType(),

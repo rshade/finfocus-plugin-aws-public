@@ -73,6 +73,8 @@ func GetGridFactor(region string) float64 {
 
 // AWSRegionMapping maps AWS region codes to their location descriptions
 // and EPA eGRID subregions (for US regions).
+//
+//nolint:goconst // eGRID subregion codes are lookup-table data, not identifiers
 var AWSRegionMapping = map[string]struct {
 	location string
 	egrid    string // EPA eGRID subregion (for US only)

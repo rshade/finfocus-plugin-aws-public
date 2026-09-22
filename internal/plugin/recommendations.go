@@ -30,6 +30,14 @@ const (
 	modTypeGraviton = "graviton_migration"
 	// modTypeVolumeUpgrade is the modification type for EBS volume upgrades.
 	modTypeVolumeUpgrade = "volume_type_upgrade"
+	// projectionPeriodMonthly is the projection period for all savings estimates.
+	projectionPeriodMonthly = "monthly"
+	// recFieldInstanceType, recFieldEngine, and recFieldArchitecture are keys used in
+	// recommendation config and metadata maps.
+	recFieldInstanceType = "instance_type"
+	recFieldEngine       = "engine"
+	recFieldArchitecture = "architecture"
+	recFieldVolumeType   = "volume_type"
 	// defaultEBSVolumeGB is the default volume size when not specified in tags.
 	defaultEBSVolumeGB = 100
 	// defaultMaxBatchSize is the default maximum number of resources to process in GetRecommendations.
@@ -232,7 +240,7 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 
 	return &pbc.GetRecommendationsResponse{
 		Recommendations: recommendations,
-		Summary:         pluginsdk.CalculateRecommendationSummary(recommendations, "monthly"),
+		Summary:         pluginsdk.CalculateRecommendationSummary(recommendations, projectionPeriodMonthly),
 	}, nil
 }
 
@@ -323,14 +331,14 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 		ActionDetail: &pbc.Recommendation_Modify{
 			Modify: &pbc.ModifyAction{
 				ModificationType:  modTypeGenUpgrade,
-				CurrentConfig:     map[string]string{"instance_type": instanceType},
-				RecommendedConfig: map[string]string{"instance_type": newType},
+				CurrentConfig:     map[string]string{recFieldInstanceType: instanceType},
+				RecommendedConfig: map[string]string{recFieldInstanceType: newType},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
 			EstimatedSavings:  savings,
-			Currency:          "USD",
-			ProjectionPeriod:  "monthly",
+			Currency:          currencyUSD,
+			ProjectionPeriod:  projectionPeriodMonthly,
 			CurrentCost:       currentMonthly,
 			ProjectedCost:     newMonthly,
 			SavingsPercentage: savingsPercent,
@@ -396,15 +404,18 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 		},
 		ActionDetail: &pbc.Recommendation_Modify{
 			Modify: &pbc.ModifyAction{
-				ModificationType:  modTypeGraviton,
-				CurrentConfig:     map[string]string{"instance_type": instanceType, "architecture": archX86},
-				RecommendedConfig: map[string]string{"instance_type": gravitonType, "architecture": archARM64},
+				ModificationType: modTypeGraviton,
+				CurrentConfig:    map[string]string{recFieldInstanceType: instanceType, recFieldArchitecture: archX86},
+				RecommendedConfig: map[string]string{
+					recFieldInstanceType: gravitonType,
+					recFieldArchitecture: archARM64,
+				},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
 			EstimatedSavings:  savings,
-			Currency:          "USD",
-			ProjectionPeriod:  "monthly",
+			Currency:          currencyUSD,
+			ProjectionPeriod:  projectionPeriodMonthly,
 			CurrentCost:       currentMonthly,
 			ProjectedCost:     gravitonMonthly,
 			SavingsPercentage: savingsPercent,
@@ -434,7 +445,7 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 	tags map[string]string,
 ) []*pbc.Recommendation {
 	// Only recommend for gp2 volumes
-	if volumeType != "gp2" {
+	if volumeType != volumeTypeGP2 {
 		return nil
 	}
 
@@ -455,7 +466,7 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 		return nil
 	}
 
-	gp3Price, found := p.pricing.EBSPricePerGBMonth("gp3")
+	gp3Price, found := p.pricing.EBSPricePerGBMonth(volumeTypeGP3)
 	// FR-011: Only recommend when new price <= current price
 	if !found || gp3Price > gp2Price {
 		return nil
@@ -483,15 +494,21 @@ func (p *AWSPublicPlugin) getEBSRecommendations(
 		},
 		ActionDetail: &pbc.Recommendation_Modify{
 			Modify: &pbc.ModifyAction{
-				ModificationType:  modTypeVolumeUpgrade,
-				CurrentConfig:     map[string]string{"volume_type": "gp2", "size_gb": strconv.Itoa(sizeGB)},
-				RecommendedConfig: map[string]string{"volume_type": "gp3", "size_gb": strconv.Itoa(sizeGB)},
+				ModificationType: modTypeVolumeUpgrade,
+				CurrentConfig: map[string]string{
+					recFieldVolumeType: volumeTypeGP2,
+					"size_gb":          strconv.Itoa(sizeGB),
+				},
+				RecommendedConfig: map[string]string{
+					recFieldVolumeType: volumeTypeGP3,
+					"size_gb":          strconv.Itoa(sizeGB),
+				},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
 			EstimatedSavings:  savings,
-			Currency:          "USD",
-			ProjectionPeriod:  "monthly",
+			Currency:          currencyUSD,
+			ProjectionPeriod:  projectionPeriodMonthly,
 			CurrentCost:       currentMonthly,
 			ProjectedCost:     gp3Monthly,
 			SavingsPercentage: savingsPercent,
@@ -534,20 +551,20 @@ func extractRDSEngine(tags map[string]string) string {
 // Handles common aliases and capitalization variants.
 func normalizeRDSEngine(engine string) string {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
-	case "mysql", "mysql8", "mysql-8.0":
+	case rdsEngineMySQL, "mysql8", "mysql-8.0":
 		return defaultRDSEngine
-	case "postgres", "postgresql", "postgres13", "postgres14", "postgres15":
-		return "postgresql"
-	case "mariadb", "maria":
-		return "mariadb"
-	case "oracle", "oracle-ee", "oracle-se", "oracle-se1", "oracle-se2":
-		return "oracle"
-	case "sqlserver", "sql-server", "sqlserver-ee", "sqlserver-se", "sqlserver-ex", "sqlserver-web":
-		return "sqlserver"
-	case "aurora", "aurora-mysql":
-		return "aurora-mysql"
-	case "aurora-postgresql":
-		return "aurora-postgresql"
+	case rdsEnginePostgres, rdsEnginePostgreSQL, "postgres13", "postgres14", "postgres15":
+		return rdsEnginePostgreSQL
+	case rdsEngineMariaDB, "maria":
+		return rdsEngineMariaDB
+	case rdsEngineOracle, "oracle-ee", "oracle-se", "oracle-se1", "oracle-se2":
+		return rdsEngineOracle
+	case rdsEngineSQLServer, "sql-server", "sqlserver-ee", "sqlserver-se", "sqlserver-ex", "sqlserver-web":
+		return rdsEngineSQLServer
+	case "aurora", rdsEngineAuroraMySQL:
+		return rdsEngineAuroraMySQL
+	case rdsEngineAuroraPostgreSQL:
+		return rdsEngineAuroraPostgreSQL
 	default:
 		return strings.ToLower(engine)
 	}
@@ -638,14 +655,14 @@ func (p *AWSPublicPlugin) getRDSGenerationUpgradeRecommendation(
 		ActionDetail: &pbc.Recommendation_Modify{
 			Modify: &pbc.ModifyAction{
 				ModificationType:  modTypeGenUpgrade,
-				CurrentConfig:     map[string]string{"instance_type": instanceType, "engine": engine},
-				RecommendedConfig: map[string]string{"instance_type": newType, "engine": engine},
+				CurrentConfig:     map[string]string{recFieldInstanceType: instanceType, recFieldEngine: engine},
+				RecommendedConfig: map[string]string{recFieldInstanceType: newType, recFieldEngine: engine},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
 			EstimatedSavings:  savings,
-			Currency:          "USD",
-			ProjectionPeriod:  "monthly",
+			Currency:          currencyUSD,
+			ProjectionPeriod:  projectionPeriodMonthly,
 			CurrentCost:       currentMonthly,
 			ProjectedCost:     newMonthly,
 			SavingsPercentage: savingsPercent,
@@ -710,21 +727,21 @@ func (p *AWSPublicPlugin) getRDSGravitonRecommendation(
 			Modify: &pbc.ModifyAction{
 				ModificationType: modTypeGraviton,
 				CurrentConfig: map[string]string{
-					"instance_type": instanceType,
-					"engine":        engine,
-					"architecture":  archX86,
+					recFieldInstanceType: instanceType,
+					recFieldEngine:       engine,
+					recFieldArchitecture: archX86,
 				},
 				RecommendedConfig: map[string]string{
-					"instance_type": gravitonType,
-					"engine":        engine,
-					"architecture":  "arm64",
+					recFieldInstanceType: gravitonType,
+					recFieldEngine:       engine,
+					recFieldArchitecture: archARM64,
 				},
 			},
 		},
 		Impact: &pbc.RecommendationImpact{
 			EstimatedSavings:  savings,
-			Currency:          "USD",
-			ProjectionPeriod:  "monthly",
+			Currency:          currencyUSD,
+			ProjectionPeriod:  projectionPeriodMonthly,
 			CurrentCost:       currentMonthly,
 			ProjectedCost:     gravitonMonthly,
 			SavingsPercentage: savingsPercent,
@@ -739,7 +756,7 @@ func (p *AWSPublicPlugin) getRDSGravitonRecommendation(
 		},
 		Metadata: map[string]string{
 			"architecture_change": "x86_64 -> arm64",
-			"engine":              engine,
+			recFieldEngine:        engine,
 		},
 		Source: sourceAWSPublic,
 	}

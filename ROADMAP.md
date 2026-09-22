@@ -38,7 +38,7 @@ security overhead of cloud credentials.
     `nolint` directives (#316) [S]
   - **Gosec Narrowing:** Narrow gosec suppression for tools/ to specific
     rules (#318) [S]
-  - **golangci-lint Upgrade:** Upgrade from v2.5.0 to v2.8.0 (#291) [S]
+  - ~~**golangci-lint Upgrade:** Upgrade from v2.5.0 to v2.8.0 (#291) [S]~~ ✅
 - **[Planned] Build Infrastructure:**
   - **Region Mapping Consolidation:** Consolidate all region-to-tag mappings
     to use `regions.yaml` as single source of truth, eliminating hardcoded
@@ -97,6 +97,13 @@ security overhead of cloud credentials.
 ---
 
 ## Completed Milestones
+
+### Q3 2026
+
+- **golangci-lint v2.13.2:** Upgraded CI linter and resolved the `goconst`
+  findings its broader literal scanning surfaced — shared string identifiers
+  (currency, carbon unit, RDS engines, billing modes, units) are now named
+  constants; instance-family lookup tables carry targeted `nolint` directives.
 
 ### Q1 2026
 
