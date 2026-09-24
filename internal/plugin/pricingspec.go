@@ -27,12 +27,13 @@ const (
 
 // PricingSpec rate units.
 const (
-	unitHour        = "hour"
-	unitGBMonth     = "GB-month"
-	unitGBSecond    = "GB-second"
-	unitGBIngested  = "GB-ingested"
-	unitRCUHour     = "RCU-hour"
-	unitMetricMonth = "metric-month"
+	unitHour            = "hour"
+	unitGBMonth         = "GB-month"
+	unitGBSecond        = "GB-second"
+	unitGBIngested      = "GB-ingested"
+	unitRCUHour         = "RCU-hour"
+	unitMetricMonth     = "metric-month"
+	unitPerInstanceHour = "per-instance-hour"
 )
 
 // assumptionDataTransferExcluded is the shared assumption note for services whose
@@ -762,12 +763,12 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			Provider:     resource.GetProvider(),
 			ResourceType: resource.GetResourceType(),
 			Region:       resource.GetRegion(),
-			BillingMode:  "on_demand",
+			BillingMode:  billingModeOnDemand,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "per-instance-hour",
+			Currency:     currencyUSD,
+			Unit:         unitPerInstanceHour,
 			Description:  "ASG instance type not specified: set 'sku' field or 'instance_type' tag",
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 		}
 	}
 
@@ -780,12 +781,12 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			ResourceType: resource.GetResourceType(),
 			Sku:          instanceType,
 			Region:       resource.GetRegion(),
-			BillingMode:  "on_demand",
+			BillingMode:  billingModeOnDemand,
 			RatePerUnit:  0,
-			Currency:     "USD",
-			Unit:         "per-instance-hour",
+			Currency:     currencyUSD,
+			Unit:         unitPerInstanceHour,
 			Description:  fmt.Sprintf(PricingNotFoundTemplate, "EC2 instance type", instanceType),
-			Source:       "aws-public",
+			Source:       sourceAWSPublic,
 			Assumptions:  []string{"Instance type not found in embedded pricing data"},
 		}
 	}
@@ -795,12 +796,12 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		ResourceType: resource.GetResourceType(),
 		Sku:          instanceType,
 		Region:       resource.GetRegion(),
-		BillingMode:  "on_demand",
+		BillingMode:  billingModeOnDemand,
 		RatePerUnit:  hourlyRate,
-		Currency:     "USD",
-		Unit:         "per-instance-hour",
+		Currency:     currencyUSD,
+		Unit:         unitPerInstanceHour,
 		Description:  fmt.Sprintf("ASG cost = %s hourly rate × desired_capacity × 730 hrs/month", instanceType),
-		Source:       "aws-public",
+		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Instance type: %s", instanceType),
 			fmt.Sprintf("On-demand %s, shared tenancy", os),

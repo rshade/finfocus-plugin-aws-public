@@ -251,8 +251,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 	}
 
 	if err != nil {
-		var pue *PricingUnavailableError
-		if errors.As(err, &pue) {
+		if pue, ok := errors.AsType[*PricingUnavailableError](err); ok {
 			resp = &pbc.GetProjectedCostResponse{
 				CostPerMonth:  0,
 				UnitPrice:     0,
@@ -1281,7 +1280,7 @@ func (p *AWSPublicPlugin) estimateASG(
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  monthlyCost,
 		UnitPrice:     hourlyRate,
-		Currency:      "USD",
+		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
 		Metadata:      dt.Metadata(),
 	}

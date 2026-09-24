@@ -398,8 +398,7 @@ func (p *AWSPublicPlugin) GetActualCost( //nolint:funlen
 	// Get projected monthly cost using helper (pass resolver to reuse cached service type)
 	projectedResp, err := p.getProjectedForResource(traceID, resource, resolver)
 	if err != nil {
-		var pue *PricingUnavailableError
-		if errors.As(err, &pue) {
+		if pue, ok := errors.AsType[*PricingUnavailableError](err); ok {
 			// FR-004: Empty results signals to Core that pricing is unavailable for fallback
 			p.traceLogger(traceID, "GetActualCost").Info().
 				Str("service", pue.Service).
