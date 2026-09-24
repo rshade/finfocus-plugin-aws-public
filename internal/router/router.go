@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -14,18 +15,21 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
 )
 
 // Plugin implements pluginsdk.Plugin as a multi-region router that delegates RPCs
 // to region-specific child processes. It contains no embedded pricing data and
 // acts as a thin routing layer.
 type Plugin struct {
-	version    string
-	logger     zerolog.Logger
-	registry   *ChildRegistry
-	downloader *Downloader
-	offline    bool
-	binaryDir  string
+	version      string
+	logger       zerolog.Logger
+	registry     *ChildRegistry
+	downloader   *Downloader
+	offline      bool
+	binaryDir    string
+	typeRegistry *pluginsdk.TypeRegistry
 }
 
 // NewPlugin creates a new router Plugin with the given dependencies.
@@ -42,12 +46,13 @@ func NewPlugin(
 	registry := NewChildRegistry(discovered, downloader, offline, logger)
 
 	return &Plugin{
-		version:    version,
-		logger:     logger.With().Str("component", "router").Logger(),
-		registry:   registry,
-		downloader: downloader,
-		offline:    offline,
-		binaryDir:  binaryDir,
+		version:      version,
+		logger:       logger.With().Str("component", "router").Logger(),
+		registry:     registry,
+		downloader:   downloader,
+		offline:      offline,
+		binaryDir:    binaryDir,
+		typeRegistry: typeregistry.New(),
 	}
 }
 
@@ -58,15 +63,55 @@ func (r *Plugin) Name() string {
 
 // GetPluginInfo returns metadata about the router plugin.
 func (r *Plugin) GetPluginInfo(_ context.Context, _ *pbc.GetPluginInfoRequest) (*pbc.GetPluginInfoResponse, error) {
+	capabilities := r.capabilities()
+	metadata := map[string]string{
+		"type": "multi-region-router",
+	}
+	// Mirror the SDK's configured-PluginInfo path: expose capabilities via the
+	// legacy metadata keys as well, for older hosts that predate the enum.
+	legacyMeta, warnings := pluginsdk.CapabilitiesToLegacyMetadataWithWarnings(capabilities)
+	for _, w := range warnings {
+		r.logger.Warn().
+			Int32("capability", int32(w.Capability)).
+			Str("reason", w.Reason).
+			Msg("capability has no legacy metadata mapping")
+	}
+	maps.Copy(metadata, legacyMeta)
+
 	return &pbc.GetPluginInfoResponse{
-		Name:        r.Name(),
-		Version:     r.version,
-		SpecVersion: pluginsdk.SpecVersion,
-		Providers:   []string{"aws"},
-		Metadata: map[string]string{
-			"type": "multi-region-router",
-		},
+		Name:         r.Name(),
+		Version:      r.version,
+		SpecVersion:  pluginsdk.SpecVersion,
+		Providers:    []string{"aws"},
+		Metadata:     metadata,
+		Capabilities: capabilities,
 	}, nil
+}
+
+// capabilities returns the capability set advertised through GetPluginInfo.
+// The router implements PluginInfoProvider, so the SDK serves this response
+// verbatim instead of the interface-inferred set from ServeConfig — the
+// capabilities must be declared here or FinFocus Core will not use the
+// corresponding RPCs (e.g. ResolveResourceTypes for --terraform-state).
+// The optional entries are derived from interface assertions so the advertised
+// set cannot drift from the actual implementation.
+func (r *Plugin) capabilities() []pbc.PluginCapability {
+	capabilities := []pbc.PluginCapability{
+		pbc.PluginCapability_PLUGIN_CAPABILITY_PROJECTED_COSTS,
+		pbc.PluginCapability_PLUGIN_CAPABILITY_ACTUAL_COSTS,
+		pbc.PluginCapability_PLUGIN_CAPABILITY_PRICING_SPEC,
+		pbc.PluginCapability_PLUGIN_CAPABILITY_ESTIMATE_COST,
+	}
+	if _, ok := any(r).(pluginsdk.RecommendationsProvider); ok {
+		capabilities = append(capabilities, pbc.PluginCapability_PLUGIN_CAPABILITY_RECOMMENDATIONS)
+	}
+	if _, ok := any(r).(pluginsdk.DryRunHandler); ok {
+		capabilities = append(capabilities, pbc.PluginCapability_PLUGIN_CAPABILITY_DRY_RUN)
+	}
+	if _, ok := any(r).(pluginsdk.ResolveResourceTypesProvider); ok {
+		capabilities = append(capabilities, pbc.PluginCapability_PLUGIN_CAPABILITY_RESOLVE_RESOURCE_TYPES)
+	}
+	return capabilities
 }
 
 // Supports delegates to the region-specific child process to check resource support.
@@ -296,38 +341,32 @@ func (r *Plugin) GetBudgets(_ context.Context, _ *pbc.GetBudgetsRequest) (*pbc.G
 	return nil, status.Error(codes.Unimplemented, "GetBudgets is not supported by the router plugin")
 }
 
-// HandleDryRun delegates to the first available child for region-agnostic introspection.
-func (r *Plugin) HandleDryRun(_ *pbc.DryRunRequest) (*pbc.DryRunResponse, error) {
-	// DryRun is region-agnostic; delegate to any ready child
-	r.registry.mu.RLock()
-	var firstChild *ChildProcess
-	for _, child := range r.registry.children {
-		if child.State() == ChildStateReady {
-			firstChild = child
-			break
+// HandleDryRun reports whether the requested resource type is supported by
+// routing the descriptor through Supports, so dry-run results follow the same
+// region routing and per-resource support rules as real cost requests.
+//
+// A descriptor missing provider, resource_type, or region is rejected with
+// InvalidArgument. When the region's child cannot be launched, the response
+// marks the configuration invalid and carries the launch error.
+func (r *Plugin) HandleDryRun(ctx context.Context, req *pbc.DryRunRequest) (*pbc.DryRunResponse, error) {
+	resource := req.GetResource()
+	if resource.GetProvider() == "" || resource.GetResourceType() == "" {
+		return nil, status.Error(codes.InvalidArgument, "provider and resource_type are required for DryRun")
+	}
+
+	supportsResp, err := r.Supports(ctx, &pbc.SupportsRequest{Resource: resource})
+	if err != nil {
+		if status.Code(err) == codes.InvalidArgument {
+			return nil, err
 		}
-	}
-	r.registry.mu.RUnlock()
-
-	if firstChild == nil {
 		return pluginsdk.NewDryRunResponse(
 			pluginsdk.WithResourceTypeSupported(false),
-			pluginsdk.WithConfigurationErrors([]string{"no region children available for DryRun"}),
+			pluginsdk.WithConfigurationErrors([]string{status.Convert(err).Message()}),
 		), nil
 	}
 
-	// Use the child's Inner() connect client for DryRun
-	client := firstChild.Client()
-	if client == nil {
-		return pluginsdk.NewDryRunResponse(
-			pluginsdk.WithResourceTypeSupported(false),
-			pluginsdk.WithConfigurationErrors([]string{"child client unavailable"}),
-		), nil
-	}
-
-	// Return a basic response since DryRun is region-agnostic
 	return pluginsdk.NewDryRunResponse(
-		pluginsdk.WithResourceTypeSupported(true),
+		pluginsdk.WithResourceTypeSupported(supportsResp.GetSupported()),
 		pluginsdk.WithConfigurationValid(true),
 	), nil
 }
