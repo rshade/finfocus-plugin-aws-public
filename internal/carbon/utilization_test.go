@@ -34,19 +34,19 @@ func TestGetUtilization_Priority(t *testing.T) {
 		{
 			name:           "perResource takes priority over request",
 			requestUtil:    0.7,
-			perResourceVal: ptr(0.9),
+			perResourceVal: new(0.9),
 			want:           0.9,
 		},
 		{
 			name:           "perResource zero falls back to request",
 			requestUtil:    0.6,
-			perResourceVal: ptr(0.0),
+			perResourceVal: new(0.0),
 			want:           0.6,
 		},
 		{
 			name:           "perResource zero, request zero uses default",
 			requestUtil:    0,
-			perResourceVal: ptr(0.0),
+			perResourceVal: new(0.0),
 			want:           DefaultUtilization,
 		},
 	}
@@ -110,13 +110,13 @@ func TestGetUtilization_Clamping(t *testing.T) {
 		{
 			name:           "perResource clamped to max",
 			requestUtil:    0.5,
-			perResourceVal: ptr(1.5),
+			perResourceVal: new(1.5),
 			want:           1.0,
 		},
 		{
 			name:           "perResource valid not clamped",
 			requestUtil:    0.5,
-			perResourceVal: ptr(0.8),
+			perResourceVal: new(0.8),
 			want:           0.8,
 		},
 	}
@@ -127,9 +127,4 @@ func TestGetUtilization_Clamping(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-// ptr returns a pointer to the given float64 value.
-func ptr(f float64) *float64 {
-	return &f
 }
