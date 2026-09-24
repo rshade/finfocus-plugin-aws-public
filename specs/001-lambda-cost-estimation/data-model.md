@@ -147,4 +147,4 @@ GetProjectedCostResponse
 - Additional pricing dimensions would require new attributes
 - Architecture-specific pricing would require architecture field
 - Enhanced storage would require storage size field</content>
-<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/data-model.md
+<parameter name="filePath">$GOPATH/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/data-model.md

@@ -259,6 +259,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return p.estimateCloudWatch(traceID, resource)
 	case serviceElastiCache:
 		return p.estimateElastiCache(traceID, resource)
+	case serviceASG:
+		return p.estimateASG(traceID, resource)
 	case serviceS3:
 		return p.estimateS3(traceID, resource)
 	case serviceLambda:

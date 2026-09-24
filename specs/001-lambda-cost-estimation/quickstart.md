@@ -202,4 +202,4 @@ After implementation:
 - [AWS Lambda Pricing](https://aws.amazon.com/lambda/pricing/)
 - [Plugin Architecture](../README.md)
 - [Testing Guidelines](../../AGENTS.md)</content>
-<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/quickstart.md
+<parameter name="filePath">$GOPATH/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/quickstart.md

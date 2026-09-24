@@ -1153,3 +1153,39 @@ func TestSupports_IAM(t *testing.T) {
 		})
 	}
 }
+
+// TestSupports_ASG verifies that ASG resource types are supported with carbon metrics.
+// Tests all three resource type formats: Pulumi full format, short form, and autoscaling alias.
+func TestSupports_ASG(t *testing.T) {
+	resourceTypes := []string{
+		"aws:autoscaling/group:Group",
+		"asg",
+		"autoscaling",
+	}
+
+	for _, rt := range resourceTypes {
+		t.Run(rt, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			logger := zerolog.New(nil).Level(zerolog.InfoLevel)
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+
+			resp, err := plugin.Supports(context.Background(), &pb.SupportsRequest{
+				Resource: &pb.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: rt,
+					Region:       "us-east-1",
+				},
+			})
+
+			if err != nil {
+				t.Fatalf("Supports() returned error: %v", err)
+			}
+			if !resp.GetSupported() {
+				t.Errorf("ASG with resource type %q should be supported", rt)
+			}
+			if !slices.Contains(resp.GetSupportedMetrics(), pb.MetricKind_METRIC_KIND_CARBON_FOOTPRINT) {
+				t.Errorf("ASG should advertise carbon footprint metric, got %v", resp.GetSupportedMetrics())
+			}
+		})
+	}
+}

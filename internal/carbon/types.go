@@ -162,6 +162,24 @@ type EKSClusterConfig struct {
 	Region string
 }
 
+// ASGConfig contains configuration for ASG carbon estimation.
+type ASGConfig struct {
+	// InstanceType is the EC2 instance type (e.g., "m5.large").
+	InstanceType string
+
+	// Region is the AWS region for grid emission factor lookup.
+	Region string
+
+	// DesiredCapacity is the number of instances in the ASG.
+	DesiredCapacity int
+
+	// Utilization is the CPU utilization (0.0 to 1.0, default: 0.50).
+	Utilization float64
+
+	// Hours is the operating hours per month.
+	Hours float64
+}
+
 // ElastiCacheConfig contains configuration for ElastiCache carbon estimation.
 type ElastiCacheConfig struct {
 	// NodeType is the ElastiCache node type (EC2-equivalent, e.g., "cache.m5.large").

@@ -86,4 +86,4 @@ TotalCost = RequestCost + DurationCost
 ## Next Steps
 
 Implementation can begin immediately. No additional research required before proceeding to Phase 1 design.</content>
-<parameter name="filePath">/mnt/c/GitHub/go/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/research.md
+<parameter name="filePath">$GOPATH/src/github.com/rshade/pulumicost-plugin-aws-public/specs/001-lambda-cost-estimation/research.md
