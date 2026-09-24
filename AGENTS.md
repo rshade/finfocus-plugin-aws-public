@@ -11,7 +11,7 @@
 
 ### Go Standards
 
-- **Version**: Go 1.25.5 minimum
+- **Version**: Go 1.27.1 minimum
 - **Formatting**: Standard gofmt/gofmt -w
 - **Imports**: Group by standard library, third-party, local packages
 - **Naming**: PascalCase for exported, camelCase for unexported
@@ -53,7 +53,7 @@ v0.0.10/v0.0.11 were broken by filtering that stripped 85% of data.
 - `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
 
 ## Active Technologies
-- Go 1.25.5+ + gRPC (pluginsdk), finfocus-spec v0.5.1, zerolog
+- Go 1.27.1+ + gRPC (pluginsdk), finfocus-spec v0.6.1, zerolog
 - Memory-mapped JSON pricing data (embedded at build time)
 - Dockerfile, Bash (entrypoint), YAML (GitHub Actions) + `alpine:3.19`, `curl` (healthchecks), custom metrics aggregator (Go) (032-multi-region-docker)
 - Deployment model: Stateless container (Docker) — not applicable for scaling state (032-multi-region-docker)
