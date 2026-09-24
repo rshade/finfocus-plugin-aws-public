@@ -31,7 +31,7 @@ go test -tags=integration ./internal/plugin/... -run TestIntegration_TraceIDProp
 
 ## Code Style
 
-Go 1.25+: Follow standard conventions
+Go 1.27+: Follow standard conventions
 - **No Dummy Data:** Do not create dummy, fake, or hardcoded placeholder data for core functionality (especially pricing). Always implement fetchers for real authoritative data sources (e.g., AWS Price List API).
 - **Validation Pattern:** For parsing numeric tags with bounds checking, use validation helper methods that return validated values and log warnings for invalid inputs. Example: `validateNonNegativeFloat64(traceID, "tag_name", value)` returns 0 and logs warning if value is negative or unparseable. This ensures consistent error handling across all tag parsing.
 - **Zero-Cost Resources:** AWS resources with no direct cost (VPC, Security Groups, Subnets) return $0 estimates gracefully instead of SKU errors.
@@ -764,6 +764,15 @@ Per CLAUDE.md performance goals: "startup < 1s, PORT < 1s, GetProjectedCost < 10
    - Update `getSupportedMetrics()` in `supports.go` to advertise carbon capability
    - Related issues: #135 (EBS), #136 (EKS), #137 (stub services)
 
+### Go Version Bumps and Nested Tool Modules
+
+`tools/generate-embeds`, `tools/generate-goreleaser`, and `tools/parse-regions`
+are separate modules. The first two `replace` the root module with `../..`, so
+their `go` directive must be at least the root `go.mod`'s. When raising the root
+Go version, bump all three (`go mod edit -go=X && go mod tidy` in each); CI reads
+the version from `go.mod` with `GOTOOLCHAIN=local` and fails `make
+generate-embeds` with "updates to go.mod needed" otherwise.
+
 ### Working with Build Tags
 - Region-specific files use build tags like `//go:build region_use1`
 - The fallback file uses negation: `//go:build !region_use1 && !region_usw2 && !region_euw1`
@@ -802,7 +811,7 @@ Per CLAUDE.md performance goals: "startup < 1s, PORT < 1s, GetProjectedCost < 10
 - Make pricing lookups thread-safe for concurrent RPCs
 
 
-- **Go 1.25+** with gRPC via finfocus-spec/sdk/go/pluginsdk
+- **Go 1.27+** with gRPC via finfocus-spec/sdk/go/pluginsdk
 - **finfocus-spec** protos for CostSourceService API
 - **zerolog** for structured JSON logging (stderr only)
 - **Embedded JSON** pricing data via `//go:embed` (no external storage)

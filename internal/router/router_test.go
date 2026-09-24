@@ -380,6 +380,55 @@ func TestPlugin_OfflineMode_NoChild(t *testing.T) {
 	assert.Contains(t, err.Error(), "us-east-1")
 }
 
+// TestPlugin_HandleDryRun_InvalidDescriptor verifies that HandleDryRun rejects
+// descriptors missing provider, resource_type, or region with InvalidArgument
+// instead of reporting them as supported.
+func TestPlugin_HandleDryRun_InvalidDescriptor(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource *pbc.ResourceDescriptor
+	}{
+		{"nil resource", nil},
+		{"missing provider", &pbc.ResourceDescriptor{ResourceType: "ec2", Region: "us-east-1"}},
+		{"missing resource type", &pbc.ResourceDescriptor{Provider: "aws", Region: "us-east-1"}},
+		{"missing region", &pbc.ResourceDescriptor{Provider: "aws", ResourceType: "ec2"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+			resp, err := r.HandleDryRun(context.Background(), &pbc.DryRunRequest{Resource: tt.resource})
+
+			require.Error(t, err)
+			assert.Nil(t, resp)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		})
+	}
+}
+
+// TestPlugin_HandleDryRun_RegionUnavailable verifies that when the resource's
+// region child cannot be launched, HandleDryRun reports the type as unsupported
+// and the configuration as invalid, naming the region in the error.
+func TestPlugin_HandleDryRun_RegionUnavailable(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	resp, err := r.HandleDryRun(context.Background(), &pbc.DryRunRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "ec2",
+			Sku:          "t3.micro",
+			Region:       "us-east-1",
+		},
+	})
+
+	require.NoError(t, err)
+	assert.False(t, resp.GetResourceTypeSupported())
+	assert.False(t, resp.GetConfigurationValid())
+	require.Len(t, resp.GetConfigurationErrors(), 1)
+	assert.Contains(t, resp.GetConfigurationErrors()[0], "us-east-1")
+}
+
 // TestGetTraceID_FromContext verifies trace_id extraction from gRPC metadata.
 func TestGetTraceID_FromContext(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))

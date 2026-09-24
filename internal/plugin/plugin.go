@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
 )
 
 // AWSPublicPlugin implements the pluginsdk.Plugin interface for AWS public pricing.
@@ -33,6 +35,7 @@ type AWSPublicPlugin struct {
 	testMode         bool           // true when FINFOCUS_TEST_MODE=true
 	maxBatchSize     int            // configured max batch size for recommendations (read-only after init)
 	strictValidation bool           // fail-fast on invalid resources in recommendations (read-only after init)
+	typeRegistry     *pluginsdk.TypeRegistry
 }
 
 // NewAWSPublicPlugin creates and returns a configured AWSPublicPlugin for the given AWS region.
@@ -117,6 +120,7 @@ func NewAWSPublicPlugin(
 		testMode:         testMode,
 		maxBatchSize:     maxBatchSize,
 		strictValidation: strictValidation,
+		typeRegistry:     typeregistry.New(),
 	}
 }
 
@@ -287,16 +291,53 @@ func (p *AWSPublicPlugin) GetPluginInfo(
 	p.traceLogger(traceID, "GetPluginInfo").Info().
 		Msg("providing plugin info")
 
+	capabilities := p.capabilities()
+	metadata := map[string]string{
+		"region": p.region,
+		"type":   "public-pricing-fallback",
+	}
+	// Mirror the SDK's configured-PluginInfo path: expose capabilities via the
+	// legacy metadata keys as well, for older hosts that predate the enum.
+	legacyMeta, warnings := pluginsdk.CapabilitiesToLegacyMetadataWithWarnings(capabilities)
+	for _, w := range warnings {
+		p.logger.Warn().
+			Int32("capability", int32(w.Capability)).
+			Str("reason", w.Reason).
+			Msg("capability has no legacy metadata mapping")
+	}
+	maps.Copy(metadata, legacyMeta)
+
 	return &pbc.GetPluginInfoResponse{
-		Name:        p.Name(),
-		Version:     p.version,
-		SpecVersion: pluginsdk.SpecVersion,
-		Providers:   []string{providerAWS},
-		Metadata: map[string]string{
-			"region": p.region,
-			"type":   "public-pricing-fallback",
-		},
+		Name:         p.Name(),
+		Version:      p.version,
+		SpecVersion:  pluginsdk.SpecVersion,
+		Providers:    []string{providerAWS},
+		Metadata:     metadata,
+		Capabilities: capabilities,
 	}, nil
+}
+
+// capabilities returns the capability set advertised through GetPluginInfo.
+// The plugin implements PluginInfoProvider, so the SDK serves this response
+// verbatim instead of the interface-inferred set from ServeConfig — the
+// capabilities must be declared here or FinFocus Core will not use the
+// corresponding RPCs (e.g. ResolveResourceTypes for --terraform-state).
+// The optional entries are derived from interface assertions so the advertised
+// set cannot drift from the actual implementation.
+func (p *AWSPublicPlugin) capabilities() []pbc.PluginCapability {
+	capabilities := []pbc.PluginCapability{
+		pbc.PluginCapability_PLUGIN_CAPABILITY_PROJECTED_COSTS,
+		pbc.PluginCapability_PLUGIN_CAPABILITY_ACTUAL_COSTS,
+		pbc.PluginCapability_PLUGIN_CAPABILITY_PRICING_SPEC,
+		pbc.PluginCapability_PLUGIN_CAPABILITY_ESTIMATE_COST,
+	}
+	if _, ok := any(p).(pluginsdk.RecommendationsProvider); ok {
+		capabilities = append(capabilities, pbc.PluginCapability_PLUGIN_CAPABILITY_RECOMMENDATIONS)
+	}
+	if _, ok := any(p).(pluginsdk.ResolveResourceTypesProvider); ok {
+		capabilities = append(capabilities, pbc.PluginCapability_PLUGIN_CAPABILITY_RESOLVE_RESOURCE_TYPES)
+	}
+	return capabilities
 }
 
 // GetActualCost retrieves actual cost for a resource based on runtime.

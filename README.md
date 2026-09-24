@@ -69,6 +69,7 @@ This plugin provides basic actual cost estimation based on resource runtime and 
 ## Features
 
 - **gRPC Protocol**: Implements `CostSourceService` from `finfocus.v1` proto
+- **Terraform Support**: Translates Terraform resource types (e.g., `aws_instance`) into Pulumi type tokens via the `ResolveResourceTypes` RPC, enabling `finfocus cost projected --terraform-state`
 - **Region-Specific Binaries**: One binary per AWS region with embedded pricing
 - **Carbon Footprint Estimation**: EC2 instances include gCO2e metrics using CCF methodology
 - **Thread-Safe**: Concurrent RPC calls are handled safely
