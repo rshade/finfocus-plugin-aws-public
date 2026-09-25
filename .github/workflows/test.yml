@@ -42,12 +42,14 @@ jobs:
           version: v2.14.0
           args: --timeout=9m
 
-      - name: Verify pricing data is embedded
+      # Runs every pricing test against freshly generated us-east-1 data, so a
+      # product AWS moves or renames between offers fails the PR (see #389).
+      - name: Verify pricing data against real us-east-1 data
         shell: bash
         run: |
-          go test -tags=region_use1 -run '^TestEmbeddedData_' ./internal/pricing/... -v | tee "$RUNNER_TEMP/embed-tests.log"
-          if ! grep -q -- '--- PASS: TestEmbeddedData_' "$RUNNER_TEMP/embed-tests.log"; then
-            echo "::error::No TestEmbeddedData_ tests ran; the -run pattern no longer matches any test"
+          go test -tags=region_use1 ./internal/pricing/... -v | tee "$RUNNER_TEMP/pricing-tests.log"
+          if ! grep -q -- '--- PASS: TestEmbeddedData_' "$RUNNER_TEMP/pricing-tests.log"; then
+            echo "::error::No TestEmbeddedData_ tests ran; the embedded-data guards are not executing"
             exit 1
           fi
         if: success()

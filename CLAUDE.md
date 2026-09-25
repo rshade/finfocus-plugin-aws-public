@@ -518,6 +518,13 @@ and excluded helps users accurately estimate total infrastructure costs.
 - `resource_type`: "natgw", "nat_gateway", "nat-gateway", or "aws:ec2/natGateway:NatGateway"
 - **Tags:** `data_processed_gb` (defaults to 0)
 - `cost_per_month`: (hourly_rate × 730) + (data_gb × data_rate)
+- **Pricing source:** AWS publishes NAT Gateway products in the **AmazonEC2**
+  offer (they previously lived in AmazonVPC). The EC2 parser reads them; the
+  VPC parser remains a fallback for older data, and the EC2 price wins when
+  both exist (`selectNATGatewayPrice`). Usage types are matched exactly after
+  stripping the optional region prefix (`NatGateway-Hours`,
+  `CAN1-NatGateway-Hours`), so regional (`RegionalNatGateway-*`) and
+  provisioned-bandwidth (`NatGateway-Prvd-*`) gateways are not priced
 
 ### CloudWatch
 
