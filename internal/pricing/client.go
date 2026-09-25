@@ -31,6 +31,7 @@ const locationTypeAWSRegion = "AWS Region"
 const (
 	productFamilyComputeInstance          = "Compute Instance"
 	productFamilyComputeInstanceBareMetal = "Compute Instance (bare metal)"
+	productFamilyNATGateway               = "NAT Gateway"
 )
 
 // isHourlyUnit reports whether the AWS pricing unit represents an hourly rate.
@@ -188,8 +189,13 @@ type Client struct {
 	// ELB pricing (single rate per region)
 	elbPricing *elbPrice
 
-	// NAT Gateway pricing (single rate per region)
+	// NAT Gateway pricing (single rate per region), selected after parsing
+	// from natGatewayEC2 (current AmazonEC2 offer) or natGatewayVPC (older
+	// AmazonVPC offer). The EC2 and VPC parsers run concurrently, so each
+	// writes only its own field.
 	natGatewayPricing *NATGatewayPrice
+	natGatewayEC2     *NATGatewayPrice
+	natGatewayVPC     *NATGatewayPrice
 
 	// CloudWatch pricing (tiered logs and metrics)
 	cloudWatchPricing *cloudWatchPrice
@@ -321,7 +327,8 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 			}
 		})
 
-		// 8. Parse NAT Gateway pricing
+		// 8. Parse NAT Gateway pricing from the legacy AmazonVPC offer; the
+		// current AmazonEC2 offer is handled by the EC2 parser.
 		wg.Go(func() {
 			if _, err := c.parseNATGatewayPricing(rawVPCJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse NAT Gateway pricing")
@@ -344,6 +351,8 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 
 		// Wait for all parsing to complete
 		wg.Wait()
+
+		c.natGatewayPricing = selectNATGatewayPrice(c.natGatewayEC2, c.natGatewayVPC)
 
 		// Log initialization duration for performance monitoring
 		c.logger.Debug().
@@ -589,12 +598,19 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 	}
 
 	var region string
+	nat := &NATGatewayPrice{Currency: currencyUSD}
 	for sku, prod := range pricing.Products {
 		attrs := prod.Attributes
 
 		// Capture region from first product that has it
 		if region == "" && attrs["regionCode"] != "" {
 			region = attrs["regionCode"]
+		}
+
+		// NAT Gateway products moved from the AmazonVPC offer to AmazonEC2.
+		if prod.ProductFamily == productFamilyNATGateway {
+			nat.applyProduct(&pricing, sku, attrs["usagetype"])
+			continue
 		}
 
 		// EC2 Instances (includes bare metal which uses a different product family)
@@ -636,6 +652,9 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 				}
 			}
 		}
+	}
+	if nat.HourlyRate > 0 {
+		c.natGatewayEC2 = nat
 	}
 	return region, meta, nil
 }
@@ -1067,9 +1086,11 @@ func (c *Client) parseELBPricing(data []byte) (string, error) { //nolint:gocogni
 	return region, nil
 }
 
-// parseNATGatewayPricing parses VPC pricing data for NAT Gateways.
-// Returns the detected region and any parsing error.
-func (c *Client) parseNATGatewayPricing(data []byte) (string, error) { //nolint:gocognit
+// parseNATGatewayPricing parses NAT Gateway prices from the AmazonVPC offer,
+// where AWS published them before moving them to AmazonEC2. The result is a
+// fallback for pricing data generated before that move; see
+// selectNATGatewayPrice. Returns the detected region and any parsing error.
+func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse VPC JSON: %w", err)
@@ -1084,6 +1105,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) { //nolint:
 	}
 
 	var region string
+	nat := &NATGatewayPrice{Currency: currencyUSD}
 	for sku, prod := range pricing.Products {
 		attrs := prod.Attributes
 
@@ -1091,29 +1113,79 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) { //nolint:
 			region = attrs["regionCode"]
 		}
 
-		if prod.ProductFamily == "NAT Gateway" {
-			usageType := attrs["usagetype"]
-
-			if c.natGatewayPricing == nil {
-				c.natGatewayPricing = &NATGatewayPrice{
-					Currency: currencyUSD,
-				}
-			}
-
-			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			if found {
-				if strings.Contains(usageType, "NatGateway-Hours") && isHourlyUnit(unit) {
-					c.natGatewayPricing.HourlyRate = rate
-				} else if strings.Contains(usageType, "NatGateway-Bytes") && (unit == "Quantity" || unit == "GB") {
-					// AWS Pricing API returns "Quantity" as the unit for NatGateway-Bytes,
-					// but the rate is actually per-GB (not per-byte). No conversion needed.
-					// See: specs/001-nat-gateway-cost/research.md for verification.
-					c.natGatewayPricing.DataProcessingRate = rate
-				}
-			}
+		if prod.ProductFamily == productFamilyNATGateway {
+			nat.applyProduct(&pricing, sku, attrs["usagetype"])
 		}
 	}
+	if nat.HourlyRate > 0 {
+		c.natGatewayVPC = nat
+	}
 	return region, nil
+}
+
+// applyProduct records a NAT Gateway product's price if it is the standard
+// hourly or data-processing charge.
+//
+// Usage types are matched exactly after removing the optional region-code
+// prefix, because the offer also lists regional NAT gateways
+// ("RegionalNatGateway-Hours") and provisioned-bandwidth gateways
+// ("NatGateway-Prvd-Bytes") whose names contain the standard ones.
+func (n *NATGatewayPrice) applyProduct(data *awsPricing, sku, usageType string) {
+	rate, unit, found := getOnDemandPrice(data, sku)
+	if !found {
+		return
+	}
+	switch natGatewayUsage(usageType) {
+	case "NatGateway-Hours":
+		if isHourlyUnit(unit) {
+			n.HourlyRate = rate
+		}
+	case "NatGateway-Bytes":
+		// The unit is "GB" in the AmazonEC2 offer and was "Quantity" in the
+		// AmazonVPC offer; both are per-GB rates.
+		// See: specs/001-nat-gateway-cost/research.md for verification.
+		if unit == "Quantity" || unit == "GB" {
+			n.DataProcessingRate = rate
+		}
+	}
+}
+
+// natGatewayUsage strips an optional leading region code ("USW2-", "EU-")
+// from a NAT Gateway usage type. The prefix is inconsistent even within one
+// region's data: us-east-1 lists "NatGateway-Bytes" but
+// "USE1-RegionalNatGateway-Bytes".
+func natGatewayUsage(usageType string) string {
+	prefix, rest, found := strings.Cut(usageType, "-")
+	if !found || !isRegionCodePrefix(prefix) {
+		return usageType
+	}
+	return rest
+}
+
+// isRegionCodePrefix reports whether s looks like a Price List region code
+// ("USE1", "USW2", "EU", "APN1"): upper-case letters and digits only.
+func isRegionCodePrefix(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// selectNATGatewayPrice returns the NAT Gateway price to serve, preferring
+// the current AmazonEC2 offer over the legacy AmazonVPC offer. A price
+// without an hourly rate is incomplete and never selected.
+func selectNATGatewayPrice(ec2, vpc *NATGatewayPrice) *NATGatewayPrice {
+	for _, p := range []*NATGatewayPrice{ec2, vpc} {
+		if p != nil && p.HourlyRate > 0 {
+			return p
+		}
+	}
+	return nil
 }
 
 // parseCloudWatchPricing parses CloudWatch pricing data for logs and metrics.

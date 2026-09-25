@@ -65,6 +65,8 @@ func buildPriceList(t *testing.T, offerCode string, skus []fixtureSKU) []byte {
 func newParserTestClient() *Client {
 	return &Client{
 		logger:           zerolog.Nop(),
+		ec2Index:         make(map[string]ec2Price),
+		ebsIndex:         make(map[string]ebsPrice),
 		rdsInstanceIndex: make(map[string]rdsInstancePrice),
 		rdsStorageIndex:  make(map[string]rdsStoragePrice),
 		elasticacheIndex: make(map[string]elasticacheInstancePrice),
