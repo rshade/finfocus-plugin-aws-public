@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.10](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.9...v0.1.10) (2026-09-25)
+
+
+### Bug Fixes
+
+* **ci:** make the embedded-pricing guard actually run ([c7b5743](https://github.com/rshade/finfocus-plugin-aws-public/commit/c7b574386c02da1091c925bb10ad6812dbcd8122))
+* **deps:** update module github.com/aws/aws-sdk-go-v2 to v1.47.1 ([#374](https://github.com/rshade/finfocus-plugin-aws-public/issues/374)) ([5a2490b](https://github.com/rshade/finfocus-plugin-aws-public/commit/5a2490bb3703b0555a5cb2bdc5f0d3e9138cfbf1))
+* **deps:** update module github.com/prometheus/client_golang to v1.24.1 ([#381](https://github.com/rshade/finfocus-plugin-aws-public/issues/381)) ([191eaa8](https://github.com/rshade/finfocus-plugin-aws-public/commit/191eaa849d5af9942b654767578337dab9a6a93d))
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.9 ([#387](https://github.com/rshade/finfocus-plugin-aws-public/issues/387)) ([854ba6d](https://github.com/rshade/finfocus-plugin-aws-public/commit/854ba6deebecbcaff263b8d5b2d8fac329d5669e))
+* **deps:** update module google.golang.org/grpc to v1.84.0 ([#383](https://github.com/rshade/finfocus-plugin-aws-public/issues/383)) ([dd313a8](https://github.com/rshade/finfocus-plugin-aws-public/commit/dd313a80746f16af63eea07969798b0875ef2cc7))
+* **pricing:** read NAT Gateway prices from the AmazonEC2 offer ([#401](https://github.com/rshade/finfocus-plugin-aws-public/issues/401)) ([ffd2bc2](https://github.com/rshade/finfocus-plugin-aws-public/commit/ffd2bc20178dde6ce2808a231dccdf3812a35fd6)), closes [#389](https://github.com/rshade/finfocus-plugin-aws-public/issues/389)
+* **pricing:** resolve colliding price-list SKUs deterministically ([#397](https://github.com/rshade/finfocus-plugin-aws-public/issues/397)) ([c7b5743](https://github.com/rshade/finfocus-plugin-aws-public/commit/c7b574386c02da1091c925bb10ad6812dbcd8122))
+
+
+### Documentation
+
+* **roadmap:** sync roadmap with GitHub and scope router network exception ([#398](https://github.com/rshade/finfocus-plugin-aws-public/issues/398)) ([6ec212b](https://github.com/rshade/finfocus-plugin-aws-public/commit/6ec212bcdf9480a7e58d7d48528291fa9185a39a))
+
 ## [0.1.9](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.8...v0.1.9) (2026-09-24)
 
 
