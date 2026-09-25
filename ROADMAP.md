@@ -20,11 +20,11 @@ security overhead of cloud credentials.
 - **[In Progress] Build Infrastructure:**
   - [ ] #287 Consolidate region mappings to `regions.yaml` as single source
     of truth, eliminating hardcoded duplicates in shell scripts [M]
-- **[Blocked] Router Hardening:**
+- **[Ready] Router Hardening:**
   - [ ] #351 Re-enable strict checksum verification for region binary
     downloads [S]
-    - Gated on the first release after v0.1.8 producing clean checksums
-      (no `./` prefix) in `checksums.txt`.
+    - Unblocked: v0.1.9 `checksums.txt` is clean (66 entries, no `./`
+      prefix).
   - [ ] #396 Make runtime region-binary downloads visible (startup warning,
     documented `FINFOCUS_PLUGIN_OFFLINE`) and plan offline-by-default;
     depends on #351 [M]
