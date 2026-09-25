@@ -10,9 +10,18 @@ AWS credentials or network access at runtime.
 
 ## Technical Boundaries (Hard No's)
 
-1. **No Runtime Network Dependencies:** The plugin MUST NOT make any outbound
-   network calls (AWS APIs, Pricing APIs, etc.) during execution. All data
-   required for estimation must be embedded in the binary at build time.
+1. **No Runtime Network Dependencies:** Region estimation binaries MUST NOT
+   make any outbound network calls (AWS APIs, Pricing APIs, etc.) during
+   execution. All data required for estimation must be embedded in the binary
+   at build time.
+   - **Scoped exception, router only:** the multi-region router may download
+     a missing region binary from this project's GitHub Releases, verified
+     against the release checksums. This is the only runtime network call
+     permitted, it never carries resource or pricing data, and
+     `FINFOCUS_PLUGIN_OFFLINE=true` disables it completely. Saving the
+     downloaded binary beside the router is likewise the only exception to
+     rule 4. The download must be announced at startup (not silent). The goal is to make offline
+     the default in a future minor release (#396).
 2. **No Credential Management:** This plugin does not handle AWS IAM roles,
    access keys, or STS tokens. It is intentionally decoupled from the user's AWS
    account security boundary.
