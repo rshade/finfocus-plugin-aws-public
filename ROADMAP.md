@@ -10,39 +10,24 @@ security overhead of cloud credentials.
 
 ## Immediate Focus [In Progress / Planned]
 
-- **[In Progress] Bug Fixes:**
-  - **Sparse OldState:** Handle sparse `OldState` properties for cost diff
-    accuracy (#292) [M]
-  - **ARN Region Extraction:** Extract region from ARN-format resource IDs in
-    `GetActualCost` routing (#320) [M]
-  - **Context Propagation:** Restore context propagation for child process
-    lifecycle (#314) [M]
-  - ~~**Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
-    switch (#319) [S]~~ ✅
-  - **allowEmptyRegion:** Make `allowEmptyRegion` service-aware in
-    `parseResourceFromRequest` (#324) [S]
-  - **Logger Injection:** Replace global logger in `parsePositiveIntField`
-    with injected logger (#323) [S]
-  - **Zero-Cost PricingSpec:** Add zero-cost branch to `GetPricingSpec`
-    switch (#319) [S]
-- **[In Progress] Code Quality (PR #305 Follow-ups):**
-  - ~~**Doc Fixes:** Fix doc/code mismatches in instance_specs, client.go,
-    registry.go (#325) [S]~~ ✅
-  - ~~**Doc Clarification:** Clarify `parsePositiveIntField` and
-    `parseGoMapString` limitations (#317, #315) [S]~~ ✅
-  - ~~**RWMutex Optimization:** Use `RWMutex` for child getters and reuse EBS
-    estimator (#322) [S]~~ ✅
-  - **Service Constants:** Use service constants in `ZeroCostServices` and
-    `ZeroCostPulumiPatterns` maps (#321) [S]
-  - **Lint Directives:** Replace global threshold increases with targeted
-    `nolint` directives (#316) [S]
-  - **Gosec Narrowing:** Narrow gosec suppression for tools/ to specific
-    rules (#318) [S]
-  - ~~**golangci-lint Upgrade:** Upgrade from v2.5.0 to v2.8.0 (#291) [S]~~ ✅
-- **[Planned] Build Infrastructure:**
-  - **Region Mapping Consolidation:** Consolidate all region-to-tag mappings
-    to use `regions.yaml` as single source of truth, eliminating hardcoded
-    duplicates in shell scripts (#287) [M]
+- **[Planned] Pricing Correctness:**
+  - [ ] #389 NAT Gateway pricing not found: AWS moved NAT Gateway products
+    from the VPC offer to AmazonEC2; v0.1.9 likely affected [M]
+- **[Planned] Terraform Support:**
+  - [ ] #388 Accept Terraform-state attribute names and optional SKUs so all
+    23 mapped Terraform types price (9 currently fail with
+    `resource.sku is required`) [L]
+- **[In Progress] Build Infrastructure:**
+  - [ ] #287 Consolidate region mappings to `regions.yaml` as single source
+    of truth, eliminating hardcoded duplicates in shell scripts [M]
+- **[Ready] Router Hardening:**
+  - [ ] #351 Re-enable strict checksum verification for region binary
+    downloads [S]
+    - Unblocked: v0.1.9 `checksums.txt` is clean (66 entries, no `./`
+      prefix).
+  - [ ] #396 Make runtime region-binary downloads visible (startup warning,
+    documented `FINFOCUS_PLUGIN_OFFLINE`) and plan offline-by-default;
+    depends on #351 [M]
 - **[Planned] Service Breadth Expansion:**
   - **Route53:** Hosted zones and basic query volume estimation.
   - **CloudFront:** Basic data transfer and request pricing (based on regional
@@ -52,6 +37,22 @@ security overhead of cloud credentials.
 
 ## Future Vision [Researching / Planned]
 
+- **[Planned] Service Breadth (Phase 2):**
+  - [ ] #393 ECS Fargate cost estimator for `aws:ecs/service:Service` [L]
+  - [ ] #394 Amazon EFS cost estimator [M]
+- **[Planned] Recommendations & Planning:**
+  - [ ] #395 Static ElastiCache, Lambda arm64, and NAT Gateway endpoint
+    recommendations [M]
+  - [ ] #392 Opt-in cross-region cost and carbon comparison via
+    region-migration recommendations [L]
+- **[Planned] Pricing Data Trust:**
+  - [ ] #390 Expose Price List `publicationDate` as a pricing freshness
+    stamp [M]
+  - [ ] #391 Pricing drift report comparing each release's pricing data with
+    the previous release [L]
+- **[Cross-repo] SDK:** backfill inferred capabilities when a
+  `PluginInfoProvider` omits them (finfocus-spec#504); this plugin's explicit
+  capability list stays as a workaround until the SDK bump.
 - **[Researching] Memory Optimization:** Implementing lazy-loading or
   memory-mapped access for embedded JSON files to reduce the runtime memory
   footprint without moving to an external database (#84) [L]
@@ -95,89 +96,59 @@ security overhead of cloud credentials.
 
 ## Completed Milestones
 
-### Q3 2026
+### 2026-Q3
 
-- **golangci-lint v2.13.2:** Upgraded CI linter and resolved the `goconst`
-  findings its broader literal scanning surfaced — shared string identifiers
-  (currency, carbon unit, RDS engines, billing modes, units) are now named
-  constants; instance-family lookup tables carry targeted `nolint` directives.
+- [x] #385 `plugin`: Terraform types resolve to Pulumi tokens (#382). Closed 2026-09-24. [M]
+- [x] #295 `plugin`: ASG cost estimator for autoscaling groups. Closed 2026-09-24. [L]
+- [x] `lint`: golangci-lint v2.13.2 upgrade and goconst fixes (PR #377). [S]
 
-### Q1 2026
+### 2026-Q1
 
-- **ASG Cost Estimator:** Added cost estimation for
-  `aws:autoscaling/group:Group` resources. Multiplies EC2 on-demand pricing
-  by desired capacity × 730 hours. Includes carbon estimation, service
-  discovery (Supports, GetPricingSpec, GetActualCost), and classification
-  metadata. Supports instance type resolution from SKU, tags, or launch
-  template/configuration properties (#295).
-- **Zero-Cost PricingSpec:** `GetPricingSpec` now returns `BillingMode: "zero_cost"`
-  for VPC, Security Groups, Subnets, IAM, Launch Templates, and Launch
-  Configurations instead of falling through to "unknown" (#319).
-- **Sparse OldState Defaults Metadata:** Populate `Metadata` field with
-  `defaults_applied` and `estimate_quality` on `GetProjectedCostResponse`,
-  enabling cost diff engine to distinguish "real $0" from "defaulted $0"
-  (#292).
-- **ARN Region Extraction:** Extract region from ARN-format resource IDs in
-  `GetActualCost` routing (#320).
-- **Context Propagation:** Restored context propagation for child process
-  lifecycle (#314).
-- **allowEmptyRegion:** Made `allowEmptyRegion` service-aware in
-  `parseResourceFromRequest` (#324).
-- **Logger Injection:** Replaced global logger in `parsePositiveIntField`
-  with injected logger (#323).
-- **Doc Fixes:** Fixed doc/code mismatches in instance_specs, client.go,
-  registry.go (#325).
-- **Doc Clarification:** Clarified `parsePositiveIntField` and
-  `parseGoMapString` limitations (#317, #315).
-- **LaunchTemplate Fix:** LaunchTemplate no longer incorrectly priced as EC2
-  instance (#294).
-- **GetActualCost Zero-Cost:** `GetActualCost` now handles zero-cost resources
-  (VPC, Subnet, SecurityGroup) without error (#293).
-- **Linter Compliance:** Resolved all golangci-lint issues and protected
-  `.golangci.yml` configuration (#289).
-- **Multi-Region Router:** Single-port entry point that auto-discovers and
-  delegates to region-specific child processes. Supports parallel fan-out
-  for multi-region recommendations and automatic binary downloads from
-  GitHub Releases (#245).
-- **Router Binary Entrypoint:** Created `cmd/finfocus-plugin-aws-public-router`
-  entry point with eager warm-up of discovered region binaries. Release
-  pipeline builds router archive alongside region archives.
-- **Service Type Caching:** `serviceResolver` with lazy initialization
-  pattern to memoize `normalizeResourceType()` and `detectService()` results,
-  reducing redundant calls across all RPC methods (#157).
-- **IAM Zero-Cost Resources:** Added IAM users, roles, policies, groups, and
-  instance profiles to zero-cost handling (#274).
-- **us-west-1 Region Support:** Added N. California region to the supported
-  region matrix (#273).
-- **Carbon Metrics Advertisement:** `getSupportedMetrics` now accurately
-  reflects carbon estimation availability per service (#257).
-- **Zero-Cost Resource Handling:** Graceful handling for AWS resources
-  with no direct cost (VPC, Security Groups, Subnets) - return $0 estimates
-  instead of SKU errors (#237).
-- **Multi-Region Docker:** Single Docker image containing all regional
-  binaries with tini init and Prometheus metrics aggregation (#244).
-- **CORS Configuration:** Expose CORS configuration via environment
-  variables (#243).
-- **Plugin Rename:** `pulumicost-plugin-aws-public` renamed to
-  `finfocus-plugin-aws-public` (#239).
-- **Metadata Enrichment:** Dev Mode Heuristics (#209), Resource Topology
-  Linking (#208), and Storage Growth Heuristics (#207).
-- **JSON Parsing Optimizations:** `go-json` integration and map
-  pre-allocation for faster pricing data initialization (#228, #176).
-- **Recommendations Enhancements:** Configurable `maxBatchSize` (#160)
-  and optional strict validation mode (#156).
+- [x] #347 `pricing`: bare metal EC2 instances no longer return $0. Closed 2026-03-26. [S]
+- [x] #344 `router`: logger plugin_name aligned with region binaries. Closed 2026-03-24. [S]
+- [x] #343 `release`: exact artifact count validation in release-router.sh. Closed 2026-03-24. [S]
+- [x] #321 `plugin`: service constants in zero-cost resource maps. Closed 2026-03-19. [S]
+- [x] #319 `plugin`: zero-cost branch added to GetPricingSpec. Closed 2026-03-19. [S]
+- [x] #318 `lint`: gosec suppression for tools/ narrowed to rules. Closed 2026-03-19. [S]
+- [x] #316 `lint`: targeted nolint replaces global threshold increases. Closed 2026-03-19. [S]
+- [x] #292 `plugin`: defaults metadata for sparse OldState cost diffs. Closed 2026-03-19. [M]
+- [x] #291 `lint`: golangci-lint upgraded from v2.5.0 to v2.8.0. Closed 2026-03-19. [S]
+- [x] #324 `plugin`: allowEmptyRegion made service-aware. Closed 2026-03-18. [S]
+- [x] #323 `plugin`: injected logger in parsePositiveIntField. Closed 2026-03-18. [S]
+- [x] #322 `router`: RWMutex child getters, reused EBS estimator. Closed 2026-03-18. [S]
+- [x] #320 `router`: region extracted from ARN resource IDs. Closed 2026-03-18. [M]
+- [x] #317 `plugin`: documented parsePositiveIntField zero rejection. Closed 2026-03-18. [S]
+- [x] #315 `plugin`: documented parseGoMapString space limitation. Closed 2026-03-18. [S]
+- [x] #325 `docs`: fixed doc/code mismatches across packages. Closed 2026-03-17. [S]
+- [x] #314 `router`: restored context propagation for child processes. Closed 2026-03-17. [M]
+- [x] #294 `plugin`: LaunchTemplate no longer priced as EC2. Closed 2026-03-16. [S]
+- [x] #293 `plugin`: GetActualCost handles zero-cost resources. Closed 2026-03-16. [S]
+- [x] #289 `lint`: resolved all findings, protected .golangci.yml. Closed 2026-03-16. [M]
+- [x] #245 `router`: single-port multi-region router with fan-out. Closed 2026-03-02. [L]
+- [x] `router`: router binary entrypoint with eager region warm-up. [M]
+- [x] #157 `plugin`: memoized service type resolution. Closed 2026-01-24. [S]
+- [x] #274 `plugin`: IAM resources handled as zero-cost. Closed 2026-01-19. [S]
+- [x] #273 `region`: us-west-1 (N. California) region support. Closed 2026-01-19. [M]
+- [x] #257 `plugin`: carbon metrics advertised per service. Closed 2026-01-18. [S]
+- [x] #237 `plugin`: zero-cost VPC, Security Group, Subnet handling. Closed 2026-01-18. [M]
+- [x] #244 `docker`: multi-region Docker image with all regions. Closed 2026-01-16. [L]
+- [x] #243 `config`: CORS configuration via environment variables. Closed 2026-01-14. [S]
+- [x] #239 `repo`: renamed to finfocus-plugin-aws-public. Closed 2026-01-13. [M]
+- [x] #209 `plugin`: dev mode usage-profile heuristics. Closed 2026-01-12. [M]
+- [x] #208 `plugin`: resource topology lineage linking. Closed 2026-01-12. [M]
+- [x] #207 `plugin`: storage growth-type heuristics. Closed 2026-01-12. [S]
+- [x] #228 `pricing`: go-json parsing for faster initialization. Closed 2026-01-04. [M]
+- [x] #176 `pricing`: pre-allocated pricing index map capacity. Closed 2026-01-04. [S]
+- [x] #160 `recommendations`: configurable maxBatchSize. Closed 2026-01-03. [S]
+- [x] #156 `recommendations`: optional strict validation mode. Closed 2026-01-03. [S]
 
-### Q4 2025
+### 2025-Q4
 
-- **Actual Cost:** Runtime-based `GetActualCost` using Pulumi state
-  metadata, with intelligent fallback to 730-hour monthly projections
-  when usage is absent (#196).
-- **ResourceID Pass-Through:** Pass through ResourceID in
-  `GetRecommendations` responses (#198).
-- **Per-Service Embedding:** Transition to per-service raw JSON embedding
-  to manage binary size and initialization speed (#170, #171).
-- **Cost Standards:** FOCUS 1.2 cost record format support with
-  standardized pricing specifications.
+- [x] #196 `plugin`: runtime-based GetActualCost with 730-hour fallback. Closed 2025-12-31. [L]
+- [x] #198 `recommendations`: ResourceID pass-through in responses. Closed 2025-12-26. [S]
+- [x] #171 `pricing`: per-service raw JSON embedding. Closed 2025-12-21. [L]
+- [x] #170 `pricing`: per-service embedding refactor (companion issue). Closed 2025-12-21. [M]
+- [x] `plugin`: FOCUS 1.2 cost records and standardized pricing specs. [M]
 
 ### Foundation
 
