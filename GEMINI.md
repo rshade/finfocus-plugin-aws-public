@@ -106,8 +106,8 @@ The v0.0.10/v0.0.11 releases were broken because filtering stripped 85% of data:
 
 **Immutable tests prevent regression:**
 
-- `TestEmbeddedPricingDataSize` - Fails if < 100MB
-- `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
+- `TestEmbeddedData_EC2Size` - Fails if EC2 data < 100MB
+- `TestEmbeddedData_EC2ProductCount` - Fails if < 50,000 products
 
 ### Architecture Patterns
 

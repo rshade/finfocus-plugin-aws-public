@@ -1020,8 +1020,8 @@ regions return `ERROR_CODE_UNSUPPORTED_REGION`.
 
 ### Pre-Release (Before Creating Tag)
 
-- [ ] Verify pricing data files exist: `ls -lh internal/pricing/data/aws_pricing_*.json`
-- [ ] Run unit tests with region tag: `go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/...`
+- [ ] Verify pricing data files exist: `ls -lh internal/pricing/data/*.json`
+- [ ] Run unit tests with region tag: `go test -tags=region_use1 -run '^TestEmbeddedData_' ./internal/pricing/...`
 - [ ] Run functional pricing test: `go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v`
 - [ ] Run full test suite: `make test`
 - [ ] Run linter: `make lint`
