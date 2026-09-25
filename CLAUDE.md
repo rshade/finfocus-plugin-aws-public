@@ -286,8 +286,8 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 
 **Immutable tests prevent regression:**
 
-- `TestEmbeddedPricingDataSize` - Fails if data < 100MB (v0.0.10 had ~5MB)
-- `TestEmbeddedPricingProductCount` - Fails if < 50,000 (v0.0.10 had ~16,000)
+- `TestEmbeddedData_EC2Size` - Fails if EC2 data < 100MB (v0.0.10 had ~5MB)
+- `TestEmbeddedData_EC2ProductCount` - Fails if < 50,000 (v0.0.10 had ~16,000)
 
 **If you need to change `tools/generate-pricing/main.go`:**
 
@@ -405,8 +405,8 @@ make build-all-regions  # Build all 12 regions with real pricing
 **Verification:**
 
 ```bash
-# Unit test - fails if pricing data < 1MB
-go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/...
+# Unit tests - fail if embedded pricing data is too small or has too few products
+go test -tags=region_use1 -run '^TestEmbeddedData_' ./internal/pricing/...
 
 # Functional test - actually queries binary for real costs
 go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/plugin/... -v

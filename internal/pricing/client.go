@@ -23,6 +23,10 @@ const (
 	unitHours   = "Hrs"
 )
 
+// locationTypeAWSRegion is the Price List locationType of in-region products,
+// as opposed to "AWS Outposts", Local Zones, and Wavelength Zones.
+const locationTypeAWSRegion = "AWS Region"
+
 // EC2 product family identifiers from AWS Price List API.
 const (
 	productFamilyComputeInstance          = "Compute Instance"
@@ -483,10 +487,13 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 //	  └── term.PriceDimensions[RateCode] -> priceDimension
 //	        └── priceDimension.PricePerUnit["USD"] -> price string
 //
-// This function navigates this structure to find the USD price. The iteration
-// through multiple terms and dimensions handles cases where a SKU has multiple
-// offer term codes (e.g., different effective dates) or multiple price dimensions
-// (e.g., hourly rate + data transfer). We return the first valid USD price found.
+// This function navigates this structure to find the USD price. A SKU with
+// volume-tiered pricing (Lambda duration, S3 storage) carries one dimension per
+// tier, and Go map iteration order is random, so the dimension is selected
+// deterministically: the paid dimension with the lowest beginRange (the list
+// price for the first tier), skipping $0 free-tier dimensions. If every
+// dimension is $0 the lowest-beginning one is returned, so genuinely free
+// products still report found=true. Ties are broken by rate code.
 //
 // Parameters:
 //   - data: Parsed AWS pricing JSON containing Products and Terms
@@ -504,17 +511,58 @@ func getOnDemandPrice(data *awsPricing, sku string) (float64, string, bool) {
 	if !ok {
 		return 0, "", false
 	}
+
+	var best *priceCandidate
 	for _, term := range termMap {
 		for _, dim := range term.PriceDimensions {
-			if amountStr, hasUSD := dim.PricePerUnit[currencyUSD]; hasUSD {
-				amount, err := strconv.ParseFloat(amountStr, 64)
-				if err == nil {
-					return amount, dim.Unit, true
-				}
+			c, valid := newPriceCandidate(dim)
+			if valid && (best == nil || c.preferredOver(best)) {
+				best = c
 			}
 		}
 	}
-	return 0, "", false
+	if best == nil {
+		return 0, "", false
+	}
+	return best.amount, best.unit, true
+}
+
+// priceCandidate is one USD price dimension considered by getOnDemandPrice.
+type priceCandidate struct {
+	amount   float64
+	unit     string
+	begin    float64
+	rateCode string
+}
+
+// newPriceCandidate parses a price dimension; ok is false when it has no
+// parseable USD price. A missing or unparseable beginRange counts as 0.
+func newPriceCandidate(dim priceDimension) (*priceCandidate, bool) {
+	amountStr, hasUSD := dim.PricePerUnit[currencyUSD]
+	if !hasUSD {
+		return nil, false
+	}
+	amount, err := strconv.ParseFloat(amountStr, 64)
+	if err != nil {
+		return nil, false
+	}
+	begin, err := strconv.ParseFloat(dim.BeginRange, 64)
+	if err != nil {
+		begin = 0
+	}
+	return &priceCandidate{amount: amount, unit: dim.Unit, begin: begin, rateCode: dim.RateCode}, true
+}
+
+// preferredOver orders candidates: paid before free, then lower beginRange,
+// then rate code.
+func (c *priceCandidate) preferredOver(other *priceCandidate) bool {
+	if (c.amount > 0) != (other.amount > 0) {
+		return c.amount > 0
+	}
+	if c.begin != other.begin {
+		return c.begin < other.begin
+	}
+	return c.rateCode < other.rateCode
 }
 
 // parseEC2Pricing parses EC2 pricing data including EBS volumes.
@@ -650,6 +698,12 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocogni
 			Msg("RDS pricing data has unexpected offerCode")
 	}
 
+	type instanceChoice struct {
+		price rdsInstancePrice
+		rank  int
+	}
+	instanceChoices := make(map[string]instanceChoice)
+
 	var region string
 	for sku, prod := range pricing.Products {
 		attrs := prod.Attributes
@@ -663,50 +717,38 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocogni
 			instClass := attrs["instanceType"]
 			engine := attrs["databaseEngine"]
 			deployOption := attrs["deploymentOption"]
+			rank, eligible := rdsInstanceVariantRank(attrs)
 
-			if instClass != "" && engine != "" && deployOption == "Single-AZ" {
+			if instClass != "" && engine != "" && deployOption == "Single-AZ" && eligible {
 				key := fmt.Sprintf("%s/%s", instClass, engine)
 				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				if found && isHourlyUnit(unit) {
-					c.rdsInstanceIndex[key] = rdsInstancePrice{
-						Unit:       unit,
-						HourlyRate: rate,
-						Currency:   currencyUSD,
+				if !found || !isHourlyUnit(unit) {
+					continue
+				}
+				prev, seen := instanceChoices[key]
+				if !seen || rank < prev.rank || (rank == prev.rank && rate < prev.price.HourlyRate) {
+					instanceChoices[key] = instanceChoice{
+						price: rdsInstancePrice{Unit: unit, HourlyRate: rate, Currency: currencyUSD},
+						rank:  rank,
 					}
 				}
 			}
 		}
 
-		// RDS Database Storage
-		if prod.ProductFamily == "Database Storage" {
-			volType := attrs["volumeType"]
-			usageType := attrs["usagetype"]
-
-			var apiVolType string
-			switch volType {
-			case "General Purpose":
-				if usageType != "" && strings.Contains(usageType, "gp3") {
-					apiVolType = "gp3"
-				} else {
-					apiVolType = "gp2"
-				}
-			case "General Purpose (SSD)":
-				apiVolType = "gp2"
-			case "Provisioned IOPS", "Provisioned IOPS (SSD)":
-				if usageType != "" && strings.Contains(usageType, "io2") {
-					apiVolType = "io2"
-				} else {
-					apiVolType = "io1"
-				}
-			case "Magnetic":
-				apiVolType = "standard"
-			default:
+		// RDS Database Storage. Only Single-AZ storage is indexed, matching the
+		// Single-AZ instance index; Multi-AZ, readable-standby cluster and SQL
+		// Server Mirror storage share volume types but bill at 2-3x.
+		if prod.ProductFamily == "Database Storage" && attrs["deploymentOption"] == "Single-AZ" &&
+			attrs["locationType"] == locationTypeAWSRegion {
+			apiVolType, ok := rdsStorageVolumeType(attrs["volumeType"], attrs["usagetype"])
+			if !ok {
 				continue
 			}
 
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
 			if found && unit == unitGBMonth {
-				if _, exists := c.rdsStorageIndex[apiVolType]; !exists {
+				prev, exists := c.rdsStorageIndex[apiVolType]
+				if !exists || rate < prev.RatePerGBMonth {
 					c.rdsStorageIndex[apiVolType] = rdsStoragePrice{
 						Unit:           unit,
 						RatePerGBMonth: rate,
@@ -716,7 +758,82 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocogni
 			}
 		}
 	}
+
+	for key, choice := range instanceChoices {
+		c.rdsInstanceIndex[key] = choice.price
+	}
 	return region, nil
+}
+
+// rdsStorageVolumeType maps a Price List "Database Storage" volumeType and
+// usagetype to the API volume type used as the storage index key.
+//
+// The Price List names newer volumes with a suffix ("General Purpose-GP3",
+// "Provisioned IOPS-IO2") and upper-case usage types ("RDS:GP3-Storage",
+// "RDS:PIOPS-Storage-IO2"), so the usage type is matched case-insensitively.
+// Aurora storage ("General Purpose-Aurora") and other families are not mapped.
+func rdsStorageVolumeType(volumeType, usageType string) (string, bool) {
+	usage := strings.ToLower(usageType)
+	switch volumeType {
+	case "General Purpose", "General Purpose (SSD)", "General Purpose-GP3":
+		if volumeType == "General Purpose-GP3" || strings.Contains(usage, "gp3") {
+			return "gp3", true
+		}
+		return "gp2", true
+	case "Provisioned IOPS", "Provisioned IOPS (SSD)", "Provisioned IOPS-IO2":
+		if volumeType == "Provisioned IOPS-IO2" || strings.Contains(usage, "io2") {
+			return "io2", true
+		}
+		return "io1", true
+	case "Magnetic":
+		return "standard", true
+	default:
+		return "", false
+	}
+}
+
+// rdsInstanceVariantRank decides which of several Single-AZ "Database Instance"
+// SKUs sharing an instanceType/databaseEngine key is indexed. Lower rank wins;
+// equal ranks are resolved by the lower hourly rate. eligible is false for SKUs
+// that are never indexed.
+//
+// The index key carries no edition, license model or deployment model, while
+// AWS publishes many SKUs per key for Oracle, SQL Server, Db2 and Aurora.
+// Resolving them by map iteration order made prices vary between runs.
+//
+// Never indexed: RDS Custom (deploymentModel "Custom"), Outposts
+// (locationType other than "AWS Region"), and Aurora I/O-Optimized
+// (usagetype "InstanceUsageIOOptimized"), which pairs with a different
+// storage price.
+//
+// Preference among the rest, most preferred first:
+//  1. License model: "License included" (the full AWS bill when the caller
+//     states no license), "Marketplace", engines that need no license, then
+//     bring-your-own license or media.
+//  2. Edition: "Standard" / "Standard Two" before any other edition.
+func rdsInstanceVariantRank(attrs map[string]string) (int, bool) {
+	if attrs["deploymentModel"] == "Custom" || attrs["locationType"] != locationTypeAWSRegion ||
+		strings.Contains(attrs["usagetype"], "IOOptimized") {
+		return 0, false
+	}
+
+	licenseRank := 3
+	switch attrs["licenseModel"] {
+	case "License included":
+		licenseRank = 0
+	case "Marketplace":
+		licenseRank = 1
+	case "No license required", "":
+		licenseRank = 2
+	}
+
+	editionRank := 1
+	switch attrs["databaseEdition"] {
+	case "Standard", "Standard Two", "":
+		editionRank = 0
+	}
+
+	return licenseRank*2 + editionRank, true
 }
 
 // parseEKSPricing parses EKS pricing data.
@@ -793,7 +910,11 @@ func (c *Client) parseLambdaPricing(data []byte) (string, error) { //nolint:goco
 			region = attrs["regionCode"]
 		}
 
-		if prod.ProductFamily == "AWS Lambda" || prod.ProductFamily == "Serverless" {
+		// "Global-" usage types are the free-tier SKUs ($0 for the first 400k
+		// GB-seconds / 1M requests); they share the group and unit of the paid
+		// SKUs and would otherwise overwrite the list price with zero.
+		if (prod.ProductFamily == "AWS Lambda" || prod.ProductFamily == "Serverless") &&
+			!strings.HasPrefix(attrs["usagetype"], "Global-") {
 			group := attrs["group"]
 
 			if c.lambdaPricing == nil {
@@ -861,10 +982,16 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) { //nolint:go
 						c.dynamoDBPricing.OnDemandWritePrice = rate
 					}
 				case prod.ProductFamily == "Provisioned IOPS" || strings.Contains(prod.ProductFamily, "Throughput"):
+					// Units are "ReadCapacityUnit-Hrs"/"WriteCapacityUnit-Hrs". The
+					// Standard-IA table class ("IA-ReadCapacityUnit-Hrs") shares the
+					// substring match and is excluded so the standard class is priced.
 					usageType := attrs["usagetype"]
-					if strings.Contains(usageType, "ReadCapacityUnit") && isHourlyUnit(unit) {
+					hourly := isHourlyUnit(unit) || strings.HasSuffix(unit, "CapacityUnit-Hrs")
+					switch {
+					case !hourly || strings.Contains(usageType, "IA-"):
+					case strings.Contains(usageType, "ReadCapacityUnit"):
 						c.dynamoDBPricing.ProvisionedRCUPrice = rate
-					} else if strings.Contains(usageType, "WriteCapacityUnit") && isHourlyUnit(unit) {
+					case strings.Contains(usageType, "WriteCapacityUnit"):
 						c.dynamoDBPricing.ProvisionedWCUPrice = rate
 					}
 				case prod.ProductFamily == "Database Storage":
@@ -1103,8 +1230,10 @@ func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
 			region = attrs["regionCode"]
 		}
 
-		// Cache Instances
-		if prod.ProductFamily == "Cache Instance" {
+		// Cache Instances. Only standard in-region nodes are indexed; extended
+		// support, sync-durability and Outposts SKUs share the key.
+		if prod.ProductFamily == "Cache Instance" && attrs["locationType"] == locationTypeAWSRegion &&
+			isStandardCacheNodeUsage(attrs["usagetype"]) {
 			instanceType := attrs["instanceType"]
 			engine := attrs["cacheEngine"]
 
@@ -1795,4 +1924,18 @@ func (c *Client) ElastiCacheOnDemandPricePerHour(instanceType, engine string) (f
 		return 0, false
 	}
 	return price.HourlyRate, true
+}
+
+// isStandardCacheNodeUsage reports whether an ElastiCache usagetype is a
+// standard on-demand node: "NodeUsage:<type>" in us-east-1, or
+// "<REGION>-NodeUsage:<type>" elsewhere (e.g. "USW2-NodeUsage:cache.t3.micro").
+// Variants insert a qualifier before "NodeUsage" ("USE1-ExtendedSupportYr3-",
+// "USE1-SyncDurability-", "USW2-Outpost-") and are rejected.
+func isStandardCacheNodeUsage(usageType string) bool {
+	prefix, _, found := strings.Cut(usageType, ":")
+	if !found {
+		return false
+	}
+	parts := strings.Split(prefix, "-")
+	return parts[len(parts)-1] == "NodeUsage" && len(parts) <= 2
 }

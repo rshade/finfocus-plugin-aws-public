@@ -49,8 +49,8 @@ v0.0.10/v0.0.11 were broken by filtering that stripped 85% of data.
 
 **Tests prevent regression:**
 
-- `TestEmbeddedPricingDataSize` - Fails if < 100MB
-- `TestEmbeddedPricingProductCount` - Fails if < 50,000 products
+- `TestEmbeddedData_EC2Size` - Fails if EC2 data < 100MB
+- `TestEmbeddedData_EC2ProductCount` - Fails if < 50,000 products
 
 ## Active Technologies
 - Go 1.27.1+ + gRPC (pluginsdk), finfocus-spec v0.6.1, zerolog

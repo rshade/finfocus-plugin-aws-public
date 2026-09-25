@@ -43,7 +43,13 @@ jobs:
           args: --timeout=9m
 
       - name: Verify pricing data is embedded
-        run: go test -tags=region_use1 -run TestEmbeddedPricing ./internal/pricing/... -v
+        shell: bash
+        run: |
+          go test -tags=region_use1 -run '^TestEmbeddedData_' ./internal/pricing/... -v | tee "$RUNNER_TEMP/embed-tests.log"
+          if ! grep -q -- '--- PASS: TestEmbeddedData_' "$RUNNER_TEMP/embed-tests.log"; then
+            echo "::error::No TestEmbeddedData_ tests ran; the -run pattern no longer matches any test"
+            exit 1
+          fi
         if: success()
 
       - name: Verify binary has real pricing (functional test)
