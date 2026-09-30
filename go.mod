@@ -4,7 +4,7 @@ go 1.27.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.47.1
-	github.com/goccy/go-json v0.10.6
+	github.com/goccy/go-json v0.11.2
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/rs/zerolog v1.35.1
