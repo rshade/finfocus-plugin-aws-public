@@ -61,3 +61,11 @@ tools/generate-goreleaser/generate-goreleaser*
 tools/parse-regions/parse-regions*
 CodeRabbitPromptGrok.md
 .claude/worktrees/
+
+# Vale prose linting: ignore downloaded styles but track custom vocabularies
+# Pattern: ignore everything in .vale/styles/ except config/ (which contains vocabularies)
+.vale/styles/*
+!.vale/styles/config/
+
+# Machine-local agent workspace config
+.kimi-code/

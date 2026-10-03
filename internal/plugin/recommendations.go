@@ -46,16 +46,8 @@ const (
 	maxMaxBatchSize = 100
 	// EnvMaxBatchSize is the environment variable to override defaultMaxBatchSize.
 	EnvMaxBatchSize = "FINFOCUS_MAX_BATCH_SIZE"
-	// EnvMaxBatchSizeDeprecated is the deprecated environment variable for backward compatibility.
-	EnvMaxBatchSizeDeprecated = "PULUMICOST_MAX_BATCH_SIZE"
-	// EnvMaxBatchSizeLegacy is the legacy environment variable for additional backward compatibility.
-	EnvMaxBatchSizeLegacy = "MAX_BATCH_SIZE"
 	// EnvStrictValidation is the environment variable to enable fail-fast validation.
 	EnvStrictValidation = "FINFOCUS_STRICT_VALIDATION"
-	// EnvStrictValidationDeprecated is the deprecated environment variable for backward compatibility.
-	EnvStrictValidationDeprecated = "PULUMICOST_STRICT_VALIDATION"
-	// EnvStrictValidationLegacy is the legacy environment variable for additional backward compatibility.
-	EnvStrictValidationLegacy = "STRICT_VALIDATION"
 )
 
 // Ensure AWSPublicPlugin implements RecommendationsProvider.

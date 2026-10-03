@@ -96,6 +96,25 @@ lint: verify-embeds ## Run golangci-lint (includes embed verification)
 	@echo "Running linter..."
 	@golangci-lint run --allow-parallel-runners ./...
 
+.PHONY: vuln
+vuln: ## Check for known vulnerabilities in dependencies
+	@echo "Checking for known vulnerabilities..."
+	@govulncheck ./...
+
+.PHONY: lint-prose-sync
+lint-prose-sync: ## Download/refresh Vale style packages
+	@echo "Syncing Vale styles..."
+	@vale sync
+
+.PHONY: lint-prose
+lint-prose: lint-prose-sync ## Lint prose documentation (markdown)
+	@echo "Linting prose..."
+	@vale README.md ROADMAP.md docs/
+
+.PHONY: lint-prose-ci
+lint-prose-ci: ## Vale output in reviewdog line format (used by CI)
+	@vale --no-exit --output=line README.md ROADMAP.md docs/
+
 .PHONY: test
 test: ## Run all tests
 	@echo "Running tests..."

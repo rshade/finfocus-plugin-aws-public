@@ -42,6 +42,20 @@ jobs:
           version: v2.14.0
           args: --timeout=9m
 
+      # Vulnerability scanning: this step detects known CVEs in dependencies.
+      # Currently blocked by GO-2026-6443 (google.golang.org/grpc v1.84.0, fixed
+      # in dev version only). This is a known upstream issue affecting all plugins
+      # that use pluginsdk.Serve(), so we allow the step to fail without blocking CI.
+      # Once upstream releases v1.85.0, remove continue-on-error.
+      - name: Check for vulnerabilities with govulncheck
+        uses: jdx/mise-action@v2
+        with:
+          install_only: true
+          install_args: go:golang.org/x/vuln/cmd/govulncheck
+      - name: Run govulncheck
+        run: govulncheck ./...
+        continue-on-error: true
+
       # Runs every pricing test against freshly generated us-east-1 data, so a
       # product AWS moves or renames between offers fails the PR (see #389).
       - name: Verify pricing data against real us-east-1 data

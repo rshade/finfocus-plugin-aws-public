@@ -602,7 +602,9 @@ func TestStartupLogFormat(t *testing.T) {
 	}
 }
 
-func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
+// TestNewAWSPublicPlugin_EnvVars verifies that FINFOCUS_* and legacy environment variables
+// are correctly parsed and that FINFOCUS_* variables take precedence over legacy ones.
+func TestNewAWSPublicPlugin_EnvVars(t *testing.T) {
 	tests := []struct {
 		name              string
 		envVars           map[string]string
@@ -611,45 +613,35 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 		expectWarning     bool
 	}{
 		{
-			name: "new batch size takes precedence",
+			name: "FINFOCUS_MAX_BATCH_SIZE works",
 			envVars: map[string]string{
-				"FINFOCUS_MAX_BATCH_SIZE":   "150",
-				"PULUMICOST_MAX_BATCH_SIZE": "200",
+				"FINFOCUS_MAX_BATCH_SIZE": "50",
 			},
-			expectedBatchSize: 100,
+			expectedBatchSize: 50,
 			expectedStrict:    false,
 			expectWarning:     false,
-		},
-		{
-			name: "deprecated PULUMICOST batch size works",
-			envVars: map[string]string{
-				"PULUMICOST_MAX_BATCH_SIZE": "200",
-			},
-			expectedBatchSize: 100,
-			expectedStrict:    false,
-			expectWarning:     true,
 		},
 		{
 			name: "legacy MAX_BATCH_SIZE works",
 			envVars: map[string]string{
-				"MAX_BATCH_SIZE": "175",
+				"MAX_BATCH_SIZE": "50",
 			},
-			expectedBatchSize: 100,
+			expectedBatchSize: 50,
 			expectedStrict:    false,
 			expectWarning:     true,
 		},
 		{
-			name: "new strict validation false takes precedence over deprecated true",
+			name: "FINFOCUS_MAX_BATCH_SIZE takes precedence over legacy MAX_BATCH_SIZE",
 			envVars: map[string]string{
-				"FINFOCUS_STRICT_VALIDATION":   "false",
-				"PULUMICOST_STRICT_VALIDATION": "true",
+				"FINFOCUS_MAX_BATCH_SIZE": "50",
+				"MAX_BATCH_SIZE":          "75",
 			},
-			expectedBatchSize: 100, // default
+			expectedBatchSize: 50,
 			expectedStrict:    false,
 			expectWarning:     false,
 		},
 		{
-			name: "new strict validation true works",
+			name: "FINFOCUS_STRICT_VALIDATION=true works",
 			envVars: map[string]string{
 				"FINFOCUS_STRICT_VALIDATION": "true",
 			},
@@ -658,22 +650,23 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 			expectWarning:     false,
 		},
 		{
-			name: "deprecated PULUMICOST strict validation works",
-			envVars: map[string]string{
-				"PULUMICOST_STRICT_VALIDATION": "true",
-			},
-			expectedBatchSize: 100,
-			expectedStrict:    true,
-			expectWarning:     true,
-		},
-		{
-			name: "legacy STRICT_VALIDATION works",
+			name: "legacy STRICT_VALIDATION=true works",
 			envVars: map[string]string{
 				"STRICT_VALIDATION": "true",
 			},
 			expectedBatchSize: 100,
 			expectedStrict:    true,
 			expectWarning:     true,
+		},
+		{
+			name: "FINFOCUS_STRICT_VALIDATION=false takes precedence over legacy STRICT_VALIDATION=true",
+			envVars: map[string]string{
+				"FINFOCUS_STRICT_VALIDATION": "false",
+				"STRICT_VALIDATION":          "true",
+			},
+			expectedBatchSize: 100,
+			expectedStrict:    false,
+			expectWarning:     false,
 		},
 	}
 
@@ -697,6 +690,92 @@ func TestNewAWSPublicPlugin_DeprecatedEnvVars(t *testing.T) {
 
 			if plugin.strictValidation != tt.expectedStrict {
 				t.Errorf("strictValidation = %v, want %v", plugin.strictValidation, tt.expectedStrict)
+			}
+
+			logOutput := logBuf.String()
+			hasWarning := strings.Contains(logOutput, "deprecated")
+			if tt.expectWarning && !hasWarning {
+				t.Error("Expected deprecation warning, got none")
+			}
+			if !tt.expectWarning && hasWarning {
+				t.Errorf("Expected no deprecation warning, got: %s", logOutput)
+			}
+		})
+	}
+}
+
+// TestGetEnvWithDeprecation verifies that getEnvWithDeprecation correctly
+// prioritizes the current environment variable over the legacy one,
+// and logs warnings when legacy variables are used.
+func TestGetEnvWithDeprecation(t *testing.T) {
+	tests := []struct {
+		name          string
+		envVars       map[string]string
+		current       string
+		legacy        string
+		expectValue   string
+		expectVarName string
+		expectFound   bool
+		expectWarning bool
+	}{
+		{
+			name: "current env var is used without warning",
+			envVars: map[string]string{
+				"FINFOCUS_VAR": "current_value",
+				"LEGACY_VAR":   "legacy_value",
+			},
+			current:       "FINFOCUS_VAR",
+			legacy:        "LEGACY_VAR",
+			expectValue:   "current_value",
+			expectVarName: "FINFOCUS_VAR",
+			expectFound:   true,
+			expectWarning: false,
+		},
+		{
+			name: "legacy env var is used with warning when current is not set",
+			envVars: map[string]string{
+				"LEGACY_VAR": "legacy_value",
+			},
+			current:       "FINFOCUS_VAR",
+			legacy:        "LEGACY_VAR",
+			expectValue:   "legacy_value",
+			expectVarName: "LEGACY_VAR",
+			expectFound:   true,
+			expectWarning: true,
+		},
+		{
+			name:          "no value found when neither is set",
+			envVars:       map[string]string{},
+			current:       "FINFOCUS_VAR",
+			legacy:        "LEGACY_VAR",
+			expectValue:   "",
+			expectVarName: "",
+			expectFound:   false,
+			expectWarning: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup env vars
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			// Capture logs
+			var logBuf bytes.Buffer
+			logger := zerolog.New(&logBuf).Level(zerolog.WarnLevel)
+
+			value, varName, found := getEnvWithDeprecation(logger, tt.current, tt.legacy)
+
+			if value != tt.expectValue {
+				t.Errorf("value = %q, want %q", value, tt.expectValue)
+			}
+			if varName != tt.expectVarName {
+				t.Errorf("varName = %q, want %q", varName, tt.expectVarName)
+			}
+			if found != tt.expectFound {
+				t.Errorf("found = %v, want %v", found, tt.expectFound)
 			}
 
 			logOutput := logBuf.String()
