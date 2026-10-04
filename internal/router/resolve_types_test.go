@@ -22,20 +22,52 @@ func TestPlugin_ImplementsResolveResourceTypesProvider(t *testing.T) {
 		pbc.PluginCapability_PLUGIN_CAPABILITY_RESOLVE_RESOURCE_TYPES)
 }
 
-// TestPlugin_GetPluginInfo_AdvertisesCapabilities guards the PluginInfoProvider
-// path: the SDK serves the router's own GetPluginInfo response verbatim, so the
-// capabilities must be set there — FinFocus Core gates ResolveResourceTypes on
-// them.
+// TestPlugin_GetPluginInfo_AdvertisesCapabilities verifies that the SDK
+// backfills legacy supports_* keys from the router's explicit capability list.
+//
+// The router implements GetBudgets and DismissRecommendation only to return
+// Unimplemented. The explicit list keeps BUDGETS and DISMISS_RECOMMENDATIONS
+// out of the response the SDK serves. DRY_RUN stays because HandleDryRun is a
+// real handler.
+//
+// Test workflow:
+//  1. Call GetPluginInfo on the router and confirm it does not set supports_*.
+//  2. Call GetPluginInfo on pluginsdk.NewServer and confirm the SDK backfill.
+//  3. Confirm type metadata is unchanged and region is still unset.
 func TestPlugin_GetPluginInfo_AdvertisesCapabilities(t *testing.T) {
 	plugin := NewPlugin("1.0.0", zerolog.Nop(), t.TempDir(), true, nil)
 
-	resp, err := plugin.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
+	direct, err := plugin.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, "multi-region-router", direct.GetMetadata()["type"])
+	assert.NotContains(t, direct.GetMetadata(), "region")
+	assert.NotContains(t, direct.GetMetadata(), "supports_recommendations")
+	assert.NotContains(t, direct.GetMetadata(), "supports_resolve_resource_types")
+	assert.NotContains(t, direct.GetMetadata(), "supports_dry_run")
+	assert.NotContains(t, direct.GetMetadata(), "supports_budgets")
+	assert.NotContains(t, direct.GetMetadata(), "supports_dismiss_recommendations")
+
+	server := pluginsdk.NewServer(plugin)
+	resp, err := server.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
 	require.NoError(t, err)
 
 	assert.Contains(t, resp.GetCapabilities(),
 		pbc.PluginCapability_PLUGIN_CAPABILITY_RESOLVE_RESOURCE_TYPES)
 	assert.Contains(t, resp.GetCapabilities(),
 		pbc.PluginCapability_PLUGIN_CAPABILITY_DRY_RUN)
+	assert.Contains(t, resp.GetCapabilities(),
+		pbc.PluginCapability_PLUGIN_CAPABILITY_RECOMMENDATIONS)
+	assert.NotContains(t, resp.GetCapabilities(),
+		pbc.PluginCapability_PLUGIN_CAPABILITY_BUDGETS)
+	assert.NotContains(t, resp.GetCapabilities(),
+		pbc.PluginCapability_PLUGIN_CAPABILITY_DISMISS_RECOMMENDATIONS)
+	assert.Equal(t, "true", resp.GetMetadata()["supports_recommendations"])
+	assert.Equal(t, "true", resp.GetMetadata()["supports_resolve_resource_types"])
+	assert.Equal(t, "true", resp.GetMetadata()["supports_dry_run"])
+	assert.NotContains(t, resp.GetMetadata(), "supports_budgets")
+	assert.NotContains(t, resp.GetMetadata(), "supports_dismiss_recommendations")
+	assert.Equal(t, "multi-region-router", resp.GetMetadata()["type"])
+	assert.NotContains(t, resp.GetMetadata(), "region")
 }
 
 // TestPlugin_ResolveResourceTypes_ServedLocally verifies that the router answers

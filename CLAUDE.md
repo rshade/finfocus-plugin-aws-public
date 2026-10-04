@@ -75,6 +75,16 @@ The multi-region router uses that descriptor's region even when the region
 string is empty. When `resource` is unset, the plugin falls back to the ARN,
 then a JSON `resource_id`, then request tags. `resource_id` stays required.
 
+### Capability metadata (finfocus-spec v0.7.3+)
+
+`GetPluginInfo` returns an explicit, non-empty `Capabilities` list and does
+not build legacy `supports_*` metadata. The SDK backfills missing `supports_*`
+keys from that list and logs unmapped-capability warnings itself. Keep the
+list explicit: an empty list makes the SDK infer capabilities from
+implemented interfaces, which would advertise the router's `GetBudgets` and
+`DismissRecommendation` stubs. `HandleDryRun` is a real handler, so
+`PLUGIN_CAPABILITY_DRY_RUN` stays on the router list.
+
 ### ResourceDescriptor (Proto Input)
 
 ```protobuf
