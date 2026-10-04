@@ -17,7 +17,7 @@ jobs:
 
       # Reads this repo's mise.toml only, so CI resolves the exact vale and
       # reviewdog versions pinned there.
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v5
         with:
           install_only: true
           install_args: vale aqua:reviewdog/reviewdog

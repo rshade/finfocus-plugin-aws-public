@@ -50,7 +50,7 @@ jobs:
       # mise's go: backend requires mise-managed Go; the setup-go toolchain
       # above is not visible to it, so install go first.
       - name: Install govulncheck
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v5
         with:
           install_only: true
           install_args: go go:golang.org/x/vuln/cmd/govulncheck
