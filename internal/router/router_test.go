@@ -124,6 +124,22 @@ func TestExtractRegionFromActualCostRequest(t *testing.T) {
 			expected: "us-west-2",
 		},
 		{
+			name: "resource descriptor wins over tags",
+			req: &pbc.GetActualCostRequest{
+				Resource: &pbc.ResourceDescriptor{Region: "eu-west-1"},
+				Tags:     map[string]string{"region": "us-west-2"},
+			},
+			expected: "eu-west-1",
+		},
+		{
+			name: "set descriptor with empty region ignores tags",
+			req: &pbc.GetActualCostRequest{
+				Resource: &pbc.ResourceDescriptor{Region: ""},
+				Tags:     map[string]string{"region": "us-west-2"},
+			},
+			expected: "",
+		},
+		{
 			name: "region in resource id json",
 			req: &pbc.GetActualCostRequest{
 				ResourceId: string(resourceJSON),

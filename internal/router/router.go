@@ -391,10 +391,14 @@ func extractRegionFromResource(resource *pbc.ResourceDescriptor) string {
 }
 
 // extractRegionFromActualCostRequest extracts the region from a GetActualCostRequest.
-// It first tries Tags, then falls back to parsing ResourceId.
+// A set resource descriptor supplies the region, including when it is empty.
+// Otherwise it tries Tags, then ResourceId.
 func extractRegionFromActualCostRequest(req *pbc.GetActualCostRequest) string {
 	if req == nil {
 		return ""
+	}
+	if req.GetResource() != nil {
+		return req.GetResource().GetRegion()
 	}
 	if tags := req.GetTags(); tags != nil {
 		if region := tags["region"]; region != "" {

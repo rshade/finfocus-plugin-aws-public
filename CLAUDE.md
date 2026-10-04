@@ -66,6 +66,15 @@ Go 1.27+: Follow standard conventions
 - **GetProjectedCost(ResourceDescriptor)**: Returns cost estimate for **one** resource
 - **GetPricingSpec(ResourceDescriptor)** (optional): Returns detailed pricing info
 
+### Actual cost resource (finfocus-spec v0.7.4+)
+
+When `GetActualCostRequest.resource` is set, `GetActualCost` prices from that
+descriptor: provider, resource type, SKU, region, attributes, and the
+descriptor's own tags (for example EBS size). Request tags stay cloud labels.
+The multi-region router uses that descriptor's region even when the region
+string is empty. When `resource` is unset, the plugin falls back to the ARN,
+then a JSON `resource_id`, then request tags. `resource_id` stays required.
+
 ### ResourceDescriptor (Proto Input)
 
 ```protobuf
