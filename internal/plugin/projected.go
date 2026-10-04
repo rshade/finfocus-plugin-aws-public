@@ -120,6 +120,28 @@ func extractAWSSKU(tags map[string]string) string {
 	)
 }
 
+// RDS storage tag keys. FinFocus core forwards Pulumi inputs under their
+// Pulumi names; the snake_case keys are kept for existing callers.
+const (
+	rdsTagStorageType       = "storageType"
+	rdsTagStorageTypeLegacy = "storage_type"
+	rdsTagStorageSize       = "allocatedStorage"
+	rdsTagStorageSizeLegacy = "storage_size"
+	rdsTagMultiAZ           = "multiAz"
+	rdsTagMultiAZLegacy     = "multi_az"
+)
+
+// firstTag returns the first non-empty value among keys, checked in order.
+// It returns "" when tags is nil or no key has a value.
+func firstTag(tags map[string]string, keys ...string) string {
+	for _, key := range keys {
+		if v := tags[key]; v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // extractAWSRegion extracts AWS region from tags with priority: region > availabilityZone.
 // Delegates to SDK mapping.ExtractAWSRegion which handles AZ-to-region conversion.
 func extractAWSRegion(tags map[string]string) string {
@@ -1066,7 +1088,7 @@ func (p *AWSPublicPlugin) estimateELB(
 
 // estimateRDS calculates the projected monthly cost for an RDS instance.
 // traceID is passed from the parent handler to ensure consistent trace correlation.
-func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
+func (p *AWSPublicPlugin) estimateRDS( //nolint:funlen
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
@@ -1094,41 +1116,30 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:gocognit,funlen
 		engineDefaulted = true
 	}
 
-	// Extract storage info from tags
-	storageType := defaultRDSStorage
-	storageDefaulted := true
-	if resource.GetTags() != nil {
-		if st, ok := resource.GetTags()["storage_type"]; ok && st != "" {
-			storageType = strings.ToLower(st)
-			storageDefaulted = false
-		}
-	}
+	tags := resource.GetTags()
 
-	// Validate storage type
+	storageType := strings.ToLower(firstTag(tags, rdsTagStorageType, rdsTagStorageTypeLegacy))
+	storageDefaulted := false
 	if !validRDSStorageTypes[storageType] {
 		storageType = defaultRDSStorage
 		storageDefaulted = true
 	}
 
-	// Extract storage size from tags
 	storageSizeGB := defaultRDSSizeGB
 	sizeDefaulted := true
-	if resource.GetTags() != nil {
-		if sizeStr, ok := resource.GetTags()["storage_size"]; ok {
-			if size, err := strconv.Atoi(sizeStr); err == nil && size > 0 {
-				storageSizeGB = size
-				sizeDefaulted = false
-			}
-		}
+	sizeStr := firstTag(tags, rdsTagStorageSize, rdsTagStorageSizeLegacy)
+	if size, ok := parsePositiveInt(sizeStr); ok {
+		storageSizeGB = size
+		sizeDefaulted = false
+	} else if sizeStr != "" {
+		p.traceLogger(traceID, "GetProjectedCost").Warn().
+			Str("field", "rds_storage_size").
+			Str("value", sizeStr).
+			Msg("invalid RDS storage size, defaulting to 20GB")
 	}
 
-	// Extract Multi-AZ from tags (for carbon estimation)
-	multiAZ := false
-	if resource.GetTags() != nil {
-		if multiAZStr, ok := resource.GetTags()["multi_az"]; ok {
-			multiAZ = strings.EqualFold(multiAZStr, "true")
-		}
-	}
+	// Multi-AZ affects carbon estimation only
+	multiAZ := strings.EqualFold(firstTag(tags, rdsTagMultiAZ, rdsTagMultiAZLegacy), "true")
 
 	// Lookup instance hourly rate
 	hourlyRate, found := p.pricing.RDSOnDemandPricePerHour(instanceType, normalizedEngine)

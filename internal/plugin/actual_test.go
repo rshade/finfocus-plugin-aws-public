@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -1742,6 +1743,47 @@ func TestGetActualCost_ResourceDescriptorOverridesTags(t *testing.T) {
 			t.Errorf("cost = %v, want about %v from 100GB gp3", got, want)
 		}
 	})
+}
+
+// TestGetActualCost_RDS_PulumiStorageKeys verifies that GetActualCost prices
+// RDS storage from the Pulumi input names, like GetProjectedCost does.
+//
+// Both paths reach estimateRDS, so this is the actual cost half of the
+// dual-path coverage for issue #428: a descriptor carrying storageType and
+// allocatedStorage must be priced as that storage, not as 20GB of gp2.
+func TestGetActualCost_RDS_PulumiStorageKeys(t *testing.T) {
+	mock := newMockPricingClient("us-east-1", "USD")
+	mock.rdsInstancePrices["db.t3.medium/PostgreSQL"] = 0.068
+	mock.rdsStoragePrices["io1"] = 0.125
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, zerolog.Nop())
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	resp, err := plugin.GetActualCost(context.Background(), &pbc.GetActualCostRequest{
+		ResourceId: "db-abc123",
+		Start:      timestamppb.New(from),
+		End:        timestamppb.New(from.Add(HoursPerMonthProd * time.Hour)),
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "aws",
+			ResourceType: "aws:rds/instance:Instance",
+			Sku:          "db.t3.medium",
+			Region:       "us-east-1",
+			Tags: map[string]string{
+				"engine":           "postgres",
+				"storageType":      "io1",
+				"allocatedStorage": "500",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetActualCost: %v", err)
+	}
+	if len(resp.GetResults()) != 1 {
+		t.Fatalf("results = %d, want 1", len(resp.GetResults()))
+	}
+	const want = 0.068*HoursPerMonthProd + 0.125*500
+	if got := resp.GetResults()[0].GetCost(); math.Abs(got-want) > 0.01 {
+		t.Errorf("cost = %v, want about %v from 500GB io1", got, want)
+	}
 }
 
 // TestGetActualCost_ASG_Routes verifies that GetActualCost routes ASG resources
