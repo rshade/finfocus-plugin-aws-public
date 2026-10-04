@@ -40,6 +40,10 @@ Go 1.27+: Follow standard conventions
 ## Roadmap
 **Important** Keep Roadmap up to date with every PR
 - Roadmap: @ROADMAP.md
+- Work queue: `TASKS.md` sets the order and dependencies for
+  `/pick-issue` (`.claude/commands/pick-issue.md`), which takes one issue per
+  run to an open PR and stops; the owner merges
+- Spot pricing belongs in finfocus-plugin-aws-ce, not here (CONTEXT.md rule 5)
 
 ## Architecture
 

@@ -10,13 +10,15 @@ security overhead of cloud credentials.
 
 ## Immediate Focus [In Progress / Planned]
 
-- **[Planned] Pricing Correctness:**
-  - [ ] #389 NAT Gateway pricing not found: AWS moved NAT Gateway products
-    from the VPC offer to AmazonEC2; v0.1.9 likely affected [M]
 - **[Planned] Terraform Support:**
   - [ ] #388 Accept Terraform-state attribute names and optional SKUs so all
     23 mapped Terraform types price (9 currently fail with
     `resource.sku is required`) [L]
+  - [ ] #415 Read `ResourceDescriptor.attributes` (finfocus-spec v0.7.3)
+    with tag fallback across all services; builds on #388's key map [L]
+- **[Ready] SDK Cleanup:**
+  - [ ] #404 Drop the hand-built legacy capability metadata now that
+    finfocus-spec v0.7.3 builds it [S]
 - **[In Progress] Build Infrastructure:**
   - [ ] #287 Consolidate region mappings to `regions.yaml` as single source
     of truth, eliminating hardcoded duplicates in shell scripts [M]
@@ -50,9 +52,6 @@ security overhead of cloud credentials.
     stamp [M]
   - [ ] #391 Pricing drift report comparing each release's pricing data with
     the previous release [L]
-- **[Cross-repo] SDK:** backfill inferred capabilities when a
-  `PluginInfoProvider` omits them (finfocus-spec#504); this plugin's explicit
-  capability list stays as a workaround until the SDK bump.
 - **[Researching] Memory Optimization:** Implementing lazy-loading or
   memory-mapped access for embedded JSON files to reduce the runtime memory
   footprint without moving to an external database (#84) [L]
@@ -96,8 +95,17 @@ security overhead of cloud credentials.
 
 ## Completed Milestones
 
+### 2026-Q4
+
+- [x] `plugin`: removed the `PULUMICOST_*` environment variable fallbacks
+  (breaking) and added Vale prose linting, commitlint, and govulncheck to CI
+  (PR #411). [M]
+- [x] `deps`: finfocus-spec v0.7.3 with `ResourceDescriptor.attributes`
+  (PR #414). [S]
+
 ### 2026-Q3
 
+- [x] #389 `pricing`: NAT Gateway priced from the AmazonEC2 offer. Closed 2026-09-25. [M]
 - [x] #385 `plugin`: Terraform types resolve to Pulumi tokens (#382). Closed 2026-09-24. [M]
 - [x] #295 `plugin`: ASG cost estimator for autoscaling groups. Closed 2026-09-24. [L]
 - [x] `lint`: golangci-lint v2.13.2 upgrade and goconst fixes (PR #377). [S]
