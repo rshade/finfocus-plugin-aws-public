@@ -3,7 +3,6 @@ package router
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -61,40 +60,31 @@ func (r *Plugin) Name() string {
 	return "finfocus-plugin-aws-public"
 }
 
-// GetPluginInfo returns metadata about the router plugin.
+// GetPluginInfo returns the router name, version, and explicit capability
+// list. Legacy supports_* metadata is left unset so finfocus-spec v0.7.3 can
+// backfill it from that list.
 func (r *Plugin) GetPluginInfo(_ context.Context, _ *pbc.GetPluginInfoRequest) (*pbc.GetPluginInfoResponse, error) {
-	capabilities := r.capabilities()
-	metadata := map[string]string{
-		"type": "multi-region-router",
-	}
-	// Mirror the SDK's configured-PluginInfo path: expose capabilities via the
-	// legacy metadata keys as well, for older hosts that predate the enum.
-	legacyMeta, warnings := pluginsdk.CapabilitiesToLegacyMetadataWithWarnings(capabilities)
-	for _, w := range warnings {
-		r.logger.Warn().
-			Int32("capability", int32(w.Capability)).
-			Str("reason", w.Reason).
-			Msg("capability has no legacy metadata mapping")
-	}
-	maps.Copy(metadata, legacyMeta)
-
 	return &pbc.GetPluginInfoResponse{
-		Name:         r.Name(),
-		Version:      r.version,
-		SpecVersion:  pluginsdk.SpecVersion,
-		Providers:    []string{"aws"},
-		Metadata:     metadata,
-		Capabilities: capabilities,
+		Name:        r.Name(),
+		Version:     r.version,
+		SpecVersion: pluginsdk.SpecVersion,
+		Providers:   []string{"aws"},
+		Metadata: map[string]string{
+			"type": "multi-region-router",
+		},
+		Capabilities: r.capabilities(),
 	}, nil
 }
 
 // capabilities returns the capability set advertised through GetPluginInfo.
-// The router implements PluginInfoProvider, so the SDK serves this response
-// verbatim instead of the interface-inferred set from ServeConfig — the
-// capabilities must be declared here or FinFocus Core will not use the
-// corresponding RPCs (e.g. ResolveResourceTypes for --terraform-state).
-// The optional entries are derived from interface assertions so the advertised
-// set cannot drift from the actual implementation.
+// The list is explicit and non-empty, so the SDK returns it unchanged instead
+// of inferring capabilities from implemented interfaces. Inference would
+// advertise BUDGETS and DISMISS_RECOMMENDATIONS, because GetBudgets and
+// DismissRecommendation exist only to return Unimplemented. DRY_RUN stays in
+// the list because HandleDryRun routes through Supports. The SDK backfills
+// the legacy supports_* metadata keys from this list. Optional entries come
+// from interface assertions so the advertised set cannot drift from the
+// implementation.
 func (r *Plugin) capabilities() []pbc.PluginCapability {
 	capabilities := []pbc.PluginCapability{
 		pbc.PluginCapability_PLUGIN_CAPABILITY_PROJECTED_COSTS,

@@ -16,9 +16,6 @@ security overhead of cloud credentials.
     `resource.sku is required`) [L]
   - [ ] #415 Read `ResourceDescriptor.attributes` (finfocus-spec v0.7.3)
     with tag fallback across all services; builds on #388's key map [L]
-- **[Ready] SDK Cleanup:**
-  - [ ] #404 Drop the hand-built legacy capability metadata now that
-    finfocus-spec v0.7.3 builds it [S]
 - **[In Progress] Build Infrastructure:**
   - [ ] #287 Consolidate region mappings to `regions.yaml` as single source
     of truth, eliminating hardcoded duplicates in shell scripts [M]
@@ -99,6 +96,8 @@ security overhead of cloud credentials.
 
 - [x] `plugin`: finfocus-spec v0.7.4; `GetActualCost` reads `resource`
   when the host sets it. [S]
+- [x] #404 `plugin`: dropped the hand-built legacy capability metadata;
+  finfocus-spec v0.7.3 fills in `supports_*` from the explicit list. [S]
 - [x] `plugin`: removed the `PULUMICOST_*` environment variable fallbacks
   (breaking) and added Vale prose linting, commitlint, and govulncheck to CI
   (PR #411). [M]

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -269,7 +268,9 @@ func (p *AWSPublicPlugin) Name() string {
 	return "finfocus-plugin-aws-public"
 }
 
-// GetPluginInfo returns metadata about the plugin.
+// GetPluginInfo returns the plugin name, version, region, and explicit
+// capability list. Legacy supports_* metadata is left unset so finfocus-spec
+// v0.7.3 can backfill it from that list.
 func (p *AWSPublicPlugin) GetPluginInfo(
 	ctx context.Context,
 	_ *pbc.GetPluginInfoRequest,
@@ -279,39 +280,25 @@ func (p *AWSPublicPlugin) GetPluginInfo(
 	p.traceLogger(traceID, "GetPluginInfo").Info().
 		Msg("providing plugin info")
 
-	capabilities := p.capabilities()
-	metadata := map[string]string{
-		"region": p.region,
-		"type":   "public-pricing-fallback",
-	}
-	// Mirror the SDK's configured-PluginInfo path: expose capabilities via the
-	// legacy metadata keys as well, for older hosts that predate the enum.
-	legacyMeta, warnings := pluginsdk.CapabilitiesToLegacyMetadataWithWarnings(capabilities)
-	for _, w := range warnings {
-		p.logger.Warn().
-			Int32("capability", int32(w.Capability)).
-			Str("reason", w.Reason).
-			Msg("capability has no legacy metadata mapping")
-	}
-	maps.Copy(metadata, legacyMeta)
-
 	return &pbc.GetPluginInfoResponse{
-		Name:         p.Name(),
-		Version:      p.version,
-		SpecVersion:  pluginsdk.SpecVersion,
-		Providers:    []string{providerAWS},
-		Metadata:     metadata,
-		Capabilities: capabilities,
+		Name:        p.Name(),
+		Version:     p.version,
+		SpecVersion: pluginsdk.SpecVersion,
+		Providers:   []string{providerAWS},
+		Metadata: map[string]string{
+			"region": p.region,
+			"type":   "public-pricing-fallback",
+		},
+		Capabilities: p.capabilities(),
 	}, nil
 }
 
 // capabilities returns the capability set advertised through GetPluginInfo.
-// The plugin implements PluginInfoProvider, so the SDK serves this response
-// verbatim instead of the interface-inferred set from ServeConfig — the
-// capabilities must be declared here or FinFocus Core will not use the
-// corresponding RPCs (e.g. ResolveResourceTypes for --terraform-state).
-// The optional entries are derived from interface assertions so the advertised
-// set cannot drift from the actual implementation.
+// The list is explicit and non-empty, so the SDK returns it unchanged instead
+// of inferring capabilities from implemented interfaces. The SDK backfills the
+// legacy supports_* metadata keys from this list. Optional entries come from
+// interface assertions so the advertised set cannot drift from the
+// implementation.
 func (p *AWSPublicPlugin) capabilities() []pbc.PluginCapability {
 	capabilities := []pbc.PluginCapability{
 		pbc.PluginCapability_PLUGIN_CAPABILITY_PROJECTED_COSTS,

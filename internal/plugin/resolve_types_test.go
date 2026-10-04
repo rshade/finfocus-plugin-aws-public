@@ -28,21 +28,48 @@ func TestAWSPublicPlugin_ImplementsResolveResourceTypesProvider(t *testing.T) {
 		pbc.PluginCapability_PLUGIN_CAPABILITY_RESOLVE_RESOURCE_TYPES)
 }
 
-// TestGetPluginInfo_AdvertisesCapabilities guards the PluginInfoProvider path:
-// the SDK serves the plugin's own GetPluginInfo response verbatim, so the
-// capabilities (and legacy metadata keys) must be set there — FinFocus Core
-// gates ResolveResourceTypes on them.
+// TestGetPluginInfo_AdvertisesCapabilities verifies that the SDK backfills
+// legacy supports_* keys from the plugin's explicit capability list.
+//
+// The plugin's own GetPluginInfo response carries region, type, and the
+// capability enums, and leaves the legacy keys unset. pluginsdk.Server fills
+// those keys in. An explicit non-empty list is returned unchanged, so
+// BUDGETS and DISMISS_RECOMMENDATIONS stay absent.
+//
+// Test workflow:
+//  1. Call GetPluginInfo on the plugin and confirm it does not set supports_*.
+//  2. Call GetPluginInfo on pluginsdk.NewServer and confirm the SDK backfill.
+//  3. Confirm region and type metadata are unchanged on both responses.
 func TestGetPluginInfo_AdvertisesCapabilities(t *testing.T) {
 	plugin := newResolveTestPlugin()
 
-	resp, err := plugin.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
+	direct, err := plugin.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, "us-east-1", direct.GetMetadata()["region"])
+	assert.Equal(t, "public-pricing-fallback", direct.GetMetadata()["type"])
+	assert.NotContains(t, direct.GetMetadata(), "supports_recommendations")
+	assert.NotContains(t, direct.GetMetadata(), "supports_resolve_resource_types")
+	assert.NotContains(t, direct.GetMetadata(), "supports_budgets")
+	assert.NotContains(t, direct.GetMetadata(), "supports_dismiss_recommendations")
+
+	server := pluginsdk.NewServer(plugin)
+	resp, err := server.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
 	require.NoError(t, err)
 
 	assert.Contains(t, resp.GetCapabilities(),
 		pbc.PluginCapability_PLUGIN_CAPABILITY_RESOLVE_RESOURCE_TYPES)
 	assert.Contains(t, resp.GetCapabilities(),
 		pbc.PluginCapability_PLUGIN_CAPABILITY_RECOMMENDATIONS)
+	assert.NotContains(t, resp.GetCapabilities(),
+		pbc.PluginCapability_PLUGIN_CAPABILITY_BUDGETS)
+	assert.NotContains(t, resp.GetCapabilities(),
+		pbc.PluginCapability_PLUGIN_CAPABILITY_DISMISS_RECOMMENDATIONS)
+	assert.Equal(t, "true", resp.GetMetadata()["supports_recommendations"])
 	assert.Equal(t, "true", resp.GetMetadata()["supports_resolve_resource_types"])
+	assert.NotContains(t, resp.GetMetadata(), "supports_budgets")
+	assert.NotContains(t, resp.GetMetadata(), "supports_dismiss_recommendations")
+	assert.Equal(t, "us-east-1", resp.GetMetadata()["region"])
+	assert.Equal(t, "public-pricing-fallback", resp.GetMetadata()["type"])
 }
 
 // TestResolveResourceTypes_ResolvesTerraformTypes verifies that the plugin maps
