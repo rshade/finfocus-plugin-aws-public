@@ -3,6 +3,7 @@ package plugin
 import (
 	"bytes"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -65,33 +66,29 @@ func TestIsTestMode(t *testing.T) {
 
 	// Also test legacy TEST_MODE env var
 	legacyTests := []struct {
-		name    string
-		legacy  string
-		current string
-		want    bool
+		name         string
+		legacyValue  string
+		currentValue string
+		want         bool
 	}{
 		{
-			name:    "legacy TEST_MODE=true when FINFOCUS_TEST_MODE unset",
-			legacy:  "TEST_MODE",
-			current: testModeEnvVar,
-			want:    true,
+			name:         "legacy TEST_MODE=true when FINFOCUS_TEST_MODE unset",
+			legacyValue:  "true",
+			currentValue: "",
+			want:         true,
 		},
 		{
-			name:    "FINFOCUS_TEST_MODE=true takes precedence over legacy TEST_MODE=false",
-			legacy:  "TEST_MODE",
-			current: testModeEnvVar,
-			want:    true,
+			name:         "FINFOCUS_TEST_MODE=true takes precedence over legacy TEST_MODE=false",
+			legacyValue:  "false",
+			currentValue: "true",
+			want:         true,
 		},
 	}
 
 	for _, tt := range legacyTests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(tt.legacy, "true")
-			if strings.Contains(tt.name, "precedence") {
-				t.Setenv(tt.current, "true")
-			} else {
-				t.Setenv(tt.current, "")
-			}
+			t.Setenv("TEST_MODE", tt.legacyValue)
+			t.Setenv(testModeEnvVar, tt.currentValue)
 
 			got := IsTestMode()
 			if got != tt.want {
@@ -128,7 +125,10 @@ func TestIsTestModeWithLogger(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set test value
+			testModeLegacyOnce = sync.Once{}
+			t.Cleanup(func() { testModeLegacyOnce = sync.Once{} })
+			t.Setenv(testModeEnvVar, "")
+			t.Setenv("TEST_MODE", "")
 			t.Setenv(tt.envVar, tt.envValue)
 
 			// Capture log output

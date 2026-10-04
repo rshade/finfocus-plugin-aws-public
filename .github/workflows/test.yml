@@ -47,11 +47,13 @@ jobs:
       # in dev version only). This is a known upstream issue affecting all plugins
       # that use pluginsdk.Serve(), so we allow the step to fail without blocking CI.
       # Once upstream releases v1.85.0, remove continue-on-error.
-      - name: Check for vulnerabilities with govulncheck
+      # mise's go: backend requires mise-managed Go; the setup-go toolchain
+      # above is not visible to it, so install go first.
+      - name: Install govulncheck
         uses: jdx/mise-action@v2
         with:
           install_only: true
-          install_args: go:golang.org/x/vuln/cmd/govulncheck
+          install_args: go go:golang.org/x/vuln/cmd/govulncheck
       - name: Run govulncheck
         run: govulncheck ./...
         continue-on-error: true

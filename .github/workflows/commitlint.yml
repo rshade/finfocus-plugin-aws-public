@@ -21,6 +21,9 @@ jobs:
           install_only: true
           install_args: node
 
+      - name: Install locked commitlint dependencies
+        run: npm ci
+
       - name: Validate commits with commitlint
         run: |
           BASE_COMMIT=$(git merge-base origin/main HEAD)
