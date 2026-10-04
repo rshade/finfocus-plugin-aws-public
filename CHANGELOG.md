@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.10...v0.2.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* PULUMICOST_TEST_MODE, PULUMICOST_MAX_BATCH_SIZE, and PULUMICOST_STRICT_VALIDATION are no longer read. Use the FINFOCUS_* equivalents.
+
+### refactor
+
+* remove PULUMICOST_* env vars and add prose/commit linting ([#411](https://github.com/rshade/finfocus-plugin-aws-public/issues/411)) ([3e5824f](https://github.com/rshade/finfocus-plugin-aws-public/commit/3e5824f2210576df4376b3a2434520f4c946be90))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.1.10 ([#412](https://github.com/rshade/finfocus-plugin-aws-public/issues/412)) ([870b852](https://github.com/rshade/finfocus-plugin-aws-public/commit/870b85289c5fcf8e57549ac28c6a18227bab2909))
+* **deps:** update module github.com/rshade/finfocus-spec to v0.7.3 ([#414](https://github.com/rshade/finfocus-plugin-aws-public/issues/414)) ([a5edd7f](https://github.com/rshade/finfocus-plugin-aws-public/commit/a5edd7f557529764624c0941627866bef7f085ca))
+
 ## [0.1.10](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.9...v0.1.10) (2026-10-03)
 
 
