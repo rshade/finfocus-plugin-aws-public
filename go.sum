@@ -86,6 +86,8 @@ github.com/rshade/finfocus-spec v0.7.1 h1:z1HToDkLVcB8DD/Oiim3k6VG4uavS0AyIpPOKR
 github.com/rshade/finfocus-spec v0.7.1/go.mod h1:UahBFcZmlYh2UCiqaM9FFR0gkHtGIpz9el3aCB/Bzoc=
 github.com/rshade/finfocus-spec v0.7.2 h1:RXtGRk9OiZU2wbWwl2B93wdmu64ikFoghOh2r381mTE=
 github.com/rshade/finfocus-spec v0.7.2/go.mod h1:UahBFcZmlYh2UCiqaM9FFR0gkHtGIpz9el3aCB/Bzoc=
+github.com/rshade/finfocus-spec v0.7.3 h1:WTjQo2ONld2voPQRuYlSKy98hoKtGiyuCNdjRw/uxX0=
+github.com/rshade/finfocus-spec v0.7.3/go.mod h1:UahBFcZmlYh2UCiqaM9FFR0gkHtGIpz9el3aCB/Bzoc=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
