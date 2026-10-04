@@ -489,6 +489,23 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - `cost_per_month`: unit_price × 730
 - `billing_detail`: "EKS cluster (<support_type> support), 730 hrs/month (control plane only, excludes worker nodes)"
 
+### RDS Instances
+
+- `resource_type`: "rds" or "aws:rds/instance:Instance"
+- `sku`: Instance class (e.g., "db.t3.medium"), falling back to the
+  `instanceClass` or `instance_class` tag
+- Engine: `tags["engine"]`, defaults to MySQL
+- Storage tags: the Pulumi input name is checked first and the legacy
+  snake_case tag second. An empty value counts as absent
+  - Storage type: `storageType`, then `storage_type`. Defaults to gp2.
+    Values outside gp2/gp3/io1/io2/standard also fall back to gp2
+  - Storage size (GB): `allocatedStorage`, then `storage_size`. Defaults to
+    20 when the value is missing, non-numeric, or not positive
+  - Multi-AZ: `multiAz`, then `multi_az`. Only affects carbon (2×)
+- `cost_per_month`: (hourly_rate × 730) + (storage_rate × size_GB)
+- `billing_detail`: `RDS <class> <engine>, 730 hrs/month + <size>GB <type> storage`,
+  plus a `(... defaulted ...)` note for each defaulted value
+
 ### Auto Scaling Groups (ASG)
 
 - `resource_type`: "asg", "autoscaling", or "aws:autoscaling/group:Group"

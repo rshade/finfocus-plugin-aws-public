@@ -94,6 +94,8 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #428 `plugin`: RDS storage priced from Pulumi `storageType`,
+  `allocatedStorage`, and `multiAz` inputs. [S]
 - [x] `deps`: finfocus-spec v0.7.5; handler gRPC status codes now reach
   the host instead of `Internal`. [S]
 - [x] `plugin`: finfocus-spec v0.7.4; `GetActualCost` reads `resource`
