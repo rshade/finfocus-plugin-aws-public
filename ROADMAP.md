@@ -97,6 +97,8 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] `plugin`: finfocus-spec v0.7.4; `GetActualCost` reads `resource`
+  when the host sets it. [S]
 - [x] `plugin`: removed the `PULUMICOST_*` environment variable fallbacks
   (breaking) and added Vale prose linting, commitlint, and govulncheck to CI
   (PR #411). [M]

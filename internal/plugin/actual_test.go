@@ -1671,6 +1671,79 @@ func TestGetActualCost_MixedBatch(t *testing.T) {
 	}
 }
 
+// TestGetActualCost_ResourceDescriptorOverridesTags verifies that actual cost
+// follows the descriptor's SKU and size when request tags name a cheaper one.
+//
+// finfocus-spec v0.7.4 puts the same resource description used for projected
+// cost on the actual cost request. A tag named sku or size does not override it.
+func TestGetActualCost_ResourceDescriptorOverridesTags(t *testing.T) {
+	plugin := newTestPluginForActual()
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(730 * time.Hour)
+
+	t.Run("ec2 sku", func(t *testing.T) {
+		resp, err := plugin.GetActualCost(context.Background(), &pbc.GetActualCostRequest{
+			ResourceId: "i-abc123",
+			Start:      timestamppb.New(from),
+			End:        timestamppb.New(to),
+			Tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ec2",
+				"sku":           "t3.micro",
+				"region":        "us-east-1",
+			},
+			Resource: &pbc.ResourceDescriptor{
+				Provider:     "aws",
+				ResourceType: "ec2",
+				Sku:          "m5.large",
+				Region:       "us-east-1",
+			},
+		})
+		if err != nil {
+			t.Fatalf("GetActualCost: %v", err)
+		}
+		if len(resp.GetResults()) != 1 {
+			t.Fatalf("results = %d, want 1", len(resp.GetResults()))
+		}
+		const want = 0.096 * 730
+		if got := resp.GetResults()[0].GetCost(); got < want-0.01 || got > want+0.01 {
+			t.Errorf("cost = %v, want about %v from m5.large", got, want)
+		}
+	})
+
+	t.Run("ebs size", func(t *testing.T) {
+		resp, err := plugin.GetActualCost(context.Background(), &pbc.GetActualCostRequest{
+			ResourceId: "vol-abc123",
+			Start:      timestamppb.New(from),
+			End:        timestamppb.New(to),
+			Tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ebs",
+				"sku":           "gp2",
+				"region":        "us-east-1",
+				"size":          "1",
+			},
+			Resource: &pbc.ResourceDescriptor{
+				Provider:     "aws",
+				ResourceType: "ebs",
+				Sku:          "gp3",
+				Region:       "us-east-1",
+				Tags:         map[string]string{"size": "100"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("GetActualCost: %v", err)
+		}
+		if len(resp.GetResults()) != 1 {
+			t.Fatalf("results = %d, want 1", len(resp.GetResults()))
+		}
+		const want = 0.08 * 100
+		if got := resp.GetResults()[0].GetCost(); got < want-0.01 || got > want+0.01 {
+			t.Errorf("cost = %v, want about %v from 100GB gp3", got, want)
+		}
+	})
+}
+
 // TestGetActualCost_ASG_Routes verifies that GetActualCost routes ASG resources
 // through the ASG estimator (dual-path coverage per CLAUDE.md convention).
 func TestGetActualCost_ASG_Routes(t *testing.T) {

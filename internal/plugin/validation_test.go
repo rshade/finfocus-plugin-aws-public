@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -179,6 +180,98 @@ func TestValidateActualCostRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateActualCostRequest_ResourceDescriptor verifies that a set
+// GetActualCostRequest.resource supplies pricing dimensions.
+//
+// Request tags that name a region, SKU, or size stay labels. The descriptor
+// wins over those tags and over an ARN on the same request. An unset
+// descriptor still uses tags.
+func TestValidateActualCostRequest_ResourceDescriptor(t *testing.T) {
+	logger := zerolog.Nop()
+	p := NewAWSPublicPlugin("us-east-1", "test-version", nil, logger)
+	ctx := context.Background()
+	now := time.Now()
+	start := timestamppb.New(now.Add(-1 * time.Hour))
+	end := timestamppb.New(now)
+
+	t.Run("descriptor wins over tags and arn", func(t *testing.T) {
+		attrs, attrErr := structpb.NewStruct(map[string]any{"instanceType": "m5.large"})
+		require.NoError(t, attrErr)
+
+		req := &pbc.GetActualCostRequest{
+			ResourceId: "i-from-request",
+			Start:      start,
+			End:        end,
+			Arn:        "arn:aws:rds:us-west-2:123456789012:db:other",
+			Tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ebs",
+				"sku":           "gp2",
+				"region":        "us-west-2",
+				"size":          "1",
+			},
+			Resource: &pbc.ResourceDescriptor{
+				Provider:     "aws",
+				ResourceType: "ec2",
+				Sku:          "m5.large",
+				Region:       "us-east-1",
+				Tags:         map[string]string{"size": "100"},
+				Attributes:   attrs,
+			},
+		}
+
+		res, _, err := p.ValidateActualCostRequest(ctx, req)
+		require.NoError(t, err)
+		assert.NotSame(t, req.GetResource(), res)
+		assert.Equal(t, "ec2", res.GetResourceType())
+		assert.Equal(t, "m5.large", res.GetSku())
+		assert.Equal(t, "us-east-1", res.GetRegion())
+		assert.Equal(t, map[string]string{"size": "100"}, res.GetTags())
+		assert.Equal(t, "m5.large", res.GetAttributes().GetFields()["instanceType"].GetStringValue())
+		assert.Equal(t, "us-east-1", req.GetResource().GetRegion())
+	})
+
+	t.Run("descriptor region is not replaced by a matching tag", func(t *testing.T) {
+		req := &pbc.GetActualCostRequest{
+			ResourceId: "i-from-request",
+			Start:      start,
+			End:        end,
+			Tags:       map[string]string{"region": "us-east-1", "sku": "t3.micro"},
+			Resource: &pbc.ResourceDescriptor{
+				Provider:     "aws",
+				ResourceType: "ec2",
+				Sku:          "m5.large",
+				Region:       "us-west-2",
+			},
+		}
+
+		_, _, err := p.ValidateActualCostRequest(ctx, req)
+		require.Error(t, err)
+		st, ok := status.FromError(err)
+		require.True(t, ok)
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+	})
+
+	t.Run("unset descriptor still reads tags", func(t *testing.T) {
+		req := &pbc.GetActualCostRequest{
+			ResourceId: "not-json",
+			Start:      start,
+			End:        end,
+			Tags: map[string]string{
+				"provider":      "aws",
+				"resource_type": "ec2",
+				"sku":           "t3.micro",
+				"region":        "us-east-1",
+			},
+		}
+
+		res, _, err := p.ValidateActualCostRequest(ctx, req)
+		require.NoError(t, err)
+		assert.Equal(t, "t3.micro", res.GetSku())
+		assert.Equal(t, "us-east-1", res.GetRegion())
+	})
 }
 
 func TestRegionMismatchError(t *testing.T) {

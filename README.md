@@ -726,6 +726,10 @@ curl -X POST "http://localhost:$PORT/finfocus.v1.CostSourceService/GetActualCost
   }'
 ```
 
+When `resource` is present, its type, SKU, region, and sizing tags are the
+pricing inputs. Omit `resource` and the plugin still reads `resource_id` and
+`tags`, as in the example above.
+
 **Response:**
 
 ```json

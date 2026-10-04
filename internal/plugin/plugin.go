@@ -331,9 +331,9 @@ func (p *AWSPublicPlugin) capabilities() []pbc.PluginCapability {
 // GetActualCost retrieves actual cost for a resource based on runtime.
 // Uses fallback formula: actual_cost = projected_monthly_cost × (runtime_hours / 730)
 //
-// The proto API uses ResourceId (string) which we expect to be a JSON-encoded
-// ResourceDescriptor. If ResourceId is empty, we fall back to extracting
-// resource info from the Tags map.
+// When the request carries a resource descriptor, pricing dimensions come from
+// that descriptor. Otherwise the plugin reads the ARN, then ResourceId as a
+// JSON-encoded descriptor, then the tags map.
 func (p *AWSPublicPlugin) GetActualCost( //nolint:funlen
 	ctx context.Context,
 	req *pbc.GetActualCostRequest,

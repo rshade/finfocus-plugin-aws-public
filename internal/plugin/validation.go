@@ -9,6 +9,7 @@ import (
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -251,10 +252,14 @@ func (p *AWSPublicPlugin) validateProjectedCostRequestWithResolver(
 //
 // Side Effect: req.Start and req.End may be populated from resolution if originally nil.
 //
-// Fallback chain (FR-018, FR-019):
-//  1. req.Arn - Parse AWS ARN and extract region/service (SKU must come from tags)
-//  2. req.ResourceId as JSON - JSON-encoded ResourceDescriptor
-//  3. req.Tags - Extract provider, resource_type, sku, region from tags
+// Pricing dimensions (finfocus-spec v0.7.4):
+//  1. req.Resource, when set. Provider, type, SKU, region, attributes, and the
+//     descriptor's own tags come from it. Request tags do not override them.
+//
+// Fallback when req.Resource is unset (FR-018, FR-019):
+//  2. req.Arn - Parse AWS ARN and extract region/service (SKU must come from tags)
+//  3. req.ResourceId as JSON - JSON-encoded ResourceDescriptor
+//  4. req.Tags - Extract provider, resource_type, sku, region from tags
 func (p *AWSPublicPlugin) ValidateActualCostRequest( //nolint:gocognit,funlen
 	ctx context.Context,
 	req *pbc.GetActualCostRequest,
@@ -309,6 +314,31 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest( //nolint:gocognit,funlen
 			tsErr.Error(),
 			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
 		)
+	}
+
+	// A set descriptor is the pricing input. Request tags stay labels.
+	if desc := req.GetResource(); desc != nil {
+		if sdkErr := pluginsdk.ValidateActualCostRequest(req); sdkErr != nil {
+			return nil, nil, p.newErrorWithID(
+				traceID,
+				codes.InvalidArgument,
+				sdkErr.Error(),
+				pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+			)
+		}
+		cloned, ok := proto.Clone(desc).(*pbc.ResourceDescriptor)
+		if !ok || cloned == nil {
+			return nil, nil, p.newErrorWithID(
+				traceID,
+				codes.InvalidArgument,
+				"resource descriptor is invalid",
+				pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+			)
+		}
+		if regionErr := p.applyActualCostRegion(traceID, cloned); regionErr != nil {
+			return nil, nil, regionErr
+		}
+		return cloned, resolution, nil
 	}
 
 	// FR-018: Check ARN first (highest priority)
@@ -367,27 +397,34 @@ func (p *AWSPublicPlugin) ValidateActualCostRequest( //nolint:gocognit,funlen
 		)
 	}
 
-	// Custom region check (consistent with ValidateProjectedCostRequest)
+	if regionErr := p.applyActualCostRegion(traceID, resource); regionErr != nil {
+		return nil, nil, regionErr
+	}
+
+	return resource, resolution, nil
+}
+
+// applyActualCostRegion checks the descriptor region against this binary.
+// An empty region on S3 or IAM is filled with the plugin region. The
+// descriptor is updated so later estimation sees that region.
+func (p *AWSPublicPlugin) applyActualCostRegion(traceID string, resource *pbc.ResourceDescriptor) error {
 	effectiveRegion := resource.GetRegion()
 	normalizedResourceType := normalizeResourceType(resource.GetResourceType())
 	service := detectService(normalizedResourceType)
 
-	// For global services with empty region, use the plugin's region
 	if effectiveRegion == "" && (service == serviceS3 || service == serviceIAM) {
-		effectiveRegion = p.region
-		// Set resource region so caller knows the effective region
 		resource.Region = p.region
 		p.logger.Debug().
 			Str("resource_type", resource.GetResourceType()).
 			Str("assigned_region", p.region).
 			Msg("assigned plugin region to global service with empty region")
+		return nil
 	}
 
 	if effectiveRegion != p.region {
-		return nil, nil, p.RegionMismatchError(traceID, effectiveRegion)
+		return p.RegionMismatchError(traceID, effectiveRegion)
 	}
-
-	return resource, resolution, nil
+	return nil
 }
 
 // validateTimestamps checks that start/end timestamps are present and valid.

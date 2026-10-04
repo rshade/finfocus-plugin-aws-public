@@ -14,6 +14,13 @@ Where:
 - `projected_hourly_rate` = Monthly projected cost / 730 hours
 - `hours_running` = Time between resource creation timestamp and query end time
 
+## Pricing inputs
+
+A `resource` descriptor on the actual-cost request supplies the type, SKU,
+region, attributes, and sizing tags. Request tags stay labels in that case.
+When `resource` is omitted, the plugin reads the ARN, then a JSON
+`resource_id`, then the request tags.
+
 ## Accuracy Levels
 
 | Resource Origin | Accuracy | Notes |
