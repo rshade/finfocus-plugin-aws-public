@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"maps"
 	"math"
 	"strings"
 	"testing"
@@ -14,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
@@ -1457,6 +1460,165 @@ func TestGetProjectedCost_RDS_InvalidStorageSize(t *testing.T) {
 			// Should mention defaulted
 			if !strings.Contains(resp.GetBillingDetail(), "defaulted") {
 				t.Errorf("BillingDetail should mention defaulted, got: %s", resp.GetBillingDetail())
+			}
+		})
+	}
+}
+
+// TestGetProjectedCost_RDS_StorageTagKeys verifies that RDS storage settings
+// are read from the Pulumi input names (storageType, allocatedStorage,
+// multiAz) as well as the legacy snake_case tags (storage_type, storage_size,
+// multi_az).
+//
+// FinFocus core forwards Pulumi plan inputs under their Pulumi names, so an
+// estimator that reads only snake_case prices every Pulumi RDS instance as
+// 20GB of gp2. The Pulumi key wins when both are present; a value that fails
+// validation falls back to the default and is reported as defaulted.
+func TestGetProjectedCost_RDS_StorageTagKeys(t *testing.T) {
+	const (
+		hourlyRate = 0.068
+		gp2Rate    = 0.115
+		gp3Rate    = 0.10
+		io1Rate    = 0.125
+	)
+
+	tests := []struct {
+		name            string
+		tags            map[string]string
+		wantSizeGB      int
+		wantStorageType string
+		wantRate        float64
+		wantMultiAZ     bool
+		wantNotes       []string
+		wantNoNotes     []string
+	}{
+		{
+			name: "pulumi keys",
+			tags: map[string]string{
+				"storageType": "io1", "allocatedStorage": "500", "multiAz": "true",
+			},
+			wantSizeGB: 500, wantStorageType: "io1", wantRate: io1Rate, wantMultiAZ: true,
+			wantNoNotes: []string{"storage type defaulted", "size defaulted"},
+		},
+		{
+			name:       "pulumi plan step from the issue",
+			tags:       map[string]string{"storageType": "gp3", "allocatedStorage": "20"},
+			wantSizeGB: 20, wantStorageType: "gp3", wantRate: gp3Rate,
+			wantNoNotes: []string{"storage type defaulted", "size defaulted"},
+		},
+		{
+			name: "legacy snake_case keys",
+			tags: map[string]string{
+				"storage_type": "io1", "storage_size": "500", "multi_az": "true",
+			},
+			wantSizeGB: 500, wantStorageType: "io1", wantRate: io1Rate, wantMultiAZ: true,
+			wantNoNotes: []string{"storage type defaulted", "size defaulted"},
+		},
+		{
+			name: "pulumi keys win over snake_case",
+			tags: map[string]string{
+				"storageType": "io1", "allocatedStorage": "500", "multiAz": "true",
+				"storage_type": "gp2", "storage_size": "30", "multi_az": "false",
+			},
+			wantSizeGB: 500, wantStorageType: "io1", wantRate: io1Rate, wantMultiAZ: true,
+			wantNoNotes: []string{"storage type defaulted", "size defaulted"},
+		},
+		{
+			name: "empty pulumi key falls back to snake_case",
+			tags: map[string]string{
+				"storageType": "", "allocatedStorage": "", "multiAz": "",
+				"storage_type": "io1", "storage_size": "500", "multi_az": "true",
+			},
+			wantSizeGB: 500, wantStorageType: "io1", wantRate: io1Rate, wantMultiAZ: true,
+			wantNoNotes: []string{"storage type defaulted", "size defaulted"},
+		},
+		{
+			name:       "invalid pulumi size",
+			tags:       map[string]string{"storageType": "io1", "allocatedStorage": "abc"},
+			wantSizeGB: 20, wantStorageType: "io1", wantRate: io1Rate,
+			wantNotes:   []string{"size defaulted to 20GB"},
+			wantNoNotes: []string{"storage type defaulted"},
+		},
+		{
+			name: "invalid pulumi values do not fall back to snake_case",
+			tags: map[string]string{
+				"storageType": "bogus", "allocatedStorage": "abc",
+				"storage_type": "io1", "storage_size": "500",
+			},
+			wantSizeGB: 20, wantStorageType: "gp2", wantRate: gp2Rate,
+			wantNotes: []string{"storage type defaulted", "size defaulted to 20GB"},
+		},
+		{
+			name:       "invalid pulumi storage type",
+			tags:       map[string]string{"storageType": "bogus", "allocatedStorage": "500"},
+			wantSizeGB: 500, wantStorageType: "gp2", wantRate: gp2Rate,
+			wantNotes:   []string{"storage type defaulted"},
+			wantNoNotes: []string{"size defaulted"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", "USD")
+			mock.rdsInstancePrices["db.t3.medium/PostgreSQL"] = hourlyRate
+			mock.rdsStoragePrices["gp2"] = gp2Rate
+			mock.rdsStoragePrices["gp3"] = gp3Rate
+			mock.rdsStoragePrices["io1"] = io1Rate
+			plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, zerolog.Nop())
+
+			tags := map[string]string{"engine": "postgres"}
+			maps.Copy(tags, tt.tags)
+
+			resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     "aws",
+					ResourceType: "aws:rds/instance:Instance",
+					Sku:          "db.t3.medium",
+					Region:       "us-east-1",
+					Tags:         tags,
+				},
+			})
+			if err != nil {
+				t.Fatalf("GetProjectedCost() returned error: %v", err)
+			}
+
+			wantCost := hourlyRate*HoursPerMonthProd + tt.wantRate*float64(tt.wantSizeGB)
+			if math.Abs(resp.GetCostPerMonth()-wantCost) > 1e-9 {
+				t.Errorf("CostPerMonth = %v, want %v", resp.GetCostPerMonth(), wantCost)
+			}
+
+			detail := resp.GetBillingDetail()
+			wantStorage := fmt.Sprintf("%dGB %s storage", tt.wantSizeGB, tt.wantStorageType)
+			if !strings.Contains(detail, wantStorage) {
+				t.Errorf("BillingDetail = %q, want it to contain %q", detail, wantStorage)
+			}
+			for _, note := range tt.wantNotes {
+				if !strings.Contains(detail, note) {
+					t.Errorf("BillingDetail = %q, want note %q", detail, note)
+				}
+			}
+			for _, note := range tt.wantNoNotes {
+				if strings.Contains(detail, note) {
+					t.Errorf("BillingDetail = %q, must not contain %q", detail, note)
+				}
+			}
+
+			wantCarbon, ok := carbon.NewRDSEstimator().EstimateCarbonGrams(carbon.RDSInstanceConfig{
+				InstanceType:  "db.t3.medium",
+				Region:        "us-east-1",
+				MultiAZ:       tt.wantMultiAZ,
+				StorageType:   tt.wantStorageType,
+				StorageSizeGB: float64(tt.wantSizeGB),
+				Utilization:   carbon.DefaultUtilization,
+				Hours:         HoursPerMonthProd,
+			})
+			if !ok {
+				t.Fatal("carbon estimate unavailable for db.t3.medium")
+			}
+			metrics := resp.GetImpactMetrics()
+			if len(metrics) != 1 || math.Abs(metrics[0].GetValue()-wantCarbon) > 1e-9 {
+				t.Errorf("ImpactMetrics = %v, want one carbon metric of %v (multiAZ=%v)",
+					metrics, wantCarbon, tt.wantMultiAZ)
 			}
 		})
 	}
