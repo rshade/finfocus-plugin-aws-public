@@ -85,6 +85,21 @@ implemented interfaces, which would advertise the router's `GetBudgets` and
 `DismissRecommendation` stubs. `HandleDryRun` is a real handler, so
 `PLUGIN_CAPABILITY_DRY_RUN` stays on the router list.
 
+### Handler status codes (finfocus-spec v0.7.5+)
+
+`pluginsdk.Server` no longer rewraps handler errors as `Internal` for
+`Supports`, `GetRecommendations`, `GetBudgets`, `DismissRecommendation`,
+`DryRun`, and `GetPluginInfo`. A gRPC status a handler returns reaches the
+host unchanged, details included. `Unimplemented` means "use the SDK
+default", so the router's `GetBudgets` and `DismissRecommendation` stubs get
+the SDK's not-a-provider response. To refuse a request, return a different
+code. The router forwards child statuses as they are, which is safe because
+the children are this plugin's own binaries. Never pass through a status from
+a third-party upstream.
+
+`include_dismissed` on `GetRecommendationsRequest` does nothing here. The
+plugin is stateless and stores no dismissals.
+
 ### ResourceDescriptor (Proto Input)
 
 ```protobuf
