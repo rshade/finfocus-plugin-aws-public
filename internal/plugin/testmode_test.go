@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"bytes"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rs/zerolog"
@@ -58,6 +60,93 @@ func TestIsTestMode(t *testing.T) {
 			got := IsTestMode()
 			if got != tt.want {
 				t.Errorf("IsTestMode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	// Also test legacy TEST_MODE env var
+	legacyTests := []struct {
+		name         string
+		legacyValue  string
+		currentValue string
+		want         bool
+	}{
+		{
+			name:         "legacy TEST_MODE=true when FINFOCUS_TEST_MODE unset",
+			legacyValue:  "true",
+			currentValue: "",
+			want:         true,
+		},
+		{
+			name:         "FINFOCUS_TEST_MODE=true takes precedence over legacy TEST_MODE=false",
+			legacyValue:  "false",
+			currentValue: "true",
+			want:         true,
+		},
+	}
+
+	for _, tt := range legacyTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TEST_MODE", tt.legacyValue)
+			t.Setenv(testModeEnvVar, tt.currentValue)
+
+			got := IsTestMode()
+			if got != tt.want {
+				t.Errorf("IsTestMode() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestIsTestModeWithLogger verifies that legacy TEST_MODE is logged when used.
+func TestIsTestModeWithLogger(t *testing.T) {
+	tests := []struct {
+		name          string
+		envVar        string
+		envValue      string
+		expectMode    bool
+		expectWarning bool
+	}{
+		{
+			name:          "FINFOCUS_TEST_MODE=true no warning",
+			envVar:        testModeEnvVar,
+			envValue:      "true",
+			expectMode:    true,
+			expectWarning: false,
+		},
+		{
+			name:          "legacy TEST_MODE=true with warning",
+			envVar:        "TEST_MODE",
+			envValue:      "true",
+			expectMode:    true,
+			expectWarning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testModeLegacyOnce = sync.Once{}
+			t.Cleanup(func() { testModeLegacyOnce = sync.Once{} })
+			t.Setenv(testModeEnvVar, "")
+			t.Setenv("TEST_MODE", "")
+			t.Setenv(tt.envVar, tt.envValue)
+
+			// Capture log output
+			var buf bytes.Buffer
+			logger := zerolog.New(&buf)
+
+			got := IsTestModeWithLogger(logger)
+			if got != tt.expectMode {
+				t.Errorf("IsTestModeWithLogger() = %v, want %v", got, tt.expectMode)
+			}
+
+			logOutput := buf.String()
+			hasWarning := strings.Contains(logOutput, "deprecated")
+			if tt.expectWarning && !hasWarning {
+				t.Error("Expected deprecation warning, got none")
+			}
+			if !tt.expectWarning && hasWarning {
+				t.Errorf("Expected no deprecation warning, got: %s", logOutput)
 			}
 		})
 	}

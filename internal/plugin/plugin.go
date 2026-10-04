@@ -70,12 +70,11 @@ func NewAWSPublicPlugin(
 
 	// Initialize configuration
 	maxBatchSize := defaultMaxBatchSize
-	// Check for batch size (new variable takes precedence over deprecated)
+	// Check for batch size (new variable takes precedence over legacy)
 	val, varName, found := getEnvWithDeprecation(
 		logger,
 		EnvMaxBatchSize,
-		EnvMaxBatchSizeDeprecated,
-		EnvMaxBatchSizeLegacy,
+		"MAX_BATCH_SIZE",
 	)
 
 	if found {
@@ -98,13 +97,12 @@ func NewAWSPublicPlugin(
 		}
 	}
 
-	// Check for strict validation (new variable takes precedence over deprecated)
+	// Check for strict validation (new variable takes precedence over legacy)
 	var strictValidation bool
 	val, _, found = getEnvWithDeprecation(
 		logger,
 		EnvStrictValidation,
-		EnvStrictValidationDeprecated,
-		EnvStrictValidationLegacy,
+		"STRICT_VALIDATION",
 	)
 	if found {
 		strictValidation = parseBoolVal(val)
@@ -131,22 +129,12 @@ func parseBoolVal(val string) bool {
 	return val == "true" || val == "1" || val == "yes" || val == "on"
 }
 
-// getEnvWithDeprecation checks for an environment variable with fallback to deprecated names.
-// It logs warnings when deprecated variables are used.
+// getEnvWithDeprecation checks for an environment variable with fallback to legacy name.
+// It logs warnings when legacy variables are used.
 // Returns (value, variableName, found).
-func getEnvWithDeprecation(logger zerolog.Logger, current, deprecated, legacy string) (string, string, bool) {
+func getEnvWithDeprecation(logger zerolog.Logger, current, legacy string) (string, string, bool) {
 	if val := os.Getenv(current); val != "" {
 		return val, current, true
-	}
-
-	if val := os.Getenv(deprecated); val != "" {
-		logger.Warn().
-			Str("env_var", deprecated).
-			Str("replacement", current).
-			Str("deprecated_since", "v0.0.18").
-			Str("removal_version", "v1.0.0").
-			Msgf("%s is deprecated, use %s instead", deprecated, current)
-		return val, deprecated, true
 	}
 
 	if val := os.Getenv(legacy); val != "" {
