@@ -315,7 +315,19 @@ func (r *Plugin) GetRecommendations(
 		return nil, status.Error(codes.Unavailable, "all region children failed during recommendations fan-out")
 	}
 
+	merged.Summary = pluginsdk.CalculateRecommendationSummary(
+		merged.GetRecommendations(), recommendationProjectionPeriod(req),
+	)
+
 	return merged, nil
+}
+
+// recommendationProjectionPeriod applies the protocol default for merged summaries.
+func recommendationProjectionPeriod(req *pbc.GetRecommendationsRequest) string {
+	if period := req.GetProjectionPeriod(); period != "" {
+		return period
+	}
+	return "monthly"
 }
 
 // DismissRecommendation returns Unimplemented (stateless plugin, no recommendation state).
