@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.1](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.0...v0.2.1) (2026-10-08)
+
+
+### Features
+
+* **plugin:** read actual cost resource descriptor ([#422](https://github.com/rshade/finfocus-plugin-aws-public/issues/422)) ([7132740](https://github.com/rshade/finfocus-plugin-aws-public/commit/71327403454d6484d55ea44a0c6b9e97d36c4885))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/rshade/finfocus-plugin-aws-public to v0.2.0 ([#424](https://github.com/rshade/finfocus-plugin-aws-public/issues/424)) ([11a8dd9](https://github.com/rshade/finfocus-plugin-aws-public/commit/11a8dd968837a23576d0e44587ad17bef563ebed))
+* **deps:** update module github.com/rshade/finfocus-spec to v0.7.5 ([#429](https://github.com/rshade/finfocus-plugin-aws-public/issues/429)) ([a0aabce](https://github.com/rshade/finfocus-plugin-aws-public/commit/a0aabcebe680c5ebdf5a6806f469d433ccaa0f3b))
+* include summary in multi-region recommendation responses ([#432](https://github.com/rshade/finfocus-plugin-aws-public/issues/432)) ([2ca6794](https://github.com/rshade/finfocus-plugin-aws-public/commit/2ca679494d0e7005b127bbe2cd11ce0e0ea28f4f))
+* **plugin:** read Pulumi storage inputs for RDS estimates ([#430](https://github.com/rshade/finfocus-plugin-aws-public/issues/430)) ([37335ca](https://github.com/rshade/finfocus-plugin-aws-public/commit/37335cae7960aec795d780da8b6b7053991eafde)), closes [#428](https://github.com/rshade/finfocus-plugin-aws-public/issues/428)
+
 ## [0.2.0](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.1.10...v0.2.0) (2026-10-04)
 
 
