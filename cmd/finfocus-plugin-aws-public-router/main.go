@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/router"
 )
 
@@ -112,6 +113,7 @@ func run() error {
 			Metadata: map[string]string{
 				"type": "multi-region-router",
 			},
+			Settings: pluginsettings.Router(),
 		},
 	}
 

@@ -72,6 +72,25 @@ func TestGetPluginInfo_AdvertisesCapabilities(t *testing.T) {
 	assert.Equal(t, "public-pricing-fallback", resp.GetMetadata()["type"])
 }
 
+// TestGetPluginInfo_AdvertisesSettings verifies the region plugin lists the
+// environment variables it reads, and that the list survives the SDK server
+// without leaking into the metadata map.
+func TestGetPluginInfo_AdvertisesSettings(t *testing.T) {
+	plugin := newResolveTestPlugin()
+
+	resp, err := pluginsdk.NewServer(plugin).GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
+	require.NoError(t, err)
+
+	envs := make(map[string]string, len(resp.GetSettings()))
+	for _, setting := range resp.GetSettings() {
+		envs[setting.GetKey()] = setting.GetEnv()
+	}
+	assert.Equal(t, "FINFOCUS_MAX_BATCH_SIZE", envs["max_batch_size"])
+	assert.Equal(t, "FINFOCUS_STRICT_VALIDATION", envs["strict_validation"])
+	assert.NotContains(t, resp.GetMetadata(), "max_batch_size")
+	assert.NotContains(t, envs, "offline", "offline is a router-only setting")
+}
+
 // TestResolveResourceTypes_ResolvesTerraformTypes verifies that the plugin maps
 // Terraform resource types to their Pulumi tokens and marks them supported.
 func TestResolveResourceTypes_ResolvesTerraformTypes(t *testing.T) {
