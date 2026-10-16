@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.1...v0.2.2) (2026-10-16)
+
+
+### Features
+
+* **plugin:** advertise environment settings via GetPluginInfo ([#435](https://github.com/rshade/finfocus-plugin-aws-public/issues/435)) ([1b7b3df](https://github.com/rshade/finfocus-plugin-aws-public/commit/1b7b3dfbc298e1657751f77a7f95dacfb28de2d4))
+
 ## [0.2.1](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.0...v0.2.1) (2026-10-08)
 
 
