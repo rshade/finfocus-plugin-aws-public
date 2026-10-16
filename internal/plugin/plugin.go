@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
 )
@@ -290,6 +291,7 @@ func (p *AWSPublicPlugin) GetPluginInfo(
 			"type":   "public-pricing-fallback",
 		},
 		Capabilities: p.capabilities(),
+		Settings:     pluginsettings.Region(),
 	}, nil
 }
 

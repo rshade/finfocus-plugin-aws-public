@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
 )
 
@@ -73,6 +74,7 @@ func (r *Plugin) GetPluginInfo(_ context.Context, _ *pbc.GetPluginInfoRequest) (
 			"type": "multi-region-router",
 		},
 		Capabilities: r.capabilities(),
+		Settings:     pluginsettings.Router(),
 	}, nil
 }
 

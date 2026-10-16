@@ -13,6 +13,7 @@ import (
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
@@ -118,6 +119,7 @@ func run() error {
 				"region": region,
 				"type":   "public-pricing-fallback",
 			},
+			Settings: pluginsettings.Region(),
 		},
 	}
 

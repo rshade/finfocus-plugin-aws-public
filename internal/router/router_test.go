@@ -39,6 +39,14 @@ func TestPlugin_GetPluginInfo(t *testing.T) {
 	assert.Equal(t, pluginsdk.SpecVersion, resp.GetSpecVersion())
 	assert.Equal(t, []string{"aws"}, resp.GetProviders())
 	assert.Equal(t, "multi-region-router", resp.GetMetadata()["type"])
+
+	envs := make(map[string]string, len(resp.GetSettings()))
+	for _, setting := range resp.GetSettings() {
+		envs[setting.GetKey()] = setting.GetEnv()
+	}
+	assert.Equal(t, "FINFOCUS_PLUGIN_OFFLINE", envs["offline"])
+	assert.Equal(t, "FINFOCUS_PLUGIN_EAGER_WARMUP", envs["eager_warmup"])
+	assert.NotContains(t, envs, "max_batch_size", "max_batch_size belongs to region binaries")
 }
 
 // TestPlugin_DismissRecommendation_Unimplemented verifies that

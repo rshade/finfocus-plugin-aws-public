@@ -85,6 +85,27 @@ implemented interfaces, which would advertise the router's `GetBudgets` and
 `DismissRecommendation` stubs. `HandleDryRun` is a real handler, so
 `PLUGIN_CAPABILITY_DRY_RUN` stays on the router list.
 
+### Plugin settings (finfocus-spec v0.7.6+)
+
+`GetPluginInfoResponse.settings` tells the host which environment variables a
+binary reads, so the host can show and inject them. The lists live in
+`internal/pluginsettings` (`Region()` and `Router()`) and are wired into both
+`GetPluginInfo` methods and both `main.go` `PluginInfo` structs. A plugin that
+implements `PluginInfoProvider` takes precedence over `ServeConfig.PluginInfo`,
+so the method is the one the host sees. Rules:
+
+- Add a setting here whenever code starts reading a new `FINFOCUS_*` variable,
+  and keep `DefaultValue` equal to the default the reading code applies.
+  `TestSettingsEnvNames` pins the variable names.
+- This plugin reads no credentials, so nothing is `Required` or `Secret`.
+  `TestSettingsHoldNoSecrets` fails if that changes without a decision.
+- Do not advertise `PORT`, `FINFOCUS_PLUGIN_PORT`, or the test-mode variables.
+  The host or the test harness sets those, and users should not.
+- A malformed list (bad key, default that does not parse for its type,
+  duplicate key or env) fails `Serve` for `ServeConfig.PluginInfo`, and fails
+  the `GetPluginInfo` RPC with `Internal` for a `PluginInfoProvider`. The
+  package test runs the same `ValidatePluginSettings` check.
+
 ### Handler status codes (finfocus-spec v0.7.5+)
 
 `pluginsdk.Server` no longer rewraps handler errors as `Internal` for
