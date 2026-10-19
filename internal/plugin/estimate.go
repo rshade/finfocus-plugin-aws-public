@@ -69,17 +69,14 @@ func (p *AWSPublicPlugin) EstimateCost(
 		}, nil
 	}
 
-	// Extract attributes
-	attrs := req.GetAttributes()
-	if attrs == nil {
-		attrs = &structpb.Struct{Fields: make(map[string]*structpb.Value)}
-	}
+	// Extract attributes through the same lookup the projected-cost path uses.
+	in := newAttributeInputs(req.GetAttributes())
 
 	// Get region from attributes or use plugin's region
 	region := p.region
-	if regionVal, ok := getStringAttr(attrs, "region"); ok && regionVal != "" {
+	if regionVal, ok := in.String("region"); ok && regionVal != "" {
 		region = regionVal
-	} else if availZone, azFound := getStringAttr(attrs, "availabilityZone"); azFound && availZone != "" {
+	} else if availZone, azFound := in.String("availabilityZone"); azFound && availZone != "" {
 		// Extract region from AZ (e.g., "us-east-1a" -> "us-east-1")
 		if len(availZone) > 1 {
 			region = availZone[:len(availZone)-1]
@@ -99,9 +96,9 @@ func (p *AWSPublicPlugin) EstimateCost(
 
 	switch resourceInfo.module {
 	case serviceEC2:
-		costMonthly = p.estimateEC2FromAttrs(traceID, resourceInfo.resource, attrs)
+		costMonthly = p.estimateEC2FromAttrs(traceID, resourceInfo.resource, in)
 	case serviceEBS:
-		costMonthly = p.estimateEBSFromAttrs(traceID, resourceInfo.resource, attrs)
+		costMonthly = p.estimateEBSFromAttrs(traceID, resourceInfo.resource, in)
 	default:
 		// Unsupported module - return $0
 		costMonthly = 0
@@ -195,14 +192,14 @@ func getNumberAttr(attrs *structpb.Struct, key string) (float64, bool) {
 }
 
 // estimateEC2FromAttrs calculates EC2 cost from Pulumi attributes.
-func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, attrs *structpb.Struct) float64 {
+func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, in resourceInputs) float64 {
 	// Only handle Instance resources
 	if resourceName != "Instance" {
 		return 0
 	}
 
 	// Get instance type from attributes
-	instanceType, ok := getStringAttr(attrs, "instanceType")
+	instanceType, ok := in.String("instanceType")
 	if !ok || instanceType == "" {
 		p.traceLogger(traceID, "EstimateCost").Debug().
 			Msg("EC2 instance missing instanceType attribute")
@@ -210,7 +207,7 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 	}
 
 	// Extract OS and tenancy using shared helper (FR-001, FR-003)
-	ec2Attrs := ExtractEC2AttributesFromStruct(attrs)
+	ec2Attrs := ExtractEC2AttributesFromStruct(in.attrs)
 
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, ec2Attrs.OS, ec2Attrs.Tenancy)
 	if !found {
@@ -223,7 +220,7 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 	costMonthly := hourlyRate * carbon.HoursPerMonth
 
 	// Add root EBS volume cost when rootBlockDevice attribute is present
-	rootVol := ExtractRootVolumeFromStruct(attrs, *p.traceLogger(traceID, "EstimateCost"))
+	rootVol := ExtractRootVolumeFromStruct(in.attrs, *p.traceLogger(traceID, "EstimateCost"))
 	if rootVol.Present {
 		if ebsRate, ebsFound := p.pricing.EBSPricePerGBMonth(rootVol.VolumeType); ebsFound {
 			costMonthly += ebsRate * float64(rootVol.SizeGB)
@@ -234,21 +231,21 @@ func (p *AWSPublicPlugin) estimateEC2FromAttrs(traceID, resourceName string, att
 }
 
 // estimateEBSFromAttrs calculates EBS cost from Pulumi attributes.
-func (p *AWSPublicPlugin) estimateEBSFromAttrs(traceID, resourceName string, attrs *structpb.Struct) float64 {
+func (p *AWSPublicPlugin) estimateEBSFromAttrs(traceID, resourceName string, in resourceInputs) float64 {
 	// Handle Volume resources
 	if resourceName != "Volume" {
 		return 0
 	}
 
 	// Get volume type from attributes (default to gp2)
-	volumeType, ok := getStringAttr(attrs, "type")
+	volumeType, ok := in.String("type", "volumeType")
 	if !ok || volumeType == "" {
 		volumeType = defaultRootVolumeType
 	}
 
 	// Get size from attributes (default to 8 GB)
 	sizeGB := float64(defaultEBSGB)
-	if size, sizeFound := getNumberAttr(attrs, "size"); sizeFound && size > 0 {
+	if size, sizeFound := in.Float("size", "volumeSize", "volume_size"); sizeFound && size > 0 {
 		sizeGB = size
 	}
 
