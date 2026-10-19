@@ -628,7 +628,7 @@ rpc Supports(SupportsRequest) returns (SupportsResponse);
 
 - `supported: true` - For EC2/EBS in plugin's region
 - `supported: true` with reason - For stub services (S3, Lambda, etc.)
-- `supported: false` with reason - For region mismatch or unknown types
+- `supported: false` with reason - For a non-AWS provider, a region mismatch, or an unknown type
 - `supported_metrics` - For EC2: includes `METRIC_KIND_CARBON_FOOTPRINT`
 
 ### GetProjectedCost()
