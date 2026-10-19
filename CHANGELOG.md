@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.3](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.2...v0.2.3) (2026-10-19)
+
+
+### Features
+
+* **plugin:** price terraform attribute names ([#448](https://github.com/rshade/finfocus-plugin-aws-public/issues/448)) ([94a1c60](https://github.com/rshade/finfocus-plugin-aws-public/commit/94a1c607fb0e809bad311d35f4846c30bcbfe839))
+
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#440](https://github.com/rshade/finfocus-plugin-aws-public/issues/440)) ([cc40662](https://github.com/rshade/finfocus-plugin-aws-public/commit/cc40662ea45ca51290976ebd8526bef2714d6021))
+* **router:** skip non-aws providers before child launch ([#445](https://github.com/rshade/finfocus-plugin-aws-public/issues/445)) ([2d6fca4](https://github.com/rshade/finfocus-plugin-aws-public/commit/2d6fca4f8b1c6759594e4539f6e984672d2118df)), closes [#437](https://github.com/rshade/finfocus-plugin-aws-public/issues/437)
+
 ## [0.2.2](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.1...v0.2.2) (2026-10-16)
 
 
