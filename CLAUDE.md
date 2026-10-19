@@ -132,8 +132,51 @@ message ResourceDescriptor {
   string sku = 3;            // instance type (e.g., "t3.micro") or volume type (e.g., "gp3")
   string region = 4;         // "us-east-1", "us-west-2", etc.
   map<string, string> tags = 5;  // For EBS, may contain "size" or "volume_size"
+  google.protobuf.Struct attributes = 6; // Host properties. Checked before tags.
 }
 ```
+
+### Pricing inputs (attributes, then tags)
+
+`GetProjectedCost`, `GetPricingSpec`, `GetActualCost`, and `EstimateCost`
+build one lookup per request in `internal/plugin/inputs.go`. The lookup
+reads `attributes` first, then tags. An empty string and a null attribute
+are skipped. A present empty tag is returned so the caller can reject it
+(NAT Gateway). Integers above 2^53 arrive as strings and are parsed with
+`ParseInt`.
+
+`pricingTags` in `internal/plugin/attr_aliases.go` is the map estimators
+read. It copies tags, overlays attribute scalars, then writes each resolved
+alias onto the canonical key and every alias key. The incoming descriptor
+is cloned and left unchanged. Attribute values stay on the struct.
+
+Within one source, the earlier key wins. RDS checks the Pulumi name before
+the legacy snake_case name (`storageType`, then `storage_type`). Every other
+service checks the canonical key before its aliases. An attribute alias still
+beats a canonical tag, because every attribute key is checked before any tag.
+
+`canonicalizeResource` copies an alias tag onto an empty canonical tag and
+derives a SKU only when `sku` is empty. Derived values are real inputs, so
+they stay out of `defaults_applied`. A second canonicalize pass is
+idempotent.
+
+SKU is optional for ASG, S3, Lambda, DynamoDB, NAT Gateway, CloudWatch,
+ElastiCache, and ELB. Those requests use
+`ValidateProjectedCostRequestLenient`, then require provider `aws` and a
+region. An empty region uses the plugin region only for S3, IAM, and
+zero-cost services. S3, NAT Gateway, and CloudWatch keep their estimator
+defaults when no SKU is present. ElastiCache fills `nodeType`. Lambda fills
+memory MB. DynamoDB fills `billingMode`. ELB fills `loadBalancerType`
+(`application` to `alb`, `network` to `nlb`, `gateway` to `gwlb`).
+
+Do not log `attributes`. Tag logs go through `sanitizeTagsForLogging`.
+Production `GetTags()` calls stay in `inputs.go` and in those log lines.
+`TestProductionGetTagsStayInInputs` enforces that.
+
+Terraform fixtures live in `internal/plugin/testdata/terraform/`.
+`TestTerraformMappingsHaveFixtures` fails when a mapping has no fixture.
+The fixture plugin uses a mock pricing client because the fallback
+RDS, Lambda, and DynamoDB embeds have empty product maps.
 
 ### GetProjectedCostResponse (Proto Output)
 
@@ -393,6 +436,8 @@ internal/
     supports.go      # Supports() logic for resource type + region checks
     projected.go     # GetProjectedCost() logic for EC2/EBS/stubs
     pricingspec.go   # Optional GetPricingSpec() logic
+    inputs.go        # Attribute-then-tag lookup
+    attr_aliases.go  # Terraform and Pulumi name aliases, optional SKU
   pricing/
     client.go        # Pricing client with thread-safe lookup methods
     embed_*.go       # Region-specific embedded pricing (build-tagged)
@@ -485,17 +530,19 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - `unit_price`: Hourly rate from pricing data
 - `cost_per_month`: (unit_price × 730) + root EBS volume cost (when present)
 - `billing_detail`: "On-demand Linux, shared tenancy, 730 hrs/month" (+ root volume detail when present)
-- **Root EBS Volume Cost**: When `rootBlockDevice` tag or individual
-  `root_volume_type`/`root_volume_size` tags are present, the root EBS volume
-  storage cost is included in `cost_per_month`. Tag priority: individual tags
-  override `rootBlockDevice` map values. Defaults: gp2 type, 8 GB. When no root
-  volume tags are present, behavior is unchanged (compute-only). Carbon
-  estimation includes root EBS volume when present.
+- **Root EBS Volume Cost**: `estimateEC2` reads
+  `ExtractRootVolumeFromStruct` on `attributes` first, then
+  `ExtractRootVolumeFromTags` on `pricingTags`. A multi-key
+  `rootBlockDevice` struct keeps values that contain spaces. Tag strings
+  go through `parseGoMapString`. Individual `root_volume_type` and
+  `root_volume_size` tags override the map. Defaults: gp2 type, 8 GB. With
+  no root volume inputs, the estimate stays compute-only. Carbon includes
+  the root volume when it is present.
 
 ### EBS Volumes
 - `resource_type`: "ebs"
 - `sku`: Volume type (e.g., "gp2", "gp3", "io1", "io2")
-- Size: Read from `tags["size"]` or `tags["volume_size"]`, default to 8 GB if missing
+- Size: `size`, then `volume_size`, on attributes or tags. The attribute value wins when the key is in both. Default 8 GB when missing.
 - `unit_price`: Rate per GB-month from pricing data
 - `cost_per_month`: unit_price × size_GB
 - `billing_detail`: "EBS <sku> storage, <size>GB" (+ ", defaulted to 8GB" if size not specified)
@@ -503,7 +550,10 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 ### EKS Clusters
 - `resource_type`: "eks" or "aws:eks/cluster:Cluster"
 - `sku`: Not used (cluster type determined by tags)
-- Support tier: Read from `tags["support_type"]`, defaults to "standard"
+- Support tier: `support_type`, with aliases `upgradePolicy` and
+  `supportType` (lowercased). Terraform
+  `upgrade_policy: [{support_type: EXTENDED}]` arrives as the string
+  `EXTENDED`. The unset default stays `standard`.
   - "standard": $0.10/hour
   - "extended": $0.50/hour
 - Assumptions (hardcoded for v1):
@@ -525,6 +575,8 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
   - Storage size (GB): `allocatedStorage`, then `storage_size`. Defaults to
     20 when the value is missing, non-numeric, or not positive
   - Multi-AZ: `multiAz`, then `multi_az`. Only affects carbon (2×)
+- The same names on `attributes` win over tags. `pricingTags` writes the
+  winning value onto both the Pulumi name and the legacy name.
 - `cost_per_month`: (hourly_rate × 730) + (storage_rate × size_GB)
 - `billing_detail`: `RDS <class> <engine>, 730 hrs/month + <size>GB <type> storage`,
   plus a `(... defaulted ...)` note for each defaulted value
@@ -533,10 +585,19 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 
 - `resource_type`: "asg", "autoscaling", or "aws:autoscaling/group:Group"
 - `sku`: Instance type (e.g., "m5.large") — optional, resolved from tags
-- Instance type resolution priority: `sku` → `instance_type` tag →
-  `launch_template.instance_type` → `launch_configuration.instance_type`
-- Capacity: Read from `tags["desired_capacity"]` or `tags["desiredCapacity"]`,
-  fallback to `tags["min_size"]` or `tags["minSize"]`, default 1
+- Instance type resolution priority: `sku`, then `instance_type` on the
+  pricing tag map, then `instanceType` or `instance_type` inside a launch
+  template, launch configuration, or mixed-instances struct on
+  `attributes` (`launchTemplate`, `launchConfiguration`,
+  `mixedInstancesPolicy`, and the snake_case twins).
+- Capacity: `desired_capacity` or `desiredCapacity`, then `min_size` or
+  `minSize`, default 1.
+- When the instance type is empty, GetProjectedCost returns $0 and
+  billing detail `cannot determine instance type for ASG: set 'sku' field
+  or 'instance_type' tag`. A known desired capacity and a mixed-instance
+  policy are appended to that detail. A successful estimate that includes
+  a mixed policy appends
+  `(mixed instance policies not yet supported, using primary instance type)`.
 - OS: Read from `tags["operating_system"]` or `tags["platform"]`, default
   "Linux"
 - Assumptions (hardcoded for v1):
@@ -553,8 +614,9 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 ### Elastic Load Balancing (ALB/NLB)
 
 - `resource_type`: "elb", "alb", or "nlb"
-- `sku`: Load balancer type: "alb" (Application) or "nlb" (Network), defaults to ALB if unspecified
-- Capacity Units: Read from `tags["lcu_per_hour"]` (ALB) or `tags["nlcu_per_hour"]` (NLB), fallback to `tags["capacity_units"]`
+- `sku`: Load balancer type: "alb" (Application) or "nlb" (Network). `loadBalancerType` fills an empty SKU: `application` becomes `alb`, `network` becomes `nlb`, `gateway` (also `gwlb`) becomes `gwlb`. An unknown type defaults to ALB.
+- A gateway load balancer returns $0 before that ALB default, with billing detail `Gateway Load Balancer (GWLB) pricing is not supported`.
+- Capacity Units: `lcu_per_hour` or `lcuPerHour` (ALB), `nlcu_per_hour` or `nlcuPerHour` (NLB), then `capacity_units` or `capacityUnits`.
 - Pricing: Fixed hourly rate + capacity unit charges
   - ALB: Fixed hourly (e.g., $0.0225) + LCU rate (e.g., $0.008/LCU-hr)
   - NLB: Fixed hourly (e.g., $0.0225) + NLCU rate (e.g., $0.006/NLCU-hr)
@@ -563,6 +625,24 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - `unit_price`: Fixed hourly rate from pricing data
 - `cost_per_month`: (fixed_rate × 730) + (capacity_units × cu_rate × 730)
 - `billing_detail`: "<ALB|NLB>, 730 hrs/month, <capacity_units> <LCU|NLCU> avg/hr"
+
+### S3 Buckets
+
+- `resource_type`: "s3"
+- SKU is optional. When SKU is empty, `storage_class` or `storageClass`
+  is the storage class. `STANDARD` is recorded in `defaults_applied` only
+  when neither is set and the price lookup succeeds.
+- An empty region uses the plugin region.
+
+### Lambda Functions
+
+- `resource_type`: "lambda"
+- SKU is optional. `memorySize` or `memory_mb` becomes the memory-MB SKU.
+  The defaults are 128 MB and architecture `x86_64`, recorded only when
+  the price lookup succeeds.
+- `architectures` or `architecture` aliases to `arch`. A comma-joined list
+  keeps the first element. `arm64` selects the Graviton GB-second rate.
+- `requestsPerMonth` and `avgDurationMs` alias the snake_case usage tags.
 
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
@@ -594,7 +674,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | EBS | Storage GB-month | IOPS, throughput, snapshots | ✅ gCO2e (SSD/HDD) |
 | EKS | Control plane hours | Worker nodes, add-ons, data transfer | ✅ (guidance only) |
 | ElastiCache | On-demand node hours (Redis/Memcached/Valkey) | Reserved nodes, data transfer, snapshots | ✅ gCO2e |
-| ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination | N/A |
+| ELB (ALB/NLB) | Fixed hourly + capacity unit charges | Data transfer, SSL/TLS termination, Gateway Load Balancer | N/A |
 | NAT Gateway | Hourly rate + data processing (per GB) | Data transfer OUT to internet, VPC peering transfer | N/A |
 | CloudWatch | Logs ingestion (tiered), storage, custom metrics (tiered) | Dashboards, alarms, contributor insights, cross-account | N/A |
 | RDS | Instance hours + storage (gp2/gp3/io1), Multi-engine | Multi-AZ, read replicas, backups, IOPS | ✅ gCO2e |
@@ -605,10 +685,12 @@ and excluded helps users accurately estimate total infrastructure costs.
 
 **Note:** EKS estimates control plane only ($0.10/hr standard, $0.50/hr extended). Estimate worker nodes separately as EC2.
 
+Gateway Load Balancers return $0 with billing detail `Gateway Load Balancer (GWLB) pricing is not supported`. CloudWatch metric alarms return $0 with billing detail `CloudWatch alarm pricing is not supported`.
+
 ### NAT Gateway
 
 - `resource_type`: "natgw", "nat_gateway", "nat-gateway", or "aws:ec2/natGateway:NatGateway"
-- **Tags:** `data_processed_gb` (defaults to 0)
+- **Inputs:** `data_processed_gb` or `dataProcessedGb` (defaults to 0). A present empty value stays empty so the caller can reject it.
 - `cost_per_month`: (hourly_rate × 730) + (data_gb × data_rate)
 - **Pricing source:** AWS publishes NAT Gateway products in the **AmazonEC2**
   offer (they previously lived in AmazonVPC). The EC2 parser reads them; the
@@ -621,24 +703,25 @@ and excluded helps users accurately estimate total infrastructure costs.
 ### CloudWatch
 
 - `resource_type`: "cloudwatch", "aws:cloudwatch/logGroup:LogGroup"
-- `sku`: "logs", "metrics", or "combined"
-- **Tags:** `log_ingestion_gb`, `log_storage_gb`, `custom_metrics`
+- `sku`: "logs", "metrics", or "combined". The estimator default is `logs` when SKU is empty.
+- **Inputs:** `log_ingestion_gb` or `logIngestionGb`, `log_storage_gb` or `logStorageGb`, `custom_metrics` or `customMetrics`
 - **Tiered pricing:** Both logs ingestion and metrics use volume-based tiers
-- **Excluded:** Dashboards, Alarms, Contributor Insights, Logs Insights queries
+- **Metric alarms:** `aws:cloudwatch/metricAlarm:MetricAlarm`, and any original type containing `metricalarm`, `metric_alarm`, or `metric-alarm`, returns $0 with billing detail `CloudWatch alarm pricing is not supported`. Detection uses the original resource type, because `normalizeResourceType` collapses alarms and log groups to `cloudwatch`.
+- **Excluded:** Dashboards, Contributor Insights, Logs Insights queries
 
 ### ElastiCache Clusters
 
 - `resource_type`: "elasticache", "aws:elasticache/cluster:Cluster"
-- `sku`: Node type (e.g., "cache.t3.micro", "cache.m5.large")
-- **Tags:** `engine` (redis/memcached/valkey, defaults to redis), `num_nodes` (defaults to 1)
+- `sku`: Node type (e.g., "cache.t3.micro", "cache.m5.large"). Optional. `nodeType` or `node_type` fills an empty SKU. An empty SKU with no node type returns InvalidArgument `ElastiCache node type not specified: use 'sku' field or 'instanceType' tag`.
+- **Inputs:** `engine` (redis/memcached/valkey, defaults to redis). Node count is `num_nodes`, `numCacheNodes`, or `num_cache_nodes` (default 1). An attribute wins over a disagreeing tag.
 - `cost_per_month`: hourly_rate × num_nodes × 730
 - **Excluded:** Reserved nodes, data transfer, snapshots
 
 ### DynamoDB Tables
 
-- `sku`: "on-demand" or "provisioned" (required)
-- **On-Demand tags:** `read_requests_per_month`, `write_requests_per_month`, `storage_gb`
-- **Provisioned tags:** `read_capacity_units`, `write_capacity_units`, `storage_gb`
+- `sku`: "on-demand" or "provisioned". Optional. `billingMode` `PAY_PER_REQUEST` (and the on-demand spellings) becomes `on-demand`. `PROVISIONED` becomes `provisioned`. The estimator default stays on-demand when both are absent.
+- **On-Demand inputs:** `read_requests_per_month` or `readRequestsPerMonth`, `write_requests_per_month` or `writeRequestsPerMonth`, `storage_gb` or `storageGb`
+- **Provisioned inputs:** `read_capacity_units`, `readCapacity`, or `readCapacityUnits`, and the same pattern for write capacity, plus `storage_gb` or `storageGb`
 - **Unit Price:** Provisioned = RCU hourly rate; On-Demand = Storage GB-month rate (informational only, use `cost_per_month` for accuracy)
 - **Excluded:** Global tables, Streams, DAX, backups, PITR
 
@@ -887,6 +970,7 @@ generate-embeds` with "updates to go.mod needed" otherwise.
 - Stdout is used **only** for `PORT=<port>` announcement
 - Use stderr with prefix `[finfocus-plugin-aws-public]` for debug/diagnostic messages
 - Keep logging minimal by default
+- Do not log `ResourceDescriptor.attributes`. Tag logs go through `sanitizeTagsForLogging`.
 
 ### Thread Safety
 - Pricing lookups must be thread-safe (concurrent RPC calls)

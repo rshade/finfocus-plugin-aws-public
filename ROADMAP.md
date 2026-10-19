@@ -10,12 +10,6 @@ security overhead of cloud credentials.
 
 ## Immediate Focus [In Progress / Planned]
 
-- **[Planned] Terraform Support:**
-  - [ ] #388 Accept Terraform-state attribute names and optional SKUs so all
-    23 mapped Terraform types price (9 currently fail with
-    `resource.sku is required`) [L]
-  - [ ] #415 Read `ResourceDescriptor.attributes` (finfocus-spec v0.7.3)
-    with tag fallback across all services; builds on #388's key map [L]
 - **[In Progress] Build Infrastructure:**
   - [ ] #287 Consolidate region mappings to `regions.yaml` as single source
     of truth, eliminating hardcoded duplicates in shell scripts [M]
@@ -96,6 +90,13 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #388 `plugin`: Terraform attribute names and optional SKUs price the
+  mapped Terraform types (S3, Lambda, DynamoDB, ElastiCache, load
+  balancers, NAT Gateway, CloudWatch). Gateway Load Balancers and
+  CloudWatch metric alarms return $0 with an unsupported billing detail. [L]
+- [x] #415 `plugin`: `ResourceDescriptor.attributes` are read before tags
+  on GetProjectedCost, GetPricingSpec, GetActualCost, and EstimateCost.
+  Attribute values stay out of logs. [L]
 - [x] #437 `router`: a non-AWS provider is declined before a region is
   resolved or a child is launched. `Supports` returns `supported=false`. [S]
 - [x] `plugin`: finfocus-spec v0.7.6; `GetPluginInfo` now advertises the
