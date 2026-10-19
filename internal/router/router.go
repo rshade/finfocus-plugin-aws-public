@@ -3,6 +3,7 @@ package router
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -18,6 +19,9 @@ import (
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
 )
+
+// awsProvider is the only cloud provider this router can price.
+const awsProvider = "aws"
 
 // Plugin implements pluginsdk.Plugin as a multi-region router that delegates RPCs
 // to region-specific child processes. It contains no embedded pricing data and
@@ -69,7 +73,7 @@ func (r *Plugin) GetPluginInfo(_ context.Context, _ *pbc.GetPluginInfoRequest) (
 		Name:        r.Name(),
 		Version:     r.version,
 		SpecVersion: pluginsdk.SpecVersion,
-		Providers:   []string{"aws"},
+		Providers:   []string{awsProvider},
 		Metadata: map[string]string{
 			"type": "multi-region-router",
 		},
@@ -106,8 +110,17 @@ func (r *Plugin) capabilities() []pbc.PluginCapability {
 	return capabilities
 }
 
-// Supports delegates to the region-specific child process to check resource support.
+// Supports checks the provider before it resolves a region or launches a child.
+// A non-AWS provider is declined with supported=false. AWS resources are
+// delegated to the region-specific child.
 func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error) {
+	if provider := req.GetResource().GetProvider(); foreignProvider(provider) {
+		return &pbc.SupportsResponse{
+			Supported: false,
+			Reason:    unsupportedProviderReason(provider),
+		}, nil
+	}
+
 	region := extractRegionFromResource(req.GetResource())
 	if region == "" {
 		return nil, newInvalidRegionError("Supports")
@@ -128,10 +141,15 @@ func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.S
 }
 
 // GetProjectedCost delegates to the region-specific child process.
+// A non-AWS provider is rejected before region resolution.
 func (r *Plugin) GetProjectedCost(
 	ctx context.Context,
 	req *pbc.GetProjectedCostRequest,
 ) (*pbc.GetProjectedCostResponse, error) {
+	if err := rejectForeignProvider(req.GetResource().GetProvider()); err != nil {
+		return nil, err
+	}
+
 	region := extractRegionFromResource(req.GetResource())
 	if region == "" {
 		return nil, newInvalidRegionError("GetProjectedCost")
@@ -152,7 +170,12 @@ func (r *Plugin) GetProjectedCost(
 }
 
 // GetActualCost delegates to the region-specific child process.
+// A descriptor that names a non-AWS provider is rejected before region resolution.
 func (r *Plugin) GetActualCost(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.GetActualCostResponse, error) {
+	if err := rejectForeignProvider(req.GetResource().GetProvider()); err != nil {
+		return nil, err
+	}
+
 	region := extractRegionFromActualCostRequest(req)
 	if region == "" {
 		return nil, newInvalidRegionError("GetActualCost")
@@ -173,7 +196,16 @@ func (r *Plugin) GetActualCost(ctx context.Context, req *pbc.GetActualCostReques
 }
 
 // EstimateCost delegates to the region-specific child process.
+// A non-AWS Pulumi type returns a zero-cost response, matching the region
+// binary, and does not resolve a region or launch a child.
 func (r *Plugin) EstimateCost(ctx context.Context, req *pbc.EstimateCostRequest) (*pbc.EstimateCostResponse, error) {
+	if foreignTypeProvider(req.GetResourceType()) {
+		return &pbc.EstimateCostResponse{
+			Currency:    "USD",
+			CostMonthly: 0,
+		}, nil
+	}
+
 	region := extractRegionFromEstimateCostRequest(req)
 	if region == "" {
 		return nil, newInvalidRegionError("EstimateCost")
@@ -194,10 +226,15 @@ func (r *Plugin) EstimateCost(ctx context.Context, req *pbc.EstimateCostRequest)
 }
 
 // GetPricingSpec delegates to the region-specific child process.
+// A non-AWS provider is rejected before region resolution.
 func (r *Plugin) GetPricingSpec(
 	ctx context.Context,
 	req *pbc.GetPricingSpecRequest,
 ) (*pbc.GetPricingSpecResponse, error) {
+	if err := rejectForeignProvider(req.GetResource().GetProvider()); err != nil {
+		return nil, err
+	}
+
 	region := extractRegionFromResource(req.GetResource())
 	if region == "" {
 		return nil, newInvalidRegionError("GetPricingSpec")
@@ -217,24 +254,22 @@ func (r *Plugin) GetPricingSpec(
 	return client.GetPricingSpec(propagateTraceID(ctx, traceID), req)
 }
 
-// GetRecommendations groups resources by region, delegates in parallel, and merges results.
+// GetRecommendations groups AWS resources by region, delegates in parallel, and merges results.
+// Resources that name a non-AWS provider are skipped before a child is launched.
+// A request made up only of those resources returns an empty result.
 func (r *Plugin) GetRecommendations(
 	ctx context.Context,
 	req *pbc.GetRecommendationsRequest,
 ) (*pbc.GetRecommendationsResponse, error) {
 	traceID := r.getTraceID(ctx)
 
-	// Group target resources by region
-	regionResources := make(map[string][]*pbc.ResourceDescriptor)
-	for _, res := range req.GetTargetResources() {
-		region := res.GetRegion()
-		if region == "" {
-			continue
-		}
-		regionResources[region] = append(regionResources[region], res)
-	}
-
+	regionResources, onlyForeign := resourcesByRegion(req.GetTargetResources())
 	if len(regionResources) == 0 {
+		if onlyForeign {
+			return &pbc.GetRecommendationsResponse{
+				Summary: pluginsdk.CalculateRecommendationSummary(nil, recommendationProjectionPeriod(req)),
+			}, nil
+		}
 		return nil, newInvalidRegionError("GetRecommendations")
 	}
 
@@ -350,8 +385,9 @@ func (r *Plugin) GetBudgets(_ context.Context, _ *pbc.GetBudgetsRequest) (*pbc.G
 // region routing and per-resource support rules as real cost requests.
 //
 // A descriptor missing provider, resource_type, or region is rejected with
-// InvalidArgument. When the region's child cannot be launched, the response
-// marks the configuration invalid and carries the launch error.
+// InvalidArgument. A non-AWS provider is declined by Supports before a child
+// launches. When the region's child cannot be launched, the response marks
+// the configuration invalid and carries the launch error.
 func (r *Plugin) HandleDryRun(ctx context.Context, req *pbc.DryRunRequest) (*pbc.DryRunResponse, error) {
 	resource := req.GetResource()
 	if resource.GetProvider() == "" || resource.GetResourceType() == "" {
@@ -384,6 +420,62 @@ func (r *Plugin) WarmUp(ctx context.Context) {
 // ShutdownAll gracefully terminates all child processes.
 func (r *Plugin) ShutdownAll(ctx context.Context) {
 	r.registry.ShutdownAll(ctx)
+}
+
+// foreignProvider reports a provider this router must decline before it
+// resolves a region or launches a child. An empty provider is not foreign:
+// an AWS descriptor that omitted it still fails the region check.
+func foreignProvider(provider string) bool {
+	return provider != "" && provider != awsProvider
+}
+
+// foreignTypeProvider reports whether a Pulumi resource type names a provider
+// other than AWS, such as "civo:compute/instance:Instance". Types without a
+// provider prefix stay on the AWS path.
+func foreignTypeProvider(resourceType string) bool {
+	provider, _, ok := strings.Cut(resourceType, ":")
+	return ok && foreignProvider(provider)
+}
+
+// unsupportedProviderReason is the decline text shared with the region binary.
+func unsupportedProviderReason(provider string) string {
+	return fmt.Sprintf("Provider %q not supported (only %q is supported)", provider, awsProvider)
+}
+
+// rejectForeignProvider returns InvalidArgument when provider is a foreign cloud.
+func rejectForeignProvider(provider string) error {
+	if !foreignProvider(provider) {
+		return nil
+	}
+	message := unsupportedProviderReason(provider)
+	errDetail := &pbc.ErrorDetail{
+		Code:    pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		Message: message,
+	}
+	st := status.New(codes.InvalidArgument, message)
+	stWithDetails, err := st.WithDetails(errDetail)
+	if err != nil {
+		return st.Err()
+	}
+	return stWithDetails.Err()
+}
+
+// resourcesByRegion groups resources that this router can price by region.
+// Foreign providers are omitted. onlyForeign is true when the request named
+// resources and every one of them was a foreign provider.
+func resourcesByRegion(resources []*pbc.ResourceDescriptor) (map[string][]*pbc.ResourceDescriptor, bool) {
+	grouped := make(map[string][]*pbc.ResourceDescriptor)
+	sawRoutable := false
+	for _, res := range resources {
+		if foreignProvider(res.GetProvider()) {
+			continue
+		}
+		sawRoutable = true
+		if region := res.GetRegion(); region != "" {
+			grouped[region] = append(grouped[region], res)
+		}
+	}
+	return grouped, len(resources) > 0 && !sawRoutable
 }
 
 // extractRegionFromResource extracts the region from a ResourceDescriptor.

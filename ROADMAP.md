@@ -24,10 +24,6 @@ security overhead of cloud credentials.
     downloads [S]
     - Unblocked: v0.1.9 `checksums.txt` is clean (66 entries, no `./`
       prefix).
-  - [ ] #437 Check provider before resolving a region or launching a child
-    in `Supports`, so non-AWS resources get `supported=false` instead of
-    `InvalidArgument` (about 54 errors per load on a mixed-provider stack)
-    [S]
   - [ ] #396 Make runtime region-binary downloads visible (startup warning,
     documented `FINFOCUS_PLUGIN_OFFLINE`) and plan offline-by-default;
     depends on #351 [M]
@@ -100,6 +96,8 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #437 `router`: a non-AWS provider is declined before a region is
+  resolved or a child is launched. `Supports` returns `supported=false`. [S]
 - [x] `plugin`: finfocus-spec v0.7.6; `GetPluginInfo` now advertises the
   environment variables each binary reads as `PluginSetting` entries
   (`internal/pluginsettings`). [S]

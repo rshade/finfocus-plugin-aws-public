@@ -72,8 +72,10 @@ When `GetActualCostRequest.resource` is set, `GetActualCost` prices from that
 descriptor: provider, resource type, SKU, region, attributes, and the
 descriptor's own tags (for example EBS size). Request tags stay cloud labels.
 The multi-region router uses that descriptor's region even when the region
-string is empty. When `resource` is unset, the plugin falls back to the ARN,
-then a JSON `resource_id`, then request tags. `resource_id` stays required.
+string is empty. A non-empty provider other than `aws` is rejected before
+that lookup, so a foreign resource never launches a child. When `resource`
+is unset, the plugin falls back to the ARN, then a JSON `resource_id`, then
+request tags. `resource_id` stays required.
 
 ### Capability metadata (finfocus-spec v0.7.3+)
 
@@ -566,6 +568,20 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
 - GetProjectedCost() for mismatched region: returns gRPC error with ERROR_CODE_UNSUPPORTED_REGION and details map
+
+### Router provider check
+
+The multi-region router (`internal/router`) checks the provider before it
+resolves a region or launches a child. A non-empty provider other than `aws`
+makes `Supports` return `supported=false` with reason
+`Provider "<name>" not supported (only "aws" is supported)`. Cost methods
+return `InvalidArgument` with that same reason. `EstimateCost` for a non-AWS
+Pulumi type returns USD 0, matching the region binary. `GetRecommendations`
+skips those resources and returns an empty result when every resource names
+another cloud. An empty provider still fails the AWS region check. A
+mixed-provider stack, including a resource whose region is `NYC1` or a
+resource with no region, no longer logs one `InvalidArgument` or
+`Unavailable` per resource.
 
 ## Cost Estimation Scope
 

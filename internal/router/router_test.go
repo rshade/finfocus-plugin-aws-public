@@ -324,6 +324,255 @@ func TestPlugin_Supports_EmptyRegion(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, st.Code())
 }
 
+// unsupportedCivoReason is the Supports decline for a Civo resource.
+// It matches the region binary's provider reason so hosts see one phrase.
+const unsupportedCivoReason = `Provider "civo" not supported (only "aws" is supported)`
+
+// TestPlugin_Supports_NonAWSProvider verifies that a non-AWS descriptor is
+// declined before the router resolves a region or launches a child.
+//
+// A mixed-provider stack sends Civo resources here with region NYC1, or with
+// no region at all. Either shape used to return InvalidArgument or
+// Unavailable after a child lookup, which FinFocus logged once per resource.
+// The decline is a successful Supports response with supported=false.
+//
+// An empty provider is not a foreign cloud. It still fails the AWS region
+// check. An AWS resource in a real region still attempts to reach its child.
+func TestPlugin_Supports_NonAWSProvider(t *testing.T) {
+	tests := []struct {
+		name       string
+		provider   string
+		region     string
+		wantReason string
+		wantCode   codes.Code
+		wantErr    string
+	}{
+		{
+			name:       "civo region NYC1",
+			provider:   "civo",
+			region:     "NYC1",
+			wantReason: unsupportedCivoReason,
+		},
+		{
+			name:       "civo with no region",
+			provider:   "civo",
+			region:     "",
+			wantReason: unsupportedCivoReason,
+		},
+		{
+			name:       "civo in an aws region name",
+			provider:   "civo",
+			region:     "us-east-1",
+			wantReason: unsupportedCivoReason,
+		},
+		{
+			name:       "gcp",
+			provider:   "gcp",
+			region:     "us-central1",
+			wantReason: `Provider "gcp" not supported (only "aws" is supported)`,
+		},
+		{
+			name:     "empty provider still requires a region",
+			provider: "",
+			region:   "",
+			wantCode: codes.InvalidArgument,
+			wantErr:  "region is required for Supports",
+		},
+		{
+			name:     "aws still routes to its region child",
+			provider: "aws",
+			region:   "us-east-1",
+			wantCode: codes.Unavailable,
+			wantErr:  "us-east-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+			resp, err := r.Supports(context.Background(), &pbc.SupportsRequest{
+				Resource: &pbc.ResourceDescriptor{
+					Provider:     tt.provider,
+					ResourceType: "compute",
+					Region:       tt.region,
+				},
+			})
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Nil(t, resp)
+				assert.Equal(t, tt.wantCode, status.Code(err))
+				assert.Contains(t, status.Convert(err).Message(), tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.False(t, resp.GetSupported())
+			assert.Equal(t, tt.wantReason, resp.GetReason())
+		})
+	}
+}
+
+// TestPlugin_GetProjectedCost_NonAWSProvider verifies that GetProjectedCost
+// rejects a foreign provider before it resolves a region or launches a child.
+//
+// Offline mode with an empty binary directory turns a child lookup into an
+// Unavailable install error. A Civo resource in NYC1 must not produce that
+// error. The status is InvalidArgument and names the provider.
+func TestPlugin_GetProjectedCost_NonAWSProvider(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	_, err := r.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "civo",
+			ResourceType: "civo:compute/instance:Instance",
+			Region:       "NYC1",
+		},
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, unsupportedCivoReason, status.Convert(err).Message())
+	assert.NotContains(t, err.Error(), "NYC1")
+	assert.NotContains(t, err.Error(), "Install with")
+}
+
+// TestPlugin_GetPricingSpec_NonAWSProvider verifies that GetPricingSpec
+// rejects a foreign provider before launching a region child.
+func TestPlugin_GetPricingSpec_NonAWSProvider(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	_, err := r.GetPricingSpec(context.Background(), &pbc.GetPricingSpecRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "civo",
+			ResourceType: "civo:compute/instance:Instance",
+			Region:       "NYC1",
+		},
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, unsupportedCivoReason, status.Convert(err).Message())
+	assert.NotContains(t, err.Error(), "NYC1")
+}
+
+// TestPlugin_GetActualCost_NonAWSProvider verifies that a descriptor with a
+// foreign provider is rejected before region extraction launches a child.
+//
+// When the descriptor is unset, actual cost still resolves the region from
+// the ARN or tags. This test sets the descriptor, which is the path a stack
+// load uses.
+func TestPlugin_GetActualCost_NonAWSProvider(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	_, err := r.GetActualCost(context.Background(), &pbc.GetActualCostRequest{
+		ResourceId: "civo-instance-1",
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "civo",
+			ResourceType: "civo:compute/instance:Instance",
+			Region:       "NYC1",
+		},
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, unsupportedCivoReason, status.Convert(err).Message())
+	assert.NotContains(t, err.Error(), "NYC1")
+}
+
+// TestPlugin_EstimateCost_NonAWSProvider verifies that EstimateCost returns a
+// zero-cost response for a non-AWS Pulumi type before it reads a region.
+//
+// The region binary answers the same request with USD 0. The router must not
+// turn region NYC1 into an Unavailable child-launch error first.
+func TestPlugin_EstimateCost_NonAWSProvider(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	resp, err := r.EstimateCost(context.Background(), &pbc.EstimateCostRequest{
+		ResourceType: "civo:compute/instance:Instance",
+		Attributes: &structpb.Struct{
+			Fields: map[string]*structpb.Value{
+				"region": structpb.NewStringValue("NYC1"),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "USD", resp.GetCurrency())
+	assert.Zero(t, resp.GetCostMonthly())
+}
+
+// TestPlugin_GetRecommendations_NonAWSProvider verifies that recommendation
+// fan-out skips foreign providers instead of launching a child for their
+// region. A request that contains only those resources returns an empty
+// result. An AWS resource in the same request is still routed.
+func TestPlugin_GetRecommendations_NonAWSProvider(t *testing.T) {
+	t.Run("civo only", func(t *testing.T) {
+		r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+		resp, err := r.GetRecommendations(context.Background(), &pbc.GetRecommendationsRequest{
+			TargetResources: []*pbc.ResourceDescriptor{{
+				Provider:     "civo",
+				ResourceType: "civo:compute/instance:Instance",
+				Region:       "NYC1",
+			}},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.Empty(t, resp.GetRecommendations())
+	})
+
+	t.Run("aws resource is still routed", func(t *testing.T) {
+		r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+		_, err := r.GetRecommendations(context.Background(), &pbc.GetRecommendationsRequest{
+			TargetResources: []*pbc.ResourceDescriptor{
+				{
+					Provider:     "civo",
+					ResourceType: "civo:compute/instance:Instance",
+					Region:       "NYC1",
+				},
+				{
+					Provider:     "aws",
+					ResourceType: "ec2",
+					Sku:          "t3.micro",
+					Region:       "us-east-1",
+				},
+			},
+		})
+
+		require.Error(t, err)
+		assert.Equal(t, codes.Unavailable, status.Code(err))
+		assert.Contains(t, status.Convert(err).Message(), "us-east-1")
+		assert.NotContains(t, status.Convert(err).Message(), "NYC1")
+	})
+}
+
+// TestPlugin_HandleDryRun_NonAWSProvider verifies that dry-run follows the
+// Supports decline for a foreign provider and does not report a region-launch
+// failure.
+func TestPlugin_HandleDryRun_NonAWSProvider(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	resp, err := r.HandleDryRun(context.Background(), &pbc.DryRunRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     "civo",
+			ResourceType: "civo:compute/instance:Instance",
+			Region:       "NYC1",
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.GetResourceTypeSupported())
+	assert.True(t, resp.GetConfigurationValid())
+	assert.Empty(t, resp.GetConfigurationErrors())
+}
+
 // TestPlugin_GetActualCost_EmptyRegion verifies that GetActualCost returns
 // InvalidArgument when no region can be extracted from the request.
 func TestPlugin_GetActualCost_EmptyRegion(t *testing.T) {
