@@ -109,8 +109,8 @@ func mergeTagsFromRequest(req *pbc.GetActualCostRequest) map[string]string {
 	}
 
 	// Then overlay req.Tags (takes precedence)
-	if req.GetTags() != nil {
-		maps.Copy(merged, req.GetTags())
+	if tags := actualCostTags(req); tags != nil {
+		maps.Copy(merged, tags)
 	}
 
 	return merged
@@ -240,6 +240,7 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		resolver = newServiceResolver(resource.GetResourceType())
 	}
 	serviceType := resolver.ServiceType()
+	resource = canonicalizeResource(serviceType, resource)
 
 	// Route to appropriate estimator based on normalized resource type.
 	// For GetActualCost, we construct a minimal request with just the resource.
