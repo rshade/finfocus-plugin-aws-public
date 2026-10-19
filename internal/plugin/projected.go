@@ -206,13 +206,17 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 	// This ensures detectService() is called exactly once per request (SC-002).
 	resolver := newServiceResolver(resource.GetResourceType())
 
-	// FR-009, FR-010: Use SDK validation + custom region check (US2)
-	if _, err := p.validateProjectedCostRequestWithResolver(ctx, req, resolver); err != nil {
-		// Extract error code from error details for proper logging
+	// FR-009, FR-010: Use SDK validation + custom region check (US2).
+	// The returned descriptor is the canonical copy: alias tags filled in and
+	// an empty SKU derived where the service can do that. The caller's
+	// request is left unchanged.
+	validated, err := p.validateProjectedCostRequestWithResolver(ctx, req, resolver)
+	if err != nil {
 		errCode := extractErrorCode(err)
 		p.logErrorWithID(traceID, "GetProjectedCost", err, errCode)
 		return nil, err
 	}
+	resource = validated
 
 	// Test mode: Enhanced logging for request details (US3)
 	if p.testMode {
@@ -227,7 +231,6 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 
 	// Route to appropriate estimator based on resource type
 	var resp *pbc.GetProjectedCostResponse
-	var err error
 
 	// Use cached service type from resolver (optimization: SC-002)
 	serviceType := resolver.ServiceType()
@@ -320,11 +323,11 @@ func (p *AWSPublicPlugin) estimateEC2( //nolint:funlen
 	// FR-012: Use resource.GetSku() first, fallback to tags extraction
 	instanceType := resource.GetSku()
 	if instanceType == "" {
-		instanceType = extractAWSSKU(resource.GetTags())
+		instanceType = extractAWSSKU(pricingTags(resource))
 	}
 
 	// Extract OS and tenancy using shared helper (FR-001, FR-002)
-	ec2Attrs := ExtractEC2AttributesFromTags(resource.GetTags())
+	ec2Attrs := ExtractEC2AttributesFromTags(pricingTags(resource))
 
 	// FR-020: Lookup pricing using embedded data
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, ec2Attrs.OS, ec2Attrs.Tenancy)
@@ -349,8 +352,13 @@ func (p *AWSPublicPlugin) estimateEC2( //nolint:funlen
 	costPerMonth := computeCost
 	billingDetail := fmt.Sprintf("On-demand %s, %s tenancy, 730 hrs/month", ec2Attrs.OS, ec2Attrs.Tenancy)
 
-	// Root EBS volume cost: Include root volume storage when tag info is present
-	rootVol := ExtractRootVolumeFromTags(resource.GetTags(), *p.traceLogger(traceID, "GetProjectedCost"))
+	// Root EBS volume cost. A nested rootBlockDevice attribute wins over the
+	// tag map. pricingTags only overlays scalars, so the struct is read here.
+	rootLogger := *p.traceLogger(traceID, "GetProjectedCost")
+	rootVol := ExtractRootVolumeFromStruct(resource.GetAttributes(), rootLogger)
+	if !rootVol.Present {
+		rootVol = ExtractRootVolumeFromTags(pricingTags(resource), rootLogger)
+	}
 	var rootVolumeCost float64
 	if rootVol.Present {
 		if ebsRate, ebsFound := p.pricing.EBSPricePerGBMonth(rootVol.VolumeType); ebsFound {
@@ -457,20 +465,20 @@ func (p *AWSPublicPlugin) estimateEBS(
 	// FR-012: Use resource.GetSku() first, fallback to tags extraction
 	volumeType := resource.GetSku()
 	if volumeType == "" {
-		volumeType = extractAWSSKU(resource.GetTags())
+		volumeType = extractAWSSKU(pricingTags(resource))
 	}
 
 	// FR-041 & FR-042: Extract size from tags, default to 8GB
 	sizeGB := defaultEBSGB
 	sizeAssumed := true
 
-	if resource.GetTags() != nil {
-		if sizeStr, sizeFound := resource.GetTags()["size"]; sizeFound {
+	if pricingTags(resource) != nil {
+		if sizeStr, sizeFound := pricingTags(resource)["size"]; sizeFound {
 			if size := p.validateNonNegativeInt64(traceID, "size", sizeStr); size > 0 {
 				sizeGB = int(size)
 				sizeAssumed = false
 			}
-		} else if volSizeStr, volFound := resource.GetTags()["volume_size"]; volFound {
+		} else if volSizeStr, volFound := pricingTags(resource)["volume_size"]; volFound {
 			if size := p.validateNonNegativeInt64(traceID, "volume_size", volSizeStr); size > 0 {
 				sizeGB = int(size)
 				sizeAssumed = false
@@ -558,21 +566,16 @@ func (p *AWSPublicPlugin) estimateS3(
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
-	storageClass := resource.GetSku()
-	if storageClass == "" {
-		storageClass = "STANDARD"
-	}
+	tags := pricingTags(resource)
+	storageClass, classAssumed := s3StorageClass(resource)
 
 	// Extract size from tags, default to 1GB
 	sizeGB := 1.0
 	sizeAssumed := true
-
-	if resource.GetTags() != nil {
-		if sizeStr, ok := resource.GetTags()["size"]; ok {
-			if size, err := strconv.ParseFloat(sizeStr, 64); err == nil && size > 0 {
-				sizeGB = size
-				sizeAssumed = false
-			}
+	if sizeStr, ok := tags["size"]; ok {
+		if size, err := strconv.ParseFloat(sizeStr, 64); err == nil && size > 0 {
+			sizeGB = size
+			sizeAssumed = false
 		}
 	}
 
@@ -612,7 +615,7 @@ func (p *AWSPublicPlugin) estimateS3(
 
 	// Track defaults for metadata enrichment
 	var dt DefaultsTracker
-	if resource.GetSku() == "" {
+	if classAssumed {
 		dt.Add("storage_class", "STANDARD", KindConfig)
 	}
 	if sizeAssumed {
@@ -724,8 +727,8 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 	var unitPrice float64
 
 	// Extract common storage
-	if resource.GetTags() != nil {
-		if s, ok := resource.GetTags()["storage_gb"]; ok {
+	if pricingTags(resource) != nil {
+		if s, ok := pricingTags(resource)["storage_gb"]; ok {
 			storageGB = p.validateNonNegativeFloat64(traceID, "storage_gb", s)
 			storageTagPresent = true
 		}
@@ -748,12 +751,12 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 	if capacityMode == "provisioned" {
 		// Provisioned Mode
 		rcuTagPresent, wcuTagPresent := false, false
-		if resource.GetTags() != nil {
-			if s, ok := resource.GetTags()["read_capacity_units"]; ok {
+		if pricingTags(resource) != nil {
+			if s, ok := pricingTags(resource)["read_capacity_units"]; ok {
 				readUnits = p.validateNonNegativeInt64(traceID, "read_capacity_units", s)
 				rcuTagPresent = true
 			}
-			if s, ok := resource.GetTags()["write_capacity_units"]; ok {
+			if s, ok := pricingTags(resource)["write_capacity_units"]; ok {
 				writeUnits = p.validateNonNegativeInt64(traceID, "write_capacity_units", s)
 				wcuTagPresent = true
 			}
@@ -848,12 +851,12 @@ func (p *AWSPublicPlugin) estimateDynamoDB( //nolint:gocognit,funlen // length f
 
 	// Default to On-Demand Mode
 	readTagPresent, writeTagPresent := false, false
-	if resource.GetTags() != nil {
-		if s, ok := resource.GetTags()["read_requests_per_month"]; ok {
+	if pricingTags(resource) != nil {
+		if s, ok := pricingTags(resource)["read_requests_per_month"]; ok {
 			readUnits = p.validateNonNegativeInt64(traceID, "read_requests_per_month", s)
 			readTagPresent = true
 		}
-		if s, ok := resource.GetTags()["write_requests_per_month"]; ok {
+		if s, ok := pricingTags(resource)["write_requests_per_month"]; ok {
 			writeUnits = p.validateNonNegativeInt64(traceID, "write_requests_per_month", s)
 			writeTagPresent = true
 		}
@@ -1008,10 +1011,21 @@ func (p *AWSPublicPlugin) estimateELB(
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
+	// Gateway load balancers have no price in this plugin. Check before the
+	// ALB default so a "gateway" or "gwlb" SKU is never billed as an ALB.
+	skuLower := strings.ToLower(strings.TrimSpace(resource.GetSku()))
+	if skuLower == skuGWLB || strings.Contains(skuLower, "gateway") {
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      currencyUSD,
+			BillingDetail: detailGWLBUnsupported,
+		}, nil
+	}
+
 	// 1. Identify Load Balancer Type (ALB vs NLB)
 	// Default to ALB per clarification
 	lbType := serviceALB
-	skuLower := strings.ToLower(resource.GetSku())
 	if strings.Contains(skuLower, serviceNLB) || strings.Contains(skuLower, "network") {
 		lbType = serviceNLB
 	} else if strings.Contains(skuLower, serviceALB) || strings.Contains(skuLower, "application") {
@@ -1019,7 +1033,7 @@ func (p *AWSPublicPlugin) estimateELB(
 	}
 
 	// 2. Extract Capacity Units from Tags
-	capacityUnits, tagFound := extractCapacityUnits(resource.GetTags(), lbType, p.logger, traceID)
+	capacityUnits, tagFound := extractCapacityUnits(pricingTags(resource), lbType, p.logger, traceID)
 
 	// 3. Lookup Pricing
 	var fixedRate, cuRate float64
@@ -1095,14 +1109,14 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:funlen
 	// FR-012: Use resource.GetSku() first, fallback to tags extraction
 	instanceType := resource.GetSku()
 	if instanceType == "" {
-		instanceType = extractAWSSKU(resource.GetTags())
+		instanceType = extractAWSSKU(pricingTags(resource))
 	}
 
 	// Extract engine from tags, default to MySQL
 	engine := defaultRDSEngine
 	engineDefaulted := true
-	if resource.GetTags() != nil {
-		if engineTag, ok := resource.GetTags()["engine"]; ok && engineTag != "" {
+	if pricingTags(resource) != nil {
+		if engineTag, ok := pricingTags(resource)["engine"]; ok && engineTag != "" {
 			engine = strings.ToLower(engineTag)
 			engineDefaulted = false
 		}
@@ -1116,7 +1130,7 @@ func (p *AWSPublicPlugin) estimateRDS( //nolint:funlen
 		engineDefaulted = true
 	}
 
-	tags := resource.GetTags()
+	tags := pricingTags(resource)
 
 	storageType := strings.ToLower(firstTag(tags, rdsTagStorageType, rdsTagStorageTypeLegacy))
 	storageDefaulted := false
@@ -1281,11 +1295,10 @@ func (p *AWSPublicPlugin) estimateASG(
 		billingDetail += " (zero instances)"
 	}
 
-	tags := resource.GetTags()
-	if tags != nil {
-		if _, hasMixed := tags["mixed_instances_policy"]; hasMixed {
-			billingDetail += " (mixed instance policies not yet supported, using primary instance type)"
-		}
+	tags := pricingTags(resource)
+	if _, hasMixed := tags["mixed_instances_policy"]; hasMixed ||
+		newResourceInputs(resource).Present("mixedInstancesPolicy", "mixed_instances_policy") {
+		billingDetail += " (mixed instance policies not yet supported, using primary instance type)"
 	}
 
 	resp := &pbc.GetProjectedCostResponse{
@@ -1418,9 +1431,9 @@ func (p *AWSPublicPlugin) estimateEKS(
 	// SKU = "cluster" (standard) or "cluster-extended" (extended support)
 	// OR use tags: tags["support_type"] == "extended" (case-insensitive)
 	supportTypeExplicit := resource.GetSku() == "cluster-extended" || resource.GetSku() == "cluster" ||
-		(resource.GetTags() != nil && resource.GetTags()["support_type"] != "")
+		(pricingTags(resource) != nil && pricingTags(resource)["support_type"] != "")
 	extendedSupport := resource.GetSku() == "cluster-extended" ||
-		(resource.GetTags() != nil && strings.EqualFold(resource.GetTags()["support_type"], "extended"))
+		(pricingTags(resource) != nil && strings.EqualFold(pricingTags(resource)["support_type"], "extended"))
 
 	// Look up EKS pricing based on support type
 	hourlyRate, found := p.pricing.EKSClusterPricePerHour(extendedSupport)
@@ -1520,24 +1533,24 @@ func (p *AWSPublicPlugin) estimateLambda( //nolint:gocognit,funlen
 	durationDefaulted := true
 	archDefaulted := true
 
-	if resource.GetTags() != nil {
-		if reqStr, ok := resource.GetTags()["requests_per_month"]; ok {
+	if pricingTags(resource) != nil {
+		if reqStr, ok := pricingTags(resource)["requests_per_month"]; ok {
 			if reqs, err := strconv.ParseInt(reqStr, 10, 64); err == nil && reqs >= 0 {
 				requestsPerMonth = reqs
 				requestsDefaulted = false
 			}
 		}
-		if durStr, ok := resource.GetTags()["avg_duration_ms"]; ok {
+		if durStr, ok := pricingTags(resource)["avg_duration_ms"]; ok {
 			if dur, err := strconv.Atoi(durStr); err == nil && dur > 0 {
 				avgDurationMs = dur
 				durationDefaulted = false
 			}
 		}
 		// FR-011: Read architecture from tags
-		if archStr, archFound := resource.GetTags()["arch"]; archFound && archStr != "" {
+		if archStr, archFound := pricingTags(resource)["arch"]; archFound && archStr != "" {
 			architecture = archStr
 			archDefaulted = false
-		} else if archFull, fullFound := resource.GetTags()["architecture"]; fullFound && archFull != "" {
+		} else if archFull, fullFound := pricingTags(resource)["architecture"]; fullFound && archFull != "" {
 			architecture = archFull
 			archDefaulted = false
 		}
@@ -1683,8 +1696,8 @@ func (p *AWSPublicPlugin) estimateNATGateway(
 	// 2. Extract and Validate Data Processed Tag
 	dataProcessedGB := 0.0
 	tagPresent := false
-	if resource.GetTags() != nil {
-		if val, ok := resource.GetTags()["data_processed_gb"]; ok {
+	if pricingTags(resource) != nil {
+		if val, ok := pricingTags(resource)["data_processed_gb"]; ok {
 			tagPresent = true
 			if val == "" {
 				return nil, p.newErrorWithID(
@@ -1804,6 +1817,21 @@ func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
 	return totalCost
 }
 
+const (
+	detailGWLBUnsupported  = "Gateway Load Balancer (GWLB) pricing is not supported"
+	detailAlarmUnsupported = "CloudWatch alarm pricing is not supported"
+)
+
+// isCloudWatchAlarm reports Pulumi and Terraform metric-alarm types.
+// Log groups stay on the logs estimator. The normalized service name is
+// "cloudwatch" for both, so this checks the original resource type.
+func isCloudWatchAlarm(resourceType string) bool {
+	rt := strings.ToLower(resourceType)
+	return strings.Contains(rt, "metricalarm") ||
+		strings.Contains(rt, "metric_alarm") ||
+		strings.Contains(rt, "metric-alarm")
+}
+
 // estimateCloudWatch calculates projected monthly cost for CloudWatch resources.
 // Supports log ingestion, log storage, and custom metrics.
 //
@@ -1820,6 +1848,15 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 	traceID string,
 	resource *pbc.ResourceDescriptor,
 ) (*pbc.GetProjectedCostResponse, error) {
+	if isCloudWatchAlarm(resource.GetResourceType()) {
+		return &pbc.GetProjectedCostResponse{
+			CostPerMonth:  0,
+			UnitPrice:     0,
+			Currency:      currencyUSD,
+			BillingDetail: detailAlarmUnsupported,
+		}, nil
+	}
+
 	var dt DefaultsTracker
 
 	skuDefaulted := resource.GetSku() == ""
@@ -1836,9 +1873,9 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 	logStorageTagPresent := false
 	customMetricsTagPresent := false
 
-	if resource.GetTags() != nil {
+	if pricingTags(resource) != nil {
 		// Parse log_ingestion_gb
-		if val, ok := resource.GetTags()["log_ingestion_gb"]; ok && val != "" {
+		if val, ok := pricingTags(resource)["log_ingestion_gb"]; ok && val != "" {
 			logIngestionTagPresent = true
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
@@ -1855,7 +1892,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		}
 
 		// Parse log_storage_gb
-		if val, ok := resource.GetTags()["log_storage_gb"]; ok && val != "" {
+		if val, ok := pricingTags(resource)["log_storage_gb"]; ok && val != "" {
 			logStorageTagPresent = true
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
@@ -1872,7 +1909,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		}
 
 		// Parse custom_metrics
-		if val, ok := resource.GetTags()["custom_metrics"]; ok && val != "" {
+		if val, ok := pricingTags(resource)["custom_metrics"]; ok && val != "" {
 			customMetricsTagPresent = true
 			parsed, err := strconv.ParseFloat(val, 64)
 			if err != nil {
@@ -2014,7 +2051,7 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 	nodeType := resource.GetSku()
 	if nodeType == "" {
 		// Try extracting from tags using extractAWSSKU pattern
-		nodeType = extractAWSSKU(resource.GetTags())
+		nodeType = extractAWSSKU(pricingTags(resource))
 	}
 	if nodeType == "" {
 		return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
@@ -2025,8 +2062,8 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 	// Extract engine (default: redis)
 	engine := "redis"
 	engineDefaulted := true
-	if resource.GetTags() != nil {
-		if val, ok := resource.GetTags()["engine"]; ok && val != "" {
+	if pricingTags(resource) != nil {
+		if val, ok := pricingTags(resource)["engine"]; ok && val != "" {
 			engine = strings.ToLower(val)
 			engineDefaulted = false
 		}
@@ -2035,12 +2072,12 @@ func (p *AWSPublicPlugin) estimateElastiCache( //nolint:gocognit,funlen
 	// Extract number of nodes (default: 1)
 	numNodes := 1
 	nodesDefaulted := true
-	if resource.GetTags() != nil {
+	if pricingTags(resource) != nil {
 		// Try num_nodes first, then num_cache_nodes
 		nodeCountStr := ""
-		if val, nodeFound := resource.GetTags()["num_nodes"]; nodeFound && val != "" {
+		if val, nodeFound := pricingTags(resource)["num_nodes"]; nodeFound && val != "" {
 			nodeCountStr = val
-		} else if cacheVal, cacheFound := resource.GetTags()["num_cache_nodes"]; cacheFound && cacheVal != "" {
+		} else if cacheVal, cacheFound := pricingTags(resource)["num_cache_nodes"]; cacheFound && cacheVal != "" {
 			nodeCountStr = cacheVal
 		}
 		if nodeCountStr != "" {

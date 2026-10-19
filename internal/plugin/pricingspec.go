@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
@@ -55,14 +56,13 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 	if req != nil {
 		projReq.Resource = req.GetResource()
 	}
-	if _, err := p.ValidateProjectedCostRequest(ctx, projReq); err != nil {
+	resource, err := p.ValidateProjectedCostRequest(ctx, projReq)
+	if err != nil {
 		p.traceLogger(traceID, "GetPricingSpec").Error().
 			Err(err).
 			Msg("validation failed")
 		return nil, err
 	}
-
-	resource := req.GetResource()
 
 	// Use serviceResolver for consistent normalization (optimization: compute once per request)
 	resolver := newServiceResolver(resource.GetResourceType())
@@ -207,10 +207,7 @@ func (p *AWSPublicPlugin) ebsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 
 // s3PricingSpec returns the pricing specification for S3 storage.
 func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	storageClass := resource.GetSku()
-	if storageClass == "" {
-		storageClass = "STANDARD"
-	}
+	storageClass, _ := s3StorageClass(resource)
 
 	ratePerGBMonth, found := p.pricing.S3PricePerGBMonth(storageClass)
 	if !found {
@@ -251,11 +248,16 @@ func (p *AWSPublicPlugin) s3PricingSpec(resource *pbc.ResourceDescriptor) *pbc.P
 // lambdaPricingSpec returns the pricing specification for Lambda functions.
 func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
 	arch := archX86
-	if resource.GetSku() != "" {
-		arch = resource.GetSku()
-	}
-	if a, ok := resource.GetTags()["architecture"]; ok && a != "" {
-		arch = a
+	tags := pricingTags(resource)
+	switch {
+	case tags[aliasArch] != "":
+		arch = tags[aliasArch]
+	case tags["architecture"] != "":
+		arch = tags["architecture"]
+	default:
+		if sku := strings.ToLower(resource.GetSku()); sku == archARM64 || sku == archX86 || sku == archARM {
+			arch = resource.GetSku()
+		}
 	}
 
 	requestRate, requestFound := p.pricing.LambdaPricePerRequest()
@@ -300,7 +302,7 @@ func (p *AWSPublicPlugin) lambdaPricingSpec(resource *pbc.ResourceDescriptor) *p
 func (p *AWSPublicPlugin) rdsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
 	instanceType := resource.GetSku()
 	engine := defaultRDSEngine
-	if e, ok := resource.GetTags()["engine"]; ok && e != "" {
+	if e, ok := pricingTags(resource)["engine"]; ok && e != "" {
 		engine = e
 	}
 
@@ -436,7 +438,7 @@ func (p *AWSPublicPlugin) dynamoDBPricingSpec(resource *pbc.ResourceDescriptor) 
 // eksPricingSpec returns the pricing specification for EKS clusters.
 func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
 	supportType := "standard"
-	if s, ok := resource.GetTags()["support_type"]; ok && s != "" {
+	if s, ok := pricingTags(resource)["support_type"]; ok && s != "" {
 		supportType = s
 	}
 
@@ -479,8 +481,33 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 }
 
+// unsupportedPricingSpec returns a zero rate for a type this plugin does not price.
+// The description matches the GetProjectedCost billing detail for that type.
+func unsupportedPricingSpec(resource *pbc.ResourceDescriptor, detail string) *pbc.PricingSpec {
+	spec := &pbc.PricingSpec{
+		BillingMode: billingModeUnknown,
+		RatePerUnit: 0,
+		Currency:    currencyUSD,
+		Description: detail,
+		Source:      sourceAWSPublic,
+	}
+	if resource == nil {
+		return spec
+	}
+	spec.Provider = resource.GetProvider()
+	spec.ResourceType = resource.GetResourceType()
+	spec.Sku = resource.GetSku()
+	spec.Region = resource.GetRegion()
+	return spec
+}
+
 // elbPricingSpec returns the pricing specification for Elastic Load Balancers.
 func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
+	skuLower := strings.ToLower(strings.TrimSpace(resource.GetSku()))
+	if skuLower == skuGWLB || strings.Contains(skuLower, "gateway") {
+		return unsupportedPricingSpec(resource, detailGWLBUnsupported)
+	}
+
 	lbType := resource.GetSku()
 	if lbType == "" {
 		lbType = serviceALB
@@ -609,6 +636,10 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 	resource *pbc.ResourceDescriptor,
 ) *pbc.PricingSpec {
+	if isCloudWatchAlarm(resource.GetResourceType()) {
+		return unsupportedPricingSpec(resource, detailAlarmUnsupported)
+	}
+
 	sku := resource.GetSku()
 	if sku == "" {
 		sku = skuLogs
@@ -753,9 +784,10 @@ func (p *AWSPublicPlugin) zeroCostPricingSpec(
 func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
 	instanceType := resource.GetSku()
 	if instanceType == "" {
-		if tags := resource.GetTags(); tags != nil {
-			instanceType = resolveInstanceType("", tags)
-		}
+		instanceType = resolveInstanceType("", pricingTags(resource))
+	}
+	if instanceType == "" {
+		instanceType = instanceTypeFromAttributeStruct(newResourceInputs(resource))
 	}
 
 	if instanceType == "" {
@@ -772,7 +804,7 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		}
 	}
 
-	os := resolveASGOS(resource.GetTags())
+	os := resolveASGOS(pricingTags(resource))
 
 	hourlyRate, found := p.pricing.EC2OnDemandPricePerHour(instanceType, os, defaultTenancy)
 	if !found {

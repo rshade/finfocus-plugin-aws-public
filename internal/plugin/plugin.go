@@ -510,13 +510,14 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	if req.GetResourceId() != "" {
 		var resource pbc.ResourceDescriptor
 		if err := json.Unmarshal([]byte(req.GetResourceId()), &resource); err == nil {
-			return &resource, nil
+			service := detectService(normalizeResourceType(resource.GetResourceType()))
+			return canonicalizeResource(service, &resource), nil
 		}
 		// If JSON parsing fails, treat ResourceId as a simple ID and use Tags
 	}
 
 	// Fall back to extracting from Tags
-	tags := req.GetTags()
+	tags := actualCostTags(req)
 	if tags == nil {
 		return nil, status.Error(
 			codes.InvalidArgument,
@@ -551,11 +552,12 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 	// Validate required fields.
 	// Region may be empty only for global services (S3/IAM) and zero-cost resources,
 	// which use plugin-region fallback during downstream validation.
-	// Regional services (EC2/EBS/RDS/etc.) must always specify a region.
+	// SKU may be empty for services that derive it or apply a recorded default.
 	normalizedType := normalizeResourceType(resource.GetResourceType())
 	service := detectService(normalizedType)
-	allowEmptyRegion := service == serviceS3 || service == serviceIAM || IsZeroCostService(service)
-	if resource.GetProvider() == "" || resource.GetResourceType() == "" || resource.GetSku() == "" ||
+	allowEmptyRegion := emptyRegionUsesPlugin(service)
+	if resource.GetProvider() == "" || resource.GetResourceType() == "" ||
+		(resource.GetSku() == "" && !skuOptional(service)) ||
 		(!allowEmptyRegion && resource.GetRegion() == "") {
 		return nil, status.Error(
 			codes.InvalidArgument,
@@ -563,5 +565,5 @@ func (p *AWSPublicPlugin) parseResourceFromRequest(req *pbc.GetActualCostRequest
 		)
 	}
 
-	return resource, nil
+	return canonicalizeResource(service, resource), nil
 }

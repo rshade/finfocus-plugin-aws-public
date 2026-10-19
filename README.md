@@ -69,7 +69,7 @@ This plugin provides basic actual cost estimation based on resource runtime and 
 ## Features
 
 - **gRPC Protocol**: Implements `CostSourceService` from `finfocus.v1` proto
-- **Terraform Support**: Translates Terraform resource types (e.g., `aws_instance`) into Pulumi type tokens via the `ResolveResourceTypes` RPC, enabling `finfocus cost projected --terraform-state`
+- **Terraform Support**: Translates Terraform resource types (e.g., `aws_instance`) into Pulumi type tokens via the `ResolveResourceTypes` RPC, enabling `finfocus cost projected --terraform-state`. Names from that conversion (`memorySize`, `billingMode`, `loadBalancerType`, `nodeType`, `storageClass`) are accepted. SKU may be omitted for S3, Lambda, DynamoDB, ElastiCache, load balancers, NAT Gateway, and CloudWatch.
 - **Region-Specific Binaries**: One binary per AWS region with embedded pricing
 - **Carbon Footprint Estimation**: EC2 instances include gCO2e metrics using CCF methodology
 - **Thread-Safe**: Concurrent RPC calls are handled safely
@@ -418,11 +418,28 @@ Resources are described using the `ResourceDescriptor` proto message:
 message ResourceDescriptor {
   string provider = 1;       // "aws"
   string resource_type = 2;  // "ec2", "ebs", "s3", etc.
-  string sku = 3;            // instance_type (EC2) or volume_type (EBS)
+  string sku = 3;            // instance_type (EC2) or volume_type (EBS). Optional for several services.
   string region = 4;         // "us-east-1", "us-west-2", etc.
   map<string, string> tags = 5;  // Additional metadata (e.g., "size": "100")
+  google.protobuf.Struct attributes = 6; // Structured properties. These win over tags.
 }
 ```
+
+`attributes` are checked before tags. When both name the same property, the attribute value is used. Terraform state arrives with names such as `allocatedStorage` and `storageType`. The same names are accepted on tags.
+
+Accepted names, by service:
+
+- RDS: `storageType`, `allocatedStorage`, `multiAz`
+- DynamoDB: `billingMode`, `readCapacity`, `writeCapacity`
+- ElastiCache: `nodeType`, `numCacheNodes`
+- Lambda: `memorySize`, `architectures`
+- EKS: `upgradePolicy`
+- Load balancing: `loadBalancerType`
+- Auto Scaling: `desiredCapacity`, `minSize`, `mixedInstancesPolicy`
+- NAT Gateway: `dataProcessedGb`
+- CloudWatch: `logIngestionGb`, `logStorageGb`, `customMetrics`
+- S3: `storageClass` (the `STANDARD` default applies when it is absent)
+- EBS: `size`
 
 ### Example: EC2 Instance
 

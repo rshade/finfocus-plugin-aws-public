@@ -152,9 +152,9 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 		case serviceEC2:
 			recs = p.generateEC2Recommendations(resource.GetSku(), region)
 		case serviceEBS:
-			recs = p.getEBSRecommendations(resource.GetSku(), region, resource.GetTags())
+			recs = p.getEBSRecommendations(resource.GetSku(), region, pricingTags(resource))
 		case serviceRDS:
-			engine := extractRDSEngine(resource.GetTags())
+			engine := extractRDSEngine(pricingTags(resource))
 			recs = p.generateRDSRecommendations(resource.GetSku(), engine, region)
 		default:
 			// Log unsupported service types at debug level
@@ -184,7 +184,7 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 						Str("id_source", "native").
 						Str("id", id).
 						Msg("using native ID for recommendation correlation")
-				} else if resourceID := resource.GetTags()["resource_id"]; resourceID != "" {
+				} else if resourceID := descriptorTags(resource)["resource_id"]; resourceID != "" {
 					// Priority 2: Fall back to resource_id tag for backward compat (FR-003)
 					rec.Resource.Id = resourceID
 					p.logger.Trace().
@@ -194,7 +194,7 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 						Msg("using tag ID for recommendation correlation")
 				}
 				// Use name tag if available (FR-004 - unchanged)
-				if name := resource.GetTags()["name"]; name != "" {
+				if name := descriptorTags(resource)["name"]; name != "" {
 					rec.Resource.Name = name
 				}
 			} else { // Handle missing resource impact logging (rec.Resource is nil here)
@@ -777,9 +777,10 @@ func (p *AWSPublicPlugin) matchesFilter(resource *pbc.ResourceDescriptor, filter
 	}
 
 	// Check Tags (if filter has tags, resource must have all of them with matching values)
-	if len(filter.GetTags()) > 0 {
-		for k, v := range filter.GetTags() {
-			if resVal, ok := resource.GetTags()[k]; !ok || resVal != v {
+	if filterTags := recommendationFilterTags(filter); len(filterTags) > 0 {
+		resourceTags := descriptorTags(resource)
+		for k, v := range filterTags {
+			if resVal, ok := resourceTags[k]; !ok || resVal != v {
 				return false
 			}
 		}
@@ -828,8 +829,8 @@ func (p *AWSPublicPlugin) normalizeInput(req *pbc.GetRecommendationsRequest) *Pr
 			ResourceType: pctx.Filter.GetResourceType(), // Use normalized copy
 			Sku:          pctx.Filter.GetSku(),
 			Region:       pctx.Filter.GetRegion(),
-			Tags:         copyTags(pctx.Filter.GetTags()), // Deep copy to avoid sharing map
-			Provider:     providerAWS,                     // Implicit for this plugin
+			Tags:         copyTags(recommendationFilterTags(pctx.Filter)), // Deep copy to avoid sharing map
+			Provider:     providerAWS,                                     // Implicit for this plugin
 		}}
 	}
 
