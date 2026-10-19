@@ -24,6 +24,10 @@ security overhead of cloud credentials.
     downloads [S]
     - Unblocked: v0.1.9 `checksums.txt` is clean (66 entries, no `./`
       prefix).
+  - [ ] #437 Check provider before resolving a region or launching a child
+    in `Supports`, so non-AWS resources get `supported=false` instead of
+    `InvalidArgument` (about 54 errors per load on a mixed-provider stack)
+    [S]
   - [ ] #396 Make runtime region-binary downloads visible (startup warning,
     documented `FINFOCUS_PLUGIN_OFFLINE`) and plan offline-by-default;
     depends on #351 [M]
@@ -37,6 +41,8 @@ security overhead of cloud credentials.
 ## Future Vision [Researching / Planned]
 
 - **[Planned] Service Breadth (Phase 2):**
+  - [ ] #409 EKS Fargate pod pricing by vCPU and GiB for
+    `aws:eks/fargate:Pod` [M]
   - [ ] #393 ECS Fargate cost estimator for `aws:ecs/service:Service` [L]
   - [ ] #394 Amazon EFS cost estimator [M]
 - **[Planned] Recommendations & Planning:**
