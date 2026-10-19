@@ -1014,12 +1014,12 @@ func (p *AWSPublicPlugin) estimateELB(
 	// Gateway load balancers have no price in this plugin. Check before the
 	// ALB default so a "gateway" or "gwlb" SKU is never billed as an ALB.
 	skuLower := strings.ToLower(strings.TrimSpace(resource.GetSku()))
-	if skuLower == "gwlb" || strings.Contains(skuLower, "gateway") {
+	if skuLower == skuGWLB || strings.Contains(skuLower, "gateway") {
 		return &pbc.GetProjectedCostResponse{
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      currencyUSD,
-			BillingDetail: "Gateway Load Balancer (GWLB) pricing is not supported",
+			BillingDetail: detailGWLBUnsupported,
 		}, nil
 	}
 
@@ -1817,6 +1817,11 @@ func calculateTieredCost(quantity float64, tiers []pricing.TierRate) float64 {
 	return totalCost
 }
 
+const (
+	detailGWLBUnsupported  = "Gateway Load Balancer (GWLB) pricing is not supported"
+	detailAlarmUnsupported = "CloudWatch alarm pricing is not supported"
+)
+
 // isCloudWatchAlarm reports Pulumi and Terraform metric-alarm types.
 // Log groups stay on the logs estimator. The normalized service name is
 // "cloudwatch" for both, so this checks the original resource type.
@@ -1848,7 +1853,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 			CostPerMonth:  0,
 			UnitPrice:     0,
 			Currency:      currencyUSD,
-			BillingDetail: "CloudWatch alarm pricing is not supported",
+			BillingDetail: detailAlarmUnsupported,
 		}, nil
 	}
 

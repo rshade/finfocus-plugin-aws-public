@@ -615,7 +615,7 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 
 - `resource_type`: "elb", "alb", or "nlb"
 - `sku`: Load balancer type: "alb" (Application) or "nlb" (Network). `loadBalancerType` fills an empty SKU: `application` becomes `alb`, `network` becomes `nlb`, `gateway` (also `gwlb`) becomes `gwlb`. An unknown type defaults to ALB.
-- A gateway load balancer returns $0 before that ALB default, with billing detail `Gateway Load Balancer (GWLB) pricing is not supported`.
+- A gateway load balancer returns $0 before that ALB default, with billing detail `Gateway Load Balancer (GWLB) pricing is not supported`. `GetPricingSpec` uses that same text and a zero rate.
 - Capacity Units: `lcu_per_hour` or `lcuPerHour` (ALB), `nlcu_per_hour` or `nlcuPerHour` (NLB), then `capacity_units` or `capacityUnits`.
 - Pricing: Fixed hourly rate + capacity unit charges
   - ALB: Fixed hourly (e.g., $0.0225) + LCU rate (e.g., $0.008/LCU-hr)
@@ -706,7 +706,7 @@ Gateway Load Balancers return $0 with billing detail `Gateway Load Balancer (GWL
 - `sku`: "logs", "metrics", or "combined". The estimator default is `logs` when SKU is empty.
 - **Inputs:** `log_ingestion_gb` or `logIngestionGb`, `log_storage_gb` or `logStorageGb`, `custom_metrics` or `customMetrics`
 - **Tiered pricing:** Both logs ingestion and metrics use volume-based tiers
-- **Metric alarms:** `aws:cloudwatch/metricAlarm:MetricAlarm`, and any original type containing `metricalarm`, `metric_alarm`, or `metric-alarm`, returns $0 with billing detail `CloudWatch alarm pricing is not supported`. Detection uses the original resource type, because `normalizeResourceType` collapses alarms and log groups to `cloudwatch`.
+- **Metric alarms:** `aws:cloudwatch/metricAlarm:MetricAlarm`, and any original type containing `metricalarm`, `metric_alarm`, or `metric-alarm`, returns $0 with billing detail `CloudWatch alarm pricing is not supported`. `GetPricingSpec` uses that same text and a zero rate. Detection uses the original resource type, because `normalizeResourceType` collapses alarms and log groups to `cloudwatch`.
 - **Excluded:** Dashboards, Contributor Insights, Logs Insights queries
 
 ### ElastiCache Clusters

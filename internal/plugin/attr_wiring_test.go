@@ -146,6 +146,12 @@ func TestGatewayLoadBalancerIsNotALB(t *testing.T) {
 		assert.Zero(t, resp.GetCostPerMonth())
 		assert.Contains(t, resp.GetBillingDetail(), "not supported")
 		assert.NotContains(t, resp.GetBillingDetail(), "LCU")
+
+		spec, err := plugin.GetPricingSpec(t.Context(), &pbc.GetPricingSpecRequest{Resource: resource})
+		require.NoError(t, err)
+		assert.Zero(t, spec.GetSpec().GetRatePerUnit())
+		assert.Contains(t, spec.GetSpec().GetDescription(), detailGWLBUnsupported)
+		assert.NotContains(t, spec.GetSpec().GetDescription(), "LCU")
 	}
 }
 
@@ -163,6 +169,18 @@ func TestCloudWatchAlarmIsNotLogs(t *testing.T) {
 	assert.Zero(t, resp.GetCostPerMonth())
 	assert.Contains(t, resp.GetBillingDetail(), "alarm pricing is not supported")
 	assert.NotContains(t, strings.ToLower(resp.GetBillingDetail()), "log")
+
+	spec, err := plugin.GetPricingSpec(t.Context(), &pbc.GetPricingSpecRequest{
+		Resource: &pbc.ResourceDescriptor{
+			Provider:     providerAWS,
+			ResourceType: "aws:cloudwatch/metricAlarm:MetricAlarm",
+			Region:       "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	assert.Zero(t, spec.GetSpec().GetRatePerUnit())
+	assert.Contains(t, spec.GetSpec().GetDescription(), detailAlarmUnsupported)
+	assert.NotContains(t, strings.ToLower(spec.GetSpec().GetDescription()), "log")
 }
 
 // TestAttributeSecretIsNotLogged checks that a credential-like attribute value

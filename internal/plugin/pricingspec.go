@@ -481,8 +481,33 @@ func (p *AWSPublicPlugin) eksPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 	}
 }
 
+// unsupportedPricingSpec returns a zero rate for a type this plugin does not price.
+// The description matches the GetProjectedCost billing detail for that type.
+func unsupportedPricingSpec(resource *pbc.ResourceDescriptor, detail string) *pbc.PricingSpec {
+	spec := &pbc.PricingSpec{
+		BillingMode: billingModeUnknown,
+		RatePerUnit: 0,
+		Currency:    currencyUSD,
+		Description: detail,
+		Source:      sourceAWSPublic,
+	}
+	if resource == nil {
+		return spec
+	}
+	spec.Provider = resource.GetProvider()
+	spec.ResourceType = resource.GetResourceType()
+	spec.Sku = resource.GetSku()
+	spec.Region = resource.GetRegion()
+	return spec
+}
+
 // elbPricingSpec returns the pricing specification for Elastic Load Balancers.
 func (p *AWSPublicPlugin) elbPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
+	skuLower := strings.ToLower(strings.TrimSpace(resource.GetSku()))
+	if skuLower == skuGWLB || strings.Contains(skuLower, "gateway") {
+		return unsupportedPricingSpec(resource, detailGWLBUnsupported)
+	}
+
 	lbType := resource.GetSku()
 	if lbType == "" {
 		lbType = serviceALB
@@ -611,6 +636,10 @@ func (p *AWSPublicPlugin) natGatewayPricingSpec(resource *pbc.ResourceDescriptor
 func (p *AWSPublicPlugin) cloudWatchPricingSpec( //nolint:gocognit,funlen
 	resource *pbc.ResourceDescriptor,
 ) *pbc.PricingSpec {
+	if isCloudWatchAlarm(resource.GetResourceType()) {
+		return unsupportedPricingSpec(resource, detailAlarmUnsupported)
+	}
+
 	sku := resource.GetSku()
 	if sku == "" {
 		sku = skuLogs
