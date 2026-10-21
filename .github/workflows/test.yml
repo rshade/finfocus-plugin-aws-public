@@ -39,7 +39,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
           args: --timeout=9m
 
       # Vulnerability scanning: this step detects known CVEs in dependencies.
