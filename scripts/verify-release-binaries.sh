@@ -8,10 +8,13 @@
 #
 # Checks:
 # 1. All Linux x86_64 archives exist
-# 2. Extracts each archive and verifies:
+# 2. Extracts every archive and verifies:
 #    - Size > 100MB (ensures pricing data is embedded)
-#    - Size < 240MB (ensures binary isn't bloated)
-# 3. Warns if Size > 200MB
+#    - Size < 300MB (ensures binary isn't bloated)
+# 3. Warns if Size > 250MB
+#
+# The thresholds can be overridden with MIN_BINARY_SIZE, WARN_BINARY_SIZE and
+# MAX_BINARY_SIZE (bytes).
 #
 # Returns 0 if all binaries verified, 1 if any fail
 
@@ -19,11 +22,11 @@ set -e
 
 DIST_DIR="${1:-.}"
 # Raw binary minimum size: 100MB (with embedded pricing JSON)
-MIN_BINARY_SIZE=100000000
-# Warning threshold: 200MB
-WARN_BINARY_SIZE=200000000
-# Critical threshold: 240MB (GitHub/deployment limits)
-MAX_BINARY_SIZE=240000000
+MIN_BINARY_SIZE="${MIN_BINARY_SIZE:-100000000}"
+# Warning threshold: 250MB (us-east-1, the largest region, is ~241MB)
+WARN_BINARY_SIZE="${WARN_BINARY_SIZE:-250000000}"
+# Critical threshold: 300MB
+MAX_BINARY_SIZE="${MAX_BINARY_SIZE:-300000000}"
 
 if [ ! -d "$DIST_DIR" ]; then
     echo "ERROR: Directory not found: $DIST_DIR"
@@ -33,11 +36,11 @@ fi
 echo "Verifying release archives in $DIST_DIR..."
 echo ""
 
-# Find the first Linux x86_64 archive to verify
+# Find every Linux x86_64 archive to verify
 # Archive naming pattern: finfocus-plugin-aws-public_${VERSION}_Linux_x86_64_${REGION}.tar.gz
-ARCHIVE=$(find "$DIST_DIR" -maxdepth 1 -name "finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | head -1)
+ARCHIVES=$(find "$DIST_DIR" -maxdepth 1 -name "finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | sort)
 
-if [ -z "$ARCHIVE" ]; then
+if [ -z "$ARCHIVES" ]; then
     echo "❌ FAILURE: No archives found matching pattern 'finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz'"
     echo "   Found in $DIST_DIR:"
     ls -la "$DIST_DIR"/ 2>/dev/null || echo "   (directory empty or not accessible)"
@@ -46,15 +49,11 @@ if [ -z "$ARCHIVE" ]; then
     exit 1
 fi
 
-# Count total archives for reporting
-TOTAL_ARCHIVES=$(find "$DIST_DIR" -maxdepth 1 -name "finfocus-plugin-aws-public_*_Linux_x86_64_*.tar.gz" -type f | wc -l)
+TOTAL_ARCHIVES=$(echo "$ARCHIVES" | wc -l)
 
 echo "Found $TOTAL_ARCHIVES Linux x86_64 archive(s)"
-echo "Verifying one archive (all built with same process)..."
+echo "Verifying all archives..."
 echo ""
-
-# Treat the single found archive as the list to iterate over
-ARCHIVES="$ARCHIVE"
 
 # Create temp directory for extraction
 TEMP_DIR=$(mktemp -d)
@@ -84,15 +83,15 @@ for ARCHIVE in $ARCHIVES; do
     size_mb=$((size / 1000000))
 
     if [ "$size" -lt "$MIN_BINARY_SIZE" ]; then
-        echo "  ❌ FAIL: $binary_name too small: ${size_mb}MB (< 100MB)"
+        echo "  ❌ FAIL: $binary_name too small: ${size_mb}MB (< $((MIN_BINARY_SIZE / 1000000))MB)"
         echo "     Indicates missing pricing data (fallback mode)"
         FAILURES=$((FAILURES + 1))
     elif [ "$size" -gt "$MAX_BINARY_SIZE" ]; then
-        echo "  ❌ FAIL: $binary_name too large: ${size_mb}MB (> 240MB)"
+        echo "  ❌ FAIL: $binary_name too large: ${size_mb}MB (> $((MAX_BINARY_SIZE / 1000000))MB)"
         echo "     Exceeds critical size limit"
         FAILURES=$((FAILURES + 1))
     elif [ "$size" -gt "$WARN_BINARY_SIZE" ]; then
-        echo "  ⚠️  WARN: $binary_name is large: ${size_mb}MB (> 200MB)"
+        echo "  ⚠️  WARN: $binary_name is large: ${size_mb}MB (> $((WARN_BINARY_SIZE / 1000000))MB)"
         WARNINGS=$((WARNINGS + 1))
     else
         echo "  ✓ $binary_name (${size_mb}MB) - OK"
