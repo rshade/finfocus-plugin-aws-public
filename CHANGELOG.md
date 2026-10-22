@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.4...v0.2.5) (2026-10-22)
+
+
+### Documentation
+
+* link AWS public pricing and FinFocus from the README ([#451](https://github.com/rshade/finfocus-plugin-aws-public/issues/451)) ([5bfa651](https://github.com/rshade/finfocus-plugin-aws-public/commit/5bfa6510486272d2566dd41728c3bde78ba78e12))
+
 ## [0.2.4](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.3...v0.2.4) (2026-10-21)
 
 
