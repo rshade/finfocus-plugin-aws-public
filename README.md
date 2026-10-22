@@ -1,8 +1,13 @@
 # FinFocus AWS Public Plugin
 
 A gRPC-based cost estimation plugin for
-[FinFocus](https://github.com/rshade/finfocus-core) that estimates AWS
+[FinFocus](https://github.com/rshade/finfocus) that estimates AWS
 infrastructure costs using publicly available AWS on-demand pricing data.
+
+This plugin integrates [Amazon Web Services (AWS)](https://aws.amazon.com/)
+pricing and is a plugin for [FinFocus](https://github.com/rshade/finfocus), the
+Pulumi cost CLI. See the
+[FinFocus docs page for this plugin](https://rshade.github.io/finfocus/plugins/aws-public/).
 
 ## Quick Start
 
@@ -1103,7 +1108,7 @@ emission estimation.
 
 ## Links
 
-- [FinFocus Core](https://github.com/rshade/finfocus-core)
+- [FinFocus Core](https://github.com/rshade/finfocus)
 - [FinFocus Spec](https://github.com/rshade/finfocus-spec)
 - [AWS Pricing Documentation](https://aws.amazon.com/pricing/)
 - [API Documentation](docs/api.md)
