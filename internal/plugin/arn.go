@@ -161,6 +161,11 @@ func (a *ARNComponents) ToPulumiResourceType() string {
 		default:
 			return a.Service
 		}
+	case "elasticfilesystem":
+		if a.ResourceType == "access-point" {
+			return serviceEFSAccessPoint
+		}
+		return serviceEFS
 	case "autoscaling":
 		switch a.ResourceType {
 		case "launchConfiguration", "launch-configuration":

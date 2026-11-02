@@ -274,8 +274,11 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return p.estimateRDS(traceID, resource)
 	case serviceDynamoDB:
 		return p.estimateDynamoDB(traceID, resource)
+	case serviceEFS:
+		return p.estimateEFS(traceID, resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
-		serviceECSTaskDef, serviceECSCluster:
+		serviceECSTaskDef, serviceECSCluster,
+		serviceEFSMountTarget, serviceEFSAccessPoint:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		return p.estimateZeroCostResource(traceID, resource, serviceType), nil
 	default:

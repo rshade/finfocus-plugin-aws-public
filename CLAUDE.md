@@ -291,6 +291,7 @@ Pricing data is embedded as separate per-service JSON files for maintainability:
 | S3 | `s3_{region}.json` | ~300KB |
 | DynamoDB | `dynamodb_{region}.json` | ~22KB |
 | ELB | `elb_{region}.json` | ~13KB |
+| EFS | `efs_{region}.json` | ~12KB |
 
 **Build Process:**
 
@@ -417,6 +418,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - Auto Scaling Groups (EC2 pricing × desired capacity, carbon estimation)
 - EKS Fargate pods (`aws:eks/fargate:Pod`, vCPU and GiB rates)
 - ECS Fargate services (`aws:ecs/service:Service`, vCPU, memory, ephemeral storage, Windows fee)
+- Amazon EFS (storage per class, provisioned and elastic throughput, carbon estimation)
 
 ## Directory Structure
 
@@ -722,6 +724,36 @@ descriptor tags only.
   CCF data in this repo has no Fargate coefficients, and `billing_detail` says
   so. Fargate is not in `getSupportedMetrics`.
 
+### Amazon EFS
+
+- `resource_type`: "efs" or "aws:efs/fileSystem:FileSystem". Other `aws:efs/*`
+  types (policies, backup policy, replication) are unsupported and do not
+  collapse into `efs`. `aws:efs/mountTarget` and `aws:efs/accessPoint` are
+  zero-cost (`efsmounttarget`, `efsaccesspoint` in `ZeroCostServices`). The
+  ARN service `elasticfilesystem` routes the same way.
+- `sku`: Optional storage class that `storage_gb` belongs to: `standard`
+  (default), `ia`, `archive`, `one_zone`, or `one_zone_ia`.
+- Inputs (attributes then tags, snake_case with camelCase aliases):
+  `storage_gb`, `ia_storage_gb`, `archive_storage_gb`, `storage_class`,
+  `availability_zone_name` (non-empty means One Zone), `throughput_mode`
+  (`bursting` default, `provisioned`, `elastic`),
+  `provisioned_throughput_in_mibps`, `elastic_read_gb`, `elastic_write_gb`,
+  and optional `ia_read_gb`, `ia_write_gb`, `archive_read_gb`,
+  `archive_write_gb`. With no `storage_gb`, a Standard file system reads
+  `size_in_bytes` (`value_in_standard`, `value_in_ia`, or the total as
+  Standard minus IA) and otherwise defaults to 1 GB. The IA and Archive split
+  is never inferred from lifecycle policies.
+- Provisioned throughput bills only MiB/s above the Bursting baseline
+  (50 KiB/s per GiB of Standard storage). Elastic mode uses the IA-ET storage
+  rate (`Infrequent Access-ET` in the Price List) and bills read and write GB.
+  One Zone has no Archive class, so Archive GB is ignored with a note.
+- `cost_per_month`: storage + throughput + access. `unit_price` is the
+  Standard (or One Zone) GB-month rate. Growth type is LINEAR.
+- Carbon: CCF classifies all EFS storage as HDD with replication 3 (regional)
+  or 2 (One Zone). EFS Standard is HDD, unlike the S3 STANDARD row.
+- Excluded: backups (AWS Backup), replication, data transfer, and the
+  `*-SmallFiles` overhead SKUs.
+
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
@@ -760,6 +792,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | Lambda | Requests + compute (GB-seconds), x86_64/arm64 | Provisioned concurrency, Lambda@Edge | ✅ gCO2e |
 | DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ✅ gCO2e |
 | ASG | EC2 hourly rate × desired_capacity × 730 | Root EBS, spot/reserved, mixed instance policies | ✅ gCO2e |
+| EFS | Storage per class, provisioned throughput above baseline, elastic read/write GB, optional IA/Archive access | Backups, replication, data transfer, small-file overhead | ✅ gCO2e (HDD storage) |
 
 **Note:** EKS estimates control plane only ($0.10/hr standard, $0.50/hr extended). Estimate worker nodes separately as EC2.
 
@@ -819,6 +852,7 @@ Carbon footprint estimation uses the Cloud Carbon Footprint (CCF) methodology.
 | DynamoDB | Storage-based (SSD × 3× replication) |
 | EKS | Control plane guidance (worker nodes as EC2) |
 | ElastiCache | EC2-equivalent mapping for cache node types |
+| EFS | Storage energy × HDD coefficient × replication (3 regional, 2 One Zone), summed over classes |
 
 **EC2 Formula:**
 ```text

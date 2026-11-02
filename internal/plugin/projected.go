@@ -81,6 +81,16 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			}
 		}
 
+		// EFS prices only the file system. Policies, backup policies, and
+		// replication configurations share the service segment but have no
+		// estimator, so they must not collapse into "efs".
+		if efsPath, isEFS := strings.CutPrefix(awsSuffix, "efs/"); isEFS && efsPath != "" {
+			if efsPath == "filesystem" || strings.HasPrefix(efsPath, "filesystem:") {
+				return serviceEFS
+			}
+			return resourceType
+		}
+
 		parts := strings.Split(rt[4:], "/")
 		if len(parts) > 0 {
 			// Extract service from aws:<service>/...
@@ -96,7 +106,8 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 				serviceEKS,
 				serviceNATGW,
 				serviceCloudWatch,
-				serviceElastiCache:
+				serviceElastiCache,
+				serviceEFS:
 				return svc
 			case "lb", serviceALB, serviceNLB:
 				return serviceELB
@@ -271,10 +282,13 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateASG(traceID, resource)
 	case serviceEKSFargate:
 		resp, err = p.estimateEKSFargate(traceID, resource)
+	case serviceEFS:
+		resp, err = p.estimateEFS(traceID, resource)
 	case serviceFargate:
 		resp, err = p.estimateECSFargate(traceID, resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
-		serviceECSTaskDef, serviceECSCluster:
+		serviceECSTaskDef, serviceECSCluster,
+		serviceEFSMountTarget, serviceEFSAccessPoint:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
@@ -1370,7 +1384,8 @@ func detectService(resourceType string) string {
 		serviceELB,
 		serviceNATGW,
 		serviceCloudWatch,
-		serviceElastiCache:
+		serviceElastiCache,
+		serviceEFS:
 		return resourceType
 	case serviceASG, "autoscaling":
 		return serviceASG
@@ -1432,6 +1447,10 @@ func detectService(resourceType string) string {
 	}
 	if strings.Contains(resourceTypeLower, "elasticache/") {
 		return serviceElastiCache
+	}
+	if strings.Contains(resourceTypeLower, "efs/filesystem:") ||
+		strings.HasSuffix(resourceTypeLower, "efs/filesystem") {
+		return serviceEFS
 	}
 	if strings.Contains(resourceTypeLower, "iam/") {
 		return serviceIAM
@@ -2209,6 +2228,9 @@ var zeroCostResourceDescriptions = map[string]string{
 	serviceLaunchConfig:  "Launch Configurations are configuration-only resources with no direct charge. Costs apply to instances launched from them.",
 	serviceECSTaskDef:    "ECS task definitions are configuration-only resources with no direct charge. Costs apply to the services that run them.",
 	serviceECSCluster:    "ECS clusters have no direct charge. Costs apply to the tasks and instances that run in them.",
+
+	serviceEFSMountTarget: "EFS mount targets have no direct charge. Costs apply to the file system storage and throughput.",
+	serviceEFSAccessPoint: "EFS access points have no direct charge. Costs apply to the file system storage and throughput.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.

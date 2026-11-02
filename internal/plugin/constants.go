@@ -27,6 +27,10 @@ const (
 	serviceECSTaskDef   = "ecstaskdefinition"
 	serviceECSCluster   = "ecscluster"
 	arnECSCluster       = "cluster"
+
+	serviceEFS            = "efs"
+	serviceEFSMountTarget = "efsmounttarget"
+	serviceEFSAccessPoint = "efsaccesspoint"
 )
 
 // Default values for EC2 attributes.
@@ -131,6 +135,9 @@ var ZeroCostServices = map[string]bool{
 	serviceLaunchConfig:  true,
 	serviceECSTaskDef:    true,
 	serviceECSCluster:    true,
+
+	serviceEFSMountTarget: true,
+	serviceEFSAccessPoint: true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
@@ -144,6 +151,9 @@ var ZeroCostPulumiPatterns = map[string]string{
 	"ec2/launchconfiguration": serviceLaunchConfig,
 	"ecs/taskdefinition":      serviceECSTaskDef,
 	"ecs/cluster":             serviceECSCluster,
+
+	"efs/mounttarget": serviceEFSMountTarget,
+	"efs/accesspoint": serviceEFSAccessPoint,
 }
 
 // IsZeroCostService returns true if the canonical service name has no direct AWS charges.

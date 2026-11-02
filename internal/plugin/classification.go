@@ -124,6 +124,13 @@ var serviceClassifications = map[string]ServiceClassification{
 		ParentType:        "aws:ec2:vpc:Vpc",
 		Relationship:      RelationshipWithin,
 	},
+	"aws:efs:filesystem": {
+		GrowthType:        pbc.GrowthType_GROWTH_TYPE_LINEAR,
+		AffectedByDevMode: false, // Storage is not time-based
+		ParentTagKeys:     []string{parentTagVPCID},
+		ParentType:        parentTypeVPC,
+		Relationship:      RelationshipWithin,
+	},
 }
 
 // GetServiceClassification retrieves the classification metadata for a service type.

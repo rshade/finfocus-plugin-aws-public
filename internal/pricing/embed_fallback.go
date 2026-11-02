@@ -701,3 +701,266 @@ var rawECSJSON = []byte(`{
     }
   }
 }`)
+
+// rawEFSJSON contains EFS pricing data for development/testing.
+// Rates mirror the us-east-1 Price List so the fallback estimates stay realistic.
+var rawEFSJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonEFS",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_EFS_IA": {
+      "sku": "SKU_EFS_IA",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "IATimedStorage-ByteHrs", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Infrequent Access"}
+    },
+    "SKU_EFS_IA_ACCESS_WRITE": {
+      "sku": "SKU_EFS_IA_ACCESS_WRITE",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "IADataAccess-Bytes", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Infrequent Access", "accessType": "Write"}
+    },
+    "SKU_EFS_ARCHIVE_ACCESS_WRITE": {
+      "sku": "SKU_EFS_ARCHIVE_ACCESS_WRITE",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "ArchiveDataAccess-Bytes", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Archive", "accessType": "Write"}
+    },
+    "SKU_EFS_IA_ET": {
+      "sku": "SKU_EFS_IA_ET",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "IATimedStorage-ET-ByteHrs", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Infrequent Access-ET"}
+    },
+    "SKU_EFS_IA_ACCESS_READ": {
+      "sku": "SKU_EFS_IA_ACCESS_READ",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "IADataAccess-Bytes", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Infrequent Access", "accessType": "Read"}
+    },
+    "SKU_EFS_ONEZONE_IA": {
+      "sku": "SKU_EFS_ONEZONE_IA",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "IATimedStorage-Z-ByteHrs", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "One Zone-Infrequent Access"}
+    },
+    "SKU_EFS_ARCHIVE_ACCESS_READ": {
+      "sku": "SKU_EFS_ARCHIVE_ACCESS_READ",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "ArchiveDataAccess-Bytes", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Archive", "accessType": "Read"}
+    },
+    "SKU_EFS_ET_ACCESS_READ": {
+      "sku": "SKU_EFS_ET_ACCESS_READ",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "ETDataAccess-Bytes", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "EFS Storage", "accessType": "Read"}
+    },
+    "SKU_EFS_ONEZONE": {
+      "sku": "SKU_EFS_ONEZONE",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "TimedStorage-Z-ByteHrs", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "One Zone-General Purpose"}
+    },
+    "SKU_EFS_ET_ACCESS_WRITE": {
+      "sku": "SKU_EFS_ET_ACCESS_WRITE",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "ETDataAccess-Bytes", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "EFS Storage", "accessType": "Write"}
+    },
+    "SKU_EFS_PROVISIONED_TP": {
+      "sku": "SKU_EFS_PROVISIONED_TP",
+      "productFamily": "Provisioned Throughput",
+      "attributes": {"usagetype": "ProvisionedTP-MiBpsHrs", "locationType": "AWS Region", "regionCode": "unknown", "throughputClass": "Provisioned"}
+    },
+    "SKU_EFS_ARCHIVE": {
+      "sku": "SKU_EFS_ARCHIVE",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "ArchiveTimedStorage-ByteHrs", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "Archive"}
+    },
+    "SKU_EFS_STANDARD": {
+      "sku": "SKU_EFS_STANDARD",
+      "productFamily": "Storage",
+      "attributes": {"usagetype": "TimedStorage-ByteHrs", "locationType": "AWS Region", "regionCode": "unknown", "storageClass": "General Purpose"}
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "SKU_EFS_IA": {
+        "SKU_EFS_IA.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_IA",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_IA.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_IA.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.025" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_IA_ACCESS_WRITE": {
+        "SKU_EFS_IA_ACCESS_WRITE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_IA_ACCESS_WRITE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_IA_ACCESS_WRITE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_IA_ACCESS_WRITE.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB",
+              "pricePerUnit": { "USD": "0.01" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ARCHIVE_ACCESS_WRITE": {
+        "SKU_EFS_ARCHIVE_ACCESS_WRITE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ARCHIVE_ACCESS_WRITE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ARCHIVE_ACCESS_WRITE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ARCHIVE_ACCESS_WRITE.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB",
+              "pricePerUnit": { "USD": "0.03" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_IA_ET": {
+        "SKU_EFS_IA_ET.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_IA_ET",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_IA_ET.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_IA_ET.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.016" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_IA_ACCESS_READ": {
+        "SKU_EFS_IA_ACCESS_READ.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_IA_ACCESS_READ",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_IA_ACCESS_READ.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_IA_ACCESS_READ.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB",
+              "pricePerUnit": { "USD": "0.01" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ONEZONE_IA": {
+        "SKU_EFS_ONEZONE_IA.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ONEZONE_IA",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ONEZONE_IA.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ONEZONE_IA.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.0133" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ARCHIVE_ACCESS_READ": {
+        "SKU_EFS_ARCHIVE_ACCESS_READ.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ARCHIVE_ACCESS_READ",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ARCHIVE_ACCESS_READ.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ARCHIVE_ACCESS_READ.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB",
+              "pricePerUnit": { "USD": "0.03" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ET_ACCESS_READ": {
+        "SKU_EFS_ET_ACCESS_READ.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ET_ACCESS_READ",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ET_ACCESS_READ.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ET_ACCESS_READ.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB",
+              "pricePerUnit": { "USD": "0.03" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ONEZONE": {
+        "SKU_EFS_ONEZONE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ONEZONE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ONEZONE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ONEZONE.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.16" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ET_ACCESS_WRITE": {
+        "SKU_EFS_ET_ACCESS_WRITE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ET_ACCESS_WRITE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ET_ACCESS_WRITE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ET_ACCESS_WRITE.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB",
+              "pricePerUnit": { "USD": "0.06" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_PROVISIONED_TP": {
+        "SKU_EFS_PROVISIONED_TP.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_PROVISIONED_TP",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_PROVISIONED_TP.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_PROVISIONED_TP.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "MiBps-Mo",
+              "pricePerUnit": { "USD": "6" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_ARCHIVE": {
+        "SKU_EFS_ARCHIVE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_ARCHIVE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_ARCHIVE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_ARCHIVE.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.008" }
+            }
+          }
+        }
+      },
+      "SKU_EFS_STANDARD": {
+        "SKU_EFS_STANDARD.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_EFS_STANDARD",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_EFS_STANDARD.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_EFS_STANDARD.JRTCKXETXF.6YS6EN2CT7",
+              "unit": "GB-Mo",
+              "pricePerUnit": { "USD": "0.3" }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)

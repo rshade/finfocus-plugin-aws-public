@@ -38,6 +38,7 @@ type mockPricingClient struct {
 	nlbNLCUPrice          float64            // NLB cost per NLCU-hour
 	natgwHourlyPrice      float64            // NAT Gateway hourly rate
 	natgwDataPrice        float64            // NAT Gateway data processing rate
+	efsPrices             *pricing.EFSPrice  // EFS rates; nil means EFS pricing is unavailable
 	cwLogsIngestionTiers  []pricing.TierRate // CloudWatch logs ingestion tiers
 	cwLogsStorageRate     float64            // CloudWatch logs storage rate per GB-month
 	cwMetricsTiers        []pricing.TierRate // CloudWatch custom metrics tiers

@@ -259,6 +259,11 @@ s3,STANDARD,SSD,3,1.2
 s3,ONEZONE_IA,SSD,1,1.2
 s3,GLACIER,HDD,3,0.65
 dynamodb,DYNAMODB,SSD,3,1.2
+efs,STANDARD,HDD,3,0.65
+efs,IA,HDD,3,0.65
+efs,ARCHIVE,HDD,3,0.65
+efs,ONEZONE,HDD,2,0.65
+efs,ONEZONE_IA,HDD,2,0.65
 `
 
 // writeStaticSpecs writes the GPU and storage specification CSV files.

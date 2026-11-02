@@ -59,6 +59,10 @@ var TerraformMappings = map[string]string{
 	"aws_ecs_service":         "aws:ecs/service:Service",
 	"aws_ecs_task_definition": "aws:ecs/taskDefinition:TaskDefinition",
 	"aws_ecs_cluster":         "aws:ecs/cluster:Cluster",
+	// File storage
+	"aws_efs_file_system":  "aws:efs/fileSystem:FileSystem",
+	"aws_efs_mount_target": "aws:efs/mountTarget:MountTarget",
+	"aws_efs_access_point": "aws:efs/accessPoint:AccessPoint",
 
 	// Observability
 	"aws_cloudwatch_log_group":    "aws:cloudwatch/logGroup:LogGroup",

@@ -129,6 +129,12 @@ func GetS3StorageSpec(storageClass string) (StorageSpec, bool) {
 	return GetStorageSpec("s3", storageClass)
 }
 
+// GetEFSStorageSpec retrieves the StorageSpec for an EFS storage class
+// (STANDARD, IA, ARCHIVE, ONEZONE, or ONEZONE_IA).
+func GetEFSStorageSpec(storageClass string) (StorageSpec, bool) {
+	return GetStorageSpec("efs", storageClass)
+}
+
 // GetDynamoDBStorageSpec retrieves the StorageSpec for DynamoDB.
 func GetDynamoDBStorageSpec() (StorageSpec, bool) {
 	return GetStorageSpec("dynamodb", "DYNAMODB")

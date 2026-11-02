@@ -174,6 +174,9 @@ type PricingClient interface {
 	//
 	// Returns (rate, true) if found, (0, false) otherwise.
 	FargateEphemeralStoragePerGiBHour() (float64, bool)
+	// EFSPrice returns the storage, throughput, and data access rates for Amazon EFS.
+	// Returns (price, true) if the Standard storage rate was found, (nil, false) otherwise.
+	EFSPrice() (*EFSPrice, bool)
 }
 
 // Client implements PricingClient with embedded JSON data.
@@ -228,6 +231,8 @@ type Client struct {
 	fargateWindows             FargateWindowsRates
 	fargateWindowsFound        bool
 	fargateEphemeralPerGiBHour float64
+	// EFS pricing (single set of rates per region)
+	efsPricing *EFSPrice
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -383,6 +388,13 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 			}
 		})
 
+		// 12. Parse EFS pricing
+		wg.Go(func() {
+			if _, err := c.parseEFSPricing(rawEFSJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse EFS pricing")
+			}
+		})
+
 		// Wait for all parsing to complete
 		wg.Wait()
 
@@ -522,6 +534,15 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 		// Fargate pricing validation
 		if len(c.fargateRates) == 0 {
 			c.logger.Warn().Str("region", c.region).Msg("Fargate pricing not loaded")
+		}
+
+		// EFS pricing validation
+		if c.efsPricing != nil {
+			warnMissing("EFS", "StandardGBMonth", c.efsPricing.StandardGBMonth)
+			warnMissing("EFS", "IAGBMonth", c.efsPricing.IAGBMonth)
+			warnMissing("EFS", "ProvisionedMiBpsMonth", c.efsPricing.ProvisionedMiBpsMonth)
+		} else {
+			c.logger.Warn().Str("region", c.region).Msg("EFS pricing not loaded")
 		}
 	})
 	return c.err
@@ -1366,6 +1387,132 @@ func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
 	return region, nil
 }
 
+// EFS usage types after the optional region prefix (for example "USE1-") is removed.
+const (
+	efsUsageStandard      = "TimedStorage-ByteHrs"
+	efsUsageIA            = "IATimedStorage-ByteHrs"
+	efsUsageIAElastic     = "IATimedStorage-ET-ByteHrs"
+	efsUsageArchive       = "ArchiveTimedStorage-ByteHrs"
+	efsUsageOneZone       = "TimedStorage-Z-ByteHrs"
+	efsUsageOneZoneIA     = "IATimedStorage-Z-ByteHrs"
+	efsUsageElasticAccess = "ETDataAccess-Bytes"
+	efsUsageIAAccess      = "IADataAccess-Bytes"
+	efsUsageArchiveAccess = "ArchiveDataAccess-Bytes"
+	efsUsageProvisionedTP = "ProvisionedTP-MiBpsHrs"
+)
+
+// EFS Price List identifiers.
+const (
+	unitMiBpsMonth           = "MiBps-Mo"
+	unitGB                   = "GB"
+	productFamilyStorage     = "Storage"
+	productFamilyProvTP      = "Provisioned Throughput"
+	efsAccessTypeRead        = "Read"
+	efsAccessTypeWrite       = "Write"
+	efsThroughputProvisioned = "Provisioned"
+)
+
+// efsUsageMatches reports whether a usagetype equals want once an optional
+// region prefix such as "USE1-" is ignored. The dash boundary keeps
+// "IATimedStorage-ByteHrs" from matching "TimedStorage-ByteHrs".
+func efsUsageMatches(usagetype, want string) bool {
+	return usagetype == want || strings.HasSuffix(usagetype, "-"+want)
+}
+
+// setEFSAccessRate stores rate in read or write depending on the access type.
+func setEFSAccessRate(read, write *float64, isRead bool, rate float64) {
+	if isRead {
+		*read = rate
+		return
+	}
+	*write = rate
+}
+
+// parseEFSPricing parses Amazon EFS pricing data.
+// Returns the detected region and any parsing error.
+//
+// EFS pricing structure:
+//   - Storage: productFamily="Storage", rates per GB-Mo keyed by usagetype
+//     (Standard, IA, IA with Elastic Throughput, Archive, One Zone, One Zone IA)
+//   - Storage data access: unit GB, accessType Read or Write, for Elastic
+//     Throughput (ETDataAccess), IA and Archive
+//   - Provisioned Throughput: throughputClass="Provisioned", unit MiBps-Mo
+//
+// The *-SmallFiles overhead SKUs are not matched because the usagetype
+// comparison is exact.
+func (c *Client) parseEFSPricing(data []byte) (string, error) { //nolint:gocognit
+	var pricing awsPricing
+	if err := json.Unmarshal(data, &pricing); err != nil {
+		return "", fmt.Errorf("failed to parse EFS JSON: %w", err)
+	}
+
+	if pricing.OfferCode != "AmazonEFS" {
+		c.logger.Warn().
+			Str("expected", "AmazonEFS").
+			Str("actual", pricing.OfferCode).
+			Msg("EFS pricing data has unexpected offerCode")
+	}
+
+	price := &EFSPrice{Currency: currencyUSD}
+	var region string
+	for sku, prod := range pricing.Products {
+		attrs := prod.Attributes
+		if region == "" && attrs["regionCode"] != "" {
+			region = attrs["regionCode"]
+		}
+		if attrs["locationType"] != locationTypeAWSRegion {
+			continue
+		}
+		rate, unit, found := getOnDemandPrice(&pricing, sku)
+		if !found {
+			continue
+		}
+		usage := attrs["usagetype"]
+
+		switch prod.ProductFamily {
+		case productFamilyStorage:
+			switch unit {
+			case unitGBMonth:
+				switch {
+				case efsUsageMatches(usage, efsUsageStandard):
+					price.StandardGBMonth = rate
+				case efsUsageMatches(usage, efsUsageIA):
+					price.IAGBMonth = rate
+				case efsUsageMatches(usage, efsUsageIAElastic):
+					price.IAElasticGBMonth = rate
+				case efsUsageMatches(usage, efsUsageArchive):
+					price.ArchiveGBMonth = rate
+				case efsUsageMatches(usage, efsUsageOneZone):
+					price.OneZoneGBMonth = rate
+				case efsUsageMatches(usage, efsUsageOneZoneIA):
+					price.OneZoneIAGBMonth = rate
+				}
+			case unitGB:
+				isRead := attrs["accessType"] == efsAccessTypeRead
+				if !isRead && attrs["accessType"] != efsAccessTypeWrite {
+					continue
+				}
+				switch {
+				case efsUsageMatches(usage, efsUsageElasticAccess):
+					setEFSAccessRate(&price.ElasticReadGB, &price.ElasticWriteGB, isRead, rate)
+				case efsUsageMatches(usage, efsUsageIAAccess):
+					setEFSAccessRate(&price.IAReadGB, &price.IAWriteGB, isRead, rate)
+				case efsUsageMatches(usage, efsUsageArchiveAccess):
+					setEFSAccessRate(&price.ArchiveReadGB, &price.ArchiveWriteGB, isRead, rate)
+				}
+			}
+		case productFamilyProvTP:
+			if attrs["throughputClass"] == efsThroughputProvisioned &&
+				efsUsageMatches(usage, efsUsageProvisionedTP) && unit == unitMiBpsMonth {
+				price.ProvisionedMiBpsMonth = rate
+			}
+		}
+	}
+
+	c.efsPricing = price
+	return region, nil
+}
+
 // extractTieredPricing extracts tiered pricing from a SKU's price dimensions.
 // AWS CloudWatch uses beginRange/endRange to define pricing tiers.
 // Returns sorted tiers from lowest to highest upper bound.
@@ -2049,4 +2196,15 @@ func isStandardCacheNodeUsage(usageType string) bool {
 	}
 	parts := strings.Split(prefix, "-")
 	return parts[len(parts)-1] == "NodeUsage" && len(parts) <= 2
+}
+
+// EFSPrice returns the storage, throughput, and data access rates for Amazon EFS.
+func (c *Client) EFSPrice() (*EFSPrice, bool) {
+	if err := c.init(); err != nil {
+		return nil, false
+	}
+	if c.efsPricing == nil || c.efsPricing.StandardGBMonth == 0 {
+		return nil, false
+	}
+	return c.efsPricing, true
 }

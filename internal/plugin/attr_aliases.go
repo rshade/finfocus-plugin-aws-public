@@ -96,6 +96,21 @@ var serviceAliases = map[string][]aliasPair{
 		{from: "volumeSize", to: "size"},
 		{from: "volume_size", to: "size"},
 	},
+	serviceEFS: {
+		{from: "storageClass", to: "storage_class"},
+		{from: "storageGb", to: "storage_gb"},
+		{from: "iaStorageGb", to: "ia_storage_gb"},
+		{from: "archiveStorageGb", to: "archive_storage_gb"},
+		{from: "availabilityZoneName", to: "availability_zone_name"},
+		{from: "throughputMode", to: "throughput_mode"},
+		{from: "provisionedThroughputInMibps", to: "provisioned_throughput_in_mibps"},
+		{from: "elasticReadGb", to: "elastic_read_gb"},
+		{from: "elasticWriteGb", to: "elastic_write_gb"},
+		{from: "iaReadGb", to: "ia_read_gb"},
+		{from: "iaWriteGb", to: "ia_write_gb"},
+		{from: "archiveReadGb", to: "archive_read_gb"},
+		{from: "archiveWriteGb", to: "archive_write_gb"},
+	},
 }
 
 // s3StorageClass returns the storage class estimators price.
@@ -312,7 +327,8 @@ func aliasLookupKeys(service string) map[string][]string {
 func skuOptional(service string) bool {
 	switch service {
 	case serviceASG, serviceS3, serviceLambda, serviceDynamoDB,
-		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate, serviceFargate:
+		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate, serviceFargate,
+		serviceEFS:
 		return true
 	default:
 		return false
