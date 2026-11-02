@@ -2,7 +2,7 @@ module github.com/rshade/finfocus-plugin-aws-public/tools/generate-goreleaser
 
 go 1.27.1
 
-require github.com/rshade/finfocus-plugin-aws-public v0.2.2
+require github.com/rshade/finfocus-plugin-aws-public v0.2.4
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
