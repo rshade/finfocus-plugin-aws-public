@@ -156,6 +156,8 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 		case serviceRDS:
 			engine := extractRDSEngine(pricingTags(resource))
 			recs = p.generateRDSRecommendations(resource.GetSku(), engine, region)
+		case serviceElastiCache, serviceLambda, serviceNATGW:
+			recs = p.generateStaticServiceRecommendations(service, resource, region)
 		default:
 			// Log unsupported service types at debug level
 			p.logger.Debug().

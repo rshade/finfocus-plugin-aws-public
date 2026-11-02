@@ -36,8 +36,6 @@ security overhead of cloud credentials.
   - [ ] #393 ECS Fargate cost estimator for `aws:ecs/service:Service` [L]
   - [ ] #394 Amazon EFS cost estimator [M]
 - **[Planned] Recommendations & Planning:**
-  - [ ] #395 Static ElastiCache, Lambda arm64, and NAT Gateway endpoint
-    recommendations [M]
   - [ ] #392 Opt-in cross-region cost and carbon comparison via
     region-migration recommendations [L]
 - **[Planned] Pricing Data Trust:**
@@ -90,6 +88,9 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #395 `recommendations`: static ElastiCache (generation upgrade, Graviton,
+  Redis to Valkey), Lambda arm64, and NAT Gateway S3/DynamoDB gateway endpoint
+  recommendations, priced from embedded rates and descriptor tags. [M]
 - [x] #388 `plugin`: Terraform attribute names and optional SKUs price the
   mapped Terraform types (S3, Lambda, DynamoDB, ElastiCache, load
   balancers, NAT Gateway, CloudWatch). Gateway Load Balancers and
