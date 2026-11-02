@@ -137,27 +137,27 @@ func TestGravitonMapEntries(t *testing.T) {
 // TestNoSelfReferencesInMaps verifies that maps don't map a family to itself
 // which would result in useless recommendations.
 func TestNoSelfReferencesInMaps(t *testing.T) {
-	for old, new := range generationUpgradeMap {
-		if old == new {
-			t.Errorf("generationUpgradeMap has self-reference: %q -> %q", old, new)
+	for old, replacement := range generationUpgradeMap {
+		if old == replacement {
+			t.Errorf("generationUpgradeMap has self-reference: %q -> %q", old, replacement)
 		}
 	}
 
-	for old, new := range gravitonMap {
-		if old == new {
-			t.Errorf("gravitonMap has self-reference: %q -> %q", old, new)
+	for old, replacement := range gravitonMap {
+		if old == replacement {
+			t.Errorf("gravitonMap has self-reference: %q -> %q", old, replacement)
 		}
 	}
 
-	for old, new := range rdsGenerationUpgradeMap {
-		if old == new {
-			t.Errorf("rdsGenerationUpgradeMap has self-reference: %q -> %q", old, new)
+	for old, replacement := range rdsGenerationUpgradeMap {
+		if old == replacement {
+			t.Errorf("rdsGenerationUpgradeMap has self-reference: %q -> %q", old, replacement)
 		}
 	}
 
-	for old, new := range rdsGravitonMap {
-		if old == new {
-			t.Errorf("rdsGravitonMap has self-reference: %q -> %q", old, new)
+	for old, replacement := range rdsGravitonMap {
+		if old == replacement {
+			t.Errorf("rdsGravitonMap has self-reference: %q -> %q", old, replacement)
 		}
 	}
 }
