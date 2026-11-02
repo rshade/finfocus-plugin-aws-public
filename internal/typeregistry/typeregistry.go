@@ -56,6 +56,10 @@ var TerraformMappings = map[string]string{
 	"aws_lambda_function": "aws:lambda/function:Function",
 	"aws_eks_cluster":     "aws:eks/cluster:Cluster",
 
+	"aws_ecs_service":         "aws:ecs/service:Service",
+	"aws_ecs_task_definition": "aws:ecs/taskDefinition:TaskDefinition",
+	"aws_ecs_cluster":         "aws:ecs/cluster:Cluster",
+
 	// Observability
 	"aws_cloudwatch_log_group":    "aws:cloudwatch/logGroup:LogGroup",
 	"aws_cloudwatch_metric_alarm": "aws:cloudwatch/metricAlarm:MetricAlarm",

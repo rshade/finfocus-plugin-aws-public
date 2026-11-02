@@ -77,6 +77,13 @@ var serviceAliases = map[string][]aliasPair{
 	serviceNATGW: {
 		{from: "dataProcessedGb", to: "data_processed_gb"},
 	},
+	serviceFargate: {
+		{from: "desiredCount", to: "desired_count"},
+		{from: "launchType", to: "launch_type"},
+		{from: "cpuArchitecture", to: "cpu_architecture"},
+		{from: "operatingSystemFamily", to: "operating_system_family"},
+		{from: "ephemeralStorageGib", to: "ephemeral_storage_gib"},
+	},
 	serviceCloudWatch: {
 		{from: "logIngestionGb", to: "log_ingestion_gb"},
 		{from: "logStorageGb", to: "log_storage_gb"},
@@ -305,7 +312,7 @@ func aliasLookupKeys(service string) map[string][]string {
 func skuOptional(service string) bool {
 	switch service {
 	case serviceASG, serviceS3, serviceLambda, serviceDynamoDB,
-		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate:
+		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate, serviceFargate:
 		return true
 	default:
 		return false

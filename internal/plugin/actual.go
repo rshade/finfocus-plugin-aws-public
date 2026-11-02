@@ -264,6 +264,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return p.estimateASG(traceID, resource)
 	case serviceEKSFargate:
 		return p.estimateEKSFargate(traceID, resource)
+	case serviceFargate:
+		return p.estimateECSFargate(traceID, resource)
 	case serviceS3:
 		return p.estimateS3(traceID, resource)
 	case serviceLambda:
@@ -272,7 +274,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return p.estimateRDS(traceID, resource)
 	case serviceDynamoDB:
 		return p.estimateDynamoDB(traceID, resource)
-	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
+	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
+		serviceECSTaskDef, serviceECSCluster:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		return p.estimateZeroCostResource(traceID, resource, serviceType), nil
 	default:

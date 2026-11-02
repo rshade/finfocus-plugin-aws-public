@@ -28,6 +28,7 @@ const (
 	parentTagInstanceID = "instance_id"
 	parentTagVPCID      = "vpc_id"
 	parentTagSubnetID   = "subnet_id"
+	parentTagECSCluster = "cluster"
 )
 
 // serviceClassifications is a read-only map of AWS service types to their metadata.
@@ -53,6 +54,13 @@ var serviceClassifications = map[string]ServiceClassification{
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Pod hours
 		ParentTagKeys:     nil,
+	},
+	"aws:ecs:service": {
+		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
+		AffectedByDevMode: true, // Task hours
+		ParentTagKeys:     []string{"cluster_name", parentTagECSCluster},
+		ParentType:        "aws:ecs/cluster:Cluster",
+		Relationship:      RelationshipWithin,
 	},
 	"aws:s3:bucket": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_LINEAR,

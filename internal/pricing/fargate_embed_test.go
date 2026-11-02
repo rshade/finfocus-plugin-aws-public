@@ -21,4 +21,11 @@ func TestEmbeddedData_FargateRates(t *testing.T) {
 			t.Errorf("%s Fargate rates = %+v, found=%v; want positive vCPU and GiB rates", arch, r, ok)
 		}
 	}
+	win, ok := c.FargateWindowsOnDemandRates()
+	if !ok || win.VCPUPerHour <= 0 || win.GiBPerHour <= 0 || win.OSPerVCPUHour <= 0 {
+		t.Errorf("Windows Fargate rates = %+v, found=%v; want three positive rates", win, ok)
+	}
+	if eph, ok := c.FargateEphemeralStoragePerGiBHour(); !ok || eph <= 0 {
+		t.Errorf("ephemeral storage rate = %v, found=%v; want positive", eph, ok)
+	}
 }

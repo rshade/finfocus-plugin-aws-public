@@ -24,9 +24,28 @@ type FargateRates struct {
 	GiBPerHour float64
 }
 
+// FargateWindowsRates holds the on-demand Windows Fargate rates. A Windows
+// task pays the Windows vCPU and memory rates plus an OS license fee per vCPU.
+type FargateWindowsRates struct {
+	// VCPUPerHour is the price of one Windows vCPU for one hour in USD.
+	VCPUPerHour float64
+	// GiBPerHour is the price of one GiB of Windows task memory for one hour in USD.
+	GiBPerHour float64
+	// OSPerVCPUHour is the Windows license fee per vCPU-hour in USD.
+	OSPerVCPUHour float64
+}
+
+const (
+	usageFargateWindowsVCPU = "Fargate-Windows-vCPU-Hours:perCPU"
+	usageFargateWindowsGiB  = "Fargate-Windows-GB-Hours"
+	usageFargateWindowsOS   = "Fargate-Windows-OS-Hours:perCPU"
+	usageFargateEphemeral   = "Fargate-EphemeralStorage-GB-Hours"
+	unitGBHours             = "GB-Hours"
+)
+
 // fargateUsage maps Price List usage types (region prefix removed) to the
-// architecture and rate they price. Windows, ephemeral storage, and Spot
-// usage types are deliberately absent.
+// architecture and rate they price. Windows and ephemeral storage usage types
+// are handled by applyFargateExtraProduct, and Spot is not priced.
 var fargateUsage = map[string]struct {
 	arch string
 	vcpu bool
@@ -57,11 +76,14 @@ func (c *Client) parseFargatePricing(data []byte) (string, error) {
 
 	var region string
 	rates := make(map[string]FargateRates, 2)
+	var windows FargateWindowsRates
+	var ephemeral float64
 	for sku, prod := range pricing.Products {
 		if region == "" && prod.Attributes["regionCode"] != "" {
 			region = prod.Attributes["regionCode"]
 		}
 		applyFargateProduct(rates, &pricing, sku, prod)
+		applyFargateExtraProduct(&windows, &ephemeral, &pricing, sku, prod)
 	}
 
 	for arch, r := range rates {
@@ -69,7 +91,54 @@ func (c *Client) parseFargatePricing(data []byte) (string, error) {
 			c.fargateRates[arch] = r
 		}
 	}
+	if windows.VCPUPerHour > 0 && windows.GiBPerHour > 0 && windows.OSPerVCPUHour > 0 {
+		c.fargateWindows = windows
+		c.fargateWindowsFound = true
+	}
+	c.fargateEphemeralPerGiBHour = ephemeral
 	return region, nil
+}
+
+// applyFargateExtraProduct records the Windows compute, Windows license, and
+// ephemeral storage rates and ignores every other product.
+func applyFargateExtraProduct(
+	windows *FargateWindowsRates,
+	ephemeral *float64,
+	data *awsPricing,
+	sku string,
+	prod product,
+) {
+	attrs := prod.Attributes
+	if prod.ProductFamily != "Compute" || attrs["locationType"] != locationTypeAWSRegion {
+		return
+	}
+	usage := natGatewayUsage(attrs["usagetype"])
+	switch usage {
+	case usageFargateWindowsVCPU, usageFargateWindowsGiB, usageFargateWindowsOS, usageFargateEphemeral:
+	default:
+		return
+	}
+	rate, unit, found := getOnDemandPrice(data, sku)
+	if !found || rate <= 0 {
+		return
+	}
+	if usage == usageFargateEphemeral {
+		if strings.EqualFold(unit, unitGBHours) {
+			*ephemeral = rate
+		}
+		return
+	}
+	if !isHourlyUnit(unit) {
+		return
+	}
+	switch usage {
+	case usageFargateWindowsVCPU:
+		windows.VCPUPerHour = rate
+	case usageFargateWindowsGiB:
+		windows.GiBPerHour = rate
+	case usageFargateWindowsOS:
+		windows.OSPerVCPUHour = rate
+	}
 }
 
 // applyFargateProduct records a Fargate compute product's on-demand hourly
@@ -130,4 +199,24 @@ func (c *Client) FargateOnDemandRates(architecture string) (FargateRates, bool) 
 
 	r, found := c.fargateRates[architecture]
 	return r, found
+}
+
+// FargateWindowsOnDemandRates returns the on-demand Windows Fargate vCPU-hour,
+// GiB-hour, and per-vCPU license rates for the client's region. All three
+// rates are positive when found is true.
+func (c *Client) FargateWindowsOnDemandRates() (FargateWindowsRates, bool) {
+	if err := c.init(); err != nil {
+		return FargateWindowsRates{}, false
+	}
+	return c.fargateWindows, c.fargateWindowsFound
+}
+
+// FargateEphemeralStoragePerGiBHour returns the on-demand price in USD of one
+// GiB of Fargate ephemeral storage above the free 20 GiB, for one hour.
+// Returns (0, false) when the region publishes no such rate.
+func (c *Client) FargateEphemeralStoragePerGiBHour() (float64, bool) {
+	if err := c.init(); err != nil {
+		return 0, false
+	}
+	return c.fargateEphemeralPerGiBHour, c.fargateEphemeralPerGiBHour > 0
 }

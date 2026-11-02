@@ -63,6 +63,11 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			return serviceEKSFargate
 		}
 
+		// ECS services must be detected before the zero-cost ecs/* patterns.
+		if isECSServiceType(rt) {
+			return serviceFargate
+		}
+
 		// Zero-cost EC2 networking resources (centralized in ZeroCostPulumiPatterns)
 		// Use token-aware matching to avoid false positives (e.g., "ec2/vpc" matching "ec2/vpcEndpoint")
 		awsSuffix := rt[4:] // Remove "aws:" prefix (already verified above)
@@ -266,7 +271,10 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateASG(traceID, resource)
 	case serviceEKSFargate:
 		resp, err = p.estimateEKSFargate(traceID, resource)
-	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
+	case serviceFargate:
+		resp, err = p.estimateECSFargate(traceID, resource)
+	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
+		serviceECSTaskDef, serviceECSCluster:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
@@ -1368,6 +1376,8 @@ func detectService(resourceType string) string {
 		return serviceASG
 	case serviceEKSFargate:
 		return serviceEKSFargate
+	case serviceFargate, "ecs", "ecs_service", "ecs-service":
+		return serviceFargate
 	case serviceALB, serviceNLB:
 		return serviceELB
 	case "nat_gateway", "nat-gateway", "natgateway":
@@ -1391,6 +1401,9 @@ func detectService(resourceType string) string {
 	}
 	if strings.Contains(resourceTypeLower, "rds/instance") {
 		return serviceRDS
+	}
+	if strings.Contains(resourceTypeLower, "ecs/service") {
+		return serviceFargate
 	}
 	if strings.Contains(resourceTypeLower, "eks/cluster") {
 		return serviceEKS
@@ -2194,6 +2207,8 @@ var zeroCostResourceDescriptions = map[string]string{
 	serviceIAM:           "IAM resources (users, roles, policies) have no direct charge. They are a free AWS feature.",
 	serviceLaunchTmpl:    "Launch Templates are configuration-only resources with no direct charge. Costs apply to instances launched from them.",
 	serviceLaunchConfig:  "Launch Configurations are configuration-only resources with no direct charge. Costs apply to instances launched from them.",
+	serviceECSTaskDef:    "ECS task definitions are configuration-only resources with no direct charge. Costs apply to the services that run them.",
+	serviceECSCluster:    "ECS clusters have no direct charge. Costs apply to the tasks and instances that run in them.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.
