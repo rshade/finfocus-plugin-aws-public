@@ -9,6 +9,8 @@ import (
 )
 
 const (
+	platformWindows = "Windows"
+
 	defaultRootVolumeType      = "gp2"
 	defaultRootVolumeSizeGB    = 8
 	defaultRootVolumeSizeGBStr = "8"
@@ -113,7 +115,7 @@ func normalizePlatform(platform string) string {
 	p := strings.ToLower(platform)
 	switch {
 	case strings.Contains(p, "windows"):
-		return "Windows"
+		return platformWindows
 	case strings.Contains(p, "rhel") || strings.Contains(p, "redhat") || strings.Contains(p, "red hat"):
 		return "RHEL"
 	case strings.Contains(p, "suse"):

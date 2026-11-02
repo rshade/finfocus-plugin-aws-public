@@ -150,7 +150,8 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 
 		switch service {
 		case serviceEC2:
-			recs = p.generateEC2Recommendations(resource.GetSku(), region)
+			recs = p.generateEC2Recommendations(
+				resource.GetSku(), region, ExtractEC2AttributesFromTags(pricingTags(resource)))
 		case serviceEBS:
 			recs = p.getEBSRecommendations(resource.GetSku(), region, pricingTags(resource))
 		case serviceRDS:
@@ -240,18 +241,21 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 
 // generateEC2Recommendations creates recommendations for an EC2 instance.
 // Returns up to 2 recommendations: generation upgrade and/or Graviton migration.
+// Both are priced with the instance's own OS and tenancy, and the Graviton
+// migration is skipped for platforms that have no ARM build (Windows).
 func (p *AWSPublicPlugin) generateEC2Recommendations(
 	instanceType, region string,
+	attrs EC2Attributes,
 ) []*pbc.Recommendation {
 	var recommendations []*pbc.Recommendation
 
 	// Generation upgrade (FR-002)
-	if rec := p.getGenerationUpgradeRecommendation(instanceType, region); rec != nil {
+	if rec := p.getGenerationUpgradeRecommendation(instanceType, region, attrs); rec != nil {
 		recommendations = append(recommendations, rec)
 	}
 
 	// Graviton migration (FR-003)
-	if rec := p.getGravitonRecommendation(instanceType, region); rec != nil {
+	if rec := p.getGravitonRecommendation(instanceType, region, attrs); rec != nil {
 		recommendations = append(recommendations, rec)
 	}
 
@@ -263,6 +267,7 @@ func (p *AWSPublicPlugin) generateEC2Recommendations(
 // Implements FR-002, FR-005, FR-006, FR-011 from spec.md.
 func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 	instanceType, region string,
+	attrs EC2Attributes,
 ) *pbc.Recommendation {
 	family, size := parseInstanceType(instanceType)
 	if family == "" {
@@ -276,12 +281,12 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 
 	newType := newFamily + "." + size
 
-	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, defaultOS, defaultTenancy)
+	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, attrs.OS, attrs.Tenancy)
 	if !found {
 		return nil
 	}
 
-	newPrice, found := p.pricing.EC2OnDemandPricePerHour(newType, defaultOS, defaultTenancy)
+	newPrice, found := p.pricing.EC2OnDemandPricePerHour(newType, attrs.OS, attrs.Tenancy)
 	// FR-011: Only recommend when new price <= current price
 	if !found || newPrice > currentPrice {
 		return nil
@@ -306,7 +311,8 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 	}
 
 	// Check if there's a Graviton alternative for the recommended family
-	if gravitonFamily, hasGraviton := gravitonMap[newFamily]; hasGraviton {
+	gravitonFamily, hasGraviton := gravitonMap[newFamily]
+	if hasGraviton && platformSupportsGraviton(attrs.OS) {
 		gravitonType := gravitonFamily + "." + size
 		reasoning = append(reasoning,
 			fmt.Sprintf("Alternative: consider %s for ARM compatibility (~20%% additional savings)", gravitonType))
@@ -346,12 +352,23 @@ func (p *AWSPublicPlugin) getGenerationUpgradeRecommendation(
 	}
 }
 
+// platformSupportsGraviton reports whether an EC2 platform has an ARM build.
+// Windows does not; Linux, RHEL, and SUSE do.
+func platformSupportsGraviton(os string) bool {
+	return os != platformWindows
+}
+
 // getGravitonRecommendation returns a recommendation to migrate to ARM-based
 // Graviton instances if available and cost-effective.
 // Implements FR-003, FR-007, FR-012 from spec.md.
 func (p *AWSPublicPlugin) getGravitonRecommendation(
 	instanceType, region string,
+	attrs EC2Attributes,
 ) *pbc.Recommendation {
+	if !platformSupportsGraviton(attrs.OS) {
+		return nil
+	}
+
 	family, size := parseInstanceType(instanceType)
 	if family == "" {
 		return nil
@@ -364,12 +381,12 @@ func (p *AWSPublicPlugin) getGravitonRecommendation(
 
 	gravitonType := gravitonFamily + "." + size
 
-	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, defaultOS, defaultTenancy)
+	currentPrice, found := p.pricing.EC2OnDemandPricePerHour(instanceType, attrs.OS, attrs.Tenancy)
 	if !found {
 		return nil
 	}
 
-	gravitonPrice, found := p.pricing.EC2OnDemandPricePerHour(gravitonType, defaultOS, defaultTenancy)
+	gravitonPrice, found := p.pricing.EC2OnDemandPricePerHour(gravitonType, attrs.OS, attrs.Tenancy)
 	// FR-011: Only recommend when new price <= current price
 	if !found || gravitonPrice > currentPrice {
 		return nil
