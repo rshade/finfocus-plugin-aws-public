@@ -493,3 +493,115 @@ var rawElastiCacheJSON = []byte(`{
     }
   }
 }`)
+
+// rawECSJSON contains minimal ECS pricing data for development/testing.
+// Includes the Linux x86_64 and arm64 Fargate vCPU-hour and GiB-hour rates.
+var rawECSJSON = []byte(`{
+  "formatVersion": "v1.0",
+  "disclaimer": "Fallback data for development/testing only",
+  "offerCode": "AmazonECS",
+  "version": "fallback",
+  "publicationDate": "2024-01-01T00:00:00Z",
+  "products": {
+    "SKU_FARGATE_X86_VCPU": {
+      "sku": "SKU_FARGATE_X86_VCPU",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-vCPU-Hours:perCPU",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_FARGATE_X86_GIB": {
+      "sku": "SKU_FARGATE_X86_GIB",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-GB-Hours",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_FARGATE_ARM_VCPU": {
+      "sku": "SKU_FARGATE_ARM_VCPU",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-ARM-vCPU-Hours:perCPU",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_FARGATE_ARM_GIB": {
+      "sku": "SKU_FARGATE_ARM_GIB",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-ARM-GB-Hours",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "SKU_FARGATE_X86_VCPU": {
+        "SKU_FARGATE_X86_VCPU.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_X86_VCPU",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_X86_VCPU.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_X86_VCPU.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - vCPU",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.04048" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_X86_GIB": {
+        "SKU_FARGATE_X86_GIB.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_X86_GIB",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_X86_GIB.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_X86_GIB.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - Memory",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.004445" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_ARM_VCPU": {
+        "SKU_FARGATE_ARM_VCPU.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_ARM_VCPU",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_ARM_VCPU.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_ARM_VCPU.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - ARM - vCPU",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.03238" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_ARM_GIB": {
+        "SKU_FARGATE_ARM_GIB.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_ARM_GIB",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_ARM_GIB.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_ARM_GIB.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - ARM - Memory",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.003560" }
+            }
+          }
+        }
+      }
+    }
+  }
+}`)

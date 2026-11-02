@@ -27,6 +27,7 @@ var serviceConfig = map[string]string{
 	"AmazonVPC":         "vpc",
 	"AmazonCloudWatch":  "cloudwatch",
 	"AmazonElastiCache": "elasticache",
+	"AmazonECS":         "ecs",
 }
 
 // main is the program entry point that fetches AWS pricing data per service.
@@ -42,7 +43,7 @@ func main() {
 	outDir := flag.String("out-dir", "./data", "Output directory")
 	service := flag.String(
 		"service",
-		"AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB,AmazonVPC,AmazonCloudWatch,AmazonElastiCache",
+		"AmazonEC2,AmazonS3,AWSLambda,AmazonRDS,AmazonEKS,AmazonDynamoDB,AWSELB,AmazonVPC,AmazonCloudWatch,AmazonElastiCache,AmazonECS",
 		"AWS Service Codes (comma-separated)",
 	)
 	dummy := flag.Bool("dummy", false, "DEPRECATED: ignored, real data is always fetched")

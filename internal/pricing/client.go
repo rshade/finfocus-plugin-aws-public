@@ -156,6 +156,12 @@ type PricingClient interface {
 	// engine: "redis", "memcached", or "valkey" (case-insensitive)
 	// Returns (price, true) if found, (0, false) if not found.
 	ElastiCacheOnDemandPricePerHour(instanceType, engine string) (float64, bool)
+
+	// FargateOnDemandRates returns the on-demand Linux Fargate vCPU-hour and
+	// GiB-hour rates. Shared by EKS Fargate pods and ECS Fargate tasks.
+	// architecture: "x86_64" (or empty) or "arm64".
+	// Returns (rates, true) if both rates are found, (FargateRates{}, false) otherwise.
+	FargateOnDemandRates(architecture string) (FargateRates, bool)
 }
 
 // Client implements PricingClient with embedded JSON data.
@@ -202,6 +208,9 @@ type Client struct {
 
 	// ElastiCache pricing index (key: "instanceType:engine", e.g., "cache.m5.large:Redis")
 	elasticacheIndex map[string]elasticacheInstancePrice
+
+	// Fargate on-demand rates by architecture ("x86_64", "arm64")
+	fargateRates map[string]FargateRates
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -236,6 +245,7 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 		c.rdsInstanceIndex = make(map[string]rdsInstancePrice, 5000)         // instance×engine combos
 		c.rdsStorageIndex = make(map[string]rdsStoragePrice, 100)            // storage types
 		c.elasticacheIndex = make(map[string]elasticacheInstancePrice, 1000) // node×engine combos
+		c.fargateRates = make(map[string]FargateRates, 2)                    // x86_64 and arm64
 
 		// Parse each service file in parallel for faster initialization.
 		// Each parser writes to its own dedicated index(es), so no locking needed.
@@ -346,6 +356,13 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 		wg.Go(func() {
 			if _, err := c.parseElastiCachePricing(rawElastiCacheJSON); err != nil {
 				c.logger.Error().Err(err).Msg("failed to parse ElastiCache pricing")
+			}
+		})
+
+		// 11. Parse Fargate pricing (AmazonECS offer)
+		wg.Go(func() {
+			if _, err := c.parseFargatePricing(rawECSJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse Fargate pricing")
 			}
 		})
 
@@ -483,6 +500,11 @@ func (c *Client) init() error { //nolint:gocognit,funlen
 		// ElastiCache pricing validation
 		if len(c.elasticacheIndex) == 0 {
 			c.logger.Warn().Str("region", c.region).Msg("ElastiCache pricing not loaded")
+		}
+
+		// Fargate pricing validation
+		if len(c.fargateRates) == 0 {
+			c.logger.Warn().Str("region", c.region).Msg("Fargate pricing not loaded")
 		}
 	})
 	return c.err
