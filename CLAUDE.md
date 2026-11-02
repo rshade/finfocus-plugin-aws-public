@@ -1016,9 +1016,9 @@ generate-embeds` with "updates to go.mod needed" otherwise.
 - **Embedded JSON** pricing data via `//go:embed` (no external storage)
 
 ## Active Technologies
-- Go 1.25+ + `finfocus-spec` v0.5.6 (`pluginsdk`, `pbcconnect`), `connectrpc.com/connect` v1.19.1, `zerolog` (036-multi-region-router, 001-correctness-fixes)
+- Go 1.27+ + `finfocus-spec` v0.7.10 (`pluginsdk`, `pbcconnect`), `connectrpc.com/connect` v1.19.1, `zerolog` (036-multi-region-router, 001-correctness-fixes)
 - N/A (in-memory child process registry only) (036-multi-region-router, 001-correctness-fixes)
-- Go 1.25+ + finfocus-spec v0.5.6 (pluginsdk, pbc, pbcconnect), (001-asg-estimator)
+- Go 1.27+ + finfocus-spec v0.7.10 (pluginsdk, pbc, pbcconnect), (001-asg-estimator)
 - N/A (in-memory pricing data via `//go:embed`) (001-asg-estimator)
 
 - Go 1.25+ + gRPC (finfocus-spec/sdk/go/pluginsdk), zerolog (001-cache-service-type)
