@@ -415,6 +415,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - Lambda (Requests + compute GB-seconds, x86_64/arm64 architecture support)
 - RDS (Instance hours + storage, Multi-engine support)
 - Auto Scaling Groups (EC2 pricing × desired capacity, carbon estimation)
+- EKS Fargate pods (`aws:eks/fargate:Pod`, vCPU and GiB rates)
 
 ## Directory Structure
 
@@ -659,6 +660,28 @@ descriptor tags only.
 - NAT Gateway: S3/DynamoDB gateway endpoint advice (`REFACTOR`) only when the
   caller sets the `s3_dynamodb_data_gb` tag (capped at `data_processed_gb`).
   Traffic share is never guessed.
+
+### EKS Fargate Pods
+
+- `resource_type`: "aws:eks/fargate:Pod" (service `eksfargate`; the type is
+  detected before the generic `eks` cluster path, and
+  `aws:eks/fargateProfile:FargateProfile` is not matched)
+- `sku`: "fargate" (optional)
+- **Inputs:** `cpu` (vCPU cores, decimal) and `memory_gib` (GiB, decimal), from
+  attributes then tags. Missing, non-numeric, non-finite, or non-positive values
+  return InvalidArgument rather than a $0 estimate.
+- `cost_per_month`: (vcpu_rate × cpu + gib_rate × memory_gib) × 730;
+  `unit_price` is the pod's hourly rate. On-demand Linux x86_64 only.
+- **Excluded:** Fargate Spot, Windows, Fargate size rounding, ephemeral storage
+- **Pricing source:** the `AmazonECS` offer (`ecs_{region}.json`, embed var
+  `rawECSJSON`). `Client.FargateOnDemandRates(arch)` in
+  `internal/pricing/fargate.go` returns `FargateRates{VCPUPerHour, GiBPerHour}`
+  for `x86_64` (also empty) or `arm64`, and is meant to be reused by the ECS
+  Fargate estimator (#393). Usage types are matched exactly after stripping
+  the region prefix (`Fargate-vCPU-Hours:perCPU`, `Fargate-GB-Hours`, and the
+  `Fargate-ARM-*` pair).
+- The gov-region embed files (`embed_govw1.go`, `embed_gove1.go`) are not
+  generated from the template; add new `raw*JSON` vars to them by hand.
 
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region

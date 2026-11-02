@@ -58,28 +58,10 @@ func (c *Client) parseFargatePricing(data []byte) (string, error) {
 	var region string
 	rates := make(map[string]FargateRates, 2)
 	for sku, prod := range pricing.Products {
-		attrs := prod.Attributes
-		if region == "" && attrs["regionCode"] != "" {
-			region = attrs["regionCode"]
+		if region == "" && prod.Attributes["regionCode"] != "" {
+			region = prod.Attributes["regionCode"]
 		}
-		if prod.ProductFamily != "Compute" || attrs["locationType"] != locationTypeAWSRegion {
-			continue
-		}
-		usage, ok := fargateUsage[natGatewayUsage(attrs["usagetype"])]
-		if !ok {
-			continue
-		}
-		rate, unit, found := getOnDemandPrice(&pricing, sku)
-		if !found || !isHourlyUnit(unit) || rate <= 0 {
-			continue
-		}
-		r := rates[usage.arch]
-		if usage.vcpu {
-			r.VCPUPerHour = rate
-		} else {
-			r.GiBPerHour = rate
-		}
-		rates[usage.arch] = r
+		applyFargateProduct(rates, &pricing, sku, prod)
 	}
 
 	for arch, r := range rates {
@@ -88,6 +70,30 @@ func (c *Client) parseFargatePricing(data []byte) (string, error) {
 		}
 	}
 	return region, nil
+}
+
+// applyFargateProduct records a Fargate compute product's on-demand hourly
+// rate in rates and ignores every other product.
+func applyFargateProduct(rates map[string]FargateRates, data *awsPricing, sku string, prod product) {
+	attrs := prod.Attributes
+	if prod.ProductFamily != "Compute" || attrs["locationType"] != locationTypeAWSRegion {
+		return
+	}
+	usage, ok := fargateUsage[natGatewayUsage(attrs["usagetype"])]
+	if !ok {
+		return
+	}
+	rate, unit, found := getOnDemandPrice(data, sku)
+	if !found || !isHourlyUnit(unit) || rate <= 0 {
+		return
+	}
+	r := rates[usage.arch]
+	if usage.vcpu {
+		r.VCPUPerHour = rate
+	} else {
+		r.GiBPerHour = rate
+	}
+	rates[usage.arch] = r
 }
 
 // FargateOnDemandRates returns the on-demand Linux Fargate vCPU-hour and
