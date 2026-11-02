@@ -644,6 +644,22 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
   keeps the first element. `arm64` selects the Graviton GB-second rate.
 - `requestsPerMonth` and `avgDurationMs` alias the snake_case usage tags.
 
+### Static recommendations beyond EC2/EBS/RDS
+
+`GetRecommendations` also covers ElastiCache, Lambda, and NAT Gateway
+(`internal/plugin/recommendations_extra.go`). Savings use embedded rates and
+descriptor tags only.
+
+- ElastiCache: `cache.t2/m4/r4` to `t3/m5/r5` (generation upgrade),
+  `t3/m5/r5` to `t4g/m6g/r6g` (Graviton), and Redis to Valkey. Savings are
+  rate difference x node count x 730. A target costing more is skipped.
+- Lambda: x86_64 to arm64 only when `requests_per_month` > 0. The arm64 rate
+  must be strictly below x86, because `LambdaPricePerGBSecond` falls back to
+  the x86 rate when ARM pricing is missing.
+- NAT Gateway: S3/DynamoDB gateway endpoint advice (`REFACTOR`) only when the
+  caller sets the `s3_dynamodb_data_gb` tag (capped at `data_processed_gb`).
+  Traffic share is never guessed.
+
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
