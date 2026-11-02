@@ -275,8 +275,8 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 	}()
 
 	select {
-	case <-done:
-		c.logger.Info().Msg("child process exited gracefully")
+	case waitErr := <-done:
+		c.logger.Info().Err(waitErr).Msg("child process exited gracefully")
 		if cancel != nil {
 			cancel()
 		}
@@ -287,7 +287,8 @@ func (c *ChildProcess) Shutdown(ctx context.Context) error {
 		if cancel != nil {
 			cancel()
 		}
-		<-done
+		waitErr := <-done
+		c.logger.Debug().Err(waitErr).Msg("child process exited after forced kill")
 		return nil
 	}
 }
