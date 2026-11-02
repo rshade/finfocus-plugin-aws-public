@@ -91,6 +91,9 @@ security overhead of cloud credentials.
 - [x] #395 `recommendations`: static ElastiCache (generation upgrade, Graviton,
   Redis to Valkey), Lambda arm64, and NAT Gateway S3/DynamoDB gateway endpoint
   recommendations, priced from embedded rates and descriptor tags. [M]
+- [x] #455 `plugin`: Graviton recommendations are skipped for Windows
+  instances, and EC2 recommendations are priced with the instance's own OS
+  and tenancy. [M]
 - [x] #388 `plugin`: Terraform attribute names and optional SKUs price the
   mapped Terraform types (S3, Lambda, DynamoDB, ElastiCache, load
   balancers, NAT Gateway, CloudWatch). Gateway Load Balancers and

@@ -324,7 +324,7 @@ func TestGenerateEC2Recommendations_GenerationUpgrade(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1")
+	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1", DefaultEC2Attributes())
 
 	// Should have at least one recommendation (generation upgrade)
 	var genUpgradeRec *pbc.Recommendation
@@ -414,7 +414,7 @@ func TestGenerateEC2Recommendations_NoUpgradeWhenNewIsExpensive(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1")
+	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1", DefaultEC2Attributes())
 
 	// Should NOT have generation upgrade recommendation
 	for _, rec := range recs {
@@ -434,7 +434,7 @@ func TestGenerateEC2Recommendations_NoUpgradeWhenPricingMissing(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1")
+	recs := plugin.generateEC2Recommendations("t2.medium", "us-east-1", DefaultEC2Attributes())
 
 	// Should NOT have generation upgrade recommendation
 	for _, rec := range recs {
@@ -453,7 +453,7 @@ func TestGenerateEC2Recommendations_LatestGeneration(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	rec := plugin.getGenerationUpgradeRecommendation("t3a.micro", "us-east-1")
+	rec := plugin.getGenerationUpgradeRecommendation("t3a.micro", "us-east-1", DefaultEC2Attributes())
 
 	if rec != nil {
 		t.Error("Expected no recommendation for latest generation instance")
@@ -469,7 +469,7 @@ func TestGenerateEC2Recommendations_GravitonMigration(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1")
+	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1", DefaultEC2Attributes())
 
 	// Should have Graviton recommendation
 	var gravitonRec *pbc.Recommendation
@@ -530,7 +530,7 @@ func TestGenerateEC2Recommendations_BothUpgrades(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1")
+	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1", DefaultEC2Attributes())
 
 	var hasGenUpgrade, hasGraviton bool
 	for _, rec := range recs {
@@ -722,7 +722,7 @@ func TestGenerateEC2Recommendations_InvalidInstanceType(t *testing.T) {
 	invalidTypes := []string{"", "invalid", "t2", ".medium", "t2.", "..."}
 
 	for _, instanceType := range invalidTypes {
-		recs := plugin.generateEC2Recommendations(instanceType, "us-east-1")
+		recs := plugin.generateEC2Recommendations(instanceType, "us-east-1", DefaultEC2Attributes())
 		if len(recs) != 0 {
 			t.Errorf("Expected no recommendations for invalid instance type %q, got %d", instanceType, len(recs))
 		}
@@ -738,7 +738,7 @@ func TestRecommendationHasUniqueID(t *testing.T) {
 	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
 
-	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1")
+	recs := plugin.generateEC2Recommendations("m5.large", "us-east-1", DefaultEC2Attributes())
 
 	if len(recs) < 2 {
 		t.Skip("Need at least 2 recommendations to test uniqueness")

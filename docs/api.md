@@ -203,6 +203,16 @@ Provides cost optimization recommendations for resources.
 - **SKU:** Instance type (e.g., `t3.micro`, `m5.large`)
 - **Required Tags:** None
 - **Optional Tags:** `platform` (windows/linux), `tenancy` (shared/dedicated/host)
+- **Platform:** `platform` is read from `attributes`, then tags. A value
+  containing `windows`, `rhel`/`redhat`, or `suse` selects that OS. Anything
+  else, or no value, is priced as Linux.
+- **Windows hint:** Pulumi state for `aws:ec2/instance:Instance` has no
+  platform field, because the AMI name is not stored. An offline plugin cannot
+  resolve an AMI ID, so set a `platform: windows` tag on Windows instances.
+  Without it the instance is priced as Linux.
+- **Recommendations:** Generation upgrades are priced with the instance's OS
+  and tenancy. Graviton migration, and the "consider ...g" alternative note,
+  are skipped for Windows because it does not run on ARM.
 
 ### EBS Volumes
 
