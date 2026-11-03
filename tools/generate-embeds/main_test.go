@@ -58,6 +58,8 @@ func TestGenerateEmbedFile(t *testing.T) {
 				"var rawCloudWatchJSON []byte",
 				"//go:embed data/elasticache_us-east-1.json",
 				"var rawElastiCacheJSON []byte",
+				"//go:embed data/ecs_us-east-1.json",
+				"var rawECSJSON []byte",
 			},
 		},
 		{

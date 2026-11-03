@@ -36,3 +36,6 @@ var rawCloudWatchJSON []byte
 
 //go:embed data/elasticache_sa-east-1.json
 var rawElastiCacheJSON []byte
+
+//go:embed data/ecs_sa-east-1.json
+var rawECSJSON []byte

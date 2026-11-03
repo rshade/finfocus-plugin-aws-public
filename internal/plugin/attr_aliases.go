@@ -305,7 +305,7 @@ func aliasLookupKeys(service string) map[string][]string {
 func skuOptional(service string) bool {
 	switch service {
 	case serviceASG, serviceS3, serviceLambda, serviceDynamoDB,
-		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB:
+		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate:
 		return true
 	default:
 		return false

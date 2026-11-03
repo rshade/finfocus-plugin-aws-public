@@ -49,6 +49,11 @@ var serviceClassifications = map[string]ServiceClassification{
 		AffectedByDevMode: true, // Cluster hours
 		ParentTagKeys:     nil,
 	},
+	"aws:eks:fargate-pod": {
+		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
+		AffectedByDevMode: true, // Pod hours
+		ParentTagKeys:     nil,
+	},
 	"aws:s3:bucket": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_LINEAR,
 		AffectedByDevMode: false, // Storage is not time-based

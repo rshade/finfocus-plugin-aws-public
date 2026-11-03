@@ -58,6 +58,11 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			return serviceASG
 		}
 
+		// EKS Fargate pods must be detected before the generic eks service.
+		if isEKSFargatePodType(rt) {
+			return serviceEKSFargate
+		}
+
 		// Zero-cost EC2 networking resources (centralized in ZeroCostPulumiPatterns)
 		// Use token-aware matching to avoid false positives (e.g., "ec2/vpc" matching "ec2/vpcEndpoint")
 		awsSuffix := rt[4:] // Remove "aws:" prefix (already verified above)
@@ -259,6 +264,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateElastiCache(traceID, resource)
 	case serviceASG:
 		resp, err = p.estimateASG(traceID, resource)
+	case serviceEKSFargate:
+		resp, err = p.estimateEKSFargate(traceID, resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
@@ -1359,6 +1366,8 @@ func detectService(resourceType string) string {
 		return resourceType
 	case serviceASG, "autoscaling":
 		return serviceASG
+	case serviceEKSFargate:
+		return serviceEKSFargate
 	case serviceALB, serviceNLB:
 		return serviceELB
 	case "nat_gateway", "nat-gateway", "natgateway":
