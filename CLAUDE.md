@@ -72,8 +72,9 @@ When `GetActualCostRequest.resource` is set, `GetActualCost` prices from that
 descriptor: provider, resource type, SKU, region, attributes, and the
 descriptor's own tags (for example EBS size). Request tags stay cloud labels.
 The multi-region router uses that descriptor's region even when the region
-string is empty. A non-empty provider other than `aws` is rejected before
-that lookup, so a foreign resource never launches a child. When `resource`
+string is empty. A provider or resource-type prefix that does not match
+`/aws/` is rejected before that lookup, so a foreign resource never launches
+a child. `aws`, `aws-public`, and `aws-native` match. When `resource`
 is unset, the plugin falls back to the ARN, then a JSON `resource_id`, then
 request tags. `resource_id` stays required.
 
@@ -761,14 +762,17 @@ descriptor tags only.
 
 ### Router provider check
 
-The multi-region router (`internal/router`) checks the provider before it
-resolves a region or launches a child. A non-empty provider other than `aws`
-makes `Supports` return `supported=false` with reason
-`Provider "<name>" not supported (only "aws" is supported)`. Cost methods
-return `InvalidArgument` with that same reason. `EstimateCost` for a non-AWS
-Pulumi type returns USD 0, matching the region binary. `GetRecommendations`
-skips those resources and returns an empty result when every resource names
-another cloud. An empty provider still fails the AWS region check. A
+The multi-region router (`internal/router`) checks the provider and the
+resource-type prefix before it resolves a region or launches a child. A name
+is accepted only when it matches `/aws/` (`aws`, `aws-public`, `aws-native`).
+`Supports` returns `supported=false` with reason
+`Provider "<name>" not supported (only "aws" is supported)`. That includes a
+Kubernetes deployment with an empty provider field, so the host does not see
+`region is required for Supports`. Cost methods return `InvalidArgument` with
+that same reason. `EstimateCost` for a non-AWS Pulumi type returns USD 0,
+matching the region binary. `GetRecommendations` skips those resources and
+returns an empty result when every resource names another cloud. An empty
+provider with no type prefix still fails the AWS region check. A
 mixed-provider stack, including a resource whose region is `NYC1` or a
 resource with no region, no longer logs one `InvalidArgument` or
 `Unavailable` per resource.

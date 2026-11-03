@@ -110,14 +110,14 @@ func (r *Plugin) capabilities() []pbc.PluginCapability {
 	return capabilities
 }
 
-// Supports checks the provider before it resolves a region or launches a child.
-// A non-AWS provider is declined with supported=false. AWS resources are
-// delegated to the region-specific child.
+// Supports checks the provider and resource-type prefix before it resolves a
+// region or launches a child. A name that does not match /aws/ is declined
+// with supported=false. AWS resources are delegated to the region-specific child.
 func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error) {
-	if provider := req.GetResource().GetProvider(); foreignProvider(provider) {
+	if name, foreign := foreignResourceName(req.GetResource()); foreign {
 		return &pbc.SupportsResponse{
 			Supported: false,
-			Reason:    unsupportedProviderReason(provider),
+			Reason:    unsupportedProviderReason(name),
 		}, nil
 	}
 
@@ -146,7 +146,7 @@ func (r *Plugin) GetProjectedCost(
 	ctx context.Context,
 	req *pbc.GetProjectedCostRequest,
 ) (*pbc.GetProjectedCostResponse, error) {
-	if err := rejectForeignProvider(req.GetResource().GetProvider()); err != nil {
+	if err := rejectForeignResource(req.GetResource()); err != nil {
 		return nil, err
 	}
 
@@ -172,7 +172,7 @@ func (r *Plugin) GetProjectedCost(
 // GetActualCost delegates to the region-specific child process.
 // A descriptor that names a non-AWS provider is rejected before region resolution.
 func (r *Plugin) GetActualCost(ctx context.Context, req *pbc.GetActualCostRequest) (*pbc.GetActualCostResponse, error) {
-	if err := rejectForeignProvider(req.GetResource().GetProvider()); err != nil {
+	if err := rejectForeignResource(req.GetResource()); err != nil {
 		return nil, err
 	}
 
@@ -231,7 +231,7 @@ func (r *Plugin) GetPricingSpec(
 	ctx context.Context,
 	req *pbc.GetPricingSpecRequest,
 ) (*pbc.GetPricingSpecResponse, error) {
-	if err := rejectForeignProvider(req.GetResource().GetProvider()); err != nil {
+	if err := rejectForeignResource(req.GetResource()); err != nil {
 		return nil, err
 	}
 
@@ -422,19 +422,44 @@ func (r *Plugin) ShutdownAll(ctx context.Context) {
 	r.registry.ShutdownAll(ctx)
 }
 
+// matchesAWS reports whether name contains "aws", the same test as /aws/.
+// "aws", "aws-public", and "aws-native" match. "kubernetes" does not.
+func matchesAWS(name string) bool {
+	return strings.Contains(name, "aws")
+}
+
 // foreignProvider reports a provider this router must decline before it
-// resolves a region or launches a child. An empty provider is not foreign:
-// an AWS descriptor that omitted it still fails the region check.
+// resolves a region or launches a child. An empty provider is not foreign
+// by itself: an AWS descriptor that omitted it still fails the region check.
+// A non-empty name is accepted only when it matches /aws/.
 func foreignProvider(provider string) bool {
-	return provider != "" && provider != awsProvider
+	return provider != "" && !matchesAWS(provider)
 }
 
 // foreignTypeProvider reports whether a Pulumi resource type names a provider
-// other than AWS, such as "civo:compute/instance:Instance". Types without a
-// provider prefix stay on the AWS path.
+// other than AWS, such as "kubernetes:apps/v1:Deployment". The prefix must
+// match /aws/. Types without a provider prefix stay on the AWS path.
 func foreignTypeProvider(resourceType string) bool {
 	provider, _, ok := strings.Cut(resourceType, ":")
-	return ok && foreignProvider(provider)
+	return ok && provider != "" && !matchesAWS(provider)
+}
+
+// foreignResourceName returns the provider or type prefix that failed /aws/.
+// A set provider is checked first. An empty provider still fails when the
+// resource type prefix does not match, so a Kubernetes deployment is not
+// reported as a missing region.
+func foreignResourceName(resource *pbc.ResourceDescriptor) (string, bool) {
+	if resource == nil {
+		return "", false
+	}
+	if foreignProvider(resource.GetProvider()) {
+		return resource.GetProvider(), true
+	}
+	if foreignTypeProvider(resource.GetResourceType()) {
+		prefix, _, _ := strings.Cut(resource.GetResourceType(), ":")
+		return prefix, true
+	}
+	return "", false
 }
 
 // unsupportedProviderReason is the decline text shared with the region binary.
@@ -442,12 +467,14 @@ func unsupportedProviderReason(provider string) string {
 	return fmt.Sprintf("Provider %q not supported (only %q is supported)", provider, awsProvider)
 }
 
-// rejectForeignProvider returns InvalidArgument when provider is a foreign cloud.
-func rejectForeignProvider(provider string) error {
-	if !foreignProvider(provider) {
+// rejectForeignResource returns InvalidArgument when the descriptor's provider
+// or resource-type prefix does not match /aws/.
+func rejectForeignResource(resource *pbc.ResourceDescriptor) error {
+	name, foreign := foreignResourceName(resource)
+	if !foreign {
 		return nil
 	}
-	message := unsupportedProviderReason(provider)
+	message := unsupportedProviderReason(name)
 	errDetail := &pbc.ErrorDetail{
 		Code:    pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
 		Message: message,
@@ -467,7 +494,7 @@ func resourcesByRegion(resources []*pbc.ResourceDescriptor) (map[string][]*pbc.R
 	grouped := make(map[string][]*pbc.ResourceDescriptor)
 	sawRoutable := false
 	for _, res := range resources {
-		if foreignProvider(res.GetProvider()) {
+		if _, foreign := foreignResourceName(res); foreign {
 			continue
 		}
 		sawRoutable = true
