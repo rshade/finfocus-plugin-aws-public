@@ -71,7 +71,7 @@ security overhead of cloud credentials.
   - **Pricing Client Refactor:** Better maintainability for initialization
     (#83) [M]
 - **[Planned] Small Improvements:**
-  - Test cleanup: #227, #185, #184, #144, #129 [S]
+  - Test cleanup: #185, #184, #144, #129 [S]
   - Perf: traceLogger optimization (#265) [S]
   - Refactor: nolint conditionals (#264), port dedup (#259) [S]
   - Docker: configurable metrics threshold (#260) [S]
