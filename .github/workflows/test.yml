@@ -36,6 +36,12 @@ jobs:
       - name: Run tests
         run: make test
 
+      # Fallback embed. The parallel parse path is the same one a region
+      # binary uses. Region tags are left off so this step does not race
+      # ten copies of the ~150MB us-east-1 EC2 file.
+      - name: Race detector on pricing parse
+        run: make test-race
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
