@@ -336,16 +336,20 @@ const unsupportedCivoReason = `Provider "civo" not supported (only "aws" is supp
 // Unavailable after a child lookup, which FinFocus logged once per resource.
 // The decline is a successful Supports response with supported=false.
 //
-// An empty provider is not a foreign cloud. It still fails the AWS region
-// check. An AWS resource in a real region still attempts to reach its child.
+// An empty provider with no type prefix is not a foreign cloud. It still
+// fails the AWS region check. A type prefix that does not match /aws/,
+// such as kubernetes:apps/v1:Deployment, is declined even when the provider
+// field is empty. An AWS resource in a real region still attempts to reach
+// its child.
 func TestPlugin_Supports_NonAWSProvider(t *testing.T) {
 	tests := []struct {
-		name       string
-		provider   string
-		region     string
-		wantReason string
-		wantCode   codes.Code
-		wantErr    string
+		name         string
+		provider     string
+		resourceType string
+		region       string
+		wantReason   string
+		wantCode     codes.Code
+		wantErr      string
 	}{
 		{
 			name:       "civo region NYC1",
@@ -372,6 +376,25 @@ func TestPlugin_Supports_NonAWSProvider(t *testing.T) {
 			wantReason: `Provider "gcp" not supported (only "aws" is supported)`,
 		},
 		{
+			name:         "kubernetes deployment with no region",
+			provider:     "kubernetes",
+			resourceType: "kubernetes:apps/v1:Deployment",
+			wantReason:   `Provider "kubernetes" not supported (only "aws" is supported)`,
+		},
+		{
+			name:         "empty provider with a kubernetes type",
+			provider:     "",
+			resourceType: "kubernetes:apps/v1:Deployment",
+			wantReason:   `Provider "kubernetes" not supported (only "aws" is supported)`,
+		},
+		{
+			name:         "aws-public still requires a region",
+			provider:     "aws-public",
+			resourceType: "aws:ec2/instance:Instance",
+			wantCode:     codes.InvalidArgument,
+			wantErr:      "region is required for Supports",
+		},
+		{
 			name:     "empty provider still requires a region",
 			provider: "",
 			region:   "",
@@ -391,10 +414,14 @@ func TestPlugin_Supports_NonAWSProvider(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
 
+			resourceType := tt.resourceType
+			if resourceType == "" {
+				resourceType = "compute"
+			}
 			resp, err := r.Supports(context.Background(), &pbc.SupportsRequest{
 				Resource: &pbc.ResourceDescriptor{
 					Provider:     tt.provider,
-					ResourceType: "compute",
+					ResourceType: resourceType,
 					Region:       tt.region,
 				},
 			})
@@ -437,6 +464,16 @@ func TestPlugin_GetProjectedCost_NonAWSProvider(t *testing.T) {
 	assert.Equal(t, unsupportedCivoReason, status.Convert(err).Message())
 	assert.NotContains(t, err.Error(), "NYC1")
 	assert.NotContains(t, err.Error(), "Install with")
+
+	_, err = r.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{
+		Resource: &pbc.ResourceDescriptor{
+			ResourceType: "kubernetes:apps/v1:Deployment",
+		},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Equal(t, `Provider "kubernetes" not supported (only "aws" is supported)`, status.Convert(err).Message())
+	assert.NotContains(t, err.Error(), "region is required")
 }
 
 // TestPlugin_GetPricingSpec_NonAWSProvider verifies that GetPricingSpec
