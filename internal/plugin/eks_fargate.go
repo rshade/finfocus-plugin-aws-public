@@ -18,13 +18,15 @@ const serviceEKSFargate = "eksfargate"
 const (
 	eksFargateTagCPU    = "cpu"
 	eksFargateTagMemory = "memory_gib"
+
+	eksFargatePodType = "aws:eks/fargate:pod"
 )
 
 // isEKSFargatePodType reports whether a lowercased resource type is the
-// Pulumi EKS Fargate pod token. The trailing colon keeps
-// aws:eks/fargateProfile:FargateProfile out.
+// Pulumi EKS Fargate pod token. The full token match keeps other
+// aws:eks/fargate:* types and aws:eks/fargateProfile:FargateProfile out.
 func isEKSFargatePodType(lowerResourceType string) bool {
-	return strings.HasPrefix(lowerResourceType, "aws:eks/fargate:")
+	return lowerResourceType == eksFargatePodType
 }
 
 // parseFargateQuantity parses a positive, finite decimal such as "0.25".
@@ -80,6 +82,12 @@ func (p *AWSPublicPlugin) estimateEKSFargate(
 
 	hourly := rates.VCPUPerHour*cpu + rates.GiBPerHour*memoryGiB
 	monthly := hourly * HoursPerMonthProd
+	if math.IsNaN(hourly) || math.IsInf(hourly, 0) || math.IsNaN(monthly) || math.IsInf(monthly, 0) {
+		return nil, p.newErrorWithID(traceID, codes.InvalidArgument,
+			fmt.Sprintf("EKS Fargate pod cost is not finite for cpu %q and memory_gib %q",
+				tags[eksFargateTagCPU], tags[eksFargateTagMemory]),
+			pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE)
+	}
 
 	p.traceLogger(traceID, "GetProjectedCost").Debug().
 		Float64("cpu", cpu).

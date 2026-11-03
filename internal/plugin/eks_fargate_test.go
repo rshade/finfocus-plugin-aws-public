@@ -89,6 +89,28 @@ func TestGetProjectedCost_EKSFargatePod_IsNotEKSCluster(t *testing.T) {
 	}
 }
 
+// TestIsEKSFargatePodType verifies only the exact lowercased pod token matches.
+func TestIsEKSFargatePodType(t *testing.T) {
+	tests := []struct {
+		resourceType string
+		want         bool
+	}{
+		{"aws:eks/fargate:pod", true},
+		{"aws:eks/fargate:podx", false},
+		{"aws:eks/fargate:other", false},
+		{"aws:eks/fargate:", false},
+		{"aws:eks/fargateprofile:fargateprofile", false},
+		{"aws:eks/cluster:cluster", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.resourceType, func(t *testing.T) {
+			if got := isEKSFargatePodType(tt.resourceType); got != tt.want {
+				t.Errorf("isEKSFargatePodType(%q) = %v, want %v", tt.resourceType, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestGetProjectedCost_EKSFargatePod_Attributes verifies attributes are read
 // before tags, including numeric values.
 func TestGetProjectedCost_EKSFargatePod_Attributes(t *testing.T) {
@@ -121,6 +143,8 @@ func TestGetProjectedCost_EKSFargatePod_InvalidInputs(t *testing.T) {
 		{"negative memory", "1", "-2"},
 		{"NaN cpu", "NaN", "1"},
 		{"infinite memory", "1", "Inf"},
+		{"cost overflows from cpu", "1.7e308", "1"},
+		{"cost overflows from memory", "1", "1.7e308"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
