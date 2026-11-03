@@ -120,6 +120,10 @@ test: ## Run all tests
 	@echo "Running tests..."
 	@go test -v ./...
 
+.PHONY: test-race
+test-race: ## Run pricing tests with the race detector (fallback embed unless RACE_TAGS is set)
+	@go test -race -count=1 -timeout 10m $(RACE_TAGS) ./internal/pricing/...
+
 .PHONY: test-integration
 test-integration: ## Run integration tests (verify real pricing is embedded)
 	@echo "Running integration tests..."

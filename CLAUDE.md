@@ -328,6 +328,12 @@ Run benchmarks to detect parsing regressions:
 go test -tags=region_use1 -bench=BenchmarkNewClient -benchmem ./internal/pricing/...
 ```
 
+`TestParallelParsing_NoRace` builds several pricing clients at once so the
+race detector can see the parallel service parse. `make test-race` runs the
+pricing package with `-race` on the fallback embed. After pricing data is
+generated, `make test-race RACE_TAGS=-tags=region_use1` runs it against the
+us-east-1 files. CI runs the fallback form.
+
 **Thread Safety:**
 
 - `sync.Once` ensures parsing happens exactly once
