@@ -4,6 +4,7 @@ package integration
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -64,9 +66,11 @@ func TestWebServer(t *testing.T) {
 	err = cmd.Start()
 	require.NoError(t, err)
 	defer func() {
+		// Reap the process before closing the pipes. Closing them first
+		// makes Wait return a closed-pipe error from the stdout copy.
+		stopPluginProcess(t, cmd)
 		stdoutW.Close()
 		stderrW.Close()
-		stopPluginProcess(cmd)
 	}()
 
 	// A pipe read blocks until the next write, so copy in the background
@@ -177,12 +181,18 @@ func (s *streamBuf) String() string {
 // SIGTERM is sent first. Wait runs in one goroutine so the process is
 // reaped exactly once, and the caller returns as soon as it exits.
 // 200ms allows the gRPC server to shut down gracefully before Kill.
-func stopPluginProcess(cmd *exec.Cmd) {
+// Cleanup problems are written with t.Logf, so they show up under -v
+// and do not fail the test. "already finished" is expected when the
+// process exits before the next signal.
+func stopPluginProcess(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
 
-	_ = cmd.Process.Signal(syscall.SIGTERM)
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil && !processAlreadyFinished(err) {
+		t.Logf("cleanup: SIGTERM failed: %v", err)
+	}
 
 	done := make(chan error, 1)
 	go func() {
@@ -190,9 +200,29 @@ func stopPluginProcess(cmd *exec.Cmd) {
 	}()
 
 	select {
-	case <-done:
+	case err := <-done:
+		logCleanupWait(t, "SIGTERM", err)
 	case <-time.After(200 * time.Millisecond):
-		_ = cmd.Process.Kill()
-		<-done
+		if err := cmd.Process.Kill(); err != nil && !processAlreadyFinished(err) {
+			t.Logf("cleanup: Kill failed: %v", err)
+		}
+		logCleanupWait(t, "Kill", <-done)
 	}
+}
+
+func processAlreadyFinished(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "already finished")
+}
+
+func logCleanupWait(t *testing.T, step string, err error) {
+	t.Helper()
+	if err == nil {
+		return
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		t.Logf("cleanup: process wait after %s exited with code %d: %v", step, exitErr.ExitCode(), err)
+		return
+	}
+	t.Logf("cleanup: process wait after %s failed: %v", step, err)
 }
