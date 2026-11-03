@@ -1371,7 +1371,7 @@ func (p *AWSPublicPlugin) estimateASG(
 
 // detectService maps a provider resource type string to a normalized service identifier.
 // The input resourceType is expected to be normalized by normalizeResourceType().
-func detectService(resourceType string) string {
+func detectService(resourceType string) string { //nolint:gocognit // one branch per supported service
 	// Fast path for canonical forms
 	switch resourceType {
 	case serviceEC2,

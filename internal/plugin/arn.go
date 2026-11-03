@@ -117,7 +117,7 @@ func parseResourcePart(resourcePart string) (string, string) {
 //   - lambda:function -> lambda
 //   - dynamodb:table -> dynamodb
 //   - eks:cluster  -> eks
-func (a *ARNComponents) ToPulumiResourceType() string {
+func (a *ARNComponents) ToPulumiResourceType() string { //nolint:funlen // one case per ARN service
 	// EC2 service has multiple sub-resource types that need distinct mapping
 	if a.Service == serviceEC2 {
 		switch a.ResourceType {
