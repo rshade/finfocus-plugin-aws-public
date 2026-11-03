@@ -150,6 +150,17 @@ func (a *ARNComponents) ToPulumiResourceType() string {
 		return serviceEKS
 	case serviceIAM:
 		return serviceIAM
+	case "ecs":
+		switch a.ResourceType {
+		case "service":
+			return serviceFargate
+		case "task-definition":
+			return serviceECSTaskDef
+		case arnECSCluster:
+			return serviceECSCluster
+		default:
+			return a.Service
+		}
 	case "autoscaling":
 		switch a.ResourceType {
 		case "launchConfiguration", "launch-configuration":

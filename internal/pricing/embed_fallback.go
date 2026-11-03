@@ -538,6 +538,42 @@ var rawECSJSON = []byte(`{
         "locationType": "AWS Region",
         "regionCode": "unknown"
       }
+    },
+    "SKU_FARGATE_WIN_VCPU": {
+      "sku": "SKU_FARGATE_WIN_VCPU",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-Windows-vCPU-Hours:perCPU",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_FARGATE_WIN_GIB": {
+      "sku": "SKU_FARGATE_WIN_GIB",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-Windows-GB-Hours",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_FARGATE_WIN_OS": {
+      "sku": "SKU_FARGATE_WIN_OS",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-Windows-OS-Hours:perCPU",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
+    },
+    "SKU_FARGATE_EPHEMERAL": {
+      "sku": "SKU_FARGATE_EPHEMERAL",
+      "productFamily": "Compute",
+      "attributes": {
+        "usagetype": "USE1-Fargate-EphemeralStorage-GB-Hours",
+        "locationType": "AWS Region",
+        "regionCode": "unknown"
+      }
     }
   },
   "terms": {
@@ -598,6 +634,66 @@ var rawECSJSON = []byte(`{
               "description": "AWS Fargate - ARM - Memory",
               "unit": "hours",
               "pricePerUnit": { "USD": "0.003560" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_WIN_VCPU": {
+        "SKU_FARGATE_WIN_VCPU.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_WIN_VCPU",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_WIN_VCPU.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_WIN_VCPU.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - Windows - vCPU",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.046552" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_WIN_GIB": {
+        "SKU_FARGATE_WIN_GIB.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_WIN_GIB",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_WIN_GIB.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_WIN_GIB.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - Windows - Memory",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.00511175" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_WIN_OS": {
+        "SKU_FARGATE_WIN_OS.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_WIN_OS",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_WIN_OS.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_WIN_OS.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - Windows - OS license",
+              "unit": "hours",
+              "pricePerUnit": { "USD": "0.046" }
+            }
+          }
+        }
+      },
+      "SKU_FARGATE_EPHEMERAL": {
+        "SKU_FARGATE_EPHEMERAL.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_FARGATE_EPHEMERAL",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_FARGATE_EPHEMERAL.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_FARGATE_EPHEMERAL.JRTCKXETXF.6YS6EN2CT7",
+              "description": "AWS Fargate - Ephemeral Storage",
+              "unit": "GB-Hours",
+              "pricePerUnit": { "USD": "0.000111" }
             }
           }
         }

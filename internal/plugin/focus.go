@@ -18,6 +18,7 @@ var awsServiceNames = map[string]string{
 	serviceLambda:     "AWS Lambda",
 	serviceDynamoDB:   "Amazon DynamoDB",
 	serviceEKS:        "Amazon EKS",
+	serviceFargate:    "AWS Fargate",
 	serviceELB:        "Elastic Load Balancing",
 	serviceNATGW:      "Amazon VPC NAT Gateway",
 	serviceCloudWatch: "Amazon CloudWatch",
@@ -106,7 +107,7 @@ func buildFocusRecord(
 //   - MANAGEMENT: Monitoring and operations (CloudWatch)
 func mapServiceCategory(serviceType string) pbc.FocusServiceCategory {
 	switch serviceType {
-	case serviceEC2, serviceLambda:
+	case serviceEC2, serviceLambda, serviceFargate:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE
 	case serviceEBS, serviceS3:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE
@@ -138,7 +139,7 @@ func getServiceName(serviceType string) string {
 // This is used when the caller doesn't have a specific pricing unit available.
 func getPricingUnitForService(serviceType string) string {
 	switch serviceType {
-	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB, serviceNATGW:
+	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB, serviceNATGW, serviceFargate:
 		return "Hours"
 	case serviceEBS, serviceS3:
 		return "GB-Mo"

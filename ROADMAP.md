@@ -31,7 +31,6 @@ security overhead of cloud credentials.
 ## Future Vision [Researching / Planned]
 
 - **[Planned] Service Breadth (Phase 2):**
-  - [ ] #393 ECS Fargate cost estimator for `aws:ecs/service:Service` [L]
   - [ ] #394 Amazon EFS cost estimator [M]
 - **[Planned] Recommendations & Planning:**
   - [ ] #392 Opt-in cross-region cost and carbon comparison via
@@ -92,9 +91,14 @@ security overhead of cloud credentials.
 - [x] #455 `plugin`: Graviton recommendations are skipped for Windows
   instances, and EC2 recommendations are priced with the instance's own OS
   and tenancy. [M]
+- [x] #393 `plugin`: ECS Fargate services (`aws:ecs/service:Service`) priced
+  per task from vCPU, memory, ephemeral storage above 20 GiB, the Windows
+  license fee, and `desired_count`; arm64 uses the Graviton rates. EC2 and
+  EXTERNAL launch types return $0. ECS clusters and task definitions are
+  zero-cost. Carbon is not estimated. [L]
 - [x] #409 `plugin`: EKS Fargate pods (`aws:eks/fargate:Pod`) priced by
   requested vCPU and GiB from the AmazonECS Price List offer.
-  `Client.FargateOnDemandRates` is shared with the planned ECS Fargate
+  `Client.FargateOnDemandRates` is shared with the ECS Fargate
   estimator (#393). [M]
 - [x] #388 `plugin`: Terraform attribute names and optional SKUs price the
   mapped Terraform types (S3, Lambda, DynamoDB, ElastiCache, load

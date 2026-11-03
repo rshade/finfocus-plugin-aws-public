@@ -416,6 +416,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - RDS (Instance hours + storage, Multi-engine support)
 - Auto Scaling Groups (EC2 pricing × desired capacity, carbon estimation)
 - EKS Fargate pods (`aws:eks/fargate:Pod`, vCPU and GiB rates)
+- ECS Fargate services (`aws:ecs/service:Service`, vCPU, memory, ephemeral storage, Windows fee)
 
 ## Directory Structure
 
@@ -676,12 +677,50 @@ descriptor tags only.
 - **Pricing source:** the `AmazonECS` offer (`ecs_{region}.json`, embed var
   `rawECSJSON`). `Client.FargateOnDemandRates(arch)` in
   `internal/pricing/fargate.go` returns `FargateRates{VCPUPerHour, GiBPerHour}`
-  for `x86_64` (also empty) or `arm64`, and is meant to be reused by the ECS
-  Fargate estimator (#393). Usage types are matched exactly after stripping
-  the region prefix (`Fargate-vCPU-Hours:perCPU`, `Fargate-GB-Hours`, and the
-  `Fargate-ARM-*` pair).
+  for `x86_64` (also empty) or `arm64`, and is reused by the ECS Fargate
+  estimator. `FargateWindowsOnDemandRates()` returns the Windows vCPU, GiB, and
+  per-vCPU OS license rates, and `FargateEphemeralStoragePerGiBHour()` the
+  ephemeral storage rate (unit `GB-Hours`, so it is matched explicitly). Usage
+  types are matched exactly after stripping the region prefix
+  (`Fargate-vCPU-Hours:perCPU`, `Fargate-GB-Hours`, the `Fargate-ARM-*` pair,
+  `Fargate-Windows-vCPU-Hours:perCPU`, `Fargate-Windows-GB-Hours`,
+  `Fargate-Windows-OS-Hours:perCPU`, `Fargate-EphemeralStorage-GB-Hours`).
 - The gov-region embed files (`embed_govw1.go`, `embed_gove1.go`) are not
   generated from the template; add new `raw*JSON` vars to them by hand.
+
+### ECS Fargate Services
+
+- `resource_type`: "aws:ecs/service:Service", "ecs", "fargate", or
+  "ecs_service" (service `fargate`). `aws:ecs/taskDefinition:TaskDefinition`
+  and `aws:ecs/cluster:Cluster` are zero-cost (`ecstaskdefinition`,
+  `ecscluster`), so a task is never counted twice. Terraform:
+  `aws_ecs_service`, `aws_ecs_task_definition`, `aws_ecs_cluster`.
+- `sku`: not used (optional). Inputs are read from attributes, then tags, in
+  snake_case or camelCase; `internal/plugin/fargate_attrs.go` has the parser.
+  - `cpu`: CPU units ("256") or vCPU ("0.25 vCPU"); a bare value above 16 is
+    CPU units. Default 0.25, recorded in `defaults_applied`.
+  - `memory`: MiB ("512") or GiB ("2GB"). Default 0.5 GiB, recorded.
+  - `desired_count`: default 1, recorded. 0 gives $0.
+  - `launch_type`: `EC2` or `EXTERNAL` returns $0 (cost belongs to the EC2 or
+    ASG resources). Empty means Fargate.
+  - `cpu_architecture` and `operating_system_family`, flat or inside
+    `runtime_platform`/`runtimePlatform` (a struct, dotted tags, or a Go
+    map-string, which is how finfocus core flattens a Terraform block).
+    `ARM64` selects the Graviton rates; `WINDOWS_*` selects the Windows rates
+    plus the OS fee. Windows on ARM64 is InvalidArgument.
+  - `ephemeral_storage_gib`, or `ephemeral_storage.size_in_gib`: default 20.
+    Values under 20 clamp to 20; above 200 is InvalidArgument.
+  - `capacity_provider_strategy` containing `FARGATE_SPOT`: the on-demand rate
+    is shown with a `(Fargate Spot not priced; on-demand rate shown)` note.
+- Real state keeps `cpu` and `memory` on the task definition, which the plugin
+  cannot follow, so the host or user must supply them or the defaults apply.
+- `cost_per_month`: per-task hourly × desired_count × 730, where per-task
+  hourly = vcpu × vcpu_rate + memory_gib × gib_rate +
+  max(0, ephemeral_gib − 20) × ephemeral_rate + (windows ? vcpu × os_rate : 0).
+  `unit_price` is the per-task hourly rate.
+- Growth hint `GROWTH_TYPE_NONE` (`aws:ecs:service`). No carbon estimate: the
+  CCF data in this repo has no Fargate coefficients, and `billing_detail` says
+  so. Fargate is not in `getSupportedMetrics`.
 
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region

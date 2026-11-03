@@ -23,6 +23,10 @@ const (
 	serviceLaunchTmpl   = "launchtemplate"
 	serviceLaunchConfig = "launchconfiguration"
 	serviceASG          = "asg"
+	serviceFargate      = "fargate"
+	serviceECSTaskDef   = "ecstaskdefinition"
+	serviceECSCluster   = "ecscluster"
+	arnECSCluster       = "cluster"
 )
 
 // Default values for EC2 attributes.
@@ -125,6 +129,8 @@ var ZeroCostServices = map[string]bool{
 	serviceIAM:           true,
 	serviceLaunchTmpl:    true,
 	serviceLaunchConfig:  true,
+	serviceECSTaskDef:    true,
+	serviceECSCluster:    true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
@@ -136,6 +142,8 @@ var ZeroCostPulumiPatterns = map[string]string{
 	"ec2/subnet":              serviceSubnet,
 	"ec2/launchtemplate":      serviceLaunchTmpl,
 	"ec2/launchconfiguration": serviceLaunchConfig,
+	"ecs/taskdefinition":      serviceECSTaskDef,
+	"ecs/cluster":             serviceECSCluster,
 }
 
 // IsZeroCostService returns true if the canonical service name has no direct AWS charges.

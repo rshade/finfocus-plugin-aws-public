@@ -35,6 +35,7 @@ const (
 	unitRCUHour         = "RCU-hour"
 	unitMetricMonth     = "metric-month"
 	unitPerInstanceHour = "per-instance-hour"
+	unitPerTaskHour     = "per-task-hour"
 )
 
 // assumptionDataTransferExcluded is the shared assumption note for services whose
@@ -93,7 +94,10 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.cloudWatchPricingSpec(resource)
 	case serviceASG:
 		spec = p.asgPricingSpec(resource)
-	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig:
+	case serviceFargate:
+		spec = p.fargatePricingSpec(resource)
+	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
+		serviceECSTaskDef, serviceECSCluster:
 		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:
 		spec = &pbc.PricingSpec{

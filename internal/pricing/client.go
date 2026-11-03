@@ -162,6 +162,18 @@ type PricingClient interface {
 	// architecture: "x86_64" (or empty) or "arm64".
 	// Returns (rates, true) if both rates are found, (FargateRates{}, false) otherwise.
 	FargateOnDemandRates(architecture string) (FargateRates, bool)
+
+	// FargateWindowsOnDemandRates returns the on-demand Windows Fargate vCPU-hour,
+	// GiB-hour, and per-vCPU OS license rates.
+	//
+	// Returns (rates, true) if all three rates are found, (FargateWindowsRates{}, false) otherwise.
+	FargateWindowsOnDemandRates() (FargateWindowsRates, bool)
+
+	// FargateEphemeralStoragePerGiBHour returns the on-demand price per GiB-hour
+	// of Fargate ephemeral storage above the free 20 GiB.
+	//
+	// Returns (rate, true) if found, (0, false) otherwise.
+	FargateEphemeralStoragePerGiBHour() (float64, bool)
 }
 
 // Client implements PricingClient with embedded JSON data.
@@ -211,6 +223,11 @@ type Client struct {
 
 	// Fargate on-demand rates by architecture ("x86_64", "arm64")
 	fargateRates map[string]FargateRates
+
+	// Fargate Windows rates and ephemeral storage rate (per GiB-hour)
+	fargateWindows             FargateWindowsRates
+	fargateWindowsFound        bool
+	fargateEphemeralPerGiBHour float64
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.

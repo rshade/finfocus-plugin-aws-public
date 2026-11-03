@@ -102,3 +102,58 @@ func TestFargateOnDemandRates_ArchitectureAliases(t *testing.T) {
 		t.Errorf("unknown architecture priced: %+v", got)
 	}
 }
+
+// TestParseFargatePricing_WindowsAndEphemeralStorage verifies the Windows
+// compute, Windows license, and ephemeral storage rates are parsed from exact
+// usage types, that the ephemeral rate needs the GB-Hours unit, and that an
+// incomplete Windows set is not served.
+func TestParseFargatePricing_WindowsAndEphemeralStorage(t *testing.T) {
+	raw := buildPriceList(t, "AmazonECS", []fixtureSKU{
+		fargateSKU("WINV", "USE1-Fargate-Windows-vCPU-Hours:perCPU", "hours", "0.0465520000"),
+		fargateSKU("WINM", "USE1-Fargate-Windows-GB-Hours", "hours", "0.0051117500"),
+		fargateSKU("WINOS", "USE1-Fargate-Windows-OS-Hours:perCPU", "hours", "0.0460000000"),
+		fargateSKU("EPH", "USE1-Fargate-EphemeralStorage-GB-Hours", "GB-Hours", "0.0001110000"),
+		fargateSKU("X86V", "USE1-Fargate-vCPU-Hours:perCPU", "hours", "0.04048"),
+	})
+
+	c := newFargateTestClient()
+	assertParsedRegion(t, c.parseFargatePricing, raw)
+	want := FargateWindowsRates{VCPUPerHour: 0.046552, GiBPerHour: 0.00511175, OSPerVCPUHour: 0.046}
+	if !c.fargateWindowsFound || c.fargateWindows != want {
+		t.Errorf("windows rates = %+v (found=%v), want %+v", c.fargateWindows, c.fargateWindowsFound, want)
+	}
+	if c.fargateEphemeralPerGiBHour != 0.000111 {
+		t.Errorf("ephemeral rate = %v, want 0.000111", c.fargateEphemeralPerGiBHour)
+	}
+
+	partial := buildPriceList(t, "AmazonECS", []fixtureSKU{
+		fargateSKU("WINV", "USE1-Fargate-Windows-vCPU-Hours:perCPU", "hours", "0.046552"),
+		fargateSKU("WINM", "USE1-Fargate-Windows-GB-Hours", "hours", "0.00511175"),
+		fargateSKU("EPH", "USE1-Fargate-EphemeralStorage-GB-Hours", "hours", "0.000111"),
+	})
+	c = newFargateTestClient()
+	assertParsedRegion(t, c.parseFargatePricing, partial)
+	if c.fargateWindowsFound {
+		t.Errorf("windows rates served without the OS license rate: %+v", c.fargateWindows)
+	}
+	if c.fargateEphemeralPerGiBHour != 0 {
+		t.Errorf("ephemeral rate accepted with unit hours: %v", c.fargateEphemeralPerGiBHour)
+	}
+}
+
+// TestFargateWindowsAndEphemeralLookups verifies the public lookups return
+// positive rates from the embedded data.
+func TestFargateWindowsAndEphemeralLookups(t *testing.T) {
+	c, err := NewClient(zerolog.Nop())
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	win, ok := c.FargateWindowsOnDemandRates()
+	if !ok || win.VCPUPerHour <= 0 || win.GiBPerHour <= 0 || win.OSPerVCPUHour <= 0 {
+		t.Errorf("windows rates = %+v, found=%v", win, ok)
+	}
+	eph, ok := c.FargateEphemeralStoragePerGiBHour()
+	if !ok || eph <= 0 {
+		t.Errorf("ephemeral rate = %v, found=%v", eph, ok)
+	}
+}
