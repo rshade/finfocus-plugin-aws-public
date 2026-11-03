@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -55,7 +55,7 @@ func TestWebServer(t *testing.T) {
 	t.Log("Starting plugin server...")
 	cmd := exec.Command(binaryPath)
 	cmd.Env = append(os.Environ(), "FINFOCUS_PLUGIN_WEB_ENABLED=true")
-	
+
 	stdoutR, stdoutW := io.Pipe()
 	stderrR, stderrW := io.Pipe()
 	cmd.Stdout = stdoutW
@@ -66,76 +66,22 @@ func TestWebServer(t *testing.T) {
 	defer func() {
 		stdoutW.Close()
 		stderrW.Close()
-		// Attempt graceful shutdown with SIGTERM, then force kill if needed
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-		// Give process time to exit gracefully
-		time.Sleep(100 * time.Millisecond)
-		// Force kill and wait for process to be reaped
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		stopPluginProcess(cmd)
 	}()
 
-	// Wait for port
+	// A pipe read blocks until the next write, so copy in the background
+	// and wait until the PORT= line is copied. The old ticker called Read
+	// in a loop and never reached the PORT check.
+	stdoutBuf := newPortBuf()
+	var stderrBuf streamBuf
+	go func() { _, _ = io.Copy(stdoutBuf, stdoutR) }()
+	go func() { _, _ = io.Copy(&stderrBuf, stderrR) }()
+
 	var port string
-	var stdoutBuf, stderrBuf strings.Builder
-	done := make(chan struct{})
-	go func() {
-		defer stdoutR.Close()
-		defer stderrR.Close()
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		timeout := time.After(5 * time.Second)
-
-		buf := make([]byte, 1024)
-		for {
-			select {
-			case <-done:
-				return
-			case <-timeout:
-				return
-			case <-ticker.C:
-				// Read available stdout data
-				for {
-					n, err := stdoutR.Read(buf)
-					if err != nil {
-						if err != io.EOF {
-							t.Logf("Error reading stdout: %v", err)
-						}
-						break
-					}
-					stdoutBuf.Write(buf[:n])
-				}
-
-				// Read available stderr data
-				for {
-					n, err := stderrR.Read(buf)
-					if err != nil {
-						if err != io.EOF {
-							t.Logf("Error reading stderr: %v", err)
-						}
-						break
-					}
-					stderrBuf.Write(buf[:n])
-				}
-
-				out := stdoutBuf.String()
-				if strings.Contains(out, "PORT=") {
-					re := regexp.MustCompile(`PORT=(\d+)`)
-					matches := re.FindStringSubmatch(out)
-					if len(matches) > 1 {
-						port = matches[1]
-						close(done)
-						return
-					}
-				}
-			}
-		}
-	}()
-
 	select {
-	case <-done:
+	case port = <-stdoutBuf.port:
 		t.Logf("Plugin listening on port %s", port)
-	case <-time.After(6 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatalf("Timed out waiting for port. Stdout: %s, Stderr: %s", stdoutBuf.String(), stderrBuf.String())
 	}
 
@@ -183,4 +129,70 @@ func TestWebServer(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, respInfo.StatusCode)
 	assert.Contains(t, string(bodyInfo), "finfocus-plugin-aws-public")
+}
+
+// portBuf copies plugin stdout and reports the PORT= announcement once.
+type portBuf struct {
+	streamBuf
+	re   *regexp.Regexp
+	port chan string
+	once sync.Once
+}
+
+func newPortBuf() *portBuf {
+	return &portBuf{
+		re:   regexp.MustCompile(`PORT=(\d+)`),
+		port: make(chan string, 1),
+	}
+}
+
+func (p *portBuf) Write(data []byte) (int, error) {
+	n, err := p.streamBuf.Write(data)
+	if matches := p.re.FindStringSubmatch(p.String()); len(matches) > 1 {
+		p.once.Do(func() { p.port <- matches[1] })
+	}
+	return n, err
+}
+
+// streamBuf is a bytes.Buffer that can be written and read from different goroutines.
+type streamBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *streamBuf) Write(data []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(data)
+}
+
+func (s *streamBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// stopPluginProcess asks the plugin to exit and reaps it.
+//
+// SIGTERM is sent first. Wait runs in one goroutine so the process is
+// reaped exactly once, and the caller returns as soon as it exits.
+// 200ms allows the gRPC server to shut down gracefully before Kill.
+func stopPluginProcess(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+
+	_ = cmd.Process.Signal(syscall.SIGTERM)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		_ = cmd.Process.Kill()
+		<-done
+	}
 }
