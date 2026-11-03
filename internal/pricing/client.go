@@ -252,7 +252,7 @@ func NewClient(logger zerolog.Logger) (*Client, error) {
 
 // init parses embedded pricing data exactly once.
 // Parsing is parallelized across services for faster initialization.
-func (c *Client) init() error { //nolint:gocognit,funlen
+func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one parse and one validation branch per embedded service
 	c.once.Do(func() {
 		// Initialize indexes
 		c.currency = currencyUSD
