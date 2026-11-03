@@ -20,6 +20,7 @@ methodology to calculate operational carbon emissions (gCO2e) for AWS resources.
 | RDS | ✅ Full | Compute + storage carbon |
 | DynamoDB | ✅ Full | Storage-based (SSD × 3× replication) |
 | ElastiCache | ✅ Full | EC2-equivalent node carbon × cluster size |
+| EFS | ✅ Full | Storage energy × HDD coefficient × replication, summed over storage classes |
 | EKS | ⚠️ Control plane only | Returns 0 (shared infrastructure) |
 
 ## Carbon Formula
@@ -52,6 +53,14 @@ energyWhPerTB = storageCoefficient  // 1.2 Wh/TB for SSD, 0.65 for HDD
 totalEnergy = (sizeGB / 1000) × energyWhPerTB × replicationFactor × hours
 carbonGrams = (totalEnergy / 1000) × gridIntensity × 1,000,000 × PUE
 ```
+
+### EFS File Systems
+
+EFS uses the storage formula above once per storage class and sums the results.
+CCF classifies every EFS usage type as HDD storage (0.65), so EFS Standard is
+treated as HDD, unlike the S3 `STANDARD` row, which uses SSD. The replication
+factor is 3 for regional file systems and 2 for One Zone. One Zone has no
+Archive class, so Archive GB is excluded from the sum.
 
 ### Lambda Functions
 

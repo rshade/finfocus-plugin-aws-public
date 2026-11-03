@@ -102,6 +102,28 @@ type S3StorageConfig struct {
 	Hours float64
 }
 
+// EFSStorageConfig contains configuration for EFS storage carbon estimation.
+type EFSStorageConfig struct {
+	// StandardGB is the Standard storage size in gigabytes.
+	StandardGB float64
+
+	// IAGB is the Infrequent Access storage size in gigabytes.
+	IAGB float64
+
+	// ArchiveGB is the Archive storage size in gigabytes. One Zone file
+	// systems have no Archive class, so this is ignored when OneZone is set.
+	ArchiveGB float64
+
+	// OneZone selects the One Zone storage classes and their lower replication.
+	OneZone bool
+
+	// Region is the AWS region.
+	Region string
+
+	// Hours is the storage duration in hours.
+	Hours float64
+}
+
 // LambdaFunctionConfig contains configuration for Lambda function carbon estimation.
 type LambdaFunctionConfig struct {
 	// MemoryMB is the allocated memory in megabytes.

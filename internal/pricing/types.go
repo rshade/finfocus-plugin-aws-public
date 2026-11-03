@@ -225,3 +225,35 @@ type cloudWatchPrice struct {
 	// Currency code (e.g., "USD")
 	Currency string
 }
+
+// EFSPrice represents the regional pricing for Amazon EFS file systems.
+// Derived from AWS Pricing API for service AmazonEFS. A zero rate means the
+// price was not found in the embedded data.
+type EFSPrice struct {
+	// StandardGBMonth is the Standard (General Purpose) storage rate per GB-month.
+	StandardGBMonth float64
+	// IAGBMonth is the Infrequent Access storage rate per GB-month.
+	IAGBMonth float64
+	// IAElasticGBMonth is the Infrequent Access rate with Elastic Throughput
+	// (storageClass "Infrequent Access-ET").
+	IAElasticGBMonth float64
+	// ArchiveGBMonth is the Archive storage rate per GB-month.
+	ArchiveGBMonth float64
+	// OneZoneGBMonth is the One Zone Standard storage rate per GB-month.
+	OneZoneGBMonth float64
+	// OneZoneIAGBMonth is the One Zone Infrequent Access rate per GB-month.
+	OneZoneIAGBMonth float64
+	// ProvisionedMiBpsMonth is the Provisioned Throughput rate per MiB/s-month.
+	ProvisionedMiBpsMonth float64
+	// ElasticReadGB and ElasticWriteGB are the Elastic Throughput data access rates per GB.
+	ElasticReadGB  float64
+	ElasticWriteGB float64
+	// IAReadGB and IAWriteGB are the Infrequent Access data access rates per GB.
+	IAReadGB  float64
+	IAWriteGB float64
+	// ArchiveReadGB and ArchiveWriteGB are the Archive data access rates per GB.
+	ArchiveReadGB  float64
+	ArchiveWriteGB float64
+	// Currency code (e.g., "USD")
+	Currency string
+}

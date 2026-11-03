@@ -30,8 +30,6 @@ security overhead of cloud credentials.
 
 ## Future Vision [Researching / Planned]
 
-- **[Planned] Service Breadth (Phase 2):**
-  - [ ] #394 Amazon EFS cost estimator [M]
 - **[Planned] Recommendations & Planning:**
   - [ ] #392 Opt-in cross-region cost and carbon comparison via
     region-migration recommendations [L]
@@ -100,6 +98,10 @@ security overhead of cloud credentials.
   requested vCPU and GiB from the AmazonECS Price List offer.
   `Client.FargateOnDemandRates` is shared with the ECS Fargate
   estimator (#393). [M]
+- [x] #394 `plugin`: Amazon EFS cost estimator for
+  `aws:efs/fileSystem:FileSystem` (storage per class, provisioned and
+  elastic throughput, CCF carbon). Mount targets and access points are
+  zero-cost. [M]
 - [x] #388 `plugin`: Terraform attribute names and optional SKUs price the
   mapped Terraform types (S3, Lambda, DynamoDB, ElastiCache, load
   balancers, NAT Gateway, CloudWatch). Gateway Load Balancers and

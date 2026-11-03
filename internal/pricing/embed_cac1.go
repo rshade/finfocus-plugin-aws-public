@@ -39,3 +39,6 @@ var rawElastiCacheJSON []byte
 
 //go:embed data/ecs_ca-central-1.json
 var rawECSJSON []byte
+
+//go:embed data/efs_ca-central-1.json
+var rawEFSJSON []byte

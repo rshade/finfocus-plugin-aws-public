@@ -117,7 +117,7 @@ func parseResourcePart(resourcePart string) (string, string) {
 //   - lambda:function -> lambda
 //   - dynamodb:table -> dynamodb
 //   - eks:cluster  -> eks
-func (a *ARNComponents) ToPulumiResourceType() string {
+func (a *ARNComponents) ToPulumiResourceType() string { //nolint:funlen // one case per ARN service
 	// EC2 service has multiple sub-resource types that need distinct mapping
 	if a.Service == serviceEC2 {
 		switch a.ResourceType {
@@ -161,6 +161,11 @@ func (a *ARNComponents) ToPulumiResourceType() string {
 		default:
 			return a.Service
 		}
+	case "elasticfilesystem":
+		if a.ResourceType == "access-point" {
+			return serviceEFSAccessPoint
+		}
+		return serviceEFS
 	case "autoscaling":
 		switch a.ResourceType {
 		case "launchConfiguration", "launch-configuration":

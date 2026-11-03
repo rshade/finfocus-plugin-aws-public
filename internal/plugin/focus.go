@@ -22,6 +22,7 @@ var awsServiceNames = map[string]string{
 	serviceELB:        "Elastic Load Balancing",
 	serviceNATGW:      "Amazon VPC NAT Gateway",
 	serviceCloudWatch: "Amazon CloudWatch",
+	serviceEFS:        "Amazon Elastic File System",
 }
 
 // buildFocusRecord creates a FocusCostRecord for public pricing estimates.
@@ -109,7 +110,7 @@ func mapServiceCategory(serviceType string) pbc.FocusServiceCategory {
 	switch serviceType {
 	case serviceEC2, serviceLambda, serviceFargate:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE
-	case serviceEBS, serviceS3:
+	case serviceEBS, serviceS3, serviceEFS:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE
 	case serviceRDS, serviceDynamoDB:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_DATABASE
@@ -141,7 +142,7 @@ func getPricingUnitForService(serviceType string) string {
 	switch serviceType {
 	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB, serviceNATGW, serviceFargate:
 		return "Hours"
-	case serviceEBS, serviceS3:
+	case serviceEBS, serviceS3, serviceEFS:
 		return "GB-Mo"
 	case serviceLambda:
 		return "GB-Seconds"

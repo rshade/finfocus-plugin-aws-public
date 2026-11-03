@@ -113,6 +113,9 @@ var terraformEvidence = map[string][]string{
 	"aws_iam_policy":              {"IAM resources"},
 	"aws_iam_instance_profile":    {"IAM resources"},
 	"aws_iam_user":                {"IAM resources"},
+	"aws_efs_file_system":         {"100GB Standard", "provisioned throughput 20 MiB/s"},
+	"aws_efs_mount_target":        {"EFS mount targets have no direct"},
+	"aws_efs_access_point":        {"EFS access points have no direct"},
 }
 
 func terraformFixtureDir(t *testing.T) string {
@@ -307,6 +310,7 @@ func newTerraformFixturePlugin(t *testing.T) *AWSPublicPlugin {
 	mock.dynamoDBPrices["on-demand-read"] = 0.00000025
 	mock.dynamoDBPrices["on-demand-write"] = 0.00000125
 	mock.elasticachePrices["cache.t3.micro:Redis"] = 0.017
+	mock.efsPrices = efsUSEast1Rates()
 	mock.cwLogsIngestionTiers = []pricing.TierRate{{UpTo: 1e12, Rate: 0.50}}
 	mock.cwLogsStorageRate = 0.03
 	logger := zerolog.New(os.Stderr).Level(zerolog.ErrorLevel)

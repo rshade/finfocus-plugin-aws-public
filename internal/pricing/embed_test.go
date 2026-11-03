@@ -19,8 +19,9 @@ import (
 // data sizes are based on the smallest supported region.
 //
 // Reference sizes (January 2026):
-//   us-east-1 (largest): EC2: 151 MB, RDS: 6.8 MB, Lambda: 445 KB
-//   us-west-1 (smaller): EC2:  87 MB, RDS: 4.4 MB, Lambda:  27 KB
+//
+//	us-east-1 (largest): EC2: 151 MB, RDS: 6.8 MB, Lambda: 445 KB
+//	us-west-1 (smaller): EC2:  87 MB, RDS: 4.4 MB, Lambda:  27 KB
 //
 // DO NOT reduce these thresholds without explicit approval.
 const (
@@ -51,6 +52,10 @@ const (
 	// ELB: Load balancer hourly and capacity rates
 	// Full us-east-1: ~13KB (small but valid)
 	minELBSize = 8_000 // 8KB minimum (T041)
+
+	// EFS: Storage classes, data access, and throughput rates
+	// Full us-east-1: ~12.5KB, smaller regions ~12.3KB
+	minEFSSize = 10_000 // 10KB minimum
 )
 
 // TestEmbeddedData_EC2Size verifies EC2 pricing data is not filtered (T035).
@@ -135,6 +140,17 @@ func TestEmbeddedData_ELBSize(t *testing.T) {
 	t.Logf("✓ ELB pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
 }
 
+// TestEmbeddedData_EFSSize verifies EFS pricing data is not filtered.
+func TestEmbeddedData_EFSSize(t *testing.T) {
+	size := len(rawEFSJSON)
+	if size < minEFSSize {
+		t.Fatalf("❌ EFS pricing data too small (%d bytes, %.1f KB)\n"+
+			"Expected: > %d bytes (10KB)",
+			size, float64(size)/1_000, minEFSSize)
+	}
+	t.Logf("✓ EFS pricing data size: %d bytes (%.1f KB)", size, float64(size)/1_000)
+}
+
 // TestEmbeddedData_AllServicesValid verifies all per-service pricing files are valid JSON.
 //
 // This catches build errors or corrupted embedded data at test time,
@@ -151,6 +167,7 @@ func TestEmbeddedData_AllServicesValid(t *testing.T) {
 		{"Lambda", rawLambdaJSON},
 		{"DynamoDB", rawDynamoDBJSON},
 		{"ELB", rawELBJSON},
+		{"EFS", rawEFSJSON},
 	}
 
 	for _, svc := range services {
@@ -195,7 +212,7 @@ func TestEmbeddedData_EC2ProductCount(t *testing.T) {
 	}
 
 	const minProducts = 50_000 // Minimum EC2 products
-	const minTerms = 30_000   // Minimum OnDemand terms
+	const minTerms = 30_000    // Minimum OnDemand terms
 
 	if len(data.Products) < minProducts {
 		t.Fatalf("❌ EC2 product count too low: %d (expected >%d)", len(data.Products), minProducts)

@@ -94,10 +94,13 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.cloudWatchPricingSpec(resource)
 	case serviceASG:
 		spec = p.asgPricingSpec(resource)
+	case serviceEFS:
+		spec = p.efsPricingSpec(resource)
 	case serviceFargate:
 		spec = p.fargatePricingSpec(resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
-		serviceECSTaskDef, serviceECSCluster:
+		serviceECSTaskDef, serviceECSCluster,
+		serviceEFSMountTarget, serviceEFSAccessPoint:
 		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:
 		spec = &pbc.PricingSpec{

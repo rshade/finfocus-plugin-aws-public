@@ -60,6 +60,7 @@ public pricing data at build time and serves cost estimates via gRPC.
 - **S3 Storage**: Storage cost estimation by storage class and size
 - **DynamoDB**: On-demand and provisioned capacity modes with storage
 - **ELB Load Balancers**: ALB and NLB pricing with LCU/NLCU billing
+- **EFS File Systems**: Storage by class (Standard, IA, Archive, One Zone), provisioned and elastic throughput
 
 **Stub Support (returns $0 with explanation):**
 
@@ -74,7 +75,7 @@ This plugin provides basic actual cost estimation based on resource runtime and 
 ## Features
 
 - **gRPC Protocol**: Implements `CostSourceService` from `finfocus.v1` proto
-- **Terraform Support**: Translates Terraform resource types (e.g., `aws_instance`) into Pulumi type tokens via the `ResolveResourceTypes` RPC, enabling `finfocus cost projected --terraform-state`. Names from that conversion (`memorySize`, `billingMode`, `loadBalancerType`, `nodeType`, `storageClass`) are accepted. SKU may be omitted for S3, Lambda, DynamoDB, ElastiCache, load balancers, NAT Gateway, and CloudWatch.
+- **Terraform Support**: Translates Terraform resource types (e.g., `aws_instance`) into Pulumi type tokens via the `ResolveResourceTypes` RPC, enabling `finfocus cost projected --terraform-state`. Names from that conversion (`memorySize`, `billingMode`, `loadBalancerType`, `nodeType`, `storageClass`) are accepted. SKU may be omitted for S3, Lambda, DynamoDB, ElastiCache, EFS, load balancers, NAT Gateway, and CloudWatch.
 - **Region-Specific Binaries**: One binary per AWS region with embedded pricing
 - **Carbon Footprint Estimation**: EC2 instances include gCO2e metrics using CCF methodology
 - **Thread-Safe**: Concurrent RPC calls are handled safely
@@ -172,6 +173,7 @@ AWS resources include carbon footprint estimation using the
 | Lambda | vCPU equivalent × duration × grid factor |
 | RDS | Compute + storage carbon |
 | DynamoDB | Storage-based (SSD × 3× replication) |
+| EFS | Storage energy × HDD coefficient × replication (3× regional, 2× One Zone) |
 | EKS | Control plane included (shared); worker nodes as EC2 |
 
 👉 **[Read the Carbon Estimation Guide](docs/carbon-estimation.md)** for detailed
@@ -445,6 +447,7 @@ Accepted names, by service:
 - CloudWatch: `logIngestionGb`, `logStorageGb`, `customMetrics`
 - S3: `storageClass` (the `STANDARD` default applies when it is absent)
 - EBS: `size`
+- EFS: `throughputMode`, `provisionedThroughputInMibps`, `availabilityZoneName`, `sizeInBytes`
 
 ### Example: EC2 Instance
 

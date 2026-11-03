@@ -151,6 +151,7 @@ func TestTerraformMappings_AllTokensRouteToSupportedServices(t *testing.T) {
 		serviceVPC: true, serviceSecurityGroup: true, serviceSubnet: true,
 		serviceIAM: true, serviceLaunchTmpl: true, serviceLaunchConfig: true,
 		serviceFargate: true, serviceECSTaskDef: true, serviceECSCluster: true,
+		serviceEFS: true, serviceEFSMountTarget: true, serviceEFSAccessPoint: true,
 	}
 
 	for tfType, pulumiToken := range typeregistry.TerraformMappings {
