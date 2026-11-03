@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
 
 const efsPulumiType = "aws:efs/fileSystem:FileSystem"
@@ -292,6 +294,55 @@ func TestEstimateEFS_Errors(t *testing.T) {
 		assert.Zero(t, resp.GetCostPerMonth())
 		assert.Contains(t, resp.GetBillingDetail(), "Archive")
 	})
+
+	for name, tc := range map[string]struct {
+		tags   map[string]string
+		mutate func(*pricing.EFSPrice)
+		want   string
+	}{
+		"elastic read": {
+			tags:   map[string]string{"throughput_mode": "elastic", "elastic_read_gb": "10"},
+			mutate: func(r *pricing.EFSPrice) { r.ElasticReadGB = 0 },
+			want:   "Elastic read",
+		},
+		"ia write": {
+			tags:   map[string]string{"ia_write_gb": "10"},
+			mutate: func(r *pricing.EFSPrice) { r.IAWriteGB = 0 },
+			want:   "IA write",
+		},
+		"archive read": {
+			tags:   map[string]string{"archive_read_gb": "10"},
+			mutate: func(r *pricing.EFSPrice) { r.ArchiveReadGB = 0 },
+			want:   "Archive read",
+		},
+	} {
+		t.Run("missing access rate "+name, func(t *testing.T) {
+			mock := newMockPricingClient("us-east-1", currencyUSD)
+			rates := efsUSEast1Rates()
+			tc.mutate(rates)
+			mock.efsPrices = rates
+			resp, err := NewAWSPublicPlugin("us-east-1", "test", mock, zerolog.Nop()).GetProjectedCost(
+				t.Context(),
+				&pbc.GetProjectedCostRequest{Resource: efsDescriptor("efs", "", tc.tags)},
+			)
+			require.NoError(t, err)
+			assert.Zero(t, resp.GetCostPerMonth())
+			assert.Contains(t, resp.GetBillingDetail(), tc.want)
+		})
+	}
+}
+
+// TestEFSPricingSpec_StorageClassTag verifies the spec resolves storage_class
+// like the estimator and reports an unrecognized class instead of pricing Standard.
+func TestEFSPricingSpec_StorageClassTag(t *testing.T) {
+	plugin := newEFSTestPlugin(true)
+
+	ia := plugin.efsPricingSpec(efsDescriptor("efs", "", map[string]string{"storage_class": "ia"}))
+	assert.InDelta(t, efsUSEast1Rates().IAGBMonth, ia.GetRatePerUnit(), 1e-9)
+
+	bad := plugin.efsPricingSpec(efsDescriptor("efs", "", map[string]string{"storage_class": "glacier"}))
+	assert.Contains(t, bad.GetDescription(), "glacier")
+	assert.Zero(t, bad.GetRatePerUnit())
 }
 
 // TestEstimateEFS_Carbon verifies the carbon metric is attached and One Zone emits less.

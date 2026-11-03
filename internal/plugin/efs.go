@@ -271,6 +271,29 @@ func efsMissingRate(in efsInputs, std, ia, archive float64) string {
 	return ""
 }
 
+// efsMissingAccessRate returns the first throughput or data access charge that
+// has positive usage but no rate.
+func efsMissingAccessRate(in efsInputs, rates *pricing.EFSPrice) string {
+	checks := []struct {
+		name  string
+		usage float64
+		rate  float64
+	}{
+		{"Elastic read", in.elasticReadGB, rates.ElasticReadGB},
+		{"Elastic write", in.elasticWriteGB, rates.ElasticWriteGB},
+		{"IA read", in.iaReadGB, rates.IAReadGB},
+		{"IA write", in.iaWriteGB, rates.IAWriteGB},
+		{"Archive read", in.archiveReadGB, rates.ArchiveReadGB},
+		{"Archive write", in.archiveWriteGB, rates.ArchiveWriteGB},
+	}
+	for _, c := range checks {
+		if c.usage > 0 && c.rate == 0 {
+			return c.name
+		}
+	}
+	return ""
+}
+
 // efsBillableMiBps returns provisioned throughput above the included baseline.
 func efsBillableMiBps(in efsInputs) (float64, float64) {
 	baseline := in.standardGB * efsBaselineMiBpsPerGB
@@ -362,6 +385,14 @@ func (p *AWSPublicPlugin) estimateEFS(
 		}
 	}
 
+	if missing := efsMissingAccessRate(in, rates); missing != "" {
+		return nil, &PricingUnavailableError{
+			Service:       efsServiceName,
+			SKU:           missing,
+			BillingDetail: fmt.Sprintf(PricingNotFoundTemplate, "EFS access rate", missing),
+		}
+	}
+
 	storage := in.standardGB*stdRate + in.iaGB*iaRate + in.archiveGB*rates.ArchiveGBMonth
 	throughput := billable*rates.ProvisionedMiBpsMonth +
 		in.elasticReadGB*rates.ElasticReadGB + in.elasticWriteGB*rates.ElasticWriteGB
@@ -428,10 +459,14 @@ func (p *AWSPublicPlugin) efsPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		return spec
 	}
 
-	class, oneZone, ok := efsStorageClass(resource.GetSku())
 	tags := pricingTags(resource)
+	classRaw := resource.GetSku()
+	if classRaw == "" {
+		classRaw = tags["storage_class"]
+	}
+	class, oneZone, ok := efsStorageClass(classRaw)
 	if !ok {
-		spec.Description = fmt.Sprintf(PricingNotFoundTemplate, "EFS storage class", resource.GetSku())
+		spec.Description = fmt.Sprintf(PricingNotFoundTemplate, "EFS storage class", classRaw)
 		spec.Assumptions = []string{"Storage class not recognized"}
 		return spec
 	}
