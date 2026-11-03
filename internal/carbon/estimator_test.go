@@ -16,19 +16,17 @@ func TestCalculateCarbonGrams(t *testing.T) {
 		utilization   float64
 		gridIntensity float64
 		hours         float64
-		wantMin       float64
-		wantMax       float64
+		want          float64
 	}{
 		{
 			name:          "typical EC2 instance at 50% utilization",
-			minWatts:      0.47, // t3.micro idle
-			maxWatts:      1.69, // t3.micro 100%
+			minWatts:      0.47,
+			maxWatts:      1.69,
 			vCPUCount:     2,
 			utilization:   0.50,
 			gridIntensity: 0.000379, // us-east-1
 			hours:         730,      // one month
-			wantMin:       100,      // expect ~831 gCO2e
-			wantMax:       2000,
+			want:          678.284172,
 		},
 		{
 			name:          "zero utilization (idle)",
@@ -38,8 +36,7 @@ func TestCalculateCarbonGrams(t *testing.T) {
 			utilization:   0.0,
 			gridIntensity: 0.000379,
 			hours:         730,
-			wantMin:       50,
-			wantMax:       500,
+			want:          295.179223,
 		},
 		{
 			name:          "100% utilization",
@@ -49,8 +46,7 @@ func TestCalculateCarbonGrams(t *testing.T) {
 			utilization:   1.0,
 			gridIntensity: 0.000379,
 			hours:         730,
-			wantMin:       500,
-			wantMax:       3000,
+			want:          1061.389121,
 		},
 		{
 			name:          "low carbon region (eu-north-1)",
@@ -60,8 +56,7 @@ func TestCalculateCarbonGrams(t *testing.T) {
 			utilization:   0.50,
 			gridIntensity: 0.0000088, // eu-north-1 (Sweden)
 			hours:         730,
-			wantMin:       1,
-			wantMax:       100, // Much lower due to clean grid
+			want:          15.7490784,
 		},
 		{
 			name:          "high carbon region (ap-south-1)",
@@ -71,8 +66,7 @@ func TestCalculateCarbonGrams(t *testing.T) {
 			utilization:   0.50,
 			gridIntensity: 0.000708, // ap-south-1 (Mumbai)
 			hours:         730,
-			wantMin:       500,
-			wantMax:       3000, // Higher due to coal-heavy grid
+			want:          1267.084944,
 		},
 		{
 			name:          "zero hours returns zero",
@@ -82,8 +76,7 @@ func TestCalculateCarbonGrams(t *testing.T) {
 			utilization:   0.50,
 			gridIntensity: 0.000379,
 			hours:         0,
-			wantMin:       0,
-			wantMax:       0.001,
+			want:          0,
 		},
 	}
 
@@ -98,8 +91,10 @@ func TestCalculateCarbonGrams(t *testing.T) {
 				tt.hours,
 			)
 
-			assert.GreaterOrEqual(t, got, tt.wantMin, "carbon should be >= %f", tt.wantMin)
-			assert.LessOrEqual(t, got, tt.wantMax, "carbon should be <= %f", tt.wantMax)
+			// want is the CLAUDE.md formula evaluated for these inputs:
+			// avg = min + util*(max-min); kWh = avg*vCPU*hours/1000;
+			// gCO2e = kWh * 1.135 * grid * 1e6.
+			assert.InDelta(t, tt.want, got, 1e-4)
 		})
 	}
 }
@@ -110,11 +105,14 @@ func TestEstimator_EstimateCarbonGrams_KnownInstance(t *testing.T) {
 	carbon, ok := e.EstimateCarbonGrams("t3.micro", "us-east-1", 0.5, 730)
 
 	require.True(t, ok, "t3.micro should be found")
-	assert.Greater(t, carbon, 0.0, "carbon should be positive")
-	// Expect approximately 500-5000 gCO2e for t3.micro monthly
-	// (based on actual CCF data power values)
-	assert.Greater(t, carbon, 500.0)
-	assert.Less(t, carbon, 5000.0)
+	spec, found := GetInstanceSpec("t3.micro")
+	require.True(t, found)
+	// CCF PkgWatt columns for t3.micro: idle 1.21, 100% 9.96, 2 vCPU.
+	assert.Equal(t, 2, spec.VCPUCount)
+	assert.InDelta(t, 1.21, spec.MinWatts, 1e-9)
+	assert.InDelta(t, 9.96, spec.MaxWatts, 1e-9)
+	want := cpuCarbonGrams(spec.MinWatts, spec.MaxWatts, spec.VCPUCount, 0.5, 0.000379, 730)
+	assert.InDelta(t, want, carbon, 1e-4)
 }
 
 func TestEstimator_EstimateCarbonGrams_UnknownInstance(t *testing.T) {
@@ -253,32 +251,42 @@ func TestEstimator_GPU_NonGPUInstanceUnaffected(t *testing.T) {
 // TestEstimator_EstimateCarbonGramsWithBreakdown verifies the breakdown method.
 func TestEstimator_EstimateCarbonGramsWithBreakdown(t *testing.T) {
 	tests := []struct {
-		name           string
-		instanceType   string
-		wantGPUCarbon  bool
-		minTotalCarbon float64
-		maxTotalCarbon float64
+		name          string
+		instanceType  string
+		wantGPUCarbon bool
+		wantVCPU      int
+		wantMinWatts  float64
+		wantMaxWatts  float64
+		wantGPUCount  int
+		wantTDP       float64
 	}{
 		{
-			name:           "GPU instance has both CPU and GPU carbon",
-			instanceType:   "p4d.24xlarge",
-			wantGPUCarbon:  true,
-			minTotalCarbon: 1000000.0,  // p4d.24xlarge has 96 vCPUs + 8x A100 GPUs
-			maxTotalCarbon: 20000000.0, // High due to 96 vCPUs + 3200W GPU power
+			name:          "GPU instance has both CPU and GPU carbon",
+			instanceType:  "p4d.24xlarge",
+			wantGPUCarbon: true,
+			wantVCPU:      96,
+			wantMinWatts:  57.93,
+			wantMaxWatts:  626.76,
+			wantGPUCount:  8,
+			wantTDP:       400,
 		},
 		{
-			name:           "non-GPU instance has only CPU carbon",
-			instanceType:   "t3.micro",
-			wantGPUCarbon:  false,
-			minTotalCarbon: 100.0,
-			maxTotalCarbon: 5000.0,
+			name:          "non-GPU instance has only CPU carbon",
+			instanceType:  "t3.micro",
+			wantGPUCarbon: false,
+			wantVCPU:      2,
+			wantMinWatts:  1.21,
+			wantMaxWatts:  9.96,
 		},
 		{
-			name:           "g4dn.xlarge has moderate GPU carbon (1x T4)",
-			instanceType:   "g4dn.xlarge",
-			wantGPUCarbon:  true,
-			minTotalCarbon: 10000.0,
-			maxTotalCarbon: 500000.0, // g4dn.xlarge has 4 vCPUs + 1 T4 GPU (70W)
+			name:          "g4dn.xlarge has moderate GPU carbon (1x T4)",
+			instanceType:  "g4dn.xlarge",
+			wantGPUCarbon: true,
+			wantVCPU:      4,
+			wantMinWatts:  2.28,
+			wantMaxWatts:  18.56,
+			wantGPUCount:  1,
+			wantTDP:       70,
 		},
 	}
 
@@ -290,20 +298,44 @@ func TestEstimator_EstimateCarbonGramsWithBreakdown(t *testing.T) {
 
 			require.True(t, ok, "instance should be found")
 
-			// Verify CPU carbon is always positive
-			assert.Greater(t, cpuCarbon, 0.0, "CPU carbon should be positive")
+			spec, found := GetInstanceSpec(tt.instanceType)
+			require.True(t, found)
+			assert.Equal(t, tt.wantVCPU, spec.VCPUCount)
+			assert.InDelta(t, tt.wantMinWatts, spec.MinWatts, 1e-9)
+			assert.InDelta(t, tt.wantMaxWatts, spec.MaxWatts, 1e-9)
 
-			// Verify GPU carbon expectation
+			const utilization = 0.5
+			const hours = 730.0
+			const grid = 0.000379
+			wantCPU := cpuCarbonGrams(spec.MinWatts, spec.MaxWatts, spec.VCPUCount, utilization, grid, hours)
+			assert.InDelta(t, wantCPU, cpuCarbon, 1e-3)
+
 			if tt.wantGPUCarbon {
-				assert.Greater(t, gpuCarbon, 0.0, "GPU carbon should be positive")
+				gpu, gpuOK := GetGPUSpec(tt.instanceType)
+				require.True(t, gpuOK)
+				assert.Equal(t, tt.wantGPUCount, gpu.GPUCount)
+				assert.InDelta(t, tt.wantTDP, gpu.TDPPerGPU, 1e-9)
+				wantGPU := gpuCarbonGrams(gpu.TDPPerGPU, gpu.GPUCount, utilization, grid, hours)
+				assert.InDelta(t, wantGPU, gpuCarbon, 1e-3)
 			} else {
 				assert.Equal(t, 0.0, gpuCarbon, "non-GPU instance should have zero GPU carbon")
 			}
-
-			// Verify total range
-			totalCarbon := cpuCarbon + gpuCarbon
-			assert.GreaterOrEqual(t, totalCarbon, tt.minTotalCarbon)
-			assert.LessOrEqual(t, totalCarbon, tt.maxTotalCarbon)
 		})
 	}
+}
+
+// cpuCarbonGrams evaluates the EC2 CPU formula from CLAUDE.md.
+// It is copied here so the estimator cannot satisfy the test by calling itself.
+func cpuCarbonGrams(minWatts, maxWatts float64, vCPU int, utilization, gridIntensity, hours float64) float64 {
+	avgWatts := minWatts + (utilization * (maxWatts - minWatts))
+	energyKWh := (avgWatts * float64(vCPU) * hours) / 1000
+	return energyKWh * AWSPUE * gridIntensity * 1_000_000
+}
+
+// gpuCarbonGrams evaluates GPU watts = TDP * count * utilization, then the
+// same PUE and grid conversion as the CPU formula.
+func gpuCarbonGrams(tdp float64, count int, utilization, gridIntensity, hours float64) float64 {
+	watts := tdp * float64(count) * utilization
+	energyKWh := (watts * hours) / 1000
+	return energyKWh * AWSPUE * gridIntensity * 1_000_000
 }
