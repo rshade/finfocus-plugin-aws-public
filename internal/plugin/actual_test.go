@@ -1596,6 +1596,8 @@ func TestGetActualCost_ZeroCostARN(t *testing.T) {
 		{"VPC", "arn:aws:ec2:us-east-1:123456789012:vpc/vpc-abc123"},
 		{"Subnet", "arn:aws:ec2:us-east-1:123456789012:subnet/subnet-abc123"},
 		{"SecurityGroup", "arn:aws:ec2:us-east-1:123456789012:security-group/sg-abc123"},
+		{"InternetGateway", "arn:aws:ec2:us-east-1:123456789012:internet-gateway/igw-abc123"},
+		{"RouteTable", "arn:aws:ec2:us-east-1:123456789012:route-table/rtb-abc123"},
 		{"IAM Role", "arn:aws:iam::123456789012:role/my-role"},
 		{"LaunchTemplate", "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-abc123"},
 		{

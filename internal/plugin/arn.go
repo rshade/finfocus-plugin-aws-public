@@ -129,6 +129,10 @@ func (a *ARNComponents) ToPulumiResourceType() string { //nolint:funlen // one c
 			return "subnet"
 		case "security-group":
 			return "securitygroup"
+		case "internet-gateway":
+			return serviceInternetGateway
+		case "route-table":
+			return serviceRouteTable
 		case "launch-template":
 			return serviceLaunchTmpl
 		default:
