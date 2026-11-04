@@ -83,6 +83,9 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #472 `router`: `Supports` declines an AWS resource with no region
+  instead of returning `InvalidArgument`, and child errors keep their gRPC
+  status (a missing SKU no longer reaches the host as `Unknown`). [S]
 - [x] #395 `recommendations`: static ElastiCache (generation upgrade, Graviton,
   Redis to Valkey), Lambda arm64, and NAT Gateway S3/DynamoDB gateway endpoint
   recommendations, priced from embedded rates and descriptor tags. [M]

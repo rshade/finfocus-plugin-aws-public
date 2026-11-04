@@ -2,10 +2,12 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
+	"connectrpc.com/connect"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
@@ -15,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
@@ -22,6 +25,10 @@ import (
 
 // awsProvider is the only cloud provider this router can price.
 const awsProvider = "aws"
+
+// regionRequiredReason is the Supports decline for a descriptor the router
+// cannot place in a region.
+const regionRequiredReason = "region required"
 
 // Plugin implements pluginsdk.Plugin as a multi-region router that delegates RPCs
 // to region-specific child processes. It contains no embedded pricing data and
@@ -112,8 +119,16 @@ func (r *Plugin) capabilities() []pbc.PluginCapability {
 
 // Supports checks the provider and resource-type prefix before it resolves a
 // region or launches a child. A name that does not match /aws/ is declined
-// with supported=false. AWS resources are delegated to the region-specific child.
+// with supported=false. A descriptor with no region is also declined, because
+// the router cannot place it and that is an answer, not a malformed request.
+// Cost RPCs still reject a missing region with InvalidArgument, and an omitted
+// descriptor is InvalidArgument everywhere.
+// AWS resources are delegated to the region-specific child.
 func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error) {
+	if req.GetResource() == nil {
+		return nil, newInvalidResourceError("Supports")
+	}
+
 	if name, foreign := foreignResourceName(req.GetResource()); foreign {
 		return &pbc.SupportsResponse{
 			Supported: false,
@@ -123,7 +138,10 @@ func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.S
 
 	region := extractRegionFromResource(req.GetResource())
 	if region == "" {
-		return nil, newInvalidRegionError("Supports")
+		return &pbc.SupportsResponse{
+			Supported: false,
+			Reason:    regionRequiredReason,
+		}, nil
 	}
 
 	traceID := r.getTraceID(ctx)
@@ -137,7 +155,8 @@ func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.S
 		return nil, wrapRegionError(region, err)
 	}
 
-	return client.Supports(propagateTraceID(ctx, traceID), req.GetResource())
+	resp, err := client.Supports(propagateTraceID(ctx, traceID), req.GetResource())
+	return resp, childStatusError(err)
 }
 
 // GetProjectedCost delegates to the region-specific child process.
@@ -166,7 +185,8 @@ func (r *Plugin) GetProjectedCost(
 		return nil, wrapRegionError(region, err)
 	}
 
-	return client.GetProjectedCost(propagateTraceID(ctx, traceID), req)
+	resp, err := client.GetProjectedCost(propagateTraceID(ctx, traceID), req)
+	return resp, childStatusError(err)
 }
 
 // GetActualCost delegates to the region-specific child process.
@@ -192,7 +212,8 @@ func (r *Plugin) GetActualCost(ctx context.Context, req *pbc.GetActualCostReques
 		return nil, wrapRegionError(region, err)
 	}
 
-	return client.GetActualCost(propagateTraceID(ctx, traceID), req)
+	resp, err := client.GetActualCost(propagateTraceID(ctx, traceID), req)
+	return resp, childStatusError(err)
 }
 
 // EstimateCost delegates to the region-specific child process.
@@ -222,7 +243,8 @@ func (r *Plugin) EstimateCost(ctx context.Context, req *pbc.EstimateCostRequest)
 		return nil, wrapRegionError(region, err)
 	}
 
-	return client.EstimateCost(propagateTraceID(ctx, traceID), req)
+	resp, err := client.EstimateCost(propagateTraceID(ctx, traceID), req)
+	return resp, childStatusError(err)
 }
 
 // GetPricingSpec delegates to the region-specific child process.
@@ -251,7 +273,8 @@ func (r *Plugin) GetPricingSpec(
 		return nil, wrapRegionError(region, err)
 	}
 
-	return client.GetPricingSpec(propagateTraceID(ctx, traceID), req)
+	resp, err := client.GetPricingSpec(propagateTraceID(ctx, traceID), req)
+	return resp, childStatusError(err)
 }
 
 // GetRecommendations groups AWS resources by region, delegates in parallel, and merges results.
@@ -285,7 +308,8 @@ func (r *Plugin) GetRecommendations(
 				Filter:          req.GetFilter(),
 				TargetResources: resources,
 			}
-			return client.GetRecommendations(propagateTraceID(ctx, traceID), regionReq)
+			resp, err := client.GetRecommendations(propagateTraceID(ctx, traceID), regionReq)
+			return resp, childStatusError(err)
 		}
 	}
 
@@ -403,6 +427,10 @@ func (r *Plugin) HandleDryRun(ctx context.Context, req *pbc.DryRunRequest) (*pbc
 			pluginsdk.WithResourceTypeSupported(false),
 			pluginsdk.WithConfigurationErrors([]string{status.Convert(err).Message()}),
 		), nil
+	}
+
+	if !supportsResp.GetSupported() && supportsResp.GetReason() == regionRequiredReason {
+		return nil, newInvalidRegionError("DryRun")
 	}
 
 	return pluginsdk.NewDryRunResponse(
@@ -613,6 +641,22 @@ func newInvalidRegionError(operation string) error {
 	return stWithDetails.Err()
 }
 
+// newInvalidResourceError creates a gRPC InvalidArgument error for an omitted
+// resource descriptor.
+func newInvalidResourceError(operation string) error {
+	message := fmt.Sprintf("resource is required for %s", operation)
+	errDetail := &pbc.ErrorDetail{
+		Code:    pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		Message: message,
+	}
+	st := status.New(codes.InvalidArgument, message)
+	stWithDetails, err := st.WithDetails(errDetail)
+	if err != nil {
+		return st.Err()
+	}
+	return stWithDetails.Err()
+}
+
 // wrapRegionError wraps a region-related error as a gRPC Unavailable error.
 func wrapRegionError(region string, err error) error {
 	errDetail := &pbc.ErrorDetail{
@@ -628,4 +672,39 @@ func wrapRegionError(region string, err error) error {
 		return st.Err()
 	}
 	return stWithDetails.Err()
+}
+
+// childStatusError converts an error from a child's Connect client into a gRPC
+// status error. The child answers over Connect, so a handler status such as
+// InvalidArgument arrives as a *connect.Error wrapped with the RPC name. The
+// gRPC server only reads a GRPCStatus method, so without this conversion the
+// host sees code Unknown. Connect and gRPC share code numbers. Error details
+// that are protobuf messages are copied across. Any other error, including a
+// context error, is returned unchanged.
+func childStatusError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var connectErr *connect.Error
+	if !errors.As(err, &connectErr) {
+		return err
+	}
+
+	st := status.New(codes.Code(connectErr.Code()), connectErr.Message())
+	var details []protoadapt.MessageV1
+	for _, detail := range connectErr.Details() {
+		msg, valueErr := detail.Value()
+		if valueErr != nil {
+			continue
+		}
+		details = append(details, protoadapt.MessageV1Of(msg))
+	}
+	if len(details) == 0 {
+		return st.Err()
+	}
+	withDetails, detailErr := st.WithDetails(details...)
+	if detailErr != nil {
+		return st.Err()
+	}
+	return withDetails.Err()
 }
