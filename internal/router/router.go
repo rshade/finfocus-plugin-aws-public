@@ -121,9 +121,14 @@ func (r *Plugin) capabilities() []pbc.PluginCapability {
 // region or launches a child. A name that does not match /aws/ is declined
 // with supported=false. A descriptor with no region is also declined, because
 // the router cannot place it and that is an answer, not a malformed request.
-// Cost RPCs still reject a missing region with InvalidArgument.
+// Cost RPCs still reject a missing region with InvalidArgument, and an omitted
+// descriptor is InvalidArgument everywhere.
 // AWS resources are delegated to the region-specific child.
 func (r *Plugin) Supports(ctx context.Context, req *pbc.SupportsRequest) (*pbc.SupportsResponse, error) {
+	if req.GetResource() == nil {
+		return nil, newInvalidResourceError("Supports")
+	}
+
 	if name, foreign := foreignResourceName(req.GetResource()); foreign {
 		return &pbc.SupportsResponse{
 			Supported: false,
@@ -629,6 +634,22 @@ func newInvalidRegionError(operation string) error {
 		Message: fmt.Sprintf("region is required for %s", operation),
 	}
 	st := status.New(codes.InvalidArgument, fmt.Sprintf("region is required for %s", operation))
+	stWithDetails, err := st.WithDetails(errDetail)
+	if err != nil {
+		return st.Err()
+	}
+	return stWithDetails.Err()
+}
+
+// newInvalidResourceError creates a gRPC InvalidArgument error for an omitted
+// resource descriptor.
+func newInvalidResourceError(operation string) error {
+	message := fmt.Sprintf("resource is required for %s", operation)
+	errDetail := &pbc.ErrorDetail{
+		Code:    pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		Message: message,
+	}
+	st := status.New(codes.InvalidArgument, message)
 	stWithDetails, err := st.WithDetails(errDetail)
 	if err != nil {
 		return st.Err()

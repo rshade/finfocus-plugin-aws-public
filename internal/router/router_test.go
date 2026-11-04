@@ -332,6 +332,26 @@ func TestPlugin_Supports_EmptyRegion(t *testing.T) {
 	assert.Equal(t, regionRequiredReason, resp.GetReason())
 }
 
+// TestPlugin_Supports_NilResource verifies that an omitted descriptor is a
+// malformed request, unlike a present descriptor with no region.
+func TestPlugin_Supports_NilResource(t *testing.T) {
+	r := NewPlugin("1.0.0", zerolog.New(zerolog.NewTestWriter(t)), t.TempDir(), true, nil)
+
+	for name, req := range map[string]*pbc.SupportsRequest{
+		"nil request":  nil,
+		"nil resource": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp, err := r.Supports(context.Background(), req)
+
+			require.Error(t, err)
+			assert.Nil(t, resp)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Contains(t, status.Convert(err).Message(), "resource is required for Supports")
+		})
+	}
+}
+
 // unsupportedCivoReason is the Supports decline for a Civo resource.
 // It matches the region binary's provider reason so hosts see one phrase.
 const unsupportedCivoReason = `Provider "civo" not supported (only "aws" is supported)`
