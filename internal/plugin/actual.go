@@ -256,6 +256,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return p.estimateELB(traceID, resource)
 	case serviceNATGW:
 		return p.estimateNATGateway(traceID, resource)
+	case serviceEIP:
+		return p.estimateEIP(traceID, resource)
 	case serviceCloudWatch:
 		return p.estimateCloudWatch(traceID, resource)
 	case serviceElastiCache:
@@ -279,7 +281,7 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
 		serviceEFSMountTarget, serviceEFSAccessPoint,
-		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute:
+		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute, serviceAddressAssoc:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		return p.estimateZeroCostResource(traceID, resource, serviceType), nil
 	default:

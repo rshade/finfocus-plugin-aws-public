@@ -84,6 +84,10 @@ var serviceClassifications = map[string]ServiceClassification{
 		ParentType:        parentTypeVPC,
 		Relationship:      RelationshipWithin,
 	},
+	eipGrowthKey: {
+		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
+		AffectedByDevMode: false, // an address is held, not run, so dev hours do not apply
+	},
 	"aws:ec2:nat-gateway": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Gateway hours

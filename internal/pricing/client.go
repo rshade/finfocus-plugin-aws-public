@@ -139,6 +139,10 @@ type PricingClient interface {
 	// Returns (price, true) if found, (nil, false) if not found.
 	NATGatewayPrice() (*NATGatewayPrice, bool)
 
+	// PublicIPv4Price returns the hourly rates for a public IPv4 address, which is how an
+	// Elastic IP is billed. Returns (price, true) if found, (nil, false) if not found.
+	PublicIPv4Price() (*PublicIPv4Price, bool)
+
 	// CloudWatchLogsIngestionTiers returns the tiered pricing for CloudWatch log ingestion.
 	// Returns (tiers, true) if found, (nil, false) if not found.
 	CloudWatchLogsIngestionTiers() ([]TierRate, bool)
@@ -217,6 +221,9 @@ type Client struct {
 	natGatewayPricing *NATGatewayPrice
 	natGatewayEC2     *NATGatewayPrice
 	natGatewayVPC     *NATGatewayPrice
+
+	// Public IPv4 address pricing (Elastic IP), from the AmazonVPC offer.
+	publicIPv4Pricing *PublicIPv4Price
 
 	// CloudWatch pricing (tiered logs and metrics)
 	cloudWatchPricing *cloudWatchPrice
@@ -367,6 +374,13 @@ func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one p
 			}
 		})
 
+		// 8b. Parse public IPv4 address pricing (Elastic IP) from the AmazonVPC offer.
+		wg.Go(func() {
+			if err := c.parsePublicIPv4Pricing(rawVPCJSON); err != nil {
+				c.logger.Error().Err(err).Msg("failed to parse public IPv4 pricing")
+			}
+		})
+
 		// 9. Parse CloudWatch pricing
 		wg.Go(func() {
 			if _, err := c.parseCloudWatchPricing(rawCloudWatchJSON); err != nil {
@@ -406,6 +420,7 @@ func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one p
 			Int("ec2_products", len(c.ec2Index)).
 			Int("ebs_products", len(c.ebsIndex)).
 			Bool("natgw_found", c.natGatewayPricing != nil).
+			Bool("public_ipv4_found", c.publicIPv4Pricing != nil).
 			Msg("Pricing data parsed")
 
 		// Fail initialization if critical service parsing failed

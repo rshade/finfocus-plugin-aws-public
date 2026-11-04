@@ -37,6 +37,8 @@ type mockPricingClient struct {
 	nlbHourlyPrice        float64            // NLB fixed hourly rate
 	nlbNLCUPrice          float64            // NLB cost per NLCU-hour
 	natgwHourlyPrice      float64            // NAT Gateway hourly rate
+	eipInUsePrice         float64            // public IPv4 in-use hourly rate
+	eipIdlePrice          float64            // public IPv4 idle hourly rate
 	natgwDataPrice        float64            // NAT Gateway data processing rate
 	efsPrices             *pricing.EFSPrice  // EFS rates; nil means EFS pricing is unavailable
 	cwLogsIngestionTiers  []pricing.TierRate // CloudWatch logs ingestion tiers
@@ -206,6 +208,17 @@ func (m *mockPricingClient) NLBPricePerNLCU() (float64, bool) {
 		return m.nlbNLCUPrice, true
 	}
 	return 0, false
+}
+
+func (m *mockPricingClient) PublicIPv4Price() (*pricing.PublicIPv4Price, bool) {
+	if m.eipInUsePrice > 0 && m.eipIdlePrice > 0 {
+		return &pricing.PublicIPv4Price{
+			InUseHourly: m.eipInUsePrice,
+			IdleHourly:  m.eipIdlePrice,
+			Currency:    "USD",
+		}, true
+	}
+	return nil, false
 }
 
 func (m *mockPricingClient) NATGatewayPrice() (*pricing.NATGatewayPrice, bool) {

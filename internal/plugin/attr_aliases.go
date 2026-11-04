@@ -77,6 +77,10 @@ var serviceAliases = map[string][]aliasPair{
 	serviceNATGW: {
 		{from: "dataProcessedGb", to: "data_processed_gb"},
 	},
+	serviceEIP: {
+		{from: "networkInterface", to: "network_interface"},
+		{from: "associationId", to: "association_id"},
+	},
 	serviceFargate: {
 		{from: "desiredCount", to: "desired_count"},
 		{from: "launchType", to: "launch_type"},
@@ -328,7 +332,7 @@ func skuOptional(service string) bool {
 	switch service {
 	case serviceASG, serviceS3, serviceLambda, serviceDynamoDB,
 		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate, serviceFargate,
-		serviceEFS:
+		serviceEFS, serviceEIP:
 		return true
 	default:
 		return false

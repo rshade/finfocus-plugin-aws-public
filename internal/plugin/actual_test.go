@@ -28,6 +28,8 @@ type mockPricingClientActual struct {
 	lambdaPrices      map[string]float64
 	natgwHourlyPrice  float64
 	natgwDataPrice    float64
+	eipInUsePrice     float64
+	eipIdlePrice      float64
 }
 
 func (m *mockPricingClientActual) Region() string {
@@ -135,6 +137,17 @@ func (m *mockPricingClientActual) NLBPricePerHour() (float64, bool) {
 
 func (m *mockPricingClientActual) NLBPricePerNLCU() (float64, bool) {
 	return 0.006, true
+}
+
+func (m *mockPricingClientActual) PublicIPv4Price() (*pricing.PublicIPv4Price, bool) {
+	if m.eipInUsePrice > 0 && m.eipIdlePrice > 0 {
+		return &pricing.PublicIPv4Price{
+			InUseHourly: m.eipInUsePrice,
+			IdleHourly:  m.eipIdlePrice,
+			Currency:    "USD",
+		}, true
+	}
+	return nil, false
 }
 
 func (m *mockPricingClientActual) NATGatewayPrice() (*pricing.NATGatewayPrice, bool) {
