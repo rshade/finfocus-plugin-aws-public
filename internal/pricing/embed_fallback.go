@@ -333,6 +333,20 @@ var rawVPCJSON = []byte(`{
         "regionCode": "unknown",
         "usagetype": "NatGateway-Bytes"
       }
+    },
+    "SKU_PUBLICIPV4_INUSE": {
+      "sku": "SKU_PUBLICIPV4_INUSE",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "USE1-PublicIPv4:InUseAddress"
+      }
+    },
+    "SKU_PUBLICIPV4_IDLE": {
+      "sku": "SKU_PUBLICIPV4_IDLE",
+      "attributes": {
+        "regionCode": "unknown",
+        "usagetype": "USE1-PublicIPv4:IdleAddress"
+      }
     }
   },
   "terms": {
@@ -363,6 +377,36 @@ var rawVPCJSON = []byte(`{
               "description": "NAT Gateway data processing rate",
               "unit": "Quantity",
               "pricePerUnit": { "USD": "0.045" }
+            }
+          }
+        }
+      },
+      "SKU_PUBLICIPV4_INUSE": {
+        "SKU_PUBLICIPV4_INUSE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_PUBLICIPV4_INUSE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_PUBLICIPV4_INUSE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_PUBLICIPV4_INUSE.JRTCKXETXF.6YS6EN2CT7",
+              "description": "Hourly charge for In-use Public IPv4 Addresses",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.005" }
+            }
+          }
+        }
+      },
+      "SKU_PUBLICIPV4_IDLE": {
+        "SKU_PUBLICIPV4_IDLE.JRTCKXETXF": {
+          "offerTermCode": "JRTCKXETXF",
+          "sku": "SKU_PUBLICIPV4_IDLE",
+          "effectiveDate": "2024-01-01T00:00:00Z",
+          "priceDimensions": {
+            "SKU_PUBLICIPV4_IDLE.JRTCKXETXF.6YS6EN2CT7": {
+              "rateCode": "SKU_PUBLICIPV4_IDLE.JRTCKXETXF.6YS6EN2CT7",
+              "description": "Hourly charge for Idle Public IPv4 Addresses",
+              "unit": "Hrs",
+              "pricePerUnit": { "USD": "0.005" }
             }
           }
         }

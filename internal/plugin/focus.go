@@ -21,6 +21,7 @@ var awsServiceNames = map[string]string{
 	serviceFargate:    "AWS Fargate",
 	serviceELB:        "Elastic Load Balancing",
 	serviceNATGW:      "Amazon VPC NAT Gateway",
+	serviceEIP:        "Amazon VPC Elastic IP",
 	serviceCloudWatch: "Amazon CloudWatch",
 	serviceEFS:        "Amazon Elastic File System",
 }
@@ -114,7 +115,7 @@ func mapServiceCategory(serviceType string) pbc.FocusServiceCategory {
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE
 	case serviceRDS, serviceDynamoDB:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_DATABASE
-	case serviceELB, serviceNATGW:
+	case serviceELB, serviceNATGW, serviceEIP:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_NETWORK
 	case serviceCloudWatch:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_MANAGEMENT
@@ -140,7 +141,8 @@ func getServiceName(serviceType string) string {
 // This is used when the caller doesn't have a specific pricing unit available.
 func getPricingUnitForService(serviceType string) string {
 	switch serviceType {
-	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB, serviceNATGW, serviceFargate:
+	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB,
+		serviceNATGW, serviceEIP, serviceFargate:
 		return "Hours"
 	case serviceEBS, serviceS3, serviceEFS:
 		return "GB-Mo"

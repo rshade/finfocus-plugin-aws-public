@@ -90,6 +90,13 @@ const serviceSubnet = "subnet"
 // serviceVPC is the canonical name for VPC zero-cost resources.
 const serviceVPC = "vpc"
 
+// serviceEIP is the canonical name for Elastic IP addresses (public IPv4), which AWS bills hourly.
+const serviceEIP = "eip"
+
+// serviceAddressAssoc is the canonical name for Elastic IP association zero-cost resources.
+// It is not named after "EIP" because gosec G101 matches "pass" inside "EIPAssoc".
+const serviceAddressAssoc = "eipassociation"
+
 // serviceInternetGateway is the canonical name for internet gateway zero-cost resources.
 const serviceInternetGateway = "internetgateway"
 
@@ -156,6 +163,7 @@ var ZeroCostServices = map[string]bool{
 	serviceRouteTable:      true,
 	serviceRouteTableAssoc: true,
 	serviceRoute:           true,
+	serviceAddressAssoc:    true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
@@ -177,6 +185,7 @@ var ZeroCostPulumiPatterns = map[string]string{
 	"ec2/routetable":            serviceRouteTable,
 	"ec2/routetableassociation": serviceRouteTableAssoc,
 	"ec2/route":                 serviceRoute,
+	"ec2/eipassociation":        serviceAddressAssoc,
 }
 
 // IsZeroCostService returns true if the canonical service name has no direct AWS charges.

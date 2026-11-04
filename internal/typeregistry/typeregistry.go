@@ -56,6 +56,8 @@ var TerraformMappings = map[string]string{
 	"aws_route_table":             "aws:ec2/routeTable:RouteTable",
 	"aws_route_table_association": "aws:ec2/routeTableAssociation:RouteTableAssociation",
 	"aws_route":                   "aws:ec2/route:Route",
+	"aws_eip":                     "aws:ec2/eip:Eip",
+	"aws_eip_association":         "aws:ec2/eipAssociation:EipAssociation",
 
 	// Serverless and containers
 	"aws_lambda_function": "aws:lambda/function:Function",
