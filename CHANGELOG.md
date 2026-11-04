@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.4...v0.2.5) (2026-11-04)
+
+
+### Features
+
+* **plugin:** add Amazon EFS cost estimator ([#462](https://github.com/rshade/finfocus-plugin-aws-public/issues/462)) ([fec9c64](https://github.com/rshade/finfocus-plugin-aws-public/commit/fec9c64d6e1ed76a27c6b0e24aacff8f95f38278))
+* **plugin:** price ECS Fargate services per task ([#463](https://github.com/rshade/finfocus-plugin-aws-public/issues/463)) ([452ecb1](https://github.com/rshade/finfocus-plugin-aws-public/commit/452ecb114d2741bf65453b9789639c7487baabb1)), closes [#393](https://github.com/rshade/finfocus-plugin-aws-public/issues/393)
+* **plugin:** price EKS Fargate pods by vCPU and GiB ([#461](https://github.com/rshade/finfocus-plugin-aws-public/issues/461)) ([5fe29e4](https://github.com/rshade/finfocus-plugin-aws-public/commit/5fe29e4bdc73538f617a7842426e0c66ea6eb981))
+* **recommendations:** add static ElastiCache, Lambda arm64, and NAT endpoint advice ([#459](https://github.com/rshade/finfocus-plugin-aws-public/issues/459)) ([b9a4b47](https://github.com/rshade/finfocus-plugin-aws-public/commit/b9a4b47c908d3883cd561376e54b550398a53349)), closes [#395](https://github.com/rshade/finfocus-plugin-aws-public/issues/395)
+
+
+### Bug Fixes
+
+* decline non-aws Supports calls ([#473](https://github.com/rshade/finfocus-plugin-aws-public/issues/473)) ([cefdb48](https://github.com/rshade/finfocus-plugin-aws-public/commit/cefdb488ae9a5785be5dcf03b68d6e7c80d763e0))
+* **deps:** update go dependencies ([#458](https://github.com/rshade/finfocus-plugin-aws-public/issues/458)) ([9c305f8](https://github.com/rshade/finfocus-plugin-aws-public/commit/9c305f8565c758350f20583a9ad5ed9d013383bc))
+* **plugin:** skip Graviton recommendations for Windows instances ([#460](https://github.com/rshade/finfocus-plugin-aws-public/issues/460)) ([1c5edb3](https://github.com/rshade/finfocus-plugin-aws-public/commit/1c5edb3550dc3b492ae77eb5b98d127c0df9d2c2)), closes [#455](https://github.com/rshade/finfocus-plugin-aws-public/issues/455)
+* **router:** decline Supports without a region and keep child status codes ([#474](https://github.com/rshade/finfocus-plugin-aws-public/issues/474)) ([74d041b](https://github.com/rshade/finfocus-plugin-aws-public/commit/74d041be52f0d5facf0f80080148f8ce1c732948))
+
+
+### Documentation
+
+* link AWS public pricing and FinFocus from the README ([#451](https://github.com/rshade/finfocus-plugin-aws-public/issues/451)) ([5bfa651](https://github.com/rshade/finfocus-plugin-aws-public/commit/5bfa6510486272d2566dd41728c3bde78ba78e12))
+* update stale finfocus-spec and Go version references ([#465](https://github.com/rshade/finfocus-plugin-aws-public/issues/465)) ([8f9f4a9](https://github.com/rshade/finfocus-plugin-aws-public/commit/8f9f4a9219e9794e22f2d582998fc3568a7412fd))
+
 ## [0.2.4](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.3...v0.2.4) (2026-10-21)
 
 
