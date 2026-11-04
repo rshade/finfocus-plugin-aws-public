@@ -220,6 +220,24 @@ func (p *AWSPublicPlugin) logErrorWithID(traceID, operation string, err error, c
 		Msg("request failed")
 }
 
+// logResourceErrorWithID logs a failed request with the resource type and the
+// canonical service it resolved to, so a failure can be traced to a resource
+// from the log alone. Attributes and tags are never logged here.
+func (p *AWSPublicPlugin) logResourceErrorWithID(
+	traceID, operation string,
+	resource *pbc.ResourceDescriptor,
+	serviceType string,
+	err error,
+	code pbc.ErrorCode,
+) {
+	p.traceLogger(traceID, operation).Error().
+		Str(pluginsdk.FieldErrorCode, code.String()).
+		Str(pluginsdk.FieldResourceType, resource.GetResourceType()).
+		Str("service_type", serviceType).
+		Err(err).
+		Msg("request failed")
+}
+
 // newErrorWithID creates a gRPC error with trace_id in the error details using a pre-captured trace ID.
 // Use this when you've already extracted the trace ID to ensure consistency
 // between error objects and log entries.

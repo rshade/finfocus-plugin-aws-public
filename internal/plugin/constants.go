@@ -90,6 +90,18 @@ const serviceSubnet = "subnet"
 // serviceVPC is the canonical name for VPC zero-cost resources.
 const serviceVPC = "vpc"
 
+// serviceInternetGateway is the canonical name for internet gateway zero-cost resources.
+const serviceInternetGateway = "internetgateway"
+
+// serviceRouteTable is the canonical name for route table zero-cost resources.
+const serviceRouteTable = "routetable"
+
+// serviceRouteTableAssoc is the canonical name for route table association zero-cost resources.
+const serviceRouteTableAssoc = "routetableassociation"
+
+// serviceRoute is the canonical name for route zero-cost resources.
+const serviceRoute = "route"
+
 // PricingNotFoundTemplate is the standard message template for missing pricing data.
 // Use with fmt.Sprintf to format specific resource details.
 //
@@ -120,7 +132,8 @@ const RelationshipWithin = "within"
 const RelationshipManagedBy = "managed_by"
 
 // ZeroCostServices is the canonical set of AWS resource types that have no direct charges.
-// These resources (VPC, Security Groups, Subnets) are "free tier" networking infrastructure.
+// These resources (VPC, Security Groups, Subnets, Internet Gateways, Route Tables, Routes) are
+// "free tier" networking infrastructure.
 // Use IsZeroCostService() for membership checks.
 //
 // When adding new zero-cost resources:
@@ -138,6 +151,11 @@ var ZeroCostServices = map[string]bool{
 
 	serviceEFSMountTarget: true,
 	serviceEFSAccessPoint: true,
+
+	serviceInternetGateway: true,
+	serviceRouteTable:      true,
+	serviceRouteTableAssoc: true,
+	serviceRoute:           true,
 }
 
 // ZeroCostPulumiPatterns maps Pulumi resource type path segments to canonical service names.
@@ -154,6 +172,11 @@ var ZeroCostPulumiPatterns = map[string]string{
 
 	"efs/mounttarget": serviceEFSMountTarget,
 	"efs/accesspoint": serviceEFSAccessPoint,
+
+	"ec2/internetgateway":       serviceInternetGateway,
+	"ec2/routetable":            serviceRouteTable,
+	"ec2/routetableassociation": serviceRouteTableAssoc,
+	"ec2/route":                 serviceRoute,
 }
 
 // IsZeroCostService returns true if the canonical service name has no direct AWS charges.

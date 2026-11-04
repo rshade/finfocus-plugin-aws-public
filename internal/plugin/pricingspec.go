@@ -60,6 +60,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 	resource, err := p.ValidateProjectedCostRequest(ctx, projReq)
 	if err != nil {
 		p.traceLogger(traceID, "GetPricingSpec").Error().
+			Str(pluginsdk.FieldResourceType, projReq.GetResource().GetResourceType()).
 			Err(err).
 			Msg("validation failed")
 		return nil, err
@@ -100,7 +101,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.fargatePricingSpec(resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
-		serviceEFSMountTarget, serviceEFSAccessPoint:
+		serviceEFSMountTarget, serviceEFSAccessPoint,
+		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute:
 		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:
 		spec = &pbc.PricingSpec{

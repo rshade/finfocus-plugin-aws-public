@@ -83,6 +83,11 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #475 `plugin`: internet gateways, route tables, route table
+  associations, and routes return $0 instead of `resource.sku is required`
+  (Terraform mappings included). Failed `GetProjectedCost` log lines now carry
+  `resource_type` and `service_type`. Elastic IPs are not zero-cost and are
+  not covered. [S]
 - [x] #472 `router`: `Supports` declines an AWS resource with no region
   instead of returning `InvalidArgument`, and child errors keep their gRPC
   status (a missing SKU no longer reaches the host as `Unknown`). [S]

@@ -52,6 +52,11 @@ var TerraformMappings = map[string]string{
 	"aws_subnet":         "aws:ec2/subnet:Subnet",
 	"aws_security_group": "aws:ec2/securityGroup:SecurityGroup",
 
+	"aws_internet_gateway":        "aws:ec2/internetGateway:InternetGateway",
+	"aws_route_table":             "aws:ec2/routeTable:RouteTable",
+	"aws_route_table_association": "aws:ec2/routeTableAssociation:RouteTableAssociation",
+	"aws_route":                   "aws:ec2/route:Route",
+
 	// Serverless and containers
 	"aws_lambda_function": "aws:lambda/function:Function",
 	"aws_eks_cluster":     "aws:eks/cluster:Cluster",
