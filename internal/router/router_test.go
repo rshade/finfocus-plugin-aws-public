@@ -2,8 +2,11 @@ package router
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/goccy/go-json"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
 	"github.com/stretchr/testify/assert"
@@ -305,23 +308,28 @@ func TestPlugin_GetProjectedCost_EmptyRegion(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, st.Code())
 }
 
-// TestPlugin_Supports_EmptyRegion verifies that Supports returns
-// InvalidArgument when the ResourceDescriptor has no region.
+// TestPlugin_Supports_EmptyRegion verifies that Supports declines an AWS
+// descriptor with no region instead of returning an error.
+//
+// FinFocus asks every plugin about every resource, and it does not read
+// aws:region from provider config, so such descriptors are common. A resource
+// the router cannot place is a normal "not supported here" answer. The cost
+// RPCs keep InvalidArgument for the same input.
 func TestPlugin_Supports_EmptyRegion(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	r := NewPlugin("1.0.0", logger, t.TempDir(), true, nil)
 
-	_, err := r.Supports(context.Background(), &pbc.SupportsRequest{
+	resp, err := r.Supports(context.Background(), &pbc.SupportsRequest{
 		Resource: &pbc.ResourceDescriptor{
 			Provider:     "aws",
-			ResourceType: "ec2",
+			ResourceType: "aws:iam/role:Role",
 		},
 	})
 
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.InvalidArgument, st.Code())
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.GetSupported())
+	assert.Equal(t, regionRequiredReason, resp.GetReason())
 }
 
 // unsupportedCivoReason is the Supports decline for a Civo resource.
@@ -336,8 +344,8 @@ const unsupportedCivoReason = `Provider "civo" not supported (only "aws" is supp
 // Unavailable after a child lookup, which FinFocus logged once per resource.
 // The decline is a successful Supports response with supported=false.
 //
-// An empty provider with no type prefix is not a foreign cloud. It still
-// fails the AWS region check. A type prefix that does not match /aws/,
+// An empty provider with no type prefix is not a foreign cloud. With no
+// region it is declined with the region-required reason. A type prefix that does not match /aws/,
 // such as kubernetes:apps/v1:Deployment, is declined even when the provider
 // field is empty. An AWS resource in a real region still attempts to reach
 // its child.
@@ -388,18 +396,16 @@ func TestPlugin_Supports_NonAWSProvider(t *testing.T) {
 			wantReason:   `Provider "kubernetes" not supported (only "aws" is supported)`,
 		},
 		{
-			name:         "aws-public still requires a region",
+			name:         "aws-public with no region is declined",
 			provider:     "aws-public",
 			resourceType: "aws:ec2/instance:Instance",
-			wantCode:     codes.InvalidArgument,
-			wantErr:      "region is required for Supports",
+			wantReason:   regionRequiredReason,
 		},
 		{
-			name:     "empty provider still requires a region",
-			provider: "",
-			region:   "",
-			wantCode: codes.InvalidArgument,
-			wantErr:  "region is required for Supports",
+			name:       "empty provider with no region is declined",
+			provider:   "",
+			region:     "",
+			wantReason: regionRequiredReason,
 		},
 		{
 			name:     "aws still routes to its region child",
@@ -804,4 +810,87 @@ func TestWrapRegionError(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, codes.Unavailable, st.Code())
 	assert.Contains(t, st.Message(), "us-east-1")
+}
+
+// TestChildStatusError verifies that an error from a child's Connect client
+// reaches the host as the same gRPC status.
+//
+// The router calls children over Connect. A *connect.Error wrapped with the
+// RPC name has no GRPCStatus method, so the gRPC server used to report it as
+// Unknown, which is how "resource.sku is required" lost InvalidArgument.
+func TestChildStatusError(t *testing.T) {
+	detail := &pbc.ErrorDetail{
+		Code:    pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE,
+		Message: "resource.sku is required",
+	}
+	withDetail := connect.NewError(connect.CodeInvalidArgument, errors.New("resource.sku is required"))
+	connectDetail, err := connect.NewErrorDetail(detail)
+	require.NoError(t, err)
+	withDetail.AddDetail(connectDetail)
+
+	unavailable := connect.NewError(connect.CodeUnavailable, errors.New("child down"))
+
+	tests := []struct {
+		name        string
+		err         error
+		wantNil     bool
+		wantCode    codes.Code
+		wantMessage string
+		wantDetail  bool
+	}{
+		{name: "nil stays nil", err: nil, wantNil: true},
+		{
+			name:        "wrapped invalid argument with detail",
+			err:         fmt.Errorf("GetProjectedCost RPC failed: %w", withDetail),
+			wantCode:    codes.InvalidArgument,
+			wantMessage: "resource.sku is required",
+			wantDetail:  true,
+		},
+		{
+			name:        "wrapped unavailable without detail",
+			err:         fmt.Errorf("Supports RPC failed: %w", unavailable),
+			wantCode:    codes.Unavailable,
+			wantMessage: "child down",
+		},
+		{
+			name:        "grpc status passes through",
+			err:         status.Error(codes.NotFound, "missing"),
+			wantCode:    codes.NotFound,
+			wantMessage: "missing",
+		},
+		{
+			name:        "plain error stays unknown",
+			err:         errors.New("boom"),
+			wantCode:    codes.Unknown,
+			wantMessage: "boom",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := childStatusError(tt.err)
+			if tt.wantNil {
+				assert.NoError(t, got)
+				return
+			}
+
+			require.Error(t, got)
+			st := status.Convert(got)
+			assert.Equal(t, tt.wantCode, st.Code())
+			assert.Equal(t, tt.wantMessage, st.Message())
+
+			var gotDetail *pbc.ErrorDetail
+			for _, d := range st.Details() {
+				if ed, ok := d.(*pbc.ErrorDetail); ok {
+					gotDetail = ed
+				}
+			}
+			if tt.wantDetail {
+				require.NotNil(t, gotDetail)
+				assert.Equal(t, pbc.ErrorCode_ERROR_CODE_INVALID_RESOURCE, gotDetail.GetCode())
+			} else {
+				assert.Nil(t, gotDetail)
+			}
+		})
+	}
 }

@@ -777,11 +777,22 @@ Kubernetes deployment with an empty provider field, so the host does not see
 `region is required for Supports`. Cost methods return `InvalidArgument` with
 that same reason. `EstimateCost` for a non-AWS Pulumi type returns USD 0,
 matching the region binary. `GetRecommendations` skips those resources and
-returns an empty result when every resource names another cloud. An empty
-provider with no type prefix still fails the AWS region check. A
+returns an empty result when every resource names another cloud. A
 mixed-provider stack, including a resource whose region is `NYC1` or a
 resource with no region, no longer logs one `InvalidArgument` or
 `Unavailable` per resource.
+
+An AWS descriptor with no region is declined by `Supports` with
+`supported=false` and reason `region required`, because the router cannot
+place it and FinFocus does not read `aws:region` from provider config. The
+cost RPCs and `HandleDryRun` still return `InvalidArgument` for a missing
+region.
+
+Children answer over Connect, so a handler status reaches the router as a
+`*connect.Error`, which the gRPC server would report as `Unknown`.
+`childStatusError` converts it to the same gRPC status code, message, and
+`ErrorDetail`. Every router method that calls a child passes the error
+through it.
 
 ## Cost Estimation Scope
 
