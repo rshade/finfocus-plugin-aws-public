@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.5...v0.2.6) (2026-11-04)
+
+
+### Bug Fixes
+
+* **plugin:** price free ec2 networking resources at zero ([#476](https://github.com/rshade/finfocus-plugin-aws-public/issues/476)) ([00bf9c5](https://github.com/rshade/finfocus-plugin-aws-public/commit/00bf9c502ececb262583c51c3d1529e896722611)), closes [#475](https://github.com/rshade/finfocus-plugin-aws-public/issues/475)
+
 ## [0.2.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.4...v0.2.5) (2026-11-04)
 
 
