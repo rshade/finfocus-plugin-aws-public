@@ -157,7 +157,7 @@ func TestTerraformMappings_AllTokensRouteToSupportedServices(t *testing.T) {
 	for tfType, pulumiToken := range typeregistry.TerraformMappings {
 		t.Run(tfType, func(t *testing.T) {
 			service := detectService(normalizeResourceType(pulumiToken))
-			assert.True(t, supported[service],
+			assert.True(t, supported[service] || IsZeroCostService(service),
 				"token %q (from %q) routes to unsupported service %q", pulumiToken, tfType, service)
 		})
 	}

@@ -234,7 +234,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 	validated, err := p.validateProjectedCostRequestWithResolver(ctx, req, resolver)
 	if err != nil {
 		errCode := extractErrorCode(err)
-		p.logErrorWithID(traceID, "GetProjectedCost", err, errCode)
+		p.logResourceErrorWithID(traceID, "GetProjectedCost", resource, resolver.ServiceType(), err, errCode)
 		return nil, err
 	}
 	resource = validated
@@ -288,7 +288,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateECSFargate(traceID, resource)
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
-		serviceEFSMountTarget, serviceEFSAccessPoint:
+		serviceEFSMountTarget, serviceEFSAccessPoint,
+		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
@@ -313,7 +314,9 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 				BillingDetail: pue.BillingDetail,
 			}
 		} else {
-			p.logErrorWithID(traceID, "GetProjectedCost", err, pbc.ErrorCode_ERROR_CODE_UNSPECIFIED)
+			p.logResourceErrorWithID(
+				traceID, "GetProjectedCost", resource, serviceType, err, pbc.ErrorCode_ERROR_CODE_UNSPECIFIED,
+			)
 			return nil, err
 		}
 	}
@@ -2231,6 +2234,11 @@ var zeroCostResourceDescriptions = map[string]string{
 
 	serviceEFSMountTarget: "EFS mount targets have no direct charge. Costs apply to the file system storage and throughput.",
 	serviceEFSAccessPoint: "EFS access points have no direct charge. Costs apply to the file system storage and throughput.",
+
+	serviceInternetGateway: "Internet Gateways have no direct charge. Data transfer and public IPv4 addresses are billed separately.",
+	serviceRouteTable:      "Route Tables have no direct charge. They are a free networking feature.",
+	serviceRouteTableAssoc: "Route Table associations have no direct charge. They are a free networking feature.",
+	serviceRoute:           "Routes have no direct charge. They are a free networking feature.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.
