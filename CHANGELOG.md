@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.6](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.5...v0.2.6) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#483](https://github.com/rshade/finfocus-plugin-aws-public/issues/483)) ([2e59f21](https://github.com/rshade/finfocus-plugin-aws-public/commit/2e59f21bc74dfabd71ccb003c669bfbae68bd997))
+* **plugin:** price free ec2 networking resources at zero ([#476](https://github.com/rshade/finfocus-plugin-aws-public/issues/476)) ([00bf9c5](https://github.com/rshade/finfocus-plugin-aws-public/commit/00bf9c502ececb262583c51c3d1529e896722611)), closes [#475](https://github.com/rshade/finfocus-plugin-aws-public/issues/475)
+
+
+### Documentation
+
+* link the FinFocus docs at finfocus.dev ([#485](https://github.com/rshade/finfocus-plugin-aws-public/issues/485)) ([45e8882](https://github.com/rshade/finfocus-plugin-aws-public/commit/45e8882c5a694f3b1a8cdea7cdaa0d4db12e745a))
+
 ## [0.2.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.4...v0.2.5) (2026-11-04)
 
 
