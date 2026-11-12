@@ -7,7 +7,7 @@ infrastructure costs using publicly available AWS on-demand pricing data.
 This plugin integrates [Amazon Web Services (AWS)](https://aws.amazon.com/)
 pricing and is a plugin for [FinFocus](https://github.com/rshade/finfocus), the
 Pulumi cost CLI. See the
-[FinFocus docs page for this plugin](https://rshade.github.io/finfocus/plugins/aws-public/).
+[FinFocus docs page for this plugin](https://finfocus.dev/docs/plugins/aws-public/).
 
 ## Quick Start
 
