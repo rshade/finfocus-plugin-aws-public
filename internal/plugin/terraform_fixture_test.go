@@ -106,6 +106,8 @@ var terraformEvidence = map[string][]string{
 	"aws_route_table":             {"Route Tables have no direct"},
 	"aws_route_table_association": {"Route Table associations have no direct"},
 	"aws_route":                   {"Routes have no direct"},
+	"aws_eip":                     {"Elastic IP (public IPv4, in-use)"},
+	"aws_eip_association":         {"Elastic IP associations have no direct"},
 	"aws_lambda_function":         {"256MB", "arm64"},
 	"aws_eks_cluster":             {"extended support"},
 	"aws_ecs_service":             {"2 tasks", "cpu"},
@@ -305,6 +307,8 @@ func newTerraformFixturePlugin(t *testing.T) *AWSPublicPlugin {
 	mock.nlbNLCUPrice = 0.006
 	mock.natgwHourlyPrice = 0.045
 	mock.natgwDataPrice = 0.045
+	mock.eipInUsePrice = 0.005
+	mock.eipIdlePrice = 0.005
 	mock.lambdaPrices["request"] = 0.0000002
 	mock.lambdaPrices["gb-second"] = 0.0000166667
 	mock.lambdaPrices["gb-second-arm64"] = 0.0000133334

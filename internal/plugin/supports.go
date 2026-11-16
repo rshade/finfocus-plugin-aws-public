@@ -103,7 +103,7 @@ func (p *AWSPublicPlugin) Supports( //nolint:funlen
 			SupportedMetrics: supportedMetrics,
 		}, nil
 
-	case serviceELB, serviceNATGW, serviceCloudWatch, serviceEKSFargate, serviceFargate:
+	case serviceELB, serviceNATGW, serviceEIP, serviceCloudWatch, serviceEKSFargate, serviceFargate:
 		// Supported but no carbon estimation yet
 		p.traceLogger(traceID, "Supports").Info().
 			Str(pluginsdk.FieldResourceType, resource.GetResourceType()).

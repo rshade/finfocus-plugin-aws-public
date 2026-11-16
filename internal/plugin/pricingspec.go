@@ -89,6 +89,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.eksPricingSpec(resource)
 	case serviceELB, serviceALB, serviceNLB:
 		spec = p.elbPricingSpec(resource)
+	case serviceEIP:
+		spec = p.eipPricingSpec(resource)
 	case serviceNATGW:
 		spec = p.natGatewayPricingSpec(resource)
 	case serviceCloudWatch:
@@ -102,7 +104,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
 		serviceEFSMountTarget, serviceEFSAccessPoint,
-		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute:
+		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute, serviceAddressAssoc:
 		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:
 		spec = &pbc.PricingSpec{

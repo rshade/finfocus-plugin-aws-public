@@ -48,6 +48,11 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			return serviceNATGW
 		}
 
+		// Elastic IPs are billed, unlike the other aws:ec2/* networking types.
+		if isElasticIPType(rt) {
+			return serviceEIP
+		}
+
 		// IAM resources (prefix match)
 		if strings.HasPrefix(rt, "aws:iam/") {
 			return serviceIAM
@@ -274,6 +279,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateELB(traceID, resource)
 	case serviceNATGW:
 		resp, err = p.estimateNATGateway(traceID, resource)
+	case serviceEIP:
+		resp, err = p.estimateEIP(traceID, resource)
 	case serviceCloudWatch:
 		resp, err = p.estimateCloudWatch(traceID, resource)
 	case serviceElastiCache:
@@ -289,7 +296,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
 		serviceEFSMountTarget, serviceEFSAccessPoint,
-		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute:
+		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute, serviceAddressAssoc:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
 	default:
@@ -1388,8 +1395,11 @@ func detectService(resourceType string) string { //nolint:gocognit // one branch
 		serviceNATGW,
 		serviceCloudWatch,
 		serviceElastiCache,
-		serviceEFS:
+		serviceEFS,
+		serviceEIP:
 		return resourceType
+	case "elastic_ip", "elastic-ip", "elasticip":
+		return serviceEIP
 	case serviceASG, "autoscaling":
 		return serviceASG
 	case serviceEKSFargate:
@@ -2239,6 +2249,7 @@ var zeroCostResourceDescriptions = map[string]string{
 	serviceRouteTable:      "Route Tables have no direct charge. They are a free networking feature.",
 	serviceRouteTableAssoc: "Route Table associations have no direct charge. They are a free networking feature.",
 	serviceRoute:           "Routes have no direct charge. They are a free networking feature.",
+	serviceAddressAssoc:    "Elastic IP associations have no direct charge. The address itself is billed by the hour.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.

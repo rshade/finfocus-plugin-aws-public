@@ -83,6 +83,10 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #477 `plugin`: Elastic IPs (`aws:ec2/eip:Eip`) priced hourly from the
+  AmazonVPC public IPv4 rates instead of failing with `resource.sku is
+  required`; `eipAssociation` is zero-cost; Terraform `aws_eip` and
+  `aws_eip_association` map to them. [M]
 - [x] #475 `plugin`: internet gateways, route tables, route table
   associations, and routes return $0 instead of `resource.sku is required`
   (Terraform mappings included). Failed `GetProjectedCost` log lines now carry

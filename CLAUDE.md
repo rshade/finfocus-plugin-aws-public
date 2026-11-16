@@ -35,7 +35,7 @@ Go 1.27+: Follow standard conventions
 - **No Dummy Data:** Do not create dummy, fake, or hardcoded placeholder data for core functionality (especially pricing). Always implement fetchers for real authoritative data sources (e.g., AWS Price List API).
 - **Validation Pattern:** For parsing numeric tags with bounds checking, use validation helper methods that return validated values and log warnings for invalid inputs. Example: `validateNonNegativeFloat64(traceID, "tag_name", value)` returns 0 and logs warning if value is negative or unparseable. This ensures consistent error handling across all tag parsing.
 - **Zero-Cost Resources:** AWS resources with no direct cost (VPC, Security Groups, Subnets, Internet Gateways, Route Tables, Route Table associations, Routes) return $0 estimates gracefully instead of SKU errors. An `aws:ec2/*` type with no `ZeroCostPulumiPatterns` entry collapses to `ec2` and fails with `resource.sku is required`, so add a pattern for every free EC2 networking type. The pattern match is token-aware (`ec2/route` does not match `ec2/routetable`). Each cost RPC keeps its own zero-cost `case` list in `projected.go`, `actual.go`, and `pricingspec.go`; `TestZeroCostPulumiPatterns_AllCostRPCs` fails when one is missed.
-- **Elastic IPs are not zero-cost.** AWS bills every public IPv4 address (`PublicIPv4:InUseAddress` and `IdleAddress`, $0.005/hr in us-east-1). The plugin does not index those usage types yet, so `aws:ec2/eip:Eip` still fails; do not add it to `ZeroCostServices`.
+- **Elastic IPs are not zero-cost.** AWS bills every public IPv4 address, so `aws:ec2/eip:Eip` has its own estimator (`internal/plugin/eip.go`); never add it to `ZeroCostServices`. `aws:ec2/eipAssociation:EipAssociation` is free and is zero-cost.
 - **Prefer SDK Parsers:** Use battle-tested SDK packages (e.g., `github.com/aws/aws-sdk-go-v2/aws/arn`) over hand-rolled implementations for standard formats. "Air-gapped" means no runtime network calls, not no compile-time dependencies — imported packages compile to static code with zero network capability. Layer domain-specific validation on top of SDK parsing.
 
 ## Roadmap
@@ -427,6 +427,7 @@ added to `tools/generate-pricing/main.go` that stripped 85% of pricing data:
 - EKS Fargate pods (`aws:eks/fargate:Pod`, vCPU and GiB rates)
 - ECS Fargate services (`aws:ecs/service:Service`, vCPU, memory, ephemeral storage, Windows fee)
 - Amazon EFS (storage per class, provisioned and elastic throughput, carbon estimation)
+- Elastic IPs (public IPv4 address, hourly)
 
 ## Directory Structure
 
@@ -762,6 +763,33 @@ descriptor tags only.
 - Excluded: backups (AWS Backup), replication, data transfer, and the
   `*-SmallFiles` overhead SKUs.
 
+### Elastic IPs
+
+- `resource_type`: "eip" or "aws:ec2/eip:Eip" (service `eip`). Detected before
+  the generic `ec2` split in `normalizeResourceType`, and the match ends at
+  the type separator so `aws:ec2/eipAssociation:EipAssociation` (free,
+  `eipassociation` in `ZeroCostServices`) is not an Elastic IP. The ARN
+  resource type `elastic-ip` routes the same way.
+- `sku`: not used (optional).
+- Rate: AWS bills every public IPv4 address by the hour, associated or idle,
+  from the AmazonVPC offer (`PublicIPv4:InUseAddress` and
+  `PublicIPv4:IdleAddress`, region prefix stripped; `ContiguousBlock` is IPAM
+  and is ignored). `Client.PublicIPv4Price()` serves both rates only when both
+  are present. These products have no `productFamily`, so they are matched by
+  usage type in `internal/pricing/public_ipv4.go`.
+- The in-use rate applies when `instance`, `network_interface`, or
+  `association_id` is non-empty on attributes or tags (`networkInterface` and
+  `associationId` are accepted); otherwise the idle rate applies. The two
+  rates are equal today, and tests set them apart.
+- `cost_per_month`: hourly rate x 730 (about $3.65 in us-east-1 and us-west-2).
+  `unit_price` is the hourly rate.
+- Excluded: the EC2 free tier of 750 public IPv4 hours per month, data
+  transfer, and public IPv4 addresses AWS assigns to other resources. No
+  carbon estimate. Growth type `NONE`.
+- Known overestimate: AWS does not charge for BYOIP addresses, but nothing in
+  the descriptor is known to tell one from an Amazon-pool address, so a BYOIP
+  Elastic IP is priced at the standard rate (#477).
+
 ### Region Mismatch Handling
 - Supports() checks if ResourceDescriptor.region matches plugin's embedded region
 - If mismatch: returns `supported=false` with `reason="Region not supported by this binary"`
@@ -815,6 +843,7 @@ and excluded helps users accurately estimate total infrastructure costs.
 | DynamoDB | On-Demand/Provisioned throughput, storage | Global tables, streams, DAX, backups | ✅ gCO2e |
 | ASG | EC2 hourly rate × desired_capacity × 730 | Root EBS, spot/reserved, mixed instance policies | ✅ gCO2e |
 | EFS | Storage per class, provisioned throughput above baseline, elastic read/write GB, optional IA/Archive access | Backups, replication, data transfer, small-file overhead | ✅ gCO2e (HDD storage) |
+| Elastic IP | Public IPv4 address hours (in-use or idle rate) | Free tier, data transfer, BYOIP | N/A |
 
 **Note:** EKS estimates control plane only ($0.10/hr standard, $0.50/hr extended). Estimate worker nodes separately as EC2.
 
