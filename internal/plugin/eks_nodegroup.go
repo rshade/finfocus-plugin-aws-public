@@ -7,6 +7,7 @@ import (
 
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 	pbc "github.com/rshade/finfocus-spec/sdk/go/proto/finfocus/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
 )
@@ -88,6 +89,57 @@ func pricingUnavailableDetail(err error) string {
 	return err.Error()
 }
 
+var (
+	nodeGroupScalingBlocks = []string{"scalingConfig", "scaling_config"}
+	nodeGroupDesiredKeys   = []string{"desiredSize", "desired_size"}
+)
+
+// nodeGroupDesiredSize reads the non-negative desired node count. Sources, in
+// order: flat or dotted attribute and tag keys; a scaling block on attributes
+// (an object or a one-element list); then the host's map-string tag, such as
+// "map[desiredSize:3 maxSize:5]". Zero is a valid count.
+func nodeGroupDesiredSize(in resourceInputs) (int, bool) {
+	if n, ok := in.Int(
+		"scalingConfig.desiredSize", "scaling_config.desired_size", "desiredSize", "desired_size",
+	); ok && n >= 0 {
+		return n, true
+	}
+	for _, block := range nodeGroupScalingBlocks {
+		if st, ok := in.Struct(block); ok {
+			if n, found := desiredSizeFromStruct(st); found {
+				return n, true
+			}
+		}
+		if n, found := desiredSizeFromMapString(in.tags[block]); found {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+func desiredSizeFromStruct(st *structpb.Struct) (int, bool) {
+	for _, key := range nodeGroupDesiredKeys {
+		v, ok := st.GetFields()[key]
+		if !ok {
+			continue
+		}
+		if n, parsed := valueInt(v); parsed && n >= 0 {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+func desiredSizeFromMapString(raw string) (int, bool) {
+	fields := parseGoMapString(raw)
+	for _, key := range nodeGroupDesiredKeys {
+		if n, parsed := parseIntString(fields[key]); parsed && n >= 0 {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
 // eksNodeGroupShape reads the instance type, desired size, and OS.
 // The first instanceTypes entry is the on-demand type. With no list and no
 // launch template, the AWS default is t3.medium. Spot is not estimated.
@@ -129,9 +181,7 @@ func (p *AWSPublicPlugin) eksNodeGroupShape(
 		dt.Add("instance_type", inst, KindConfig)
 	}
 	count := 1
-	if n, ok := in.Int(
-		"scalingConfig.desiredSize", "scaling_config.desired_size", "desiredSize", "desired_size",
-	); ok && n >= 0 {
+	if n, ok := nodeGroupDesiredSize(in); ok {
 		count = n
 	} else {
 		dt.Add("desired_size", "1", KindConfig)

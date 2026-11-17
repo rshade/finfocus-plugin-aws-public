@@ -136,3 +136,94 @@ func TestEKSNodeGroup_ExplicitTypeAndZeroCount(t *testing.T) {
 		assert.NotContains(t, resp.GetMetadata()["defaults_applied"], "desired_size=1")
 	})
 }
+
+// TestEKSNodeGroup_HostInputForms verifies the shapes finfocus core and
+// Terraform send for a managed node group: list-form blocks, tag-serialized
+// map strings, and comma-joined instance type lists.
+func TestEKSNodeGroup_HostInputForms(t *testing.T) {
+	ctx := context.Background()
+	plugin := newTestPluginForActual()
+	build := func(attrs map[string]any, tags map[string]string) *pbc.ResourceDescriptor {
+		res := &pbc.ResourceDescriptor{
+			Provider: "aws", ResourceType: "aws:eks/nodeGroup:NodeGroup",
+			Region: "us-east-1", Tags: tags,
+		}
+		if attrs != nil {
+			st, err := structpb.NewStruct(attrs)
+			require.NoError(t, err)
+			res.Attributes = st
+		}
+		return res
+	}
+	const m5Hourly = 0.096
+
+	tests := []struct {
+		name  string
+		attrs map[string]any
+		tags  map[string]string
+		count float64
+	}{
+		{
+			name: "list-form scaling_config",
+			attrs: map[string]any{
+				"instanceTypes":  []any{"m5.large"},
+				"scaling_config": []any{map[string]any{"desired_size": 3}},
+			},
+			count: 3,
+		},
+		{
+			name: "list-form scalingConfig",
+			attrs: map[string]any{
+				"instanceTypes": []any{"m5.large"},
+				"scalingConfig": []any{map[string]any{"desiredSize": 2}},
+			},
+			count: 2,
+		},
+		{
+			name: "tag map-string scalingConfig",
+			tags: map[string]string{
+				"instanceTypes": "m5.large",
+				"scalingConfig": "map[desiredSize:3 maxSize:5 minSize:1]",
+			},
+			count: 3,
+		},
+		{
+			name: "tag map-string desired size zero",
+			tags: map[string]string{
+				"instanceTypes":  "m5.large",
+				"scaling_config": "map[desired_size:0 max_size:5 min_size:0]",
+			},
+			count: 0,
+		},
+		{
+			name:  "comma-joined instanceTypes tag uses the first type",
+			tags:  map[string]string{"instanceTypes": "m5.large, t3.micro", "desiredSize": "2"},
+			count: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := plugin.GetProjectedCost(ctx, &pbc.GetProjectedCostRequest{
+				Resource: build(tt.attrs, tt.tags),
+			})
+			require.NoError(t, err)
+			assert.InDelta(t, tt.count*m5Hourly*730, resp.GetCostPerMonth(), 0.001)
+			assert.NotContains(t, resp.GetMetadata()["defaults_applied"], "desired_size=1")
+		})
+	}
+}
+
+// TestEKSClusterPrefixedTokens_StayUnsupported verifies a type that merely
+// begins with eks/cluster is not priced as the control plane.
+func TestEKSClusterPrefixedTokens_StayUnsupported(t *testing.T) {
+	ctx := context.Background()
+	plugin := newTestPluginForActual()
+	rt := "aws:eks/clusterPolicy:ClusterPolicy"
+
+	assert.NotEqual(t, serviceEKS, detectService(normalizeResourceType(rt)))
+	sup, err := plugin.Supports(ctx, &pbc.SupportsRequest{
+		Resource: &pbc.ResourceDescriptor{Provider: "aws", ResourceType: rt, Sku: "x", Region: "us-east-1"},
+	})
+	require.NoError(t, err)
+	assert.False(t, sup.GetSupported())
+}

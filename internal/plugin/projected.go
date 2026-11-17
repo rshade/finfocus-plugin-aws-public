@@ -1457,7 +1457,7 @@ func detectService(resourceType string) string { //nolint:gocognit // one branch
 	if strings.Contains(resourceTypeLower, "ecs/service") {
 		return serviceFargate
 	}
-	if strings.Contains(resourceTypeLower, "eks/cluster") {
+	if containsTypeToken(resourceTypeLower, "eks/cluster") {
 		return serviceEKS
 	}
 	if strings.Contains(resourceTypeLower, "s3/bucket") {
@@ -2326,4 +2326,21 @@ func (p *AWSPublicPlugin) estimateZeroCostResource(
 	setGrowthHint(p.logger.With().Str(pluginsdk.FieldTraceID, traceID).Logger(), resource.GetResourceType(), resp)
 
 	return resp
+}
+
+// containsTypeToken reports whether token appears in s as a complete type
+// path segment: it must end at the Pulumi type separator ":" or at the end of
+// the string, so "eks/cluster" does not match "eks/clusterPolicy".
+func containsTypeToken(s, token string) bool {
+	for offset := 0; ; {
+		i := strings.Index(s[offset:], token)
+		if i < 0 {
+			return false
+		}
+		end := offset + i + len(token)
+		if end == len(s) || s[end] == ':' {
+			return true
+		}
+		offset += i + 1
+	}
 }

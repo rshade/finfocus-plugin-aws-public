@@ -147,7 +147,8 @@ func (in resourceInputs) Struct(path string) (*structpb.Struct, bool) {
 }
 
 // Strings returns the first list of strings among keys. A single string is
-// one entry. Attributes are checked before tags.
+// one entry. Attributes are checked before tags. A tag value is split on
+// commas, because the host joins list values that way.
 func (in resourceInputs) Strings(keys ...string) []string {
 	for _, key := range keys {
 		if vals := inputStrings(pluginsdk.AttributeValue(in.attrs, key)); len(vals) > 0 {
@@ -158,11 +159,24 @@ func (in resourceInputs) Strings(keys ...string) []string {
 		if in.tags == nil {
 			break
 		}
-		if raw := strings.TrimSpace(in.tags[key]); raw != "" {
-			return []string{raw}
+		if vals := splitCommaList(in.tags[key]); len(vals) > 0 {
+			return vals
 		}
 	}
 	return nil
+}
+
+// splitCommaList splits a host-serialized list. finfocus core joins a
+// multi-element list into one comma-separated tag value. Blank entries are
+// dropped.
+func splitCommaList(raw string) []string {
+	var out []string
+	for part := range strings.SplitSeq(raw, ",") {
+		if s := strings.TrimSpace(part); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func inputStrings(v *structpb.Value, ok bool) []string {
