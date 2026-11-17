@@ -86,6 +86,19 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			}
 		}
 
+		// EKS prices only the cluster. Zero-cost eks/* tokens are claimed by
+		// ZeroCostPulumiPatterns above. Anything else stays unsupported.
+		if eksPath, isEKS := strings.CutPrefix(awsSuffix, "eks/"); isEKS && eksPath != "" {
+			switch {
+			case eksPath == parentTagECSCluster || strings.HasPrefix(eksPath, parentTagECSCluster+":"):
+				return serviceEKS
+			case eksPath == "nodegroup" || strings.HasPrefix(eksPath, "nodegroup:"):
+				return serviceEKSNodeGroup
+			default:
+				return resourceType
+			}
+		}
+
 		// EFS prices only the file system. Policies, backup policies, and
 		// replication configurations share the service segment but have no
 		// estimator, so they must not collapse into "efs".
@@ -108,7 +121,6 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 				serviceS3,
 				serviceLambda,
 				serviceDynamoDB,
-				serviceEKS,
 				serviceNATGW,
 				serviceCloudWatch,
 				serviceElastiCache,
@@ -269,6 +281,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		resp, err = p.estimateRDS(traceID, resource)
 	case serviceEKS:
 		resp, err = p.estimateEKS(traceID, resource)
+	case serviceEKSNodeGroup:
+		resp, err = p.estimateEKSNodeGroup(traceID, resource)
 	case serviceS3:
 		resp, err = p.estimateS3(traceID, resource)
 	case serviceLambda:
@@ -296,6 +310,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
 		serviceEFSMountTarget, serviceEFSAccessPoint,
+		serviceEKSAddon, serviceEKSAccessEntry, serviceEKSAccessPolicyAssociation,
+		serviceEKSPodIdentityAssociation, serviceEKSIdentityProviderConfig, serviceEKSFargateProfile,
 		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute, serviceAddressAssoc:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		resp = p.estimateZeroCostResource(traceID, resource, serviceType)
@@ -1398,6 +1414,7 @@ func detectService(resourceType string) string { //nolint:gocognit // one branch
 		serviceLambda,
 		serviceDynamoDB,
 		serviceEKS,
+		serviceEKSNodeGroup,
 		serviceELB,
 		serviceNATGW,
 		serviceCloudWatch,
@@ -2270,6 +2287,13 @@ var zeroCostResourceDescriptions = map[string]string{
 	serviceRouteTableAssoc: "Route Table associations have no direct charge. They are a free networking feature.",
 	serviceRoute:           "Routes have no direct charge. They are a free networking feature.",
 	serviceAddressAssoc:    "Elastic IP associations have no direct charge. The address itself is billed by the hour.",
+
+	serviceEKSAddon:                   "EKS add-ons have no EKS charge. They run on the cluster's nodes, which are billed separately. AWS Marketplace add-on fees are not included.",
+	serviceEKSAccessEntry:             "EKS access entries have no direct charge.",
+	serviceEKSAccessPolicyAssociation: "EKS access policy associations have no direct charge.",
+	serviceEKSPodIdentityAssociation:  "EKS Pod Identity associations have no direct charge.",
+	serviceEKSIdentityProviderConfig:  "EKS identity provider configs have no direct charge.",
+	serviceEKSFargateProfile:          "Fargate profiles have no charge. Fargate bills each pod's vCPU and memory.",
 }
 
 // estimateZeroCostResource returns a $0 cost estimate for AWS resources that have no direct charges.

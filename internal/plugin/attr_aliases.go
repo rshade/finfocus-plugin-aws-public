@@ -332,7 +332,7 @@ func skuOptional(service string) bool {
 	switch service {
 	case serviceASG, serviceS3, serviceLambda, serviceDynamoDB,
 		serviceNATGW, serviceCloudWatch, serviceElastiCache, serviceELB, serviceEKSFargate, serviceFargate,
-		serviceEFS, serviceEIP:
+		serviceEFS, serviceEIP, serviceEKSNodeGroup:
 		return true
 	default:
 		return false

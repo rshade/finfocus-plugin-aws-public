@@ -98,6 +98,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		spec = p.dynamoDBPricingSpec(resource)
 	case serviceEKS:
 		spec = p.eksPricingSpec(resource)
+	case serviceEKSNodeGroup:
+		spec = p.eksNodeGroupPricingSpec(resource)
 	case serviceELB, serviceALB, serviceNLB:
 		spec = p.elbPricingSpec(resource)
 	case serviceEIP:
@@ -115,6 +117,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
 		serviceEFSMountTarget, serviceEFSAccessPoint,
+		serviceEKSAddon, serviceEKSAccessEntry, serviceEKSAccessPolicyAssociation,
+		serviceEKSPodIdentityAssociation, serviceEKSIdentityProviderConfig, serviceEKSFargateProfile,
 		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute, serviceAddressAssoc:
 		spec = p.zeroCostPricingSpec(resource, serviceType)
 	default:

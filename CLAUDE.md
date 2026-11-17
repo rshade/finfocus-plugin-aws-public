@@ -576,7 +576,12 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - `billing_detail`: "EBS <sku> storage, <size>GB" (+ ", defaulted to 8GB" if size not specified)
 
 ### EKS Clusters
-- `resource_type`: "eks" or "aws:eks/cluster:Cluster"
+- `resource_type`: "eks" or "aws:eks/cluster:Cluster". Other `aws:eks/*`
+  types do not collapse into the cluster. Add-ons, access entries, access
+  policy associations, Pod Identity associations, identity provider configs,
+  and Fargate profiles are zero-cost. `aws:eks/nodeGroup:NodeGroup` is priced
+  as on-demand EC2 times `scalingConfig.desiredSize` (first `instanceTypes`
+  entry, default `t3.medium`). `aws:eks/capability:Capability` is unsupported.
 - `sku`: Not used (cluster type determined by tags)
 - Support tier: `support_type`, with aliases `upgradePolicy` and
   `supportType` (lowercased). Terraform

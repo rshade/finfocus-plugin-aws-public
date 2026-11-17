@@ -11,22 +11,30 @@ const (
 	serviceS3           = "s3"
 	serviceRDS          = "rds"
 	serviceEKS          = "eks"
-	serviceLambda       = "lambda"
-	serviceDynamoDB     = "dynamodb"
-	serviceELB          = "elb"
-	serviceALB          = "alb"
-	serviceNLB          = "nlb"
-	serviceCloudWatch   = "cloudwatch"
-	serviceElastiCache  = "elasticache"
-	serviceNATGW        = "natgw"
-	serviceIAM          = "iam"
-	serviceLaunchTmpl   = "launchtemplate"
-	serviceLaunchConfig = "launchconfiguration"
-	serviceASG          = "asg"
-	serviceFargate      = "fargate"
-	serviceECSTaskDef   = "ecstaskdefinition"
-	serviceECSCluster   = "ecscluster"
-	arnECSCluster       = "cluster"
+	serviceEKSNodeGroup = "eksnodegroup"
+
+	serviceEKSAddon                   = "eksaddon"
+	serviceEKSAccessEntry             = "eksaccessentry"
+	serviceEKSAccessPolicyAssociation = "eksaccesspolicyassociation"
+	serviceEKSPodIdentityAssociation  = "ekspodidentityassociation"
+	serviceEKSIdentityProviderConfig  = "eksidentityproviderconfig"
+	serviceEKSFargateProfile          = "eksfargateprofile"
+	serviceLambda                     = "lambda"
+	serviceDynamoDB                   = "dynamodb"
+	serviceELB                        = "elb"
+	serviceALB                        = "alb"
+	serviceNLB                        = "nlb"
+	serviceCloudWatch                 = "cloudwatch"
+	serviceElastiCache                = "elasticache"
+	serviceNATGW                      = "natgw"
+	serviceIAM                        = "iam"
+	serviceLaunchTmpl                 = "launchtemplate"
+	serviceLaunchConfig               = "launchconfiguration"
+	serviceASG                        = "asg"
+	serviceFargate                    = "fargate"
+	serviceECSTaskDef                 = "ecstaskdefinition"
+	serviceECSCluster                 = "ecscluster"
+	arnECSCluster                     = "cluster"
 
 	serviceEFS            = "efs"
 	serviceEFSMountTarget = "efsmounttarget"
@@ -159,6 +167,13 @@ var ZeroCostServices = map[string]bool{
 	serviceEFSMountTarget: true,
 	serviceEFSAccessPoint: true,
 
+	serviceEKSAddon:                   true,
+	serviceEKSAccessEntry:             true,
+	serviceEKSAccessPolicyAssociation: true,
+	serviceEKSPodIdentityAssociation:  true,
+	serviceEKSIdentityProviderConfig:  true,
+	serviceEKSFargateProfile:          true,
+
 	serviceInternetGateway: true,
 	serviceRouteTable:      true,
 	serviceRouteTableAssoc: true,
@@ -180,6 +195,13 @@ var ZeroCostPulumiPatterns = map[string]string{
 
 	"efs/mounttarget": serviceEFSMountTarget,
 	"efs/accesspoint": serviceEFSAccessPoint,
+
+	"eks/addon":                   serviceEKSAddon,
+	"eks/accessentry":             serviceEKSAccessEntry,
+	"eks/accesspolicyassociation": serviceEKSAccessPolicyAssociation,
+	"eks/podidentityassociation":  serviceEKSPodIdentityAssociation,
+	"eks/identityproviderconfig":  serviceEKSIdentityProviderConfig,
+	"eks/fargateprofile":          serviceEKSFargateProfile,
 
 	"ec2/internetgateway":       serviceInternetGateway,
 	"ec2/routetable":            serviceRouteTable,
