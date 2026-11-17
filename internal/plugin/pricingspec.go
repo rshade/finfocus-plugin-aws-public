@@ -42,6 +42,20 @@ const (
 // data transfer charges are out of scope.
 const assumptionDataTransferExcluded = "Data transfer costs not included"
 
+// logPricingSpecValidation logs a rejected GetPricingSpec request with the
+// resource type and the service it resolved to. A missing descriptor still
+// writes both fields, as empty strings. The message matches GetProjectedCost
+// so the two RPCs cannot drift. Attributes and tags are not logged.
+func (p *AWSPublicPlugin) logPricingSpecValidation(traceID string, projReq *pbc.GetProjectedCostRequest, err error) {
+	serviceType := ""
+	if res := projReq.GetResource(); res != nil {
+		serviceType = newServiceResolver(res.GetResourceType()).ServiceType()
+	}
+	p.logResourceErrorWithID(
+		traceID, "GetPricingSpec", projReq.GetResource(), serviceType, err, extractErrorCode(err),
+	)
+}
+
 // GetPricingSpec returns detailed pricing specification for a resource type.
 // This provides information about how a resource is billed without calculating the actual cost.
 func (p *AWSPublicPlugin) GetPricingSpec(
@@ -59,10 +73,7 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 	}
 	resource, err := p.ValidateProjectedCostRequest(ctx, projReq)
 	if err != nil {
-		p.traceLogger(traceID, "GetPricingSpec").Error().
-			Str(pluginsdk.FieldResourceType, projReq.GetResource().GetResourceType()).
-			Err(err).
-			Msg("validation failed")
+		p.logPricingSpecValidation(traceID, projReq, err)
 		return nil, err
 	}
 
