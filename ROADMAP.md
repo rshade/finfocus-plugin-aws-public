@@ -81,6 +81,8 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #480 `plugin`: `GetPricingSpec` validation failures log `resource_type`
+  and `service_type`, matching `GetProjectedCost`. [S]
 - [x] #390 `pricing`: embedded Price List `publicationDate` and `version` are
   returned as `pricing_as_of` and `pricing_version` on projected cost and
   pricing spec responses, and as `pricing_as_of` plus
