@@ -81,6 +81,8 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #490 `pricing`: EC2 index keeps the On-Demand license-included SKU
+  when Capacity Block or Windows license variants share a key. [M]
 - [x] #484 `recommendations`: recommendation ids are stable name-based
   UUIDs, and `excluded_recommendation_ids` is honored even when
   `include_dismissed` is set. The router forwards that list,

@@ -489,3 +489,94 @@ func TestParseDynamoDBPricing_ProvisionedCapacity(t *testing.T) {
 		}
 	}
 }
+
+// ec2Variant builds a Compute Instance SKU with the attributes the EC2 parser
+// reads. Values are copied from the AmazonEC2 us-east-1 offer.
+func ec2Variant(sku, instanceType, os, marketOption, operation, licenseModel, usd string) fixtureSKU {
+	return fixtureSKU{
+		sku:    sku,
+		family: "Compute Instance",
+		attrs: map[string]string{
+			"instanceType":    instanceType,
+			"operatingSystem": os,
+			"tenancy":         "Shared",
+			"capacitystatus":  "Used",
+			"preInstalledSw":  "NA",
+			"marketoption":    marketOption,
+			"operation":       operation,
+			"licenseModel":    licenseModel,
+			"usagetype":       "BoxUsage:" + instanceType,
+			"locationType":    "AWS Region",
+			"regionCode":      "us-east-1",
+			"servicecode":     "AmazonEC2",
+		},
+		dims: hourly(usd),
+	}
+}
+
+// TestParseEC2Pricing_VariantsResolveDeterministically verifies that the
+// On-Demand, license-included SKU is indexed when AWS publishes several
+// Compute Instance SKUs for one instanceType/operatingSystem/tenancy key.
+func TestParseEC2Pricing_VariantsResolveDeterministically(t *testing.T) {
+	raw := buildPriceList(t, "AmazonEC2", []fixtureSKU{
+		ec2Variant("3D4V8UAYEMB38GU2", "p5.48xlarge", "Linux", "OnDemand",
+			"RunInstances", "No License required", "55.0400000000"),
+		ec2Variant("5Q7AP3RH7KTVUNCJ", "p5.48xlarge", "Linux", "CapacityBlock",
+			"RunInstances:CB", "No License required", "0.0000000000"),
+		ec2Variant("HV5UE98S5JWJ5M5J", "p5.48xlarge", "RHEL", "OnDemand",
+			"RunInstances:0010", "No License required", "56.8832000000"),
+		ec2Variant("NDDKM3DYS8YZTUF9", "p5.48xlarge", "RHEL", "CapacityBlock",
+			"RunInstances:0010:CB", "No License required", "1.8432000000"),
+		ec2Variant("G9WBYAXUDWGW7XYV", "t3.medium", "Windows", "OnDemand",
+			"RunInstances:0002", "No License required", "0.0600000000"),
+		ec2Variant("95FSXRECXS8GFRH6", "t3.medium", "Windows", "OnDemand",
+			"RunInstances:0800", "Bring your own license", "0.0416000000"),
+		ec2Variant("FWCP9H9AGEGTCSEE", "t3.medium", "Windows", "OnDemand",
+			"RunInstances:0002:box", "License Included - Infrastructure", "0.0416000000"),
+		ec2Variant("ZZZ-INFRA", "fallback.type", "Windows", "OnDemand",
+			"RunInstances:0002:box", "License Included - Infrastructure", "0.0500000000"),
+		ec2Variant("AAA-BYOL", "fallback.type", "Windows", "OnDemand",
+			"RunInstances:0800", "Bring your own license", "0.0400000000"),
+		ec2Variant("BYOL-ONLY", "byol.type", "Windows", "OnDemand",
+			"RunInstances:0800", "Bring your own license", "0.0300000000"),
+	})
+	want := map[string]float64{
+		"p5.48xlarge/Linux/Shared":      55.04,
+		"p5.48xlarge/RHEL/Shared":       56.8832,
+		"t3.medium/Windows/Shared":      0.06,
+		"fallback.type/Windows/Shared": 0.05,
+		"byol.type/Windows/Shared":     0.03,
+	}
+
+	for range parseRepetitions {
+		c := newParserTestClient()
+		if _, _, err := c.parseEC2Pricing(raw); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		for key, rate := range want {
+			if got := c.ec2Index[key].HourlyRate; got != rate {
+				t.Fatalf("%s = %v, want %v", key, got, rate)
+			}
+		}
+	}
+}
+
+// TestParseEC2Pricing_EqualRankTieBreaksBySKU verifies that two On-Demand SKUs
+// with the same license rank and different prices keep the lower SKU.
+func TestParseEC2Pricing_EqualRankTieBreaksBySKU(t *testing.T) {
+	raw := buildPriceList(t, "AmazonEC2", []fixtureSKU{
+		ec2Variant("BBB", "m5.large", "Linux", "OnDemand",
+			"RunInstances", "No License required", "9.0000000000"),
+		ec2Variant("AAA", "m5.large", "Linux", "OnDemand",
+			"RunInstances", "No License required", "2.0000000000"),
+	})
+	for range parseRepetitions {
+		c := newParserTestClient()
+		if _, _, err := c.parseEC2Pricing(raw); err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		if got := c.ec2Index["m5.large/Linux/Shared"].HourlyRate; got != 2 {
+			t.Fatalf("m5.large/Linux/Shared = %v, want 2 from SKU AAA", got)
+		}
+	}
+}
