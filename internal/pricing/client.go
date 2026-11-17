@@ -697,6 +697,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *PricingMetadata, error) 
 
 	var region string
 	nat := &NATGatewayPrice{Currency: currencyUSD}
+	instanceChoices := make(map[string]ec2Choice)
 	for sku, prod := range pricing.Products {
 		attrs := prod.Attributes
 
@@ -714,25 +715,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *PricingMetadata, error) 
 		// EC2 Instances (includes bare metal which uses a different product family)
 		if prod.ProductFamily == productFamilyComputeInstance ||
 			prod.ProductFamily == productFamilyComputeInstanceBareMetal {
-			instType := attrs["instanceType"]
-			os := attrs["operatingSystem"]
-			tenancy := attrs["tenancy"]
-			capacityStatus := attrs["capacitystatus"]
-			preInstalledSw := attrs["preInstalledSw"]
-
-			if instType != "" && os != "" && tenancy != "" &&
-				capacityStatus == "Used" &&
-				(preInstalledSw == "NA" || preInstalledSw == "") {
-				key := fmt.Sprintf("%s/%s/%s", instType, os, tenancy)
-				rate, unit, found := getOnDemandPrice(&pricing, sku)
-				if found {
-					c.ec2Index[key] = ec2Price{
-						Unit:       unit,
-						HourlyRate: rate,
-						Currency:   currencyUSD,
-					}
-				}
-			}
+			c.considerEC2Instance(instanceChoices, &pricing, sku, attrs)
 		}
 
 		// EBS Volumes (included in EC2 pricing file)
@@ -755,7 +738,102 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *PricingMetadata, error) 
 		nat.Offer = ServiceEC2
 		c.natGatewayEC2 = nat
 	}
+	for key, choice := range instanceChoices {
+		c.ec2Index[key] = choice.price
+	}
 	return region, &meta, nil
+}
+
+// ec2Choice is one Compute Instance candidate for an instanceType/OS/tenancy key.
+type ec2Choice struct {
+	price ec2Price
+	rank  int
+	sku   string
+}
+
+// considerEC2Instance keeps the On-Demand SKU with the best license rank.
+// Capacity Block rows share the On-Demand usagetype and price at $0, so a
+// marketoption other than OnDemand (or empty, for the fallback embed) is
+// skipped. Equal ranks are broken by SKU, and a price disagreement is logged.
+func (c *Client) considerEC2Instance(
+	choices map[string]ec2Choice,
+	pricing *awsPricing,
+	sku string,
+	attrs map[string]string,
+) {
+	instType := attrs["instanceType"]
+	os := attrs["operatingSystem"]
+	tenancy := attrs["tenancy"]
+	capacityStatus := attrs["capacitystatus"]
+	preInstalledSw := attrs["preInstalledSw"]
+	if instType == "" || os == "" || tenancy == "" ||
+		capacityStatus != "Used" ||
+		(preInstalledSw != "NA" && preInstalledSw != "") {
+		return
+	}
+	rank, eligible := ec2InstanceVariantRank(attrs)
+	if !eligible {
+		return
+	}
+	rate, unit, found := getOnDemandPrice(pricing, sku)
+	if !found {
+		return
+	}
+	key := fmt.Sprintf("%s/%s/%s", instType, os, tenancy)
+	next := ec2Choice{
+		price: ec2Price{Unit: unit, HourlyRate: rate, Currency: currencyUSD},
+		rank:  rank,
+		sku:   sku,
+	}
+	prev, seen := choices[key]
+	if !seen || ec2ChoicePreferred(next, prev) {
+		if seen && next.rank == prev.rank && next.price.HourlyRate != prev.price.HourlyRate {
+			c.logger.Warn().
+				Str("key", key).
+				Str("kept_sku", next.sku).
+				Str("dropped_sku", prev.sku).
+				Float64("kept_rate", next.price.HourlyRate).
+				Float64("dropped_rate", prev.price.HourlyRate).
+				Msg("EC2 SKUs share a key and license rank with different prices")
+		}
+		choices[key] = next
+		return
+	}
+	if next.rank == prev.rank && next.price.HourlyRate != prev.price.HourlyRate {
+		c.logger.Warn().
+			Str("key", key).
+			Str("kept_sku", prev.sku).
+			Str("dropped_sku", next.sku).
+			Float64("kept_rate", prev.price.HourlyRate).
+			Float64("dropped_rate", next.price.HourlyRate).
+			Msg("EC2 SKUs share a key and license rank with different prices")
+	}
+}
+
+// ec2ChoicePreferred reports whether next should replace prev.
+// A lower license rank wins. The same rank keeps the lower SKU.
+func ec2ChoicePreferred(next, prev ec2Choice) bool {
+	if next.rank != prev.rank {
+		return next.rank < prev.rank
+	}
+	return next.sku < prev.sku
+}
+
+// ec2InstanceVariantRank ranks license variants for one On-Demand key.
+// Lower rank wins. Capacity Block and other market options are ineligible.
+// An empty marketoption is the fallback embed, which publishes one SKU.
+func ec2InstanceVariantRank(attrs map[string]string) (int, bool) {
+	if market := attrs["marketoption"]; market != "" && market != "OnDemand" {
+		return 0, false
+	}
+	switch attrs["licenseModel"] {
+	case "No License required", "":
+		return 0, true
+	case "License Included - Infrastructure":
+		return 1, true
+	default:
+		return 2, true
+	}
 }
 
 // parseS3Pricing parses S3 pricing data.
