@@ -181,6 +181,19 @@ type PricingClient interface {
 	// EFSPrice returns the storage, throughput, and data access rates for Amazon EFS.
 	// Returns (price, true) if the Standard storage rate was found, (nil, false) otherwise.
 	EFSPrice() (*EFSPrice, bool)
+
+	// PricingMetadata returns the embedded Price List header for one service
+	// file (see Files). The bool is false when that file was not loaded.
+	PricingMetadata(service string) (PricingMetadata, bool)
+
+	// PricingAsOf returns the oldest publicationDate across loaded service files.
+	// The string is empty when no file recorded a parseable date.
+	PricingAsOf() string
+
+	// NATGatewayOffer returns the embedded file that supplied NATGatewayPrice.
+	// It is ServiceEC2 when the AmazonEC2 offer has an hourly rate, otherwise
+	// ServiceVPC. Empty when NAT Gateway pricing was not loaded.
+	NATGatewayOffer() string
 }
 
 // Client implements PricingClient with embedded JSON data.
@@ -240,6 +253,20 @@ type Client struct {
 	fargateEphemeralPerGiBHour float64
 	// EFS pricing (single set of rates per region)
 	efsPricing *EFSPrice
+
+	// Price List headers, one field per parser goroutine.
+	metaEC2         pricingRecord
+	metaS3          pricingRecord
+	metaRDS         pricingRecord
+	metaEKS         pricingRecord
+	metaLambda      pricingRecord
+	metaDynamoDB    pricingRecord
+	metaELB         pricingRecord
+	metaVPC         pricingRecord
+	metaCloudWatch  pricingRecord
+	metaElastiCache pricingRecord
+	metaECS         pricingRecord
+	metaEFS         pricingRecord
 }
 
 // NewClient creates a Client from embedded rawPricingJSON.
@@ -286,7 +313,6 @@ func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one p
 		var wg sync.WaitGroup
 		var regionMu sync.Mutex
 		var ec2Region string
-		var ec2Metadata *pricingMetadata
 		start := time.Now()
 
 		// Error collection for critical services.
@@ -310,7 +336,7 @@ func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one p
 		// 1. Parse EC2 pricing (includes EBS volumes) - largest file, start first
 		// EC2 is CRITICAL - failure to parse means $0 for all compute estimates
 		wg.Go(func() {
-			if region, meta, err := c.parseEC2Pricing(rawEC2JSON); err != nil {
+			if region, _, err := c.parseEC2Pricing(rawEC2JSON); err != nil {
 				parseErrMu.Lock()
 				parseErrs = append(parseErrs, fmt.Errorf("EC2: %w", err))
 				parseErrMu.Unlock()
@@ -319,7 +345,6 @@ func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one p
 				// Issue #179: Use proper synchronization for shared variables
 				regionMu.Lock()
 				ec2Region = region
-				ec2Metadata = meta
 				regionMu.Unlock()
 			}
 		})
@@ -458,16 +483,16 @@ func (c *Client) init() error { //nolint:gocognit,gocyclo,cyclop,funlen // one p
 			}
 		}
 
-		// Log embedded pricing metadata for debugging and traceability (T034)
-		// This helps identify which AWS pricing version is embedded in the binary.
-		if ec2Metadata != nil {
-			c.logger.Debug().
-				Str("region", c.region).
-				Str("version", ec2Metadata.Version).
-				Str("publicationDate", ec2Metadata.PublicationDate).
-				Str("offerCode", ec2Metadata.OfferCode).
-				Msg("Embedded pricing metadata loaded")
+		// One Info line naming every loaded Price List snapshot.
+		loaded := c.logger.Info().Str("region", c.region)
+		for _, file := range Files() {
+			meta, ok := c.PricingMetadata(file)
+			if !ok {
+				continue
+			}
+			loaded = loaded.Str(file+"_version", meta.Version).Str(file+"_publicationDate", meta.PublicationDate)
 		}
+		loaded.Msg("Embedded pricing metadata loaded")
 
 		// Validate non-critical service pricing was loaded.
 		// Missing pricing is logged as a warning but doesn't fail initialization.
@@ -651,7 +676,10 @@ func (c *priceCandidate) preferredOver(other *priceCandidate) bool {
 
 // parseEC2Pricing parses EC2 pricing data including EBS volumes.
 // Returns the detected region, pricing metadata, and any parsing error.
-func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) { //nolint:gocognit
+// The metadata result is asserted by parser tests. init reads the copy stored on the client.
+//
+//nolint:gocognit,unparam // tests read the metadata result; init uses the stored copy
+func (c *Client) parseEC2Pricing(data []byte) (string, *PricingMetadata, error) {
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", nil, fmt.Errorf("failed to parse EC2 JSON: %w", err)
@@ -665,12 +693,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 			Msg("EC2 pricing data has unexpected offerCode")
 	}
 
-	// Capture metadata for debugging (T034)
-	meta := &pricingMetadata{
-		Version:         pricing.Version,
-		PublicationDate: pricing.PublicationDate,
-		OfferCode:       pricing.OfferCode,
-	}
+	meta := c.rememberPricing(ServiceEC2, pricing)
 
 	var region string
 	nat := &NATGatewayPrice{Currency: currencyUSD}
@@ -729,9 +752,10 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *pricingMetadata, error) 
 		}
 	}
 	if nat.HourlyRate > 0 {
+		nat.Offer = ServiceEC2
 		c.natGatewayEC2 = nat
 	}
-	return region, meta, nil
+	return region, &meta, nil
 }
 
 // parseS3Pricing parses S3 pricing data.
@@ -741,6 +765,7 @@ func (c *Client) parseS3Pricing(data []byte) (string, error) {
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse S3 JSON: %w", err)
 	}
+	c.rememberPricing(ServiceS3, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AmazonS3" {
@@ -783,6 +808,7 @@ func (c *Client) parseRDSPricing(data []byte) (string, error) { //nolint:gocogni
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse RDS JSON: %w", err)
 	}
+	c.rememberPricing(ServiceRDS, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AmazonRDS" {
@@ -937,6 +963,7 @@ func (c *Client) parseEKSPricing(data []byte) (string, error) { //nolint:gocogni
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse EKS JSON: %w", err)
 	}
+	c.rememberPricing(ServiceEKS, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AmazonEKS" {
@@ -987,6 +1014,7 @@ func (c *Client) parseLambdaPricing(data []byte) (string, error) { //nolint:goco
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse Lambda JSON: %w", err)
 	}
+	c.rememberPricing(ServiceLambda, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AWSLambda" {
@@ -1040,6 +1068,7 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) { //nolint:go
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse DynamoDB JSON: %w", err)
 	}
+	c.rememberPricing(ServiceDynamoDB, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AmazonDynamoDB" {
@@ -1107,6 +1136,7 @@ func (c *Client) parseELBPricing(data []byte) (string, error) { //nolint:gocogni
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse ELB JSON: %w", err)
 	}
+	c.rememberPricing(ServiceELB, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AWSELB" {
@@ -1170,6 +1200,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse VPC JSON: %w", err)
 	}
+	c.rememberPricing(ServiceVPC, pricing)
 
 	// Validate offerCode matches expected service (T031)
 	if pricing.OfferCode != "AmazonVPC" {
@@ -1193,6 +1224,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 		}
 	}
 	if nat.HourlyRate > 0 {
+		nat.Offer = ServiceVPC
 		c.natGatewayVPC = nat
 	}
 	return region, nil
@@ -1276,6 +1308,7 @@ func (c *Client) parseCloudWatchPricing(data []byte) (string, error) { //nolint:
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse CloudWatch JSON: %w", err)
 	}
+	c.rememberPricing(ServiceCloudWatch, pricing)
 
 	// Validate offerCode matches expected service
 	if pricing.OfferCode != "AmazonCloudWatch" {
@@ -1360,6 +1393,7 @@ func (c *Client) parseElastiCachePricing(data []byte) (string, error) {
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse ElastiCache JSON: %w", err)
 	}
+	c.rememberPricing(ServiceElastiCache, pricing)
 
 	// Validate offerCode matches expected service
 	if pricing.OfferCode != "AmazonElastiCache" {
@@ -1455,11 +1489,12 @@ func setEFSAccessRate(read, write *float64, isRead bool, rate float64) {
 //
 // The *-SmallFiles overhead SKUs are not matched because the usagetype
 // comparison is exact.
-func (c *Client) parseEFSPricing(data []byte) (string, error) { //nolint:gocognit
+func (c *Client) parseEFSPricing(data []byte) (string, error) { //nolint:gocognit,funlen
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse EFS JSON: %w", err)
 	}
+	c.rememberPricing(ServiceEFS, pricing)
 
 	if pricing.OfferCode != "AmazonEFS" {
 		c.logger.Warn().

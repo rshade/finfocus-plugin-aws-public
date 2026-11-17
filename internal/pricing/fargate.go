@@ -66,6 +66,7 @@ func (c *Client) parseFargatePricing(data []byte) (string, error) {
 	if err := json.Unmarshal(data, &pricing); err != nil {
 		return "", fmt.Errorf("failed to parse ECS JSON: %w", err)
 	}
+	c.rememberPricing(ServiceECS, pricing)
 
 	if pricing.OfferCode != "AmazonECS" {
 		c.logger.Warn().
