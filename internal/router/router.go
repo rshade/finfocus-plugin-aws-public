@@ -312,10 +312,7 @@ func (r *Plugin) GetRecommendations(
 				return nil, wrapRegionError(region, err)
 			}
 
-			regionReq := &pbc.GetRecommendationsRequest{
-				Filter:          req.GetFilter(),
-				TargetResources: resources,
-			}
+			regionReq := regionRecommendationsRequest(req, resources)
 			resp, err := client.GetRecommendations(propagateTraceID(ctx, traceID), regionReq)
 			return resp, childStatusError(err)
 		}
@@ -351,11 +348,8 @@ func (r *Plugin) GetRecommendations(
 				return
 			}
 
-			// Create a region-scoped request with only this region's resources
-			regionReq := &pbc.GetRecommendationsRequest{
-				Filter:          req.GetFilter(),
-				TargetResources: res,
-			}
+			// Create a region-scoped request with only this region's resources.
+			regionReq := regionRecommendationsRequest(req, res)
 
 			resp, err := client.GetRecommendations(propagateTraceID(ctx, traceID), regionReq)
 			mu.Lock()
@@ -389,6 +383,22 @@ func (r *Plugin) GetRecommendations(
 	)
 
 	return merged, nil
+}
+
+// regionRecommendationsRequest copies the host filters the child must apply.
+// excluded_recommendation_ids, include_dismissed, and projection_period are
+// forwarded so visibility and the summary period are decided once, in the child.
+func regionRecommendationsRequest(
+	req *pbc.GetRecommendationsRequest,
+	resources []*pbc.ResourceDescriptor,
+) *pbc.GetRecommendationsRequest {
+	return &pbc.GetRecommendationsRequest{
+		Filter:                    req.GetFilter(),
+		TargetResources:           resources,
+		ExcludedRecommendationIds: req.GetExcludedRecommendationIds(),
+		IncludeDismissed:          req.GetIncludeDismissed(),
+		ProjectionPeriod:          req.GetProjectionPeriod(),
+	}
 }
 
 // recommendationProjectionPeriod applies the protocol default for merged summaries.

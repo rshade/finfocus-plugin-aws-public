@@ -206,6 +206,8 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 					Msg("recommendation missing resource data")
 			}
 
+			assignStableRecommendationID(resource, rec)
+
 			if rec.GetImpact() != nil {
 				pctx.BatchStats.TotalSavings += rec.GetImpact().GetEstimatedSavings()
 			} else {
@@ -222,6 +224,13 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 
 		recommendations = append(recommendations, recs...)
 	}
+
+	// Excluded ids are omitted even when include_dismissed is set. This plugin
+	// stores no dismissals, so DismissedIDs stays empty.
+	recommendations = pluginsdk.ApplyRecommendationVisibility(recommendations, pluginsdk.RecommendationVisibility{
+		ExcludedIDs:      req.GetExcludedRecommendationIds(),
+		IncludeDismissed: req.GetIncludeDismissed(),
+	})
 
 	// FR-010: Summary logging (one line per batch, not per resource)
 	p.traceLogger(traceID, "GetRecommendations").Info().
