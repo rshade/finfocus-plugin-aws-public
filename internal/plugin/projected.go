@@ -99,6 +99,11 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			}
 		}
 
+		// S3 prices only buckets. Policies and other s3/* types have no storage.
+		if svc, ok := s3ServiceFromPath(awsSuffix, resourceType); ok {
+			return svc
+		}
+
 		// EFS prices only the file system. Policies, backup policies, and
 		// replication configurations share the service segment but have no
 		// estimator, so they must not collapse into "efs".
@@ -118,7 +123,6 @@ func normalizeResourceType(resourceType string) string { //nolint:gocognit
 			case serviceEC2,
 				serviceEBS,
 				serviceRDS,
-				serviceS3,
 				serviceLambda,
 				serviceDynamoDB,
 				serviceNATGW,
@@ -631,13 +635,14 @@ func (p *AWSPublicPlugin) estimateS3(
 	tags := pricingTags(resource)
 	storageClass, classAssumed := s3StorageClass(resource)
 
-	// Extract size from tags, default to 1GB
-	sizeGB := 1.0
-	sizeAssumed := true
+	// Size is real usage. With none given, storage is usage-based and costs $0
+	// until actual cost supplies the gigabytes.
+	sizeGB := 0.0
+	sizeKnown := false
 	if sizeStr, ok := tags["size"]; ok {
 		if size, err := strconv.ParseFloat(sizeStr, 64); err == nil && size > 0 {
 			sizeGB = size
-			sizeAssumed = false
+			sizeKnown = true
 		}
 	}
 
@@ -662,26 +667,22 @@ func (p *AWSPublicPlugin) estimateS3(
 	// Calculate monthly cost
 	costPerMonth := ratePerGBMonth * sizeGB
 
-	// Include assumption in billing_detail if size was defaulted
 	var billingDetail string
-	if sizeAssumed {
-		billingDetail = fmt.Sprintf(
-			"S3 %s storage, %.0f GB (defaulted), $%.4f/GB-month",
-			storageClass,
-			sizeGB,
-			ratePerGBMonth,
-		)
-	} else {
+	if sizeKnown {
 		billingDetail = fmt.Sprintf("S3 %s storage, %.0f GB, $%.4f/GB-month", storageClass, sizeGB, ratePerGBMonth)
+	} else {
+		billingDetail = fmt.Sprintf(
+			"S3 %s storage is usage-based, $%.4f/GB-month (size comes from actual cost)",
+			storageClass, ratePerGBMonth,
+		)
 	}
 
-	// Track defaults for metadata enrichment
 	var dt DefaultsTracker
 	if classAssumed {
 		dt.Add("storage_class", "STANDARD", KindConfig)
 	}
-	if sizeAssumed {
-		dt.Add("size", "1", KindConfig)
+	if !sizeKnown {
+		dt.Add("size", "0", KindUsageZero)
 	}
 
 	resp := &pbc.GetProjectedCostResponse{
@@ -1405,6 +1406,28 @@ func (p *AWSPublicPlugin) estimateASG(
 	return resp, nil
 }
 
+// s3ServiceFromPath routes an aws:s3/ token. Only bucket and bucketv2 are storage.
+func s3ServiceFromPath(awsSuffix, original string) (string, bool) {
+	s3Path, isS3 := strings.CutPrefix(awsSuffix, "s3/")
+	if !isS3 || s3Path == "" {
+		return "", false
+	}
+	if s3Path == "bucket" || strings.HasPrefix(s3Path, "bucket:") ||
+		s3Path == "bucketv2" || strings.HasPrefix(s3Path, "bucketv2:") {
+		return serviceS3, true
+	}
+	return original, true
+}
+
+// isS3BucketType reports a bucket token without matching bucketPolicy.
+func isS3BucketType(resourceTypeLower string) bool {
+	if strings.Contains(resourceTypeLower, "s3/bucket:") || strings.HasSuffix(resourceTypeLower, "s3/bucket") {
+		return true
+	}
+	return strings.Contains(resourceTypeLower, "s3/bucketv2:") ||
+		strings.HasSuffix(resourceTypeLower, "s3/bucketv2")
+}
+
 // detectService maps a provider resource type string to a normalized service identifier.
 // The input resourceType is expected to be normalized by normalizeResourceType().
 func detectService(resourceType string) string { //nolint:gocognit // one branch per supported service
@@ -1463,7 +1486,7 @@ func detectService(resourceType string) string { //nolint:gocognit // one branch
 	if containsTypeToken(resourceTypeLower, "eks/cluster") {
 		return serviceEKS
 	}
-	if strings.Contains(resourceTypeLower, "s3/bucket") {
+	if isS3BucketType(resourceTypeLower) {
 		return serviceS3
 	}
 	if strings.Contains(resourceTypeLower, "lambda/function") {
