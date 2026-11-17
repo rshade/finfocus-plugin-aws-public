@@ -189,6 +189,11 @@ type PricingClient interface {
 	// PricingAsOf returns the oldest publicationDate across loaded service files.
 	// The string is empty when no file recorded a parseable date.
 	PricingAsOf() string
+
+	// NATGatewayOffer returns the embedded file that supplied NATGatewayPrice.
+	// It is ServiceEC2 when the AmazonEC2 offer has an hourly rate, otherwise
+	// ServiceVPC. Empty when NAT Gateway pricing was not loaded.
+	NATGatewayOffer() string
 }
 
 // Client implements PricingClient with embedded JSON data.
@@ -747,6 +752,7 @@ func (c *Client) parseEC2Pricing(data []byte) (string, *PricingMetadata, error) 
 		}
 	}
 	if nat.HourlyRate > 0 {
+		nat.Offer = ServiceEC2
 		c.natGatewayEC2 = nat
 	}
 	return region, &meta, nil
@@ -1218,6 +1224,7 @@ func (c *Client) parseNATGatewayPricing(data []byte) (string, error) {
 		}
 	}
 	if nat.HourlyRate > 0 {
+		nat.Offer = ServiceVPC
 		c.natGatewayVPC = nat
 	}
 	return region, nil

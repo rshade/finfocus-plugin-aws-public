@@ -169,6 +169,10 @@ type NATGatewayPrice struct {
 
 	// Currency code (e.g., "USD")
 	Currency string
+
+	// Offer is the embedded file that supplied this price: ServiceEC2 or ServiceVPC.
+	// selectNATGatewayPrice keeps the offer of the price it selects.
+	Offer string
 }
 
 // PricingMetadata is the AWS Price List header captured while a service file

@@ -312,6 +312,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 		}
 	}
 
+	priced := true
 	if err != nil {
 		if pue, ok := errors.AsType[*PricingUnavailableError](err); ok {
 			resp = &pbc.GetProjectedCostResponse{
@@ -320,12 +321,16 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 				Currency:      currencyUSD,
 				BillingDetail: pue.BillingDetail,
 			}
+			priced = false
 		} else {
 			p.logResourceErrorWithID(
 				traceID, "GetProjectedCost", resource, serviceType, err, pbc.ErrorCode_ERROR_CODE_UNSPECIFIED,
 			)
 			return nil, err
 		}
+	}
+	if !responseUsedEmbeddedRate(resp) {
+		priced = false
 	}
 
 	// Test mode: Enhanced logging for calculation result (US3)
@@ -339,7 +344,7 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 			Msg("Test mode: calculation result")
 	}
 
-	p.stampProjectedFreshness(resp, serviceType)
+	p.stampProjectedFreshness(resp, serviceType, priced)
 
 	// Log successful completion with all required fields
 	p.traceLogger(traceID, "GetProjectedCost").Info().

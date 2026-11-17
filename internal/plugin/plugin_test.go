@@ -58,6 +58,7 @@ type mockPricingClient struct {
 	natgwCalled           int
 	pricingMeta           map[string]pricing.PricingMetadata
 	pricingAsOf           string
+	natOffer              string
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.

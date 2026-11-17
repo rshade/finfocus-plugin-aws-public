@@ -200,7 +200,10 @@ The plugin enriches `GetProjectedCostResponse` with metadata fields for FinFocus
 Successful, priced `GetProjectedCost` and `GetPricingSpec` responses include
 `pricing_as_of` (the embedded Price List `publicationDate` for the offer that
 priced the resource) and `pricing_version`. EBS and ASG use the EC2 file.
-NAT Gateway and Elastic IP use the VPC file. Fargate uses the ECS file.
+Elastic IP uses the VPC file. NAT Gateway uses whichever offer supplied
+the selected rate (EC2 when that hourly rate is present, otherwise VPC).
+Fargate uses the ECS file. A response that did not look up a rate
+(missing SKU, unsupported type, EC2 or EXTERNAL launch) is not stamped.
 Zero-cost and unknown types are not stamped. `GetPluginInfo` reports the
 oldest date as `pricing_as_of` and one `pricing_version.<service>` key per
 loaded file. Fallback embeds add `pricing_source=fallback`. These keys are

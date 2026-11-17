@@ -162,3 +162,11 @@ func (c *Client) PricingAsOf() string {
 	}
 	return raw
 }
+
+// NATGatewayOffer returns the file that supplied the selected NAT Gateway price.
+func (c *Client) NATGatewayOffer() string {
+	if c.natGatewayPricing == nil {
+		return ""
+	}
+	return c.natGatewayPricing.Offer
+}
