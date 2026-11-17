@@ -632,8 +632,9 @@ go test -tags=integration -run TestIntegration_VerifyPricingEmbedded ./internal/
 - Capacity: `desired_capacity` or `desiredCapacity`, then `min_size` or
   `minSize`, default 1.
 - When the instance type is empty, GetProjectedCost returns $0 and
-  billing detail `cannot determine instance type for ASG: set 'sku' field
-  or 'instance_type' tag`. A known desired capacity and a mixed-instance
+  billing detail `cannot determine instance type for ASG: no sku, no
+  instance_type tag, and no launch template or launch configuration
+  resolved by the host (ref.launchTemplate.sku)`. A known desired capacity and a mixed-instance
   policy are appended to that detail. A successful estimate that includes
   a mixed policy appends
   `(mixed instance policies not yet supported, using primary instance type)`.

@@ -1353,6 +1353,9 @@ func (p *AWSPublicPlugin) estimateASG(
 
 	billingDetail := fmt.Sprintf("ASG: %d× %s On-demand %s, 730 hrs/month",
 		attrs.DesiredCapacity, attrs.InstanceType, attrs.OS)
+	if attrs.InstanceTypeFrom != "" {
+		billingDetail += " (" + attrs.InstanceTypeFrom + ")"
+	}
 	if attrs.DesiredCapacity == 0 {
 		billingDetail += " (zero instances)"
 	}
