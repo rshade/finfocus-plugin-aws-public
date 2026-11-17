@@ -72,6 +72,36 @@ func recommendationIDKey(identity string, rec *pbc.Recommendation) string {
 	return b.String()
 }
 
+// dedupeRecommendationIDs keeps the first recommendation for each id.
+// Anonymous resources keep distinct random ids, so they are not collapsed.
+// A repeated identified descriptor would otherwise emit the same UUID twice.
+func dedupeRecommendationIDs(recs []*pbc.Recommendation) []*pbc.Recommendation {
+	seen := make(map[string]struct{}, len(recs))
+	out := make([]*pbc.Recommendation, 0, len(recs))
+	for _, rec := range recs {
+		if rec == nil || rec.GetId() == "" {
+			out = append(out, rec)
+			continue
+		}
+		if _, ok := seen[rec.GetId()]; ok {
+			continue
+		}
+		seen[rec.GetId()] = struct{}{}
+		out = append(out, rec)
+	}
+	return out
+}
+
+func recommendationSavings(recs []*pbc.Recommendation) float64 {
+	var total float64
+	for _, rec := range recs {
+		if rec.GetImpact() != nil {
+			total += rec.GetImpact().GetEstimatedSavings()
+		}
+	}
+	return total
+}
+
 func writeSortedConfig(b *strings.Builder, config map[string]string) {
 	for _, key := range slices.Sorted(maps.Keys(config)) {
 		b.WriteString(key)

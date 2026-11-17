@@ -106,6 +106,34 @@ func TestGetRecommendations_IDsUniquePerIdentity(t *testing.T) {
 	assert.GreaterOrEqual(t, len(seen), 4)
 }
 
+// TestGetRecommendations_RepeatedIdentityKeepsOneID verifies that sending the
+// same identified descriptor twice does not put the same UUID in the response
+// twice. Two anonymous copies stay distinct.
+func TestGetRecommendations_RepeatedIdentityKeepsOneID(t *testing.T) {
+	plugin := recommendationPlugin(ec2Prices())
+	identified := ec2Resource("web", "t2.micro")
+	resp, err := plugin.GetRecommendations(context.Background(), recRequest(identified, identified))
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.GetRecommendations())
+	seen := map[string]struct{}{}
+	for _, rec := range resp.GetRecommendations() {
+		_, dup := seen[rec.GetId()]
+		assert.False(t, dup, "duplicate id %s", rec.GetId())
+		seen[rec.GetId()] = struct{}{}
+	}
+
+	once, err := plugin.GetRecommendations(context.Background(), recRequest(identified))
+	require.NoError(t, err)
+	assert.Equal(t, idsOf(once.GetRecommendations()), idsOf(resp.GetRecommendations()))
+
+	anon, err := plugin.GetRecommendations(context.Background(), recRequest(
+		ec2Resource("", "t2.micro"),
+		ec2Resource("", "t2.micro"),
+	))
+	require.NoError(t, err)
+	assert.Greater(t, len(anon.GetRecommendations()), len(once.GetRecommendations()))
+}
+
 // TestGetRecommendations_ExcludedIDs verifies an excluded id is omitted even
 // when include_dismissed is set.
 func TestGetRecommendations_ExcludedIDs(t *testing.T) {
