@@ -14,6 +14,11 @@ const (
 	metadataKeyPricingVersion = "pricing_version"
 	metadataKeyPricingSource  = "pricing_source"
 	pricingSourceFallback     = "fallback"
+
+	// metadataKeyEmbeddedLookup is set by estimateCloudWatch and removed
+	// before the response is returned. "ok" means an embedded rate was read.
+	metadataKeyEmbeddedLookup = "embedded_lookup"
+	embeddedLookupOK          = "ok"
 )
 
 // pricingFileForService maps a detected service to the embedded offer that
@@ -137,8 +142,29 @@ func responseUsedEmbeddedRate(resp *pbc.GetProjectedCostResponse) bool {
 	case strings.Contains(detail, "not supported for cost estimation"):
 		return false
 	default:
+		return embeddedLookupSucceeded(resp)
+	}
+}
+
+// embeddedLookupSucceeded reports the lookup status an estimator recorded.
+// Estimators that do not record one are treated as priced once the denylist
+// above has been checked. The status is removed so it is not part of the
+// response. Cost and unit price are not consulted: a zero total can still
+// be a real lookup, and CloudWatch has no single unit price.
+func embeddedLookupSucceeded(resp *pbc.GetProjectedCostResponse) bool {
+	meta := resp.GetMetadata()
+	if meta == nil {
 		return true
 	}
+	status, recorded := meta[metadataKeyEmbeddedLookup]
+	if !recorded {
+		return true
+	}
+	delete(meta, metadataKeyEmbeddedLookup)
+	if len(meta) == 0 {
+		resp.Metadata = nil
+	}
+	return status == embeddedLookupOK
 }
 
 func applyFreshness(dst map[string]string, meta pricing.PricingMetadata) {

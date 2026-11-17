@@ -226,9 +226,10 @@ func TestGetProjectedCost_UnpricedResponsesAreNotStamped(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	mock.ec2Prices["t3.micro/Linux/Shared"] = 0.0104
 	mock.pricingMeta = map[string]pricing.PricingMetadata{
-		pricing.ServiceEC2: {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
-		pricing.ServiceELB: {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
-		pricing.ServiceECS: {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
+		pricing.ServiceEC2:        {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
+		pricing.ServiceELB:        {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
+		pricing.ServiceECS:        {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
+		pricing.ServiceCloudWatch: {Version: "v", PublicationDate: "2026-09-01T00:00:00Z"},
 	}
 	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, zerolog.Nop())
 
@@ -236,6 +237,7 @@ func TestGetProjectedCost_UnpricedResponsesAreNotStamped(t *testing.T) {
 		{Provider: "aws", ResourceType: "ec2", Sku: "no-such-type", Region: "us-east-1"},
 		{Provider: "aws", ResourceType: "elb", Sku: "gwlb", Region: "us-east-1"},
 		{Provider: "aws", ResourceType: "ecs", Region: "us-east-1", Tags: map[string]string{"launch_type": "EC2"}},
+		{Provider: "aws", ResourceType: "cloudwatch", Region: "us-east-1"},
 	}
 	for _, resource := range cases {
 		resp, err := plugin.GetProjectedCost(context.Background(), &pbc.GetProjectedCostRequest{Resource: resource})

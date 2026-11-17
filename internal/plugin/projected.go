@@ -1987,9 +1987,11 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		}
 	}
 
-	// Calculate costs based on SKU
+	// Calculate costs based on SKU. lookedUp is true only after an embedded
+	// rate is read. A zero total is not that signal.
 	var totalCost float64
 	var details []string
+	lookedUp := false
 
 	// Logs cost calculation
 	if sku == skuLogs || sku == skuCombined {
@@ -2000,6 +2002,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		if logIngestionGB > 0 {
 			tiers, found := p.pricing.CloudWatchLogsIngestionTiers()
 			if found {
+				lookedUp = true
 				ingestionCost = calculateTieredCost(logIngestionGB, tiers)
 				details = append(details, fmt.Sprintf("%.2f GB logs ingested ($%.2f)", logIngestionGB, ingestionCost))
 			} else {
@@ -2014,6 +2017,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		if logStorageGB > 0 {
 			storageRate, found := p.pricing.CloudWatchLogsStoragePrice()
 			if found {
+				lookedUp = true
 				storageCost = logStorageGB * storageRate
 				details = append(
 					details,
@@ -2034,6 +2038,7 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		if customMetrics > 0 {
 			tiers, found := p.pricing.CloudWatchMetricsTiers()
 			if found {
+				lookedUp = true
 				metricsCost = calculateTieredCost(customMetrics, tiers)
 				details = append(details, fmt.Sprintf("%.0f custom metrics ($%.2f)", customMetrics, metricsCost))
 			} else {
@@ -2075,12 +2080,20 @@ func (p *AWSPublicPlugin) estimateCloudWatch( //nolint:gocognit,gocyclo,cyclop,f
 		dt.Add("custom_metrics", "0", KindUsageZero)
 	}
 
+	meta := dt.Metadata()
+	if meta == nil {
+		meta = map[string]string{}
+	}
+	meta[metadataKeyEmbeddedLookup] = ""
+	if lookedUp {
+		meta[metadataKeyEmbeddedLookup] = embeddedLookupOK
+	}
 	resp := &pbc.GetProjectedCostResponse{
 		CostPerMonth:  totalCost,
 		UnitPrice:     0, // No single unit price for CloudWatch (multi-component)
 		Currency:      currencyUSD,
 		BillingDetail: billingDetail,
-		Metadata:      dt.Metadata(),
+		Metadata:      meta,
 	}
 
 	// Apply growth hint enrichment
