@@ -206,6 +206,8 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 					Msg("recommendation missing resource data")
 			}
 
+			assignStableRecommendationID(resource, rec)
+
 			if rec.GetImpact() != nil {
 				pctx.BatchStats.TotalSavings += rec.GetImpact().GetEstimatedSavings()
 			} else {
@@ -223,13 +225,24 @@ func (p *AWSPublicPlugin) GetRecommendations( //nolint:gocognit,funlen
 		recommendations = append(recommendations, recs...)
 	}
 
+	// The same identified resource twice would mint the same UUID twice.
+	// Drop the copies before visibility so the response ids stay unique.
+	recommendations = dedupeRecommendationIDs(recommendations)
+
+	// Excluded ids are omitted even when include_dismissed is set. This plugin
+	// stores no dismissals, so DismissedIDs stays empty.
+	recommendations = pluginsdk.ApplyRecommendationVisibility(recommendations, pluginsdk.RecommendationVisibility{
+		ExcludedIDs:      req.GetExcludedRecommendationIds(),
+		IncludeDismissed: req.GetIncludeDismissed(),
+	})
+
 	// FR-010: Summary logging (one line per batch, not per resource)
 	p.traceLogger(traceID, "GetRecommendations").Info().
 		Int("total_resources", pctx.BatchStats.TotalResources).
 		Int("matched_resources", pctx.BatchStats.MatchedResources).
 		Int("recommendation_count", len(recommendations)).
 		Int("skipped_resources", skippedCount).
-		Float64("total_savings", pctx.BatchStats.TotalSavings).
+		Float64("total_savings", recommendationSavings(recommendations)).
 		Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 		Msg("batch recommendations generated")
 

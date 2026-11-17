@@ -81,6 +81,10 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #484 `recommendations`: recommendation ids are stable name-based
+  UUIDs, and `excluded_recommendation_ids` is honored even when
+  `include_dismissed` is set. The router forwards that list,
+  `include_dismissed`, and `projection_period` to each child. [M]
 - [x] #480 `plugin`: `GetPricingSpec` validation failures log `resource_type`
   and `service_type`, matching `GetProjectedCost`. [S]
 - [x] #390 `pricing`: embedded Price List `publicationDate` and `version` are
