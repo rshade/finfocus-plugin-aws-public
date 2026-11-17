@@ -186,6 +186,14 @@ func (r *Plugin) GetProjectedCost(
 	}
 
 	resp, err := client.GetProjectedCost(propagateTraceID(ctx, traceID), req)
+	// The child response is returned as-is, so pricing_as_of and the other
+	// metadata keys stamped by the region binary reach the host.
+	return childProjectedCost(resp, err)
+}
+
+// childProjectedCost returns the child GetProjectedCost response unchanged.
+// Metadata is not copied or filtered.
+func childProjectedCost(resp *pbc.GetProjectedCostResponse, err error) (*pbc.GetProjectedCostResponse, error) {
 	return resp, childStatusError(err)
 }
 

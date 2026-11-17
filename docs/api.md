@@ -49,7 +49,10 @@ Returns metadata about the plugin.
   "providers": ["aws"],
   "metadata": {
     "region": "us-east-1",
-    "type": "public-pricing-fallback"
+    "type": "public-pricing-fallback",
+    "pricing_as_of": "2024-01-01T00:00:00Z",
+    "pricing_version.ec2": "fallback",
+    "pricing_source": "fallback"
   }
 }
 ```

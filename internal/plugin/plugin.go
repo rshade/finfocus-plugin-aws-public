@@ -304,10 +304,10 @@ func (p *AWSPublicPlugin) GetPluginInfo(
 		Version:     p.version,
 		SpecVersion: pluginsdk.SpecVersion,
 		Providers:   []string{providerAWS},
-		Metadata: map[string]string{
+		Metadata: PricingInfoMetadata(p.pricing, map[string]string{
 			"region": p.region,
 			"type":   "public-pricing-fallback",
-		},
+		}),
 		Capabilities: p.capabilities(),
 		Settings:     pluginsettings.Region(),
 	}, nil

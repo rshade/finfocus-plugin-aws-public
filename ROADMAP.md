@@ -34,8 +34,6 @@ security overhead of cloud credentials.
   - [ ] #392 Opt-in cross-region cost and carbon comparison via
     region-migration recommendations [L]
 - **[Planned] Pricing Data Trust:**
-  - [ ] #390 Expose Price List `publicationDate` as a pricing freshness
-    stamp [M]
   - [ ] #391 Pricing drift report comparing each release's pricing data with
     the previous release [L]
 - **[Researching] Memory Optimization:** Implementing lazy-loading or
@@ -83,6 +81,11 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #390 `pricing`: embedded Price List `publicationDate` and `version` are
+  returned as `pricing_as_of` and `pricing_version` on projected cost and
+  pricing spec responses, and as `pricing_as_of` plus
+  `pricing_version.<service>` on `GetPluginInfo`. Fallback builds also set
+  `pricing_source=fallback`. [M]
 - [x] #477 `plugin`: Elastic IPs (`aws:ec2/eip:Eip`) priced hourly from the
   AmazonVPC public IPv4 rates instead of failing with `resource.sku is
   required`; `eipAssociation` is zero-cost; Terraform `aws_eip` and

@@ -339,6 +339,8 @@ func (p *AWSPublicPlugin) GetProjectedCost( //nolint:funlen
 			Msg("Test mode: calculation result")
 	}
 
+	p.stampProjectedFreshness(resp, serviceType)
+
 	// Log successful completion with all required fields
 	p.traceLogger(traceID, "GetProjectedCost").Info().
 		Str(pluginsdk.FieldResourceType, resource.GetResourceType()).

@@ -171,12 +171,16 @@ type NATGatewayPrice struct {
 	Currency string
 }
 
-// pricingMetadata holds AWS pricing data metadata for debugging and traceability (T034).
-// Captured from the embedded pricing JSON during initialization.
-type pricingMetadata struct {
+// PricingMetadata is the AWS Price List header captured while a service file
+// is parsed. Callers use it as a freshness stamp. It is not a second decode
+// of the embedded JSON.
+type PricingMetadata struct {
+	// FormatVersion is the Price List format, usually "aws_v1".
+	FormatVersion string
 	// Version is the AWS pricing data version (timestamp-based, e.g., "20251218235654").
+	// Fallback embeds use "fallback".
 	Version string
-	// PublicationDate is the ISO timestamp when AWS published this pricing data.
+	// PublicationDate is the RFC3339 timestamp when AWS published this pricing data.
 	PublicationDate string
 	// OfferCode identifies the AWS service (e.g., "AmazonEC2", "AWSELB").
 	OfferCode string

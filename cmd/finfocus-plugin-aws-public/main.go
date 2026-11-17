@@ -115,10 +115,10 @@ func run() error {
 			Version:     version, // Injected by GoReleaser via -X main.version
 			SpecVersion: pluginsdk.SpecVersion,
 			Providers:   []string{"aws"},
-			Metadata: map[string]string{
+			Metadata: plugin.PricingInfoMetadata(pricingClient, map[string]string{
 				"region": region,
 				"type":   "public-pricing-fallback",
-			},
+			}),
 			Settings: pluginsettings.Region(),
 		},
 	}

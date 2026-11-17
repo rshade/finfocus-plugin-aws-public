@@ -123,6 +123,8 @@ func (p *AWSPublicPlugin) GetPricingSpec(
 		}
 	}
 
+	p.stampSpecFreshness(spec, serviceType)
+
 	p.traceLogger(traceID, "GetPricingSpec").Info().
 		Str(pluginsdk.FieldResourceType, resource.GetResourceType()).
 		Str("aws_region", resource.GetRegion()).

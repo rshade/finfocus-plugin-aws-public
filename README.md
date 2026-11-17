@@ -686,7 +686,7 @@ rpc GetPluginInfo(GetPluginInfoRequest) returns (GetPluginInfoResponse);
 - `version` - The plugin version (semver)
 - `spec_version` - The finfocus-spec version implemented
 - `providers` - List of supported cloud providers (e.g., ["aws"])
-- `metadata` - Additional diagnostic key-value pairs (e.g., region, plugin type)
+- `metadata` - Additional diagnostic key-value pairs (region, plugin type, and pricing freshness). `pricing_as_of` is the oldest embedded Price List `publicationDate`. `pricing_version.<service>` is that file's AWS `version`. Fallback builds also set `pricing_source=fallback`. Successful cost responses carry `pricing_as_of` and `pricing_version` for the offer that priced the resource. Zero-cost resources are not stamped.
 
 ## Web Server / HTTP API
 

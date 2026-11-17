@@ -56,6 +56,8 @@ type mockPricingClient struct {
 	dynamoDBCalled        int
 	elbCalled             int
 	natgwCalled           int
+	pricingMeta           map[string]pricing.PricingMetadata
+	pricingAsOf           string
 }
 
 // newMockPricingClient creates a new mockPricingClient with default values.
