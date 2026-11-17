@@ -533,11 +533,19 @@ func TestParseEC2Pricing_VariantsResolveDeterministically(t *testing.T) {
 			"RunInstances:0800", "Bring your own license", "0.0416000000"),
 		ec2Variant("FWCP9H9AGEGTCSEE", "t3.medium", "Windows", "OnDemand",
 			"RunInstances:0002:box", "License Included - Infrastructure", "0.0416000000"),
+		ec2Variant("ZZZ-INFRA", "fallback.type", "Windows", "OnDemand",
+			"RunInstances:0002:box", "License Included - Infrastructure", "0.0500000000"),
+		ec2Variant("AAA-BYOL", "fallback.type", "Windows", "OnDemand",
+			"RunInstances:0800", "Bring your own license", "0.0400000000"),
+		ec2Variant("BYOL-ONLY", "byol.type", "Windows", "OnDemand",
+			"RunInstances:0800", "Bring your own license", "0.0300000000"),
 	})
 	want := map[string]float64{
-		"p5.48xlarge/Linux/Shared": 55.04,
-		"p5.48xlarge/RHEL/Shared":  56.8832,
-		"t3.medium/Windows/Shared": 0.06,
+		"p5.48xlarge/Linux/Shared":      55.04,
+		"p5.48xlarge/RHEL/Shared":       56.8832,
+		"t3.medium/Windows/Shared":      0.06,
+		"fallback.type/Windows/Shared": 0.05,
+		"byol.type/Windows/Shared":     0.03,
 	}
 
 	for range parseRepetitions {
