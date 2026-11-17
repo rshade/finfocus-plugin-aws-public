@@ -180,8 +180,8 @@ func getSupportedMetrics(resourceType string) []pbc.MetricKind {
 	case serviceDynamoDB:
 		// DynamoDB tables: Storage-based carbon (SSD × 3× replication factor)
 		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
-	case serviceEKS, serviceEKSNodeGroup:
-		// EKS clusters: control plane guidance. Node groups use the EC2 carbon path.
+	case serviceEKS:
+		// EKS clusters: control plane guidance. Node groups do not estimate carbon yet.
 		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
 	case serviceElastiCache:
 		// ElastiCache clusters: EC2-equivalent node carbon × cluster size

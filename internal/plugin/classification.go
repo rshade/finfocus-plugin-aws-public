@@ -50,6 +50,13 @@ var serviceClassifications = map[string]ServiceClassification{
 		AffectedByDevMode: true, // Cluster hours
 		ParentTagKeys:     nil,
 	},
+	"aws:eks:nodegroup": {
+		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
+		AffectedByDevMode: true, // Instance hours
+		ParentTagKeys:     []string{parentTagVPCID},
+		ParentType:        parentTypeVPC,
+		Relationship:      RelationshipWithin,
+	},
 	"aws:eks:fargate-pod": {
 		GrowthType:        pbc.GrowthType_GROWTH_TYPE_NONE,
 		AffectedByDevMode: true, // Pod hours

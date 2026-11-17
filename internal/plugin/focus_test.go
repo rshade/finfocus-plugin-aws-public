@@ -72,6 +72,11 @@ func TestMapServiceCategory(t *testing.T) {
 		},
 		// Unknown/other services
 		{
+			name:        "EKS node group maps to Compute",
+			serviceType: "eksnodegroup",
+			want:        pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE,
+		},
+		{
 			name:        "Unknown service maps to Other",
 			serviceType: "unknown",
 			want:        pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_OTHER,
@@ -106,6 +111,7 @@ func TestGetServiceName(t *testing.T) {
 		{"lambda", "AWS Lambda"},
 		{"dynamodb", "Amazon DynamoDB"},
 		{"eks", "Amazon EKS"},
+		{"eksnodegroup", "Amazon EKS"},
 		{"elb", "Elastic Load Balancing"},
 		{"natgw", "Amazon VPC NAT Gateway"},
 		{"cloudwatch", "Amazon CloudWatch"},
@@ -131,6 +137,7 @@ func TestGetPricingUnitForService(t *testing.T) {
 		{"ec2", "Hours"},
 		{"rds", "Hours"},
 		{"eks", "Hours"},
+		{"eksnodegroup", "Hours"},
 		{"elb", "Hours"},
 		{"alb", "Hours"}, // ALB variant
 		{"nlb", "Hours"}, // NLB variant

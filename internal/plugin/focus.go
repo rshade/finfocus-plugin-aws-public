@@ -11,19 +11,20 @@ import (
 // AWS service name mappings for FOCUS ServiceName field.
 // These follow AWS's official service naming conventions.
 var awsServiceNames = map[string]string{
-	serviceEC2:        "Amazon EC2",
-	serviceEBS:        "Amazon EBS",
-	serviceS3:         "Amazon S3",
-	serviceRDS:        "Amazon RDS",
-	serviceLambda:     "AWS Lambda",
-	serviceDynamoDB:   "Amazon DynamoDB",
-	serviceEKS:        "Amazon EKS",
-	serviceFargate:    "AWS Fargate",
-	serviceELB:        "Elastic Load Balancing",
-	serviceNATGW:      "Amazon VPC NAT Gateway",
-	serviceEIP:        "Amazon VPC Elastic IP",
-	serviceCloudWatch: "Amazon CloudWatch",
-	serviceEFS:        "Amazon Elastic File System",
+	serviceEC2:          "Amazon EC2",
+	serviceEBS:          "Amazon EBS",
+	serviceS3:           "Amazon S3",
+	serviceRDS:          "Amazon RDS",
+	serviceLambda:       "AWS Lambda",
+	serviceDynamoDB:     "Amazon DynamoDB",
+	serviceEKS:          "Amazon EKS",
+	serviceEKSNodeGroup: "Amazon EKS",
+	serviceFargate:      "AWS Fargate",
+	serviceELB:          "Elastic Load Balancing",
+	serviceNATGW:        "Amazon VPC NAT Gateway",
+	serviceEIP:          "Amazon VPC Elastic IP",
+	serviceCloudWatch:   "Amazon CloudWatch",
+	serviceEFS:          "Amazon Elastic File System",
 }
 
 // buildFocusRecord creates a FocusCostRecord for public pricing estimates.
@@ -109,7 +110,7 @@ func buildFocusRecord(
 //   - MANAGEMENT: Monitoring and operations (CloudWatch)
 func mapServiceCategory(serviceType string) pbc.FocusServiceCategory {
 	switch serviceType {
-	case serviceEC2, serviceLambda, serviceFargate:
+	case serviceEC2, serviceLambda, serviceFargate, serviceEKSNodeGroup:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_COMPUTE
 	case serviceEBS, serviceS3, serviceEFS:
 		return pbc.FocusServiceCategory_FOCUS_SERVICE_CATEGORY_STORAGE
@@ -141,7 +142,7 @@ func getServiceName(serviceType string) string {
 // This is used when the caller doesn't have a specific pricing unit available.
 func getPricingUnitForService(serviceType string) string {
 	switch serviceType {
-	case serviceEC2, serviceRDS, serviceEKS, serviceELB, serviceALB, serviceNLB,
+	case serviceEC2, serviceRDS, serviceEKS, serviceEKSNodeGroup, serviceELB, serviceALB, serviceNLB,
 		serviceNATGW, serviceEIP, serviceFargate:
 		return "Hours"
 	case serviceEBS, serviceS3, serviceEFS:

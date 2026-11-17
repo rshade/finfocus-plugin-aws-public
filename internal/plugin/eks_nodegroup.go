@@ -104,10 +104,17 @@ func (p *AWSPublicPlugin) eksNodeGroupShape(
 			BillingDetail: "Spot node groups are not estimated",
 		}
 	}
+	inst := strings.TrimSpace(resource.GetSku())
+	if inst == "" {
+		if v, ok := in.String("instance_type", "instanceType"); ok {
+			inst = v
+		}
+	}
 	types := in.Strings("instanceTypes", "instance_types")
-	inst := ""
-	if len(types) > 0 {
+	fromList := false
+	if inst == "" && len(types) > 0 {
 		inst = types[0]
+		fromList = true
 	}
 	hasTemplate := in.Present("launchTemplate", "launch_template")
 	if inst == "" && hasTemplate {
@@ -124,7 +131,7 @@ func (p *AWSPublicPlugin) eksNodeGroupShape(
 	count := 1
 	if n, ok := in.Int(
 		"scalingConfig.desiredSize", "scaling_config.desired_size", "desiredSize", "desired_size",
-	); ok && n > 0 {
+	); ok && n >= 0 {
 		count = n
 	} else {
 		dt.Add("desired_size", "1", KindConfig)
@@ -134,7 +141,7 @@ func (p *AWSPublicPlugin) eksNodeGroupShape(
 		osName = "Windows"
 	}
 	note := ""
-	if len(types) > 1 {
+	if fromList && len(types) > 1 {
 		note = fmt.Sprintf("(%d instance types listed, using %s)", len(types), inst)
 	}
 	_ = traceID

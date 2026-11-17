@@ -47,6 +47,7 @@ func TestPricingFileForService(t *testing.T) {
 		{serviceEC2, pricing.ServiceEC2},
 		{serviceEBS, pricing.ServiceEC2},
 		{serviceASG, pricing.ServiceEC2},
+		{serviceEKSNodeGroup, pricing.ServiceEC2},
 		{serviceS3, pricing.ServiceS3},
 		{serviceRDS, pricing.ServiceRDS},
 		{serviceEKS, pricing.ServiceEKS},
