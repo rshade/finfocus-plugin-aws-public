@@ -81,6 +81,9 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #491 `plugin`: only `aws:eks/cluster:Cluster` pays the control-plane
+  fee. Add-ons and the other free EKS types are $0. A managed node
+  group is priced from its instances. Capabilities stay unsupported. [M]
 - [x] #490 `pricing`: EC2 index keeps the On-Demand license-included SKU
   when Capacity Block or Windows license variants share a key. [M]
 - [x] #484 `recommendations`: recommendation ids are stable name-based

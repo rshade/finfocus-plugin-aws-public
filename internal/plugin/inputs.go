@@ -146,6 +146,59 @@ func (in resourceInputs) Struct(path string) (*structpb.Struct, bool) {
 	return st, true
 }
 
+// Strings returns the first list of strings among keys. A single string is
+// one entry. Attributes are checked before tags. A tag value is split on
+// commas, because the host joins list values that way.
+func (in resourceInputs) Strings(keys ...string) []string {
+	for _, key := range keys {
+		if vals := inputStrings(pluginsdk.AttributeValue(in.attrs, key)); len(vals) > 0 {
+			return vals
+		}
+	}
+	for _, key := range keys {
+		if in.tags == nil {
+			break
+		}
+		if vals := splitCommaList(in.tags[key]); len(vals) > 0 {
+			return vals
+		}
+	}
+	return nil
+}
+
+// splitCommaList splits a host-serialized list. finfocus core joins a
+// multi-element list into one comma-separated tag value. Blank entries are
+// dropped.
+func splitCommaList(raw string) []string {
+	var out []string
+	for part := range strings.SplitSeq(raw, ",") {
+		if s := strings.TrimSpace(part); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func inputStrings(v *structpb.Value, ok bool) []string {
+	if !ok || v == nil {
+		return nil
+	}
+	if s := strings.TrimSpace(v.GetStringValue()); s != "" {
+		return []string{s}
+	}
+	list := v.GetListValue()
+	if list == nil {
+		return nil
+	}
+	out := make([]string, 0, len(list.GetValues()))
+	for _, item := range list.GetValues() {
+		if s := strings.TrimSpace(item.GetStringValue()); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // Present reports whether any key has a non-empty string or a nested struct.
 func (in resourceInputs) Present(keys ...string) bool {
 	if s, ok := in.String(keys...); ok && s != "" {

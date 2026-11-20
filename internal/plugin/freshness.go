@@ -28,7 +28,7 @@ const (
 // and are left unstamped.
 func pricingFileForService(serviceType string) string {
 	switch serviceType {
-	case serviceEC2, serviceEBS, serviceASG:
+	case serviceEC2, serviceEBS, serviceASG, serviceEKSNodeGroup:
 		return pricing.ServiceEC2
 	case serviceS3:
 		return pricing.ServiceS3

@@ -153,7 +153,7 @@ func (a *ARNComponents) ToPulumiResourceType() string { //nolint:funlen // one c
 	case serviceDynamoDB:
 		return serviceDynamoDB
 	case serviceEKS:
-		return serviceEKS
+		return eksARNService(a.ResourceType)
 	case serviceIAM:
 		return serviceIAM
 	case "ecs":
@@ -184,6 +184,29 @@ func (a *ARNComponents) ToPulumiResourceType() string { //nolint:funlen // one c
 	default:
 		// Return the service name as-is for unsupported services
 		return a.Service
+	}
+}
+
+// eksARNService maps an EKS ARN resource type to the plugin service.
+// Unknown EKS types stay unsupported instead of becoming a cluster.
+func eksARNService(resourceType string) string {
+	switch resourceType {
+	case parentTagECSCluster:
+		return serviceEKS
+	case "nodegroup":
+		return serviceEKSNodeGroup
+	case "addon":
+		return serviceEKSAddon
+	case "access-entry":
+		return serviceEKSAccessEntry
+	case "fargateprofile":
+		return serviceEKSFargateProfile
+	case "identityproviderconfig":
+		return serviceEKSIdentityProviderConfig
+	case "podidentityassociation":
+		return serviceEKSPodIdentityAssociation
+	default:
+		return resourceType
 	}
 }
 

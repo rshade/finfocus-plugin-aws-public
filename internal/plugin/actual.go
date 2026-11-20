@@ -252,6 +252,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 		return p.estimateEBS(traceID, resource)
 	case serviceEKS:
 		return p.estimateEKS(traceID, resource)
+	case serviceEKSNodeGroup:
+		return p.estimateEKSNodeGroup(traceID, resource)
 	case serviceELB:
 		return p.estimateELB(traceID, resource)
 	case serviceNATGW:
@@ -281,6 +283,8 @@ func (p *AWSPublicPlugin) getProjectedForResource(
 	case serviceVPC, serviceSecurityGroup, serviceSubnet, serviceIAM, serviceLaunchTmpl, serviceLaunchConfig,
 		serviceECSTaskDef, serviceECSCluster,
 		serviceEFSMountTarget, serviceEFSAccessPoint,
+		serviceEKSAddon, serviceEKSAccessEntry, serviceEKSAccessPolicyAssociation,
+		serviceEKSPodIdentityAssociation, serviceEKSIdentityProviderConfig, serviceEKSFargateProfile,
 		serviceInternetGateway, serviceRouteTable, serviceRouteTableAssoc, serviceRoute, serviceAddressAssoc:
 		// Zero-cost AWS networking, IAM, and configuration-only resources - no direct charges
 		return p.estimateZeroCostResource(traceID, resource, serviceType), nil

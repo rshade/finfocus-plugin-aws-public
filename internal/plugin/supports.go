@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
@@ -85,7 +86,7 @@ func (p *AWSPublicPlugin) Supports( //nolint:funlen
 	// Check resource type
 	switch serviceType {
 	case serviceEC2, serviceRDS, serviceLambda, serviceS3, serviceEBS,
-		serviceEKS, serviceDynamoDB, serviceElastiCache, serviceASG, serviceEFS:
+		serviceEKS, serviceEKSNodeGroup, serviceDynamoDB, serviceElastiCache, serviceASG, serviceEFS:
 		// These services support cost estimation
 		// EC2 also supports carbon footprint estimation
 		supportedMetrics := getSupportedMetrics(serviceType)
@@ -144,9 +145,13 @@ func (p *AWSPublicPlugin) Supports( //nolint:funlen
 			Int64(pluginsdk.FieldDurationMs, time.Since(start).Milliseconds()).
 			Msg("resource support check")
 
+		reason := fmt.Sprintf("Resource type %q not supported", resource.GetResourceType())
+		if strings.Contains(strings.ToLower(resource.GetResourceType()), "eks/capability") {
+			reason = "EKS Capabilities are billed per capability hour and per managed resource and are not estimated yet"
+		}
 		return &pbc.SupportsResponse{
 			Supported:        false,
-			Reason:           fmt.Sprintf("Resource type %q not supported", resource.GetResourceType()),
+			Reason:           reason,
 			SupportedMetrics: nil,
 		}, nil
 	}
@@ -176,7 +181,7 @@ func getSupportedMetrics(resourceType string) []pbc.MetricKind {
 		// DynamoDB tables: Storage-based carbon (SSD × 3× replication factor)
 		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
 	case serviceEKS:
-		// EKS clusters: Control plane returns 0 (shared infrastructure); worker nodes estimated as EC2
+		// EKS clusters: control plane guidance. Node groups do not estimate carbon yet.
 		return []pbc.MetricKind{pbc.MetricKind_METRIC_KIND_CARBON_FOOTPRINT}
 	case serviceElastiCache:
 		// ElastiCache clusters: EC2-equivalent node carbon × cluster size
