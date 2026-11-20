@@ -62,7 +62,11 @@ Go 1.27+: Follow standard conventions
 
 ### Required gRPC Methods
 
-- **Name()**: Returns plugin name "aws-public"
+- **Name()**: Returns the registry name `aws-public`. Core
+  matches routing rules and `--adapter` against it. Both `Name()` methods,
+  both `PluginInfo.Name` fields, the logger names, and `sourceAWSPublic` use
+  `pluginid.Name` (`internal/pluginid`). Binary names keep the
+  `finfocus-plugin-aws-public` prefix (#502)
 - **Supports(ResourceDescriptor)**: Checks if plugin supports a resource type/region
 - **GetProjectedCost(ResourceDescriptor)**: Returns cost estimate for **one** resource
 - **GetPricingSpec(ResourceDescriptor)** (optional): Returns detailed pricing info

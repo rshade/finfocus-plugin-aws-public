@@ -639,7 +639,12 @@ Returns the plugin identifier.
 rpc Name(NameRequest) returns (NameResponse);
 ```
 
-**Response:** `name: "finfocus-plugin-aws-public"`
+**Response:** `name: "aws-public"`
+
+This is the registry name. The host matches routing rules
+(`routing.plugins[].name`) and `--adapter` against it, so write `aws-public`
+there. Binaries and release assets keep the `finfocus-plugin-aws-public`
+prefix.
 
 ### Supports()
 
@@ -759,7 +764,7 @@ pricing inputs. Omit `resource` and the plugin still reads `resource_id` and
 
 ```json
 {
-  "name": "finfocus-plugin-aws-public",
+  "name": "aws-public",
   "version": "0.0.3",
   "specVersion": "v0.4.11",
   "providers": ["aws"],
