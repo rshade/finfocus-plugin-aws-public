@@ -4884,8 +4884,9 @@ func TestGetProjectedCost_EBS_Metadata(t *testing.T) {
 	assertMetadata(t, resp2, "", true)
 }
 
-// TestGetProjectedCost_S3_Metadata verifies that S3 with no tags returns
-// "medium" quality (size defaulted; storage_class from SKU).
+// TestGetProjectedCost_S3_Metadata verifies that S3 with a SKU and no size
+// records the size as unknown usage (quality low). The storage class came
+// from the SKU, so it is not a default.
 func TestGetProjectedCost_S3_Metadata(t *testing.T) {
 	mock := newMockPricingClient("us-east-1", "USD")
 	logger := zerolog.New(nil).Level(zerolog.Disabled)
@@ -4903,7 +4904,10 @@ func TestGetProjectedCost_S3_Metadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertMetadata(t, resp, "medium", false)
+	assertMetadata(t, resp, "low", false)
+	if !strings.Contains(resp.GetMetadata()["defaults_applied"], "size=0") {
+		t.Errorf("defaults_applied = %q, want size=0", resp.GetMetadata()["defaults_applied"])
+	}
 }
 
 // TestGetProjectedCost_RDS_Metadata verifies that RDS with no tags returns

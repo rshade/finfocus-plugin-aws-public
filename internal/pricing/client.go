@@ -836,8 +836,24 @@ func ec2InstanceVariantRank(attrs map[string]string) (int, bool) {
 	}
 }
 
+// s3StorageClassByVolumeType maps a Price List volumeType to the S3 API
+// storage class estimators look up. Other volume types, including Glacier
+// Deep Archive staging, are not storage rates.
+var s3StorageClassByVolumeType = map[string]string{
+	"Standard":                            "STANDARD",
+	"Standard - Infrequent Access":        "STANDARD_IA",
+	"One Zone - Infrequent Access":        "ONEZONE_IA",
+	"Amazon Glacier":                      "GLACIER",
+	"Glacier Instant Retrieval":           "GLACIER_IR",
+	"Intelligent-Tiering Frequent Access": "INTELLIGENT_TIERING",
+	"Reduced Redundancy":                  "REDUCED_REDUNDANCY",
+	"Express One Zone":                    "EXPRESS_ONEZONE",
+}
+
 // parseS3Pricing parses S3 pricing data.
 // Returns the detected region and any parsing error.
+//
+//nolint:unparam // init uses the error; tests read the region
 func (c *Client) parseS3Pricing(data []byte) (string, error) {
 	var pricing awsPricing
 	if err := json.Unmarshal(data, &pricing); err != nil {
@@ -854,6 +870,7 @@ func (c *Client) parseS3Pricing(data []byte) (string, error) {
 	}
 
 	var region string
+	chosenSKU := make(map[string]string)
 	for sku, prod := range pricing.Products {
 		attrs := prod.Attributes
 
@@ -862,17 +879,22 @@ func (c *Client) parseS3Pricing(data []byte) (string, error) {
 		}
 
 		if prod.ProductFamily == "Storage" {
-			storageClass := attrs["storageClass"]
-			if storageClass == "" {
+			storageClass, ok := s3StorageClassByVolumeType[attrs["volumeType"]]
+			if !ok {
 				continue
 			}
 			rate, unit, found := getOnDemandPrice(&pricing, sku)
-			if found && unit == unitGBMonth {
-				c.s3Index[storageClass] = s3Price{
-					Unit:           unit,
-					RatePerGBMonth: rate,
-					Currency:       currencyUSD,
-				}
+			if !found || unit != unitGBMonth {
+				continue
+			}
+			if prevSKU, seen := chosenSKU[storageClass]; seen && sku >= prevSKU {
+				continue
+			}
+			chosenSKU[storageClass] = sku
+			c.s3Index[storageClass] = s3Price{
+				Unit:           unit,
+				RatePerGBMonth: rate,
+				Currency:       currencyUSD,
 			}
 		}
 	}
@@ -1197,7 +1219,10 @@ func (c *Client) parseDynamoDBPricing(data []byte) (string, error) { //nolint:go
 					}
 				case prod.ProductFamily == "Database Storage":
 					usageType := attrs["usagetype"]
-					if strings.Contains(usageType, "TimedStorage-ByteHrs") && unit == unitGBMonth {
+					// Standard-IA (IA-TimedStorage-ByteHrs, including a region
+					// prefix such as EU-IA-) is a different table class.
+					if strings.Contains(usageType, "TimedStorage-ByteHrs") &&
+						!strings.Contains(usageType, "IA-") && unit == unitGBMonth {
 						c.dynamoDBPricing.StoragePrice = rate
 					}
 				}

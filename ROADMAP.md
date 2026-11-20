@@ -81,6 +81,10 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #493 `pricing`: S3 storage is indexed by API class (`STANDARD` and
+  the rest). DynamoDB storage keeps the Standard table class. A bucket
+  with no size is usage-based instead of a 1 GB default. Other
+  `aws:s3/*` types are not priced as buckets. [M]
 - [x] #492 `plugin`: an ASG with no instance type of its own is priced
   from `ref.launchTemplate.sku` or `ref.launchConfiguration.sku` when
   the referenced type matches. [S]

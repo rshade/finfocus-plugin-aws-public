@@ -490,6 +490,60 @@ func TestParseDynamoDBPricing_ProvisionedCapacity(t *testing.T) {
 	}
 }
 
+// TestParseS3AndDynamoDB_StorageRatesAreStable verifies S3 is indexed by the
+// API storage class and DynamoDB storage keeps the Standard table class.
+func TestParseS3AndDynamoDB_StorageRatesAreStable(t *testing.T) {
+	s3 := buildPriceList(t, "AmazonS3", []fixtureSKU{
+		{sku: "WP9ANXZGBYYSGJEA", family: "Storage", attrs: map[string]string{
+			"volumeType": "Standard", "storageClass": "General Purpose", "regionCode": "us-east-1",
+		}, dims: gbMonth("0.023")},
+		{sku: "379GYJUQ5WFBUYGM", family: "Storage", attrs: map[string]string{
+			"volumeType":   "Standard - Infrequent Access",
+			"storageClass": "Infrequent Access",
+			"regionCode":   "us-east-1",
+		}, dims: gbMonth("0.0125")},
+		{sku: "KRY2B57FKTA8GJW7", family: "Storage", attrs: map[string]string{
+			"volumeType":   "One Zone - Infrequent Access",
+			"storageClass": "Infrequent Access",
+			"regionCode":   "us-east-1",
+		}, dims: gbMonth("0.01")},
+		{sku: "EXB3YJ6YV5CRH4JN", family: "Storage", attrs: map[string]string{
+			"volumeType": "Glacier Deep Archive", "storageClass": "Archive", "regionCode": "us-east-1",
+		}, dims: gbMonth("0.021")},
+	})
+	ddb := buildPriceList(t, "AmazonDynamoDB", []fixtureSKU{
+		{sku: "F3E2EDSYC6ZNW7XP", family: "Database Storage", attrs: map[string]string{
+			"usagetype": "TimedStorage-ByteHrs", "servicecode": "AmazonDynamoDB", "regionCode": "us-east-1",
+		}, dims: gbMonth("0.25")},
+		{sku: "DUA7FNC8NKEMZ7AA", family: "Database Storage", attrs: map[string]string{
+			"usagetype": "IA-TimedStorage-ByteHrs", "servicecode": "AmazonDynamoDB", "regionCode": "us-east-1",
+		}, dims: gbMonth("0.10")},
+	})
+	for range parseRepetitions {
+		c := newParserTestClient()
+		c.s3Index = make(map[string]s3Price)
+		if _, err := c.parseS3Pricing(s3); err != nil {
+			t.Fatal(err)
+		}
+		if got := c.s3Index["STANDARD"].RatePerGBMonth; got != 0.023 {
+			t.Fatalf("STANDARD = %v", got)
+		}
+		if got := c.s3Index["STANDARD_IA"].RatePerGBMonth; got != 0.0125 {
+			t.Fatalf("STANDARD_IA = %v", got)
+		}
+		if _, ok := c.s3Index["DEEP_ARCHIVE"]; ok {
+			t.Fatal("DEEP_ARCHIVE staging rate was indexed")
+		}
+		c.dynamoDBPricing = &dynamoDBPrice{}
+		if _, err := c.parseDynamoDBPricing(ddb); err != nil {
+			t.Fatal(err)
+		}
+		if got := c.dynamoDBPricing.StoragePrice; got != 0.25 {
+			t.Fatalf("DynamoDB storage = %v, want 0.25", got)
+		}
+	}
+}
+
 // ec2Variant builds a Compute Instance SKU with the attributes the EC2 parser
 // reads. Values are copied from the AmazonEC2 us-east-1 offer.
 func ec2Variant(sku, instanceType, os, marketOption, operation, licenseModel, usd string) fixtureSKU {
