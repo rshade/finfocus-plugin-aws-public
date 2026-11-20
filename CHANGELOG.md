@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.3.0](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.5...v0.3.0) (2026-11-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** the Adapter column and the adapter field in finfocus output change from finfocus-plugin-aws-public to aws-public. A routing rule or --adapter value written as finfocus-plugin-aws-public stops matching on core releases that do not accept either name; write aws-public instead.
+
+### Features
+
+* **plugin:** estimate Elastic IP cost from public IPv4 rates ([#478](https://github.com/rshade/finfocus-plugin-aws-public/issues/478)) ([9c8b4e3](https://github.com/rshade/finfocus-plugin-aws-public/commit/9c8b4e3b1da93ff8995ed48c205028ac4a3d477d)), closes [#477](https://github.com/rshade/finfocus-plugin-aws-public/issues/477)
+* **pricing:** stamp responses with the Price List publication date ([#494](https://github.com/rshade/finfocus-plugin-aws-public/issues/494)) ([898463a](https://github.com/rshade/finfocus-plugin-aws-public/commit/898463aca21cc7181bb8094c42c4d318c9b85c80))
+
+
+### Bug Fixes
+
+* **deps:** update go dependencies ([#483](https://github.com/rshade/finfocus-plugin-aws-public/issues/483)) ([2e59f21](https://github.com/rshade/finfocus-plugin-aws-public/commit/2e59f21bc74dfabd71ccb003c669bfbae68bd997))
+* **plugin:** log service_type when GetPricingSpec validation fails ([#495](https://github.com/rshade/finfocus-plugin-aws-public/issues/495)) ([816fd34](https://github.com/rshade/finfocus-plugin-aws-public/commit/816fd3477799130a365149319cc5d1a988c6e720)), closes [#480](https://github.com/rshade/finfocus-plugin-aws-public/issues/480)
+* **plugin:** price an ASG from the referenced launch template ([#500](https://github.com/rshade/finfocus-plugin-aws-public/issues/500)) ([72f642b](https://github.com/rshade/finfocus-plugin-aws-public/commit/72f642b725d8b075989886966ea4727a7f2fc6cc)), closes [#492](https://github.com/rshade/finfocus-plugin-aws-public/issues/492)
+* **plugin:** price free ec2 networking resources at zero ([#476](https://github.com/rshade/finfocus-plugin-aws-public/issues/476)) ([00bf9c5](https://github.com/rshade/finfocus-plugin-aws-public/commit/00bf9c502ececb262583c51c3d1529e896722611)), closes [#475](https://github.com/rshade/finfocus-plugin-aws-public/issues/475)
+* **plugin:** report the registry name aws-public from Name() ([#503](https://github.com/rshade/finfocus-plugin-aws-public/issues/503)) ([8ff09f4](https://github.com/rshade/finfocus-plugin-aws-public/commit/8ff09f4971dbb0cb3e03e9ef72fa2118495a76a2)), closes [#502](https://github.com/rshade/finfocus-plugin-aws-public/issues/502)
+* **plugin:** stop pricing non-cluster EKS types as a control plane ([#499](https://github.com/rshade/finfocus-plugin-aws-public/issues/499)) ([30c0e6b](https://github.com/rshade/finfocus-plugin-aws-public/commit/30c0e6bbeac203ab6e95c020218e66931bffce5e))
+* **pricing:** index S3 by API class and keep DynamoDB Standard storage ([#501](https://github.com/rshade/finfocus-plugin-aws-public/issues/501)) ([421d4b7](https://github.com/rshade/finfocus-plugin-aws-public/commit/421d4b7addd45eed91d8f78313ce5a1182b3c17c)), closes [#493](https://github.com/rshade/finfocus-plugin-aws-public/issues/493)
+* **pricing:** index the On-Demand EC2 SKU when variants collide ([#498](https://github.com/rshade/finfocus-plugin-aws-public/issues/498)) ([ad2b26d](https://github.com/rshade/finfocus-plugin-aws-public/commit/ad2b26d399bb6ebd80eca19bbf5bb3d2ff3f4ee4))
+* **recommendations:** keep recommendation ids stable and honor exclusions ([#496](https://github.com/rshade/finfocus-plugin-aws-public/issues/496)) ([e882b45](https://github.com/rshade/finfocus-plugin-aws-public/commit/e882b4516f25b195896283ee8299131e0cb76739))
+
+
+### Documentation
+
+* link the FinFocus docs at finfocus.dev ([#485](https://github.com/rshade/finfocus-plugin-aws-public/issues/485)) ([45e8882](https://github.com/rshade/finfocus-plugin-aws-public/commit/45e8882c5a694f3b1a8cdea7cdaa0d4db12e745a))
+
 ## [0.2.5](https://github.com/rshade/finfocus-plugin-aws-public/compare/v0.2.4...v0.2.5) (2026-11-04)
 
 
