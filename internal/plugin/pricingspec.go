@@ -810,13 +810,7 @@ func (p *AWSPublicPlugin) zeroCostPricingSpec(
 // asgPricingSpec returns the pricing specification for Auto Scaling Groups.
 // ASGs delegate to EC2 instance pricing; the total cost is the per-instance rate × desired capacity.
 func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.PricingSpec {
-	instanceType := resource.GetSku()
-	if instanceType == "" {
-		instanceType = resolveInstanceType("", pricingTags(resource))
-	}
-	if instanceType == "" {
-		instanceType = instanceTypeFromAttributeStruct(newResourceInputs(resource))
-	}
+	instanceType, instanceFrom := resolveASGInstanceType(resource)
 
 	if instanceType == "" {
 		return &pbc.PricingSpec{
@@ -827,8 +821,9 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 			RatePerUnit:  0,
 			Currency:     currencyUSD,
 			Unit:         unitPerInstanceHour,
-			Description:  "ASG instance type not specified: set 'sku' field or 'instance_type' tag",
-			Source:       sourceAWSPublic,
+			Description: "ASG instance type not specified: no sku, no instance_type tag, " +
+				"and no launch template or launch configuration resolved by the host (ref.launchTemplate.sku)",
+			Source: sourceAWSPublic,
 		}
 	}
 
@@ -851,6 +846,10 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		}
 	}
 
+	description := fmt.Sprintf("ASG cost = %s hourly rate × desired_capacity × 730 hrs/month", instanceType)
+	if instanceFrom != "" {
+		description += " (" + instanceFrom + ")"
+	}
 	return &pbc.PricingSpec{
 		Provider:     resource.GetProvider(),
 		ResourceType: resource.GetResourceType(),
@@ -860,7 +859,7 @@ func (p *AWSPublicPlugin) asgPricingSpec(resource *pbc.ResourceDescriptor) *pbc.
 		RatePerUnit:  hourlyRate,
 		Currency:     currencyUSD,
 		Unit:         unitPerInstanceHour,
-		Description:  fmt.Sprintf("ASG cost = %s hourly rate × desired_capacity × 730 hrs/month", instanceType),
+		Description:  description,
 		Source:       sourceAWSPublic,
 		Assumptions: []string{
 			fmt.Sprintf("Instance type: %s", instanceType),

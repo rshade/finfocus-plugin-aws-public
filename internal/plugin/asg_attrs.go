@@ -12,9 +12,10 @@ const asgLaunchTemplateKey = "launch_template"
 
 // ASGAttributes contains extracted ASG configuration for cost estimation.
 type ASGAttributes struct {
-	InstanceType    string
-	DesiredCapacity int
-	OS              string
+	InstanceType     string
+	InstanceTypeFrom string
+	DesiredCapacity  int
+	OS               string
 }
 
 // ExtractASGAttributes extracts ASG configuration from a ResourceDescriptor.
@@ -41,16 +42,14 @@ func ExtractASGAttributes(resource *pbc.ResourceDescriptor) (ASGAttributes, *Def
 	tags := pricingTags(resource)
 
 	in := newResourceInputs(resource)
-	instanceType := resolveInstanceType(resource.GetSku(), tags)
-	if instanceType == "" {
-		instanceType = instanceTypeFromAttributeStruct(in)
-	}
+	instanceType, instanceFrom := resolveASGInstanceType(resource)
 
 	capacity, capacityDefaulted := resolveDesiredCapacity(tags)
 	mixed := tags["mixed_instances_policy"] != "" ||
 		in.Present("mixedInstancesPolicy", "mixed_instances_policy")
 	if instanceType == "" {
-		detail := "cannot determine instance type for ASG: set 'sku' field or 'instance_type' tag"
+		detail := "cannot determine instance type for ASG: no sku, no instance_type tag, " +
+			"and no launch template or launch configuration resolved by the host (ref.launchTemplate.sku)"
 		if !capacityDefaulted {
 			detail += fmt.Sprintf("; desired capacity %d", capacity)
 		}
@@ -73,10 +72,39 @@ func ExtractASGAttributes(resource *pbc.ResourceDescriptor) (ASGAttributes, *Def
 	}
 
 	return ASGAttributes{
-		InstanceType:    instanceType,
-		DesiredCapacity: capacity,
-		OS:              os,
+		InstanceType:     instanceType,
+		InstanceTypeFrom: instanceFrom,
+		DesiredCapacity:  capacity,
+		OS:               os,
 	}, &dt, nil
+}
+
+// resolveASGInstanceType returns the instance type and, when it came from a
+// host reference, a billing note. Own SKU, tags, and nested structs stay
+// silent. ref.launchTemplate.sku is used only when the referenced type is a
+// launch template, and the same rule applies to a launch configuration.
+func resolveASGInstanceType(resource *pbc.ResourceDescriptor) (string, string) {
+	tags := pricingTags(resource)
+	if v := resolveInstanceType(resource.GetSku(), tags); v != "" {
+		return v, ""
+	}
+	if v := instanceTypeFromAttributeStruct(newResourceInputs(resource)); v != "" {
+		return v, ""
+	}
+	if v := refInstanceType(tags, "launchTemplate", "aws:ec2/launchTemplate:LaunchTemplate"); v != "" {
+		return v, "instance type from launch template"
+	}
+	if v := refInstanceType(tags, "launchConfiguration", "aws:ec2/launchConfiguration:LaunchConfiguration"); v != "" {
+		return v, "instance type from launch configuration"
+	}
+	return "", ""
+}
+
+func refInstanceType(tags map[string]string, prop, wantType string) string {
+	if tags == nil || tags["ref."+prop+".type"] != wantType {
+		return ""
+	}
+	return tags["ref."+prop+".sku"]
 }
 
 // resolveInstanceType resolves the EC2 instance type using priority-based lookup.

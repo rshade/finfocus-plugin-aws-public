@@ -81,6 +81,9 @@ security overhead of cloud credentials.
 
 ### 2026-Q4
 
+- [x] #492 `plugin`: an ASG with no instance type of its own is priced
+  from `ref.launchTemplate.sku` or `ref.launchConfiguration.sku` when
+  the referenced type matches. [S]
 - [x] #491 `plugin`: only `aws:eks/cluster:Cluster` pays the control-plane
   fee. Add-ons and the other free EKS types are $0. A managed node
   group is priced from its instances. Capabilities stay unsupported. [M]
