@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginid"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 	// confidenceMedium is used for Graviton migrations (FR-007).
 	confidenceMedium = 0.7
 	// sourceAWSPublic identifies recommendations from this plugin.
-	sourceAWSPublic = "aws-public"
+	sourceAWSPublic = pluginid.Name
 	// modTypeGenUpgrade is the modification type for generation upgrades.
 	modTypeGenUpgrade = "generation_upgrade"
 	// modTypeGraviton is the modification type for Graviton migrations.

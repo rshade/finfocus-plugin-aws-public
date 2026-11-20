@@ -125,8 +125,8 @@ func TestIntegration_APSoutheast1_Binary(t *testing.T) {
 			t.Fatalf("Name() failed: %v", err)
 		}
 		t.Logf("Plugin name: %s", resp.Name)
-		if resp.Name != "finfocus-plugin-aws-public" {
-			t.Errorf("Expected name 'finfocus-plugin-aws-public', got %q", resp.Name)
+		if resp.Name != "aws-public" {
+			t.Errorf("Expected name 'aws-public', got %q", resp.Name)
 		}
 	})
 

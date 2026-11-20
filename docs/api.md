@@ -30,7 +30,7 @@ Returns the plugin identifier.
 
 ```json
 {
-  "name": "finfocus-plugin-aws-public"
+  "name": "aws-public"
 }
 ```
 
@@ -43,7 +43,7 @@ Returns metadata about the plugin.
 
 ```json
 {
-  "name": "finfocus-plugin-aws-public",
+  "name": "aws-public",
   "version": "0.0.3",
   "spec_version": "v0.4.14",
   "providers": ["aws"],

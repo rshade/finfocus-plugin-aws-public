@@ -25,7 +25,7 @@ func TestPlugin_Name(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	r := NewPlugin("1.0.0", logger, t.TempDir(), true, nil)
 
-	assert.Equal(t, "finfocus-plugin-aws-public", r.Name())
+	assert.Equal(t, "aws-public", r.Name())
 }
 
 // TestPlugin_GetPluginInfo verifies the router returns correct metadata
@@ -37,7 +37,7 @@ func TestPlugin_GetPluginInfo(t *testing.T) {
 	resp, err := r.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
 
 	require.NoError(t, err)
-	assert.Equal(t, "finfocus-plugin-aws-public", resp.GetName())
+	assert.Equal(t, "aws-public", resp.GetName())
 	assert.Equal(t, "1.0.0", resp.GetVersion())
 	assert.Equal(t, pluginsdk.SpecVersion, resp.GetSpecVersion())
 	assert.Equal(t, []string{"aws"}, resp.GetProviders())

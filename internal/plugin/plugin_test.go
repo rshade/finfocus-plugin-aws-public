@@ -298,15 +298,40 @@ func TestNewAWSPublicPlugin(t *testing.T) {
 	}
 }
 
+// TestName verifies the region plugin reports its registry name, aws-public.
+//
+// FinFocus core matches routing rules and --adapter against the name the
+// plugin reports, and the registry installs this plugin as aws-public, so the
+// two must agree (#502). The literal is asserted rather than the shared
+// constant so that changing the constant fails this test.
+//
+// Test workflow:
+//  1. Call Name() on the plugin directly.
+//  2. Call the Name RPC through pluginsdk.NewServer, which is what core calls.
+//  3. Call GetPluginInfo through the same server.
 func TestName(t *testing.T) {
-	mock := newMockPricingClient("us-east-1", "USD")
-	logger := zerolog.New(nil).Level(zerolog.InfoLevel)
-	plugin := NewAWSPublicPlugin("us-east-1", "test-version", mock, logger)
+	const want = "aws-public"
+	plugin := NewAWSPublicPlugin("us-east-1", "test-version",
+		newMockPricingClient("us-east-1", "USD"), zerolog.Nop())
+	if got := plugin.Name(); got != want {
+		t.Errorf("Name() = %q, want %q", got, want)
+	}
 
-	name := plugin.Name()
-	expected := "finfocus-plugin-aws-public"
-	if name != expected {
-		t.Errorf("Expected name %q, got %q", expected, name)
+	server := pluginsdk.NewServer(plugin)
+	nameResp, err := server.Name(context.Background(), &pbc.NameRequest{})
+	if err != nil {
+		t.Fatalf("Name RPC error = %v", err)
+	}
+	if got := nameResp.GetName(); got != want {
+		t.Errorf("Name RPC = %q, want %q", got, want)
+	}
+
+	infoResp, err := server.GetPluginInfo(context.Background(), &pbc.GetPluginInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetPluginInfo RPC error = %v", err)
+	}
+	if got := infoResp.GetName(); got != want {
+		t.Errorf("GetPluginInfo name = %q, want %q", got, want)
 	}
 }
 

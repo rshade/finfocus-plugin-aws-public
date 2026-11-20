@@ -13,6 +13,7 @@ import (
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/plugin"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginid"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 )
@@ -47,7 +48,7 @@ func run() error {
 	}
 
 	// Create logger using SDK utility (outputs JSON to stderr)
-	logger := pluginsdk.NewPluginLogger("aws-public", version, level, nil)
+	logger := pluginsdk.NewPluginLogger(pluginid.Name, version, level, nil)
 
 	// Validate test mode env var at startup (logs warning for invalid values)
 	plugin.ValidateTestModeEnv(logger)
@@ -111,7 +112,7 @@ func run() error {
 		Port:   port, // Use determined port (0 for ephemeral)
 		// PluginInfo enables GetPluginInfo RPC for version negotiation with Core
 		PluginInfo: &pluginsdk.PluginInfo{
-			Name:        "finfocus-plugin-aws-public",
+			Name:        pluginid.Name,
 			Version:     version, // Injected by GoReleaser via -X main.version
 			SpecVersion: pluginsdk.SpecVersion,
 			Providers:   []string{"aws"},
