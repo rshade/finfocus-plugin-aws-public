@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rshade/finfocus-spec/sdk/go/pluginsdk"
 
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginid"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/router"
 )
@@ -41,7 +42,7 @@ func run() error {
 		}
 	}
 
-	logger := pluginsdk.NewPluginLogger("aws-public", version, level, nil)
+	logger := pluginsdk.NewPluginLogger(pluginid.Name, version, level, nil)
 
 	// Determine binary directory from own executable path
 	execPath, err := os.Executable()
@@ -106,7 +107,7 @@ func run() error {
 		Plugin: routerPlugin,
 		Port:   port,
 		PluginInfo: &pluginsdk.PluginInfo{
-			Name:        "finfocus-plugin-aws-public",
+			Name:        pluginid.Name,
 			Version:     version,
 			SpecVersion: pluginsdk.SpecVersion,
 			Providers:   []string{"aws"},

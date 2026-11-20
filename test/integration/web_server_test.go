@@ -4,6 +4,7 @@ package integration
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -132,7 +133,11 @@ func TestWebServer(t *testing.T) {
 	t.Logf("Response Body: %s", string(bodyInfo))
 
 	assert.Equal(t, http.StatusOK, respInfo.StatusCode)
-	assert.Contains(t, string(bodyInfo), "finfocus-plugin-aws-public")
+	var info struct {
+		Name string `json:"name"`
+	}
+	require.NoError(t, json.Unmarshal(bodyInfo, &info))
+	assert.Equal(t, "aws-public", info.Name)
 }
 
 // portBuf copies plugin stdout and reports the PORT= announcement once.

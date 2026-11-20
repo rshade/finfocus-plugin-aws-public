@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/rshade/finfocus-plugin-aws-public/internal/carbon"
+	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginid"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pluginsettings"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/pricing"
 	"github.com/rshade/finfocus-plugin-aws-public/internal/typeregistry"
@@ -284,7 +285,7 @@ func (p *AWSPublicPlugin) traceLogger(traceID string, operation string) *zerolog
 
 // Name returns the plugin name identifier.
 func (p *AWSPublicPlugin) Name() string {
-	return "finfocus-plugin-aws-public"
+	return pluginid.Name
 }
 
 // GetPluginInfo returns the plugin name, version, region, and explicit
